@@ -6,6 +6,7 @@ import h5py
 from matplotlib.colors import LogNorm
 from scipy.signal import find_peaks
 from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import shared_memory
 
 def print_custom_help():
     help_message = """
@@ -24,6 +25,22 @@ def print_custom_help():
     """
     print(help_message)
 
+
+# def get_shape_from_hamming_directory(hamming_dir):
+#     # Number of rows is the number of files
+#     R = len(os.listdir(hamming_dir))
+#     # Number of columns is the number of rows in the first file
+#     with open(os.path.join(hamming_dir, os.listdir(hamming_dir)[0])) as f:
+#         C = sum(1 for _ in f)
+#     return (C, R)
+
+
+def create_shared_memory(filepath, shape, dtype):
+    combined_data = np.memmap(filename=filepath, dtype=dtype, mode='r', shape=shape)
+    shm = shared_memory.SharedMemory(create=True, size=combined_data.nbytes)
+    shared_array = np.ndarray(shape=shape, dtype=dtype, buffer=shm.buf)
+    np.copyto(shared_array, combined_data)  # Load data into shared memory
+    return shm.name, shape, dtype
 
 ##########################################
 #          Fourier 2D - Features         #
@@ -237,8 +254,12 @@ def extract_fft_features(fft_block):
     return features
 
 
-def process_block_2d_stft_decay_features_single_batch(full_signal, row_initial, n, batch_index, t_start_idx_flt, t_end_idx__flt, num_pages, output_data_plot_dirs
-                                                      , is_visualize, page_overlap_percentage, page_decay_rate):
+def process_block_2d_stft_decay_features_single_batch(shm_name, shape, dtype, row_initial, n, batch_index, t_start_idx_flt, t_end_idx__flt, num_pages, output_data_plot_dirs
+                                                      , is_visualize, page_overlap_percentage, page_decay_rate, vis_1=None, vis_2=None):
+    # Access the shared memory
+    shm = shared_memory.SharedMemory(name=shm_name)
+    full_signal = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+
     t_start_idx = int(t_start_idx_flt)
     t_end_idx = int(t_end_idx__flt)
     overlap_pages = int(n * page_overlap_percentage)
@@ -267,8 +288,12 @@ def process_block_2d_stft_decay_features_single_batch(full_signal, row_initial, 
     if is_visualize:
         mid_page = num_pages // 2
         # Randomly select one page from the first half and one from the second half
-        random_page_1st_half = np.random.randint(start, mid_page - n)
-        random_page_2nd_half = np.random.randint(mid_page, num_pages - n)
+        if vis_1 != None and vis_2 != None:
+            random_page_1st_half = vis_1
+            random_page_2nd_half = vis_2
+        else:
+            random_page_1st_half = np.random.randint(start, mid_page - n)
+            random_page_2nd_half = np.random.randint(mid_page, num_pages - n)
 
     for page_idx in range(start, num_pages, n):
         effective_p_start = int(wrap_index(int(page_idx - overlap_pages), num_pages))
@@ -310,15 +335,17 @@ def process_block_2d_stft_decay_features_single_batch(full_signal, row_initial, 
 
         print(f"Processed FFT for block [{t_start_idx}, {t_end_idx}] X [{effective_p_start}, {effective_p_end}]")
     
+    shm.close()  # Close the shared memory after processing
+    
     
 
 
-def process_block_2d_stft_features_overlap_parallel(full_signal, row_initial, n, num_batches, output_data_plot_dirs, 
+def process_block_2d_stft_features_overlap_parallel(shm_name, shape, dtype, row_initial, n, num_batches, output_data_plot_dirs, 
                                                     is_visualize=False, page_overlap_percentage=0.5,
-                                                    page_decay_rate=0.1, batch_overlap_percentage=0.5):
-    num_pages, num_samples = full_signal.shape
+                                                    page_decay_rate=0.1, batch_overlap_percentage=0.5, vis_1=None, vis_2=None):
+    num_pages, num_samples = shape
     batch_size = num_samples // num_batches
-    effective_time_leap = batch_size - batch_overlap_percentage * batch_size
+    effective_time_leap = batch_size - int(batch_overlap_percentage * batch_size)
 
     index_map = []
     t_start_index = 0
@@ -336,9 +363,9 @@ def process_block_2d_stft_features_overlap_parallel(full_signal, row_initial, n,
     with ProcessPoolExecutor(max_workers=num_batches) as executer:
         futures = [
             executer.submit(
-                process_block_2d_stft_decay_features_single_batch, full_signal, row_initial, n, batch_index, t_start_index, t_end_index, 
+                process_block_2d_stft_decay_features_single_batch, shm_name, shape, dtype, row_initial, n, batch_index, t_start_index, t_end_index, 
                 num_pages, output_data_plot_dirs, is_visualize, 
-                page_overlap_percentage, page_decay_rate
+                page_overlap_percentage, page_decay_rate, vis_1, vis_2
             )
             for batch_index, t_start_index, t_end_index in index_map
         ]
@@ -557,8 +584,12 @@ def extract_cepstrum_features(cepstrum_block):
     return features
 
 
-def process_block_2d_cepstrum_decay_features_single_batch(full_signal, row_initial, n, batch_index, t_start_idx_flt, t_end_idx__flt, num_pages, output_data_plot_dirs
-                                                      , is_visualize, page_overlap_percentage, page_decay_rate):
+def process_block_2d_cepstrum_decay_features_single_batch(shm_name, shape, dtype, row_initial, n, batch_index, t_start_idx_flt, t_end_idx__flt, num_pages, output_data_plot_dirs
+                                                      , is_visualize, page_overlap_percentage, page_decay_rate, vis_1=None, vis_2=None):
+    # Access the shared memory
+    shm = shared_memory.SharedMemory(name=shm_name)
+    full_signal = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+
     t_start_idx = int(t_start_idx_flt)
     t_end_idx = int(t_end_idx__flt)
     overlap_pages = int(n * page_overlap_percentage)
@@ -586,9 +617,13 @@ def process_block_2d_cepstrum_decay_features_single_batch(full_signal, row_initi
     # Random selection for visualization
     if is_visualize:
         mid_page = num_pages // 2
-        # Randomly select one page from the first half and one from the second half
-        random_page_1st_half = np.random.randint(start, mid_page - n)
-        random_page_2nd_half = np.random.randint(mid_page, num_pages - n)
+        if vis_1!=None and vis_2!=None:
+            random_page_1st_half=vis_1
+            random_page_2nd_half=vis_2
+        else:
+            # Randomly select one page from the first half and one from the second half
+            random_page_1st_half = np.random.randint(start, mid_page - n)
+            random_page_2nd_half = np.random.randint(mid_page, num_pages - n)
 
     for page_idx in range(start, num_pages, n):
         effective_p_start = int(wrap_index(int(page_idx - overlap_pages), num_pages))
@@ -636,11 +671,13 @@ def process_block_2d_cepstrum_decay_features_single_batch(full_signal, row_initi
 
         print(f"Processed cepstrum for block [{t_start_idx}, {t_end_idx}] X [{effective_p_start}, {effective_p_end}]")
     
+    shm.close()  # Close the shared memory after processing
     
-def process_block_2d_cepstrum_features_overlap_parallel(full_signal, row_initial, n, num_batches, output_data_plot_dirs, 
+    
+def process_block_2d_cepstrum_features_overlap_parallel(shm_name, shape, dtype, row_initial, n, num_batches, output_data_plot_dirs, 
                                                     is_visualize=False, page_overlap_percentage=0.5,
-                                                    page_decay_rate=0.1, batch_overlap_percentage=0.5):
-    num_pages, num_samples = full_signal.shape
+                                                    page_decay_rate=0.1, batch_overlap_percentage=0.5, vis_1=None, vis_2=None):
+    num_pages, num_samples = shape
     batch_size = num_samples // num_batches
     effective_time_leap = batch_size - batch_overlap_percentage * batch_size
 
@@ -657,9 +694,9 @@ def process_block_2d_cepstrum_features_overlap_parallel(full_signal, row_initial
     with ProcessPoolExecutor(max_workers=num_batches) as executer:
         futures = [
             executer.submit(
-                process_block_2d_cepstrum_decay_features_single_batch, full_signal, row_initial, n, batch_index, t_start_index, t_end_index, 
+                process_block_2d_cepstrum_decay_features_single_batch, shm_name, shape, dtype, row_initial, n, batch_index, t_start_index, t_end_index, 
                 num_pages, output_data_plot_dirs, is_visualize, 
-                page_overlap_percentage, page_decay_rate
+                page_overlap_percentage, page_decay_rate, vis_1, vis_2
             )
             for batch_index, t_start_index, t_end_index in index_map
         ]
@@ -739,6 +776,8 @@ def main():
 
     # Directory to save the images
     output_dir_root =  os.path.join(base_dir, args.test_folder)
+    # hamming_folder = os.path.join(output_dir_root, "hamming")
+    # shape = get_shape_from_hamming_directory(hamming_folder)
 
     if args.analysis == 'fft':
         output_dir = os.path.join(output_dir_root, f'FFT_n{args.num_pages}t{args.batches}')
@@ -763,7 +802,15 @@ def main():
     bitmap_path = os.path.join(base_dir, args.test_folder, 'bitmap.txt')
 
     if os.path.exists(combined_data_path) and os.path.exists(filtered_data_path) and os.path.exists(bitmap_path):
-        combined_data = np.load(filtered_data_path)
+        # combined_data = np.load(filtered_data_path)
+        print(f"Loading data from: {combined_data_path}")
+        dtype = np.complex128
+        file_size = os.path.getsize(filtered_data_path)
+        item_size = np.dtype(dtype).itemsize
+        num_columns = len(sorted(os.listdir(os.path.join(base_dir, args.test_folder, 'hamming'))))
+        num_rows = file_size // (item_size * num_columns)
+        shape = (num_rows, num_columns)
+        shm_name, shm_shape, shm_dtype = create_shared_memory(combined_data_path, shape, dtype='complex128')
         print("Loaded pre-combined data.")
     else:
         raise Exception("Combine files first using: wavelet_scattering_features.py --combine")
@@ -781,12 +828,18 @@ def main():
     print(f"row_initial: {row_initial}")
 
     if args.analysis == 'fft':
-        process_block_2d_stft_features_overlap_parallel(full_signal=combined_data, row_initial=row_initial, n=args.num_pages, num_batches=args.batches,
-                                                        output_data_plot_dirs=output_data_plot_dirs, is_visualize=args.visualize)
+        process_block_2d_stft_features_overlap_parallel(shm_name, shm_shape, shm_dtype, row_initial=row_initial, n=args.num_pages, num_batches=args.batches,
+                                                        output_data_plot_dirs=output_data_plot_dirs, is_visualize=args.visualize, vis_1 = 60392, vis_2=336824 )
     elif args.analysis == 'cepstrum':
-        process_block_2d_cepstrum_features_overlap_parallel(full_signal=combined_data, row_initial=row_initial, n=args.num_pages, num_batches=args.batches,
-                                                        output_data_plot_dirs=output_data_plot_dirs, is_visualize=args.visualize)
+        process_block_2d_cepstrum_features_overlap_parallel(shm_name, shm_shape, shm_dtype, row_initial=row_initial, n=args.num_pages, num_batches=args.batches,
+                                                        output_data_plot_dirs=output_data_plot_dirs, is_visualize=args.visualize, vis_1 = 60392, vis_2=336824)
     print('Done')
+
+    # Access the shared memory
+    shm = shared_memory.SharedMemory(name=shm_name)
+    shm.close()
+    shm.unlink()
+    print('Cleared shared memory')   
 
 
 if __name__ == "__main__":

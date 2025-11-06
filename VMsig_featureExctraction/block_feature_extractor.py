@@ -1255,7 +1255,7 @@ def process_wavelet_coeffs_block(coeffs, analysis, num_levels, coeffs2=None, coe
     # Perform each type of analysis as specified
     if 'statistical' in analysis:
         statistical_features = calculate_basic_statistical_features(coeffs, num_levels)
-        print(statistical_features)
+        # print(statistical_features)
         # import time
         # time.sleep(5)
         all_features['statistical'] = statistical_features
@@ -1328,7 +1328,8 @@ def main():
 
     args = parser.parse_args()
     
-    base_dir = r'C:\Users\jeries\Desktop\thesis\results\1'
+    # base_dir = r'C:\Users\jeries\Desktop\thesis\results\1'
+    base_dir = '/Volumes/Extreme SSD/thesis/runs/mixed'
     target_folder = os.path.join(base_dir, args.raw_data_folder, args.analysis_type, 'data')
 
     # if args.single:
