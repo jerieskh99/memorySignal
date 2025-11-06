@@ -1,0 +1,10 @@
+{
+    "vmName": "tester1_ca",
+    "imageDir": "C:\\Users\\jeries\\Desktop\\thesis\\results\\output2",
+    "rustDeltaCalculationProgram": "C:\\Users\\jeries\\Desktop\\delta_rust\\live_delta_calc\\target\\release\\live_delta_calc.exe",
+    "pauseDuration": 1,
+    "longPauseDuration": 30,
+    "resumeDuration": 1,
+    "intervalMinutes": 1,
+    "outputDir": "C:\\Users\\jeries\\Desktop\\thesis\\results\\output2"
+}
