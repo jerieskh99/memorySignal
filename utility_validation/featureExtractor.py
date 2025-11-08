@@ -196,6 +196,65 @@ class FeatureExtractor:
         features['neighborhood_phase'] = self.process_and_save(self.neighborhood_phase_series, self.config['neighborhood_phase_feature_file'])
         return features
     
+    @staticmethod
+    def _extract_neighbors_indices(self, N: int, K: int, mode: str="cyclic") -> np.ndarray:
+        """
+        Return an integer array of shape [N, 2k] with the indices of each block's neighbors,
+        excluding the block itself. Neighbors are symmetric: k on the left, k on the right.
+
+        mode:
+        - "cyclic": wrap around at boundaries (mod N)
+        - "clip":   clamp at edges (duplicates at edges if needed)
+        """
+        if K <= 0:
+            ValueError("k must be positive")
+        offsets = np.array(list(range(-K, 0)) + list(range(1, K + 1))) # [-k,...,-1, 1,...,k]
+        idx = np.arange(N)[:None] + offsets[None:]  # shape [N, 2k]
+        if mode == "cyclic":
+            idx = idx % N
+        elif mode == "clip":
+            idx = np.clip(idx, 0, N-1)
+        else:
+            ValueError(f"Unknown mode: {mode}. Use only \"cyclic\" or \"clip\".")
+        return idx  # shape [N, 2k]
+    
+    @staticmethod
+    def calc_neighbors_mag_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
+        """
+        abs_all:   [N, T]  per-block magnitude time series  (|Δ| for each block over time)
+        neigh_idx: [N, 2k] neighbor indices from build_neighbor_indices()
+
+        returns:
+        neigh_abs_mean: [N, T]  mean |Δ| over neighbors for each block/time
+        """
+        pass
+    
+    @staticmethod
+    def cal_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
+        """
+        phi_all:   [N, T]  per-block phase/orientation time series (in radians)
+        neigh_idx: [N, 2k]
+
+        returns:
+        mu_N:  [N, T]  circular mean of neighbors' phase at each time
+        R_N:   [N, T]  order parameter (alignment strength) of neighbors at each time, in [0,1]
+        """
+        pass
+    
+    def calc_neighbors_features(self, X: np.ndarray, K: int, mode: str="cyclic", phase: bool=True, mag: bool=True):
+        if not mag and not phase:
+            ValueError("At least one of mag or phase must be True")
+
+        # X: np.ndarray  # (T, N)
+        N = X.shape[1]
+        neighbor_indices = self._extract_neighbors_indices(N, K, mode)
+
+        mag_neigh = calc_neighbors_mag_features(X, neighbor_indices) if mag else None     
+        phase_neigh = calc_neighbors_phase_features(X, neighbor_indices) if phase else None
+
+        return mag_neigh, phase_neigh
+
+
 # Example usage (don't include in this module - keep comment)
 # if __name__ == "__main__":
 #     # Dummy data for demonstration
