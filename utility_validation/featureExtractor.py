@@ -101,22 +101,75 @@ class FeatureExtractor:
         ]
         return {"names": names, "values": features}
     
-    def extract_phase_features(self, phase_t):
-        T = len(phase_t)
+    def extract_phase_features(self, phase_t: np.ndarray , epsilon=1e-8, abs_t: np.ndarray | None=None, use_mask = False):
+    
+        T, B = phase_t.shape
+        names = ["phase_cos_mean", "phase_sin_mean", "phase_resultant", "phase_var", "phase_consistency_adjacent"]
 
-        c = np.cos(phase_t).mean(axis=0)
-        s = np.sin(phase_t).mean(axis=0)
-        R = np.sqrt(c**2 + s**2)
+        # -----------------------------
+        #  MASKING AND WEIGHT NORMALIZATION
+        # -----------------------------
+        # Goal:
+        #   Assign a time-weight w_t(b) for each time step t and block b
+        #   to control how much each phase sample contributes to the mean.
+        #
+        # Motivation:
+        #   - When the magnitude |Δ_t| is near zero, the phase φ_t is meaningless (no real change occurred).
+        #     These inactive frames should *not* influence the circular mean.
+        #   - When |Δ_t| > threshold, the frame is "active" — its phase is meaningful and should contribute.
+        #   - To ensure the result is a *true average* (scale-invariant across time),
+        #     the weights for each block are normalized to sum to 1.
+        #
+        # Implementation:
+        #   If use_mask = True and abs_t_for_mask is provided:
+        #       active[t,b] = 1.0 if |Δ_t(b)| > mask_threshold else 0.0
+        #       w[t,b] = active[t,b] / sum_t(active[t,b])
+        #       → Only active frames get weight; inactive ones contribute 0.
+        #         The division makes weights sum to 1 per block, ensuring a proper mean.
+        #
+        #   Else (no mask or no abs_t_for_mask):
+        #       w[t,b] = 1 / T   (uniform weights)
+        #       → Every time frame contributes equally, including inactive ones.
+        #         Used when you want an unconditional average of phase over time.
+        #
+        # Effect:
+        #   - The weighted sums (cosφ * w).sum(axis=0) and (sinφ * w).sum(axis=0)
+        #     become *means* over active frames.
+        #   - This guarantees that the resultant length R = sqrt(c² + s²)
+        #     measures only phase *coherence*, not how many frames were active.
+        if use_mask and abs_t is not None:
+            actives = (abs_t > epsilon).astype(float) # (T,B)
+            weights = actives / (np.sum(actives, axis=0, keepdims=True) + epsilon) # (T,B)
+        else:
+            weights = np.full((T,B), 1.0 / max(T, 1.0)) # (T,B)
+
+        c = (np.cos(phase_t) * weights).sum(axis=0) # (B, )
+        s = (np.sin(phase_t) * weights).sum(axis=0) # (B, )
+        R = np.sqrt(c**2 + s**2) # (B, )
         phase_var = 1 - R
-        consistency_adjacent = np.mean(np.abs(np.diff(phase_t, axis=0)), axis=0) if T>1 else 0.0
 
-        features = np.concatenate((c, s, phase_var, consistency_adjacent))
-        return features
+        # Temporal smoothness via cos of wrapped differences
+        if T > 1:
+            if use_mask and abs_t is not None:
+                # 1) Calculate angle through phase data:
+                diff_angles = np.angle(np.exp(1j * phase_t[1:0][0:-1])) # (T-1,B)
+                # 2) Compute mean absolute difference of these angles:
+                weights = diff_angles.astype(float) / (np.sum(diff_angles, dim=0, keepdims=True)) # (T-1,B)
+            else:
+                weights = np.full((T-1, B), 1.0 / max(T-1, 1.0)) # (T-1,B)
+            
+            consistency_adjacent = np.cos(diff_angles * weights).sum(axis=0) # (B, )
+        else:
+            consistency_adjacent = np.zeros(B)
+    
+        # consistency_adjacent = np.mean(np.abs(np.diff(phase_t, axis=0)), axis=0) if T>1 else 0.0
+
+        features = np.stack([c, s, R, phase_var, consistency_adjacent], axis=1)
+
+        return {"names": names, "values": features}
     
     def extract_mag_neigh_features(self, neigh_mag_t):
         T = len(neigh_mag_t)
-
-
 
     def save_features(self, features, filename):
         np.save(filename, features) 
