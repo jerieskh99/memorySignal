@@ -197,7 +197,7 @@ class FeatureExtractor:
         return features
     
     @staticmethod
-    def _extract_neighbors_indices(self, N: int, K: int, mode: str="cyclic") -> np.ndarray:
+    def _extract_neighbors_indices(N: int, K: int, mode: str="cyclic") -> np.ndarray:
         """
         Return an integer array of shape [N, 2k] with the indices of each block's neighbors,
         excluding the block itself. Neighbors are symmetric: k on the left, k on the right.
@@ -227,7 +227,11 @@ class FeatureExtractor:
         returns:
         neigh_abs_mean: [N, T]  mean |Δ| over neighbors for each block/time
         """
-        pass
+        neighbor_abs = X[neighbor_indices, :]  # shape [N, 2k, T]
+        neigh_abs_mean = np.mean(neighbor_abs, axis=1)  # shape [N, T]
+        neigh_abs_std = np.std(neighbor_abs, axis=1)  # shape [N, T]
+        return neigh_abs_mean, neigh_abs_std
+    
     
     @staticmethod
     def cal_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
@@ -239,7 +243,13 @@ class FeatureExtractor:
         mu_N:  [N, T]  circular mean of neighbors' phase at each time
         R_N:   [N, T]  order parameter (alignment strength) of neighbors at each time, in [0,1]
         """
-        pass
+        neighbor_abs = X[neighbor_indices, :]  # shape [N, 2k, T]
+        neighbor_cos_mean = np.mean(np.cos(neighbor_abs), axis=1)  # shape [N, T]
+        neighbor_sin_mean = np.mean(np.sin(neighbor_abs), axis=1)  # shape [N, T]
+        mu_N = np.arctan2(neighbor_sin_mean, neighbor_cos_mean)  # shape [N, T]
+        R_N = np.sqrt(neighbor_cos_mean**2 + neighbor_sin_mean**2)  # shape [N, T]
+
+        return mu_N, R_N
     
     def calc_neighbors_features(self, X: np.ndarray, K: int, mode: str="cyclic", phase: bool=True, mag: bool=True):
         if not mag and not phase:
