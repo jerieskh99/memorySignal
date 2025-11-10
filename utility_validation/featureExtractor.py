@@ -219,7 +219,56 @@ class FeatureExtractor:
         return idx  # shape [N, 2k]
     
     @staticmethod
-    def calc_neighbors_mag_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
+    def entropy_mag(X: np.ndarray, epsilon=1e-8, axis=1, base=None, keepdims=False) -> np.ndarray:
+        """
+        Compute the entropy of the magnitude profiles along the specified axis.
+        X: np.ndarray
+        epsilon: small constant to avoid log(0)
+        axis: axis along which to compute entropy
+        base: logarithm base (None for natural log) Use base=2 for bits (ln(x) / ln(2) = log2(x))
+        keepdims: whether to keep the reduced dimensions ([N,1,T] instead of [N,T])
+        """
+        S = np.sum(X, axis=axis, keepdims=True) + epsilon # ∑ m over time
+        XlogX = np.where(X>0, X * np.log(X), 0.0) # m * log(m)
+        numenator = XlogX.sum(axis=axis, keepdims=True)  # ∑ m * log(m)
+
+        # H = log(Σ m) - (Σ m log m)/(Σ m)
+        H = np.where(S>0, np.log(S) - numenator / S, 0.0)
+
+        if base is not None:
+            H = H / np.log(base)
+        
+        if not keepdims:
+            H = np.squeeze(H, axis=axis)
+        
+        return H
+    
+    @staticmethod
+    def _extract_neighbors_gini_index(X_neighs: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True) -> np.ndarray:
+        T, K, B = X_neighs.shape
+        gini_indices = np.zeros(B)
+        for j in range(B):
+            sorted_X = np.sort((X_neighs[:, :, j]).ravel())  # Sort over time and neighbors
+            sumBlock = sorted_X.sum() # Sum over time and neighbors
+            if sumBlock <= 0:
+                gini_indices[j] = 0.0
+                continue
+        
+            i = np.arange(1, T + 1, dtype=sorted_X.dtype)
+            gini_indices[j] = ((2 * i - T - 1) @ sorted_X) / (T * sumBlock)
+        return gini_indices # (B, )
+    
+    @staticmethod
+    def _extract_hoyer_sparsity(X_neighs: np.ndarray, l1: np.ndarray, l2: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True) -> np.ndarray:
+        _, K, _ = X_neighs.shape
+        sqrt_K = np.sqrt(K)
+        hoyer_sparsity = (sqrt_K - (l1 / (l2 + epsilon))) / (sqrt_K - 1 + epsilon)
+        return hoyer_sparsity  # (B, )
+
+
+
+    @staticmethod
+    def calc_neighbors_mag_features(X: np.ndarray, neighbor_indices: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True, entropyBase = 2) -> np.ndarray:
         """
         abs_all:   [N, T]  per-block magnitude time series  (|Δ| for each block over time)
         neigh_idx: [N, 2k] neighbor indices from build_neighbor_indices()
@@ -230,11 +279,49 @@ class FeatureExtractor:
         neighbor_abs = X[neighbor_indices, :]  # shape [N, 2k, T]
         neigh_abs_mean = np.mean(neighbor_abs, axis=1)  # shape [N, T]
         neigh_abs_std = np.std(neighbor_abs, axis=1)  # shape [N, T]
-        return neigh_abs_mean, neigh_abs_std
-    
+        neigh_abs_var = np.var(neighbor_abs, axis=1)  # shape [N, T]
+
+        # Energy and RMS:
+        neigh_abs_energy = np.sum(neighbor_abs ** 2, axis=1)  # shape [N, T]
+        neigh_abs_RMS = np.sqrt(neigh_abs_energy / neighbor_abs.shape[1])  # shape [N, T]
+
+        # Norms:
+        neigh_abs_l1 = np.sum(neighbor_abs, axis=1) # shape [N, T]
+        neigh_abs_l2 = np.sqrt(np.sum(neighbor_abs**2, axis=1)) # shape [N, T]
+        neigh_abs_l_inf = np.max(neighbor_abs, axis=1) # shape [N, T]
+
+        # Coeff of variation:
+        neigh_abs_CV = neigh_abs_std / (neigh_abs_mean + epsilon) # shape [N, T]
+
+        # Mean Absolute Deviation (over the neighbors):
+        neigh_abs_MAD = np.mean(np.abs(neighbor_abs - neigh_abs_mean[:, None, :]), axis=1) # shape [N, T]
+
+        # Entroy of magnitude profile (shape) [N, T] 
+        keepdims = False if squeezeExtraDims else True
+        H_m = FeatureExtractor.entropy_mag(neighbor_abs, epsilon=epsilon, axis=1, base=entropyBase, keepdims=keepdims)
+
+        # Gini index over neighbors
+        neigh_abs_gini = FeatureExtractor._extract_neighbors_gini_index(neighbor_abs, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)  # shape [N, T]
+
+        # Hoyer sparsity over neighbors
+        neigh_abs_hoyer = FeatureExtractor._extract_hoyer_sparsity(neighbor_abs, neigh_abs_l1, neigh_abs_l2, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)  # shape [N, T]
+
+        # Peak to Average Ratio (PAR):
+        par = neigh_abs_l_inf / (neigh_abs_mean + epsilon)  # shape [N, T]
+
+        features = np.stack([neigh_abs_mean, neigh_abs_std, neigh_abs_var, neigh_abs_energy, neigh_abs_RMS, neigh_abs_l1, neigh_abs_l2, neigh_abs_l_inf,
+                             neigh_abs_CV, neigh_abs_MAD, H_m, neigh_abs_gini, neigh_abs_hoyer, par], axis=1)
+        
+        names = [
+            "neigh_mag_mean","neigh_mag_std","neigh_mag_var","neigh_mag_energy","neigh_mag_RMS",
+            "neigh_mag_l1","neigh_mag_l2","neigh_mag_linf","neigh_mag_CV","neigh_mag_MAD","neigh_mag_entropy",
+            "neigh_mag_gini", "neigh_abs_hoyer", "neigh_mag_PAR"
+        ]
+
+        return {"names": names, "values": features}
     
     @staticmethod
-    def cal_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
+    def calc_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
         """
         phi_all:   [N, T]  per-block phase/orientation time series (in radians)
         neigh_idx: [N, 2k]
@@ -249,6 +336,8 @@ class FeatureExtractor:
         mu_N = np.arctan2(neighbor_sin_mean, neighbor_cos_mean)  # shape [N, T]
         R_N = np.sqrt(neighbor_cos_mean**2 + neighbor_sin_mean**2)  # shape [N, T]
 
+
+        
         return mu_N, R_N
     
     def calc_neighbors_features(self, X: np.ndarray, K: int, mode: str="cyclic", phase: bool=True, mag: bool=True):
@@ -259,8 +348,8 @@ class FeatureExtractor:
         N = X.shape[1]
         neighbor_indices = self._extract_neighbors_indices(N, K, mode)
 
-        mag_neigh = calc_neighbors_mag_features(X, neighbor_indices) if mag else None     
-        phase_neigh = calc_neighbors_phase_features(X, neighbor_indices) if phase else None
+        mag_neigh = self.calc_neighbors_mag_features(X, neighbor_indices) if mag else None
+        phase_neigh = self.calc_neighbors_phase_features(X, neighbor_indices) if phase else None
 
         return mag_neigh, phase_neigh
 
