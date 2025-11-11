@@ -94,7 +94,7 @@ class FeatureExtractor:
         l1 = np.sum(abs_t)
         l2 = np.sqrt(np.sum(abs_t ** 2))
 
-        features = np.stack([mean_abs, std_abs, max_abs, p99_abs, p90_abs, nnz_rate, sparsity_abs, lag1, burstiness, gini_index, flips, l1, l2], axis=1)
+        features = np.stack([mean_abs, std_abs, max_abs, p99_abs, p90_abs, nnz_rate, sparsity_abs, lag1, burstiness, gini_index, flips, l1, l2], axis=1) # (B, 13)
         names = [
             "mag_mean","mag_std","mag_max","mag_p99","mag_p90",
             "mag_nnz_rate","mag_sparsity","mag_lag1","mag_burstiness","mag_gini", "mag_switch_rate","mag_l1","mag_l2"
@@ -164,7 +164,7 @@ class FeatureExtractor:
     
         # consistency_adjacent = np.mean(np.abs(np.diff(phase_t, axis=0)), axis=0) if T>1 else 0.0
 
-        features = np.stack([c, s, R, phase_var, consistency_adjacent], axis=1)
+        features = np.stack([c, s, R, phase_var, consistency_adjacent], axis=1) # (B, 5)
 
         return {"names": names, "values": features}
     
@@ -310,7 +310,7 @@ class FeatureExtractor:
         par = neigh_abs_l_inf / (neigh_abs_mean + epsilon)  # shape [N, T]
 
         features = np.stack([neigh_abs_mean, neigh_abs_std, neigh_abs_var, neigh_abs_energy, neigh_abs_RMS, neigh_abs_l1, neigh_abs_l2, neigh_abs_l_inf,
-                             neigh_abs_CV, neigh_abs_MAD, H_m, neigh_abs_gini, neigh_abs_hoyer, par], axis=1)
+                             neigh_abs_CV, neigh_abs_MAD, H_m, neigh_abs_gini, neigh_abs_hoyer, par], axis=1) # shape [N, 14, T]
         
         names = [
             "neigh_mag_mean","neigh_mag_std","neigh_mag_var","neigh_mag_energy","neigh_mag_RMS",
@@ -321,7 +321,85 @@ class FeatureExtractor:
         return {"names": names, "values": features}
     
     @staticmethod
-    def calc_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray) -> np.ndarray:
+    def _extract_PPC_PairwiseAlignment(neighbor_abs: np.ndarray, R: np.ndarray, epsilon=1e-8) -> np.ndarray:
+        _, K, T = neighbor_abs.shape
+        ppc = (K * (R ** 2) - 1.0) / (K - 1.0 + epsilon) # shape [N, T]
+
+        return ppc
+    
+    @staticmethod
+    def _extract_second_trigonometric_moments(neighbor_abs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        second_moment = np.mean(np.exp(1j * 2 * neighbor_abs), axis=1) # shape [N, T]
+        ro_2 = np.abs(second_moment) # shape [N, T]
+        mu_2 = np.angle(second_moment) # shape [N, T]
+
+        return second_moment, ro_2, mu_2
+    
+    @staticmethod
+    def _extract_circular_MAD(neighbor_abs: np.ndarray, mu_N: np.ndarray, epsilon=1e-8) -> np.ndarray:
+        """
+        Circular Mean Absolute Deviation (MAD) around mean angle mu_N
+        neighbor_abs: [N, 2k, T]
+        mu_N:         [N, T]
+        returns:
+        circular_MAD: [N, T]
+        """
+        diff = neighbor_abs - mu_N[:, None, :]  # shape [N, 2k, T]
+        wrapped = np.arctan2(np.sin(diff), np.cos(diff))  # shape [N, 2k, T]
+        cMad = np.mean(np.abs(wrapped), axis=1)  # shape [N, T]
+        return cMad
+    
+    @staticmethod
+    def _extract_circular_entropy_fast(theta_neighbors: np.ndarray,
+                          B: int = 36,
+                          eps: float = 1e-12,
+                          base: float | None = None) -> np.ndarray:
+        """
+        Fast circular (binned) entropy H_theta for neighbor phases.
+
+        Parameters
+        ----------
+        theta_neighbors : np.ndarray
+            Phases in radians with shape [N, K, T]
+            N = focal blocks, K = neighbors, T = time steps.
+        B : int
+            Number of angular bins over (-pi, pi]. (e.g., 36 -> 10° bins)
+        eps : float
+            Small constant to avoid log(0) and division by 0.
+        base : float | None
+            Logarithm base. Use 2 for bits, 10 for log10, None for natural log (nats).
+
+        Returns
+        -------
+        H : np.ndarray
+            Entropy per block and time step, shape [N, T].
+        """
+        N, K, T = theta_neighbors.shape
+        H = np.zeros((N, T), dtype = theta_neighbors.dtype)
+
+        # Build B equal-width bins over (-pi, pi]
+        bin_edges = np.linspace(-np.pi, np.pi, B+1, endpoint=True)  # B+1 edges for B bins
+
+        # Loop over blocks and time steps
+        for n in range(N):
+            for t in range(T):
+                phases = theta_neighbors[n, :, t]  # shape [K, ]
+                counts, _ = np.histogram(phases, bins=bin_edges)
+                counts = counts.astype(theta_neighbors.dtype)
+
+                non_zero = counts > 0
+                probabilities = (np.sum(counts[non_zero] * np.log(counts[non_zero] + eps)))/ (K + eps)  # sum of m * log(m)
+                H_curr = np.log(K + eps) - probabilities  # H = log(Σ m) - (Σ m log m)/(Σ m)
+
+                if base is not None:
+                    H_curr = H_curr / np.log(base)
+                
+                H[n, t] = H_curr
+
+        return H
+
+    @staticmethod
+    def calc_neighbors_phase_features(X: np.ndarray, neighbor_indices: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True, entropyBase = 2) -> np.ndarray:
         """
         phi_all:   [N, T]  per-block phase/orientation time series (in radians)
         neigh_idx: [N, 2k]
@@ -331,14 +409,37 @@ class FeatureExtractor:
         R_N:   [N, T]  order parameter (alignment strength) of neighbors at each time, in [0,1]
         """
         neighbor_abs = X[neighbor_indices, :]  # shape [N, 2k, T]
+        N, K, T = neighbor_abs.shape
         neighbor_cos_mean = np.mean(np.cos(neighbor_abs), axis=1)  # shape [N, T]
         neighbor_sin_mean = np.mean(np.sin(neighbor_abs), axis=1)  # shape [N, T]
         mu_N = np.arctan2(neighbor_sin_mean, neighbor_cos_mean)  # shape [N, T]
-        R_N = np.sqrt(neighbor_cos_mean**2 + neighbor_sin_mean**2)  # shape [N, T]
+        R_n = np.sqrt(neighbor_cos_mean**2 + neighbor_sin_mean**2)  # shape [N, T]
+        C_v = 1 - R_n  # shape [N, T]
+        csd = np.sqrt(-2 * np.log(R_n + epsilon))  # shape [N, T]
+        ppc = FeatureExtractor._extract_PPC_PairwiseAlignment(neighbor_abs, R_n, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)
+        m2, ro2, mu2 = FeatureExtractor._extract_second_trigonometric_moments(neighbor_abs, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)
+        circular_skewness = ro2 * np.sin(mu2 - 2*mu_N)  # shape [N, T]
+        kurtoisis = ro2 * np.cos(mu2 - 2*mu_N) - (R_n ** 4) # shape [N, T]
+        rayleigh_statistic = K * R_n ** 2 # shape [N, T]
+        phase_alignment_to_focal_block = np.mean(np.cos(neighbor_abs - X[:None:, :]), axis=1)  # shape [N, T]
 
+        # Circular MAD (robust spread around mean angle):
+        circular_MAD = FeatureExtractor._extract_circular_MAD(neighbor_abs, mu_N, epsilon=epsilon)  # shape [N, T]
 
+        # Circular entropy (binned) 
+        circular_entropy = FeatureExtractor._extract_circular_entropy_fast(neighbor_abs, B=36, eps=epsilon, base=entropyBase)  # shape [N, T]
+
+        features = np.stack([mu_N, R_n, C_v, csd, ppc, m2, ro2, mu2, circular_skewness, kurtoisis, 
+                             rayleigh_statistic, phase_alignment_to_focal_block, circular_MAD, circular_entropy], axis=1) # shape [N, 14, T]
         
-        return mu_N, R_N
+        names = [
+            "neigh_phase_circular_mean","neigh_phase_order_param_R","neigh_phase_circular_variance",
+            "neigh_phase_circular_stddev","neigh_phase_PPC","neigh_phase_2nd_trig_moment","neigh_phase_2nd_trig_moment_Ro",
+            "neigh_phase_2nd_trig_moment_mu", "neigh_phase_circular_skewness","neigh_phase_circular_kurtosis",
+            "neigh_phase_rayleigh_statistic", "neigh_phase_alignment_to_focal", "neigh_phase_circular_MAD", "neigh_phase_circular_entropy"
+        ]
+
+        return {"names": names, "values": features}
     
     def calc_neighbors_features(self, X: np.ndarray, K: int, mode: str="cyclic", phase: bool=True, mag: bool=True):
         if not mag and not phase:
