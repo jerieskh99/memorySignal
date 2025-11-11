@@ -1,6 +1,7 @@
 import numpy as np
 import os
-from randPageSelector import Selector
+# from randPageSelector import Selector
+from utils.randPageSelector import Selector
 
 class OrderInvariance:
     def __init__(self, pathBitmap: str, pathPrev: str, pathCurr: str, numPages: int, calculatedHammingPath: str):

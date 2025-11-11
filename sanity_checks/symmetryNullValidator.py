@@ -1,6 +1,7 @@
 import os
 import numpy as np
-from randPageSelector import Selector
+# from randPageSelector import Selector
+from utils.randPageSelector import Selector
 
 class SymmetryNullValidator:
     def __init__(self, pathBitmap: str, pathPrev: str, pathCurr: str, numPages: int, calculatedHammingPath: str, unitMEMsize: int = 4096):
