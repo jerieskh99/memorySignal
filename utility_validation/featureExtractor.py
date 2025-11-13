@@ -18,28 +18,43 @@ class FeatureExtractor:
         """
         if X.shape[0] < 2:
             return np.zeros(X.shape[1])
-        X0 = X[: -1]
-        X1 = X[1: 0]
-        mu = X.mean(axis=0, keepdims=True)
-        num = ((X0 - mu) * (X1 - mu)).sum(axis=0)
-        den = ((X - mu) ** 2).sum(axis=0) + epsilon
-        return num / den    
+        X0 = X[: -1]  # X_t
+        X1 = X[1:]  # X_{t+1}
+        mu = X.mean(axis=0, keepdims=True) # (1, B)
+        num = ((X0 - mu) * (X1 - mu)).sum(axis=0) # (B, )
+        den = ((X - mu) ** 2).sum(axis=0) + epsilon # (B, )
+        return num / den # (B, )
 
     @staticmethod
     def _extract_percentile(X: np.ndarray, p: int):
-        return np.percentile(X, p, axis=0)
+        return np.percentile(X, p, axis=0) # (B, )
 
+    # @staticmethod
+    # def _extract_burstiness(X: np.ndarray, epsilon=1e-8):
+    #     nzz = np.flatnonzero(X > 0) # Indices of non-zero entries
+    #     if len(nzz) < 2:
+    #         burstiness = 0.0
+    #     else:
+    #         inter_arrival_times = np.diff(nzz) # Differences between consecutive indices
+    #         mean_iat = np.mean(inter_arrival_times) # Mean inter-arrival time
+    #         var_iat = np.var(inter_arrival_times)   # Variance of inter-arrival times
+    #         burstiness = (var_iat / mean_iat + epsilon) / (var_iat / mean_iat + 1 + epsilon)
+    #     return burstiness # (B, )
+    
     @staticmethod
     def _extract_burstiness(X: np.ndarray, epsilon=1e-8):
-        nzz = np.flatnonzero(X > 0)
-        if len(nzz) < 2:
-            burstiness = 0.0
-        else:
-            inter_arrival_times = np.diff(nzz)
-            mean_iat = np.mean(inter_arrival_times)
-            var_iat = np.var(inter_arrival_times)
-            burstiness = (var_iat / mean_iat + epsilon)
-        return burstiness
+        T, B = X.shape
+        out = np.zeros(B, dtype=X.dtype) # (B, ) burstiness per block
+        active_times = X > epsilon # (T, B)
+
+        for b in range(B):
+            indices = np.flatnonzero(active_times[:, b]) # Indices of non-zero entries for block b
+            if indices.size >= 2:
+                inter_arrival_times = np.diff(indices) # Differences between consecutive indices
+                out[b] = inter_arrival_times.var() / (inter_arrival_times.mean() + epsilon) # Burstiness calculation
+            else:
+                out[b] = 0.0
+        return out # (B, )
 
     def _extract_gini_index(self, X: np.ndarray):
         T, B = X.shape
@@ -55,15 +70,24 @@ class FeatureExtractor:
             gini_indices[j] = ((2 * i - T - 1) @ x) / (T * sumBlock)
         return gini_indices
     
+    # def _extract_flips_rate(self, X: np.ndarray):
+    #     T, B = X.shape()
+    #     flips = np.zeros(B)
+    #     nz = X > 0
+
+    #     if T < 2:
+    #         return flips
+
+    #     flips = (nz[1:] != nz[:-1]).mean(axis=0)
+
     def _extract_flips_rate(self, X: np.ndarray):
-        T, B = X.shape()
-        flips = np.zeros(B)
-        nz = X > 0
-
-        if T < 2:
-            return flips
-
-        flips = (nz[1:] != nz[:-1]).mean(axis=0)
+        # X: (T,B) boolean-ish activity → flips per column (B,)
+        T, B = X.shape() 
+        if T < 2: # not enough time steps
+            return np.zeros(B) # (B, )
+        
+        nz = X > self.epsilon # (T, B) boolean
+        return (nz[1:] != nz[:-1]).mean(axis=0) # (B, ) - fraction of time steps with flips
 
     def extract_mag_features(self, abs_t: np.ndarray):
         # Example feature extraction: mean and standard deviation
@@ -79,25 +103,28 @@ class FeatureExtractor:
         nnz_rate = 1.0 - sparsity_abs
 
         # lag-1 autocorrelation
-        lag1 = self._lag1_autocorr(abs_t, Epsilon)
+        lag1 = self._lag1_autocorr(abs_t, Epsilon) # (B, )
 
         # burstiness
-        burstiness = self._extract_burstiness(abs_t)
+        burstiness = self._extract_burstiness(abs_t) # (B, )
 
         # Gini index
-        gini_index = self._extract_gini_index(abs_t)
+        gini_index = self._extract_gini_index(abs_t) # (B, )
 
         # Flips in sign rate over time
-        flips = self._extract_flips_rate(abs_t)
+        flips = self._extract_flips_rate(abs_t) # (B, )
 
         # L1 and L2 norms
-        l1 = np.sum(abs_t)
-        l2 = np.sqrt(np.sum(abs_t ** 2))
+        l1 = np.sum(abs_t, axis=0) # (B, )
+        l2 = np.sqrt(np.sum(abs_t ** 2, axis=0)) # (B, )
 
-        features = np.stack([mean_abs, std_abs, max_abs, p99_abs, p90_abs, nnz_rate, sparsity_abs, lag1, burstiness, gini_index, flips, l1, l2], axis=1) # (B, 13)
+        features = np.stack([mean_abs, std_abs, max_abs, p99_abs, p90_abs, 
+                             nnz_rate, sparsity_abs, lag1, burstiness, gini_index, 
+                             flips, l1, l2], axis=1) # (B, 13)
         names = [
             "mag_mean","mag_std","mag_max","mag_p99","mag_p90",
-            "mag_nnz_rate","mag_sparsity","mag_lag1","mag_burstiness","mag_gini", "mag_switch_rate","mag_l1","mag_l2"
+            "mag_nnz_rate","mag_sparsity","mag_lag1","mag_burstiness","mag_gini", 
+            "mag_switch_rate","mag_l1","mag_l2"
         ]
         return {"names": names, "values": features}
     
@@ -120,7 +147,7 @@ class FeatureExtractor:
         #   - To ensure the result is a *true average* (scale-invariant across time),
         #     the weights for each block are normalized to sum to 1.
         #
-        # Implementation:
+        # Implementation:r4
         #   If use_mask = True and abs_t_for_mask is provided:
         #       active[t,b] = 1.0 if |Δ_t(b)| > mask_threshold else 0.0
         #       w[t,b] = active[t,b] / sum_t(active[t,b])
@@ -152,9 +179,9 @@ class FeatureExtractor:
         if T > 1:
             if use_mask and abs_t is not None:
                 # 1) Calculate angle through phase data:
-                diff_angles = np.angle(np.exp(1j * phase_t[1:0][0:-1])) # (T-1,B)
+                diff_angles = np.angle(np.exp(1j * phase_t[1:][:-1])) # (T-1,B)
                 # 2) Compute mean absolute difference of these angles:
-                weights = diff_angles.astype(float) / (np.sum(diff_angles, dim=0, keepdims=True)) # (T-1,B)
+                weights = diff_angles.astype(float) / (np.sum(diff_angles, axis=0, keepdims=True)) # (T-1,B)
             else:
                 weights = np.full((T-1, B), 1.0 / max(T-1, 1.0)) # (T-1,B)
             
@@ -208,7 +235,7 @@ class FeatureExtractor:
         """
         if K <= 0:
             ValueError("k must be positive")
-        offsets = np.array(list(range(-K, 0)) + list(range(1, K + 1))) # [-k,...,-1, 1,...,k]
+        offsets = np.array(list(range(-K, 0)) + list(range(1, K + 1))) # [-k,...,-1, 1,...,k] # shape [2k, ]
         idx = np.arange(N)[:None] + offsets[None:]  # shape [N, 2k]
         if mode == "cyclic":
             idx = idx % N
@@ -244,26 +271,94 @@ class FeatureExtractor:
         return H
     
     @staticmethod
-    def _extract_neighbors_gini_index(X_neighs: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True) -> np.ndarray:
-        T, K, B = X_neighs.shape
-        gini_indices = np.zeros(B)
-        for j in range(B):
-            sorted_X = np.sort((X_neighs[:, :, j]).ravel())  # Sort over time and neighbors
-            sumBlock = sorted_X.sum() # Sum over time and neighbors
-            if sumBlock <= 0:
-                gini_indices[j] = 0.0
-                continue
+    # def _extract_neighbors_gini_index(X_neighs: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True) -> np.ndarray:
+    #     T, K, B = X_neighs.shape
+    #     gini_indices = np.zeros(B)
+    #     for j in range(B):
+    #         sorted_X = np.sort((X_neighs[:, :, j]).ravel())  # Sort over time and neighbors
+    #         sumBlock = sorted_X.sum() # Sum over time and neighbors
+    #         if sumBlock <= 0:
+    #             gini_indices[j] = 0.0
+    #             continue
         
-            i = np.arange(1, T + 1, dtype=sorted_X.dtype)
-            gini_indices[j] = ((2 * i - T - 1) @ sorted_X) / (T * sumBlock)
-        return gini_indices # (B, )
+    #         i = np.arange(1, T + 1, dtype=sorted_X.dtype)
+    #         gini_indices[j] = ((2 * i - T - 1) @ sorted_X) / (T * sumBlock)
+    #     return gini_indices # (B, )
+
+    def _extract_neighbors_gini_index(X_neighs: np.ndarray) -> np.ndarray:
+        """
+        Compute Gini inequality over neighbor magnitudes for each focal block,
+        returning TWO shape-consistent views:
+
+        Input
+        -----
+        X_neighs : np.ndarray of shape (N, K, T)
+            Neighbor tensor per focal block:
+            - N = number of focal blocks
+            - K = number of neighbors per block
+            - T = number of time steps
+            Each slice X_neighs[n] is the (K, T) matrix of neighbor values for block n.
+
+        Output
+        ------
+        gini_pooled : np.ndarray of shape (N,)
+            ONE scalar per block. For block n, we flatten its neighbor–time matrix
+            X_neighs[n] to length M = K*T, sort it, and apply the standard Gini
+            formula with M (not T!) as the length:
+                G = ((2*i - M - 1) · x_sorted) / (M * sum(x)),  where i = 1..M
+            Use this if you want a single inequality summary per block and do not
+            need time resolution.
+
+        gini_timewise : np.ndarray of shape (N, T)
+            ONE scalar per block per time. For each time t, we compute Gini across
+            the K neighbors (length K), preserving temporal structure:
+                G_t = ((2*i - K - 1) · x_sorted_t) / (K * sum_t), where i = 1..K
+            Use this when you want neighbor inequality as a time series to feed
+            temporal models or to summarize later (e.g., time mean/median).
+
+        Notes on correctness (dimensions)
+        ---------------------------------
+        • DO NOT use T in the pooled formula: pooled length is M = K*T.
+        • For time-wise Gini, the length is K (neighbors) at each time step.
+        • Zeros/empty cases are handled by returning 0.0 where the sum is ≤ 0.
+
+        """
+        N, K, T = X_neighs.shape
+        gini_timewise = np.zeros((N, T), dtype=X_neighs.dtype)  # (N, T)
+        gini_pooled   = np.zeros(N, dtype=float) # (N, )
+
+        i = np.arange(1, K + 1, dtype=float) # (K, ) (neighbors) for time-wise Gini
+
+        for j in range(N):  # for each block
+            x_neighs = X_neighs[N] # (K, T) neighbors for block j
+
+            # ---- time-wise across neighbors → (T,)
+            sorted_X = np.sort((x_neighs), axis=0)  # (K, T), sorted over neighbors per time
+            sumBlock = sorted_X.sum(axis=0) # Sum over neighbors per time (T, )     # (T, )
+            if sumBlock <= 0:
+                gini_timewise[j] = 0.0
+            else:
+                gini_timewise[j] = ((2 * i - K - 1) @ sorted_X) / (K * sumBlock)
+
+            # ---- pooled over neighbors×time → scalar
+            x_flat = x_neighs.ravel()  # (K*T, )
+            s = x_flat.sum()         # scalar
+            if s<=0:
+                gini_pooled[j] = 0.0
+            else:
+                x_flat_sorted = np.sort(x_flat)  # (K*T, )
+                M = x_flat_sorted.size
+                indices_m = np.arange(1, M+1, dtype=float)
+                gini_pooled[j] = ((2 * indices_m - M - 1) @ x_flat_sorted) / (M * s)
+
+        return gini_pooled, gini_timewise  # (N, T)
     
     @staticmethod
     def _extract_hoyer_sparsity(X_neighs: np.ndarray, l1: np.ndarray, l2: np.ndarray, epsilon = 1e-8, squeezeExtraDims = True) -> np.ndarray:
         _, K, _ = X_neighs.shape
         sqrt_K = np.sqrt(K)
         hoyer_sparsity = (sqrt_K - (l1 / (l2 + epsilon))) / (sqrt_K - 1 + epsilon)
-        return hoyer_sparsity  # (B, )
+        return hoyer_sparsity  # (B, ) # shape matcnhes l1, l2 shapes  (e.g., (N,T))
 
 
 
@@ -301,7 +396,7 @@ class FeatureExtractor:
         H_m = FeatureExtractor.entropy_mag(neighbor_abs, epsilon=epsilon, axis=1, base=entropyBase, keepdims=keepdims)
 
         # Gini index over neighbors
-        neigh_abs_gini = FeatureExtractor._extract_neighbors_gini_index(neighbor_abs, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)  # shape [N, T]
+        gini_pooled, gini_timewise = FeatureExtractor._extract_neighbors_gini_index(neighbor_abs)  # shape [N, T]
 
         # Hoyer sparsity over neighbors
         neigh_abs_hoyer = FeatureExtractor._extract_hoyer_sparsity(neighbor_abs, neigh_abs_l1, neigh_abs_l2, epsilon=epsilon, squeezeExtraDims=squeezeExtraDims)  # shape [N, T]
@@ -310,15 +405,22 @@ class FeatureExtractor:
         par = neigh_abs_l_inf / (neigh_abs_mean + epsilon)  # shape [N, T]
 
         features = np.stack([neigh_abs_mean, neigh_abs_std, neigh_abs_var, neigh_abs_energy, neigh_abs_RMS, neigh_abs_l1, neigh_abs_l2, neigh_abs_l_inf,
-                             neigh_abs_CV, neigh_abs_MAD, H_m, neigh_abs_gini, neigh_abs_hoyer, par], axis=1) # shape [N, 14, T]
+                             neigh_abs_CV, neigh_abs_MAD, H_m, gini_pooled, gini_timewise, neigh_abs_hoyer, par], axis=1) # shape [N, 14, T]
         
         names = [
             "neigh_mag_mean","neigh_mag_std","neigh_mag_var","neigh_mag_energy","neigh_mag_RMS",
             "neigh_mag_l1","neigh_mag_l2","neigh_mag_linf","neigh_mag_CV","neigh_mag_MAD","neigh_mag_entropy",
-            "neigh_mag_gini", "neigh_abs_hoyer", "neigh_mag_PAR"
+            "neigh_mag_gini_timewise", "neigh_abs_hoyer", "neigh_mag_PAR"
         ]
 
-        return {"names": names, "values": features}
+        return {
+            "names": names, 
+            "values": features, # (N, 14, T)
+            "pooled": {
+                "names": ["neigh_mag_gini_pooled"],
+                "values": gini_pooled          # (N,)
+            }
+        }
     
     @staticmethod
     def _extract_PPC_PairwiseAlignment(neighbor_abs: np.ndarray, R: np.ndarray, epsilon=1e-8) -> np.ndarray:
@@ -421,7 +523,7 @@ class FeatureExtractor:
         circular_skewness = ro2 * np.sin(mu2 - 2*mu_N)  # shape [N, T]
         kurtoisis = ro2 * np.cos(mu2 - 2*mu_N) - (R_n ** 4) # shape [N, T]
         rayleigh_statistic = K * R_n ** 2 # shape [N, T]
-        phase_alignment_to_focal_block = np.mean(np.cos(neighbor_abs - X[:None:, :]), axis=1)  # shape [N, T]
+        phase_alignment_to_focal_block = np.mean(np.cos(neighbor_abs - X[:, None, :]), axis=1)  # shape [N, T]
 
         # Circular MAD (robust spread around mean angle):
         circular_MAD = FeatureExtractor._extract_circular_MAD(neighbor_abs, mu_N, epsilon=epsilon)  # shape [N, T]
@@ -442,15 +544,17 @@ class FeatureExtractor:
         return {"names": names, "values": features}
     
     def calc_neighbors_features(self, X: np.ndarray, K: int, mode: str="cyclic", phase: bool=True, mag: bool=True):
+        # X: (T, N) → transpose for neighbor fns that expect (N,T)
         if not mag and not phase:
             ValueError("At least one of mag or phase must be True")
 
         # X: np.ndarray  # (T, N)
         N = X.shape[1]
         neighbor_indices = self._extract_neighbors_indices(N, K, mode)
+        X_t = X.T  # (N,T)
 
-        mag_neigh = self.calc_neighbors_mag_features(X, neighbor_indices) if mag else None
-        phase_neigh = self.calc_neighbors_phase_features(X, neighbor_indices) if phase else None
+        mag_neigh = self.calc_neighbors_mag_features(X_t, neighbor_indices) if mag else None
+        phase_neigh = self.calc_neighbors_phase_features(X_t, neighbor_indices) if phase else None
 
         return mag_neigh, phase_neigh
 
