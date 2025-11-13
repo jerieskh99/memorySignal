@@ -1,6 +1,6 @@
 import numpy as np
-from randPageSelector import Selector
-
+# from randPageSelector import Selector
+from utils.randPageSelector import Selector
 
 
 class FlipAccount:

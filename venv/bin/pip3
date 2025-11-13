@@ -1,4 +1,4 @@
-#!/Users/jeries/Desktop/projects/thesis/correctness_validation/venv/bin/python
+#!/Users/jeries/Desktop/projects/thesis/memorySignal/correctness_validation/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
