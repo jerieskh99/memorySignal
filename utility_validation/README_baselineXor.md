@@ -1,6 +1,4 @@
-Here you go — a clean, ready-to-paste `README.md` section explaining **exactly** how to use the refactored Baseline XOR + 1-NN pipeline.
 
----
 
 # Baseline XOR + 1-NN Usage Guide
 
