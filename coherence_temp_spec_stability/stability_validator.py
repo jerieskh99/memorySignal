@@ -36,7 +36,22 @@ class StabilityValidator:
             window_step: Window hop size for MSC calculations.
             eps: Small constant shared by coherence-related modules.
         """
-        pass
+        self.pathBitmap = pathBitmap
+        self.numPages = numPages
+
+        self.window_size = window_size
+        self.window_step = window_step
+        self.eps = eps
+
+        self.selector = Selector(pathBitmap, numPages)
+
+        self.plv_helper = PLVStability()
+        self.msc_helper = MagnitudeSquaredCoherence(
+            window_size=window_size,
+            window_step=window_step,
+            eps=eps,
+        )
+        self.cepstrum_helper = CepstrumStability(eps=eps)
 
     # -------- PLV (baseline + per-run) --------
 
@@ -50,7 +65,11 @@ class StabilityValidator:
         Returns:
             baseline_plv: Real array [N].
         """
-        pass
+        if clean_time_series.ndim != 2:
+            raise ValueError("Expected 2D [T_clean, N] clean_time_series")
+        
+        self.plv_helper.fit_baseline(clean_time_series)
+        return self.plv_helper.get_baseline_plv()
 
     def compute_plv_features(
         self,
@@ -72,7 +91,26 @@ class StabilityValidator:
         Returns:
             Dictionary as returned by PLVStability.evaluate_run().
         """
-        pass
+        if self.plv_helper.get_baseline_plv() is None:
+            raise RuntimeError("PLV baseline not set. Call fit_plv_baseline() first.")
+        
+        if run_time_series.ndim != 2:
+            raise ValueError("Expected 2D [T_run, N] run_time_series")
+        
+        baseline = self.plv_helper.get_baseline_plv()
+        if baseline.shape[0] != run_time_series.shape[1]:
+            raise ValueError(
+                f"Baseline PLV has N={baseline.shape[0]} pages but run has N={run_time_series.shape[1]}"
+            )
+
+        plv_features = self.plv_helper.evaluate_run(
+            run_time_series,
+            drop_threshold=drop_threshold,
+            normal_threshold=normal_threshold,
+            perfect_threshold=perfect_threshold,
+        )
+
+        return plv_features 
 
     # -------- Magnitude-Squared Coherence --------
 
@@ -89,7 +127,23 @@ class StabilityValidator:
               - 'msc_peak_snr_db_per_page': [N]
               - 'msc_peak_snr_db_median': float
         """
-        pass
+        if run_time_series.ndim != 2:
+            raise ValueError("Expected 2D [T_run, N] run_time_series")
+        
+        if run_time_series.shape[1] != self.numPages:
+            raise ValueError(
+                f"Expected run_time_series with N={self.numPages} pages, got N={run_time_series.shape[1]}"
+            )
+        
+        msc_spectrum = self.msc_helper.compute_msc(run_time_series)  # shape (F, N)
+        peak_snr_db = self.msc_helper.compute_peak_snr(msc_spectrum)  # shape (N,)
+        peak_snr_db_median = float(np.median(peak_snr_db))
+
+        return {
+            'msc_spectrum': msc_spectrum,
+            'msc_peak_snr_db_per_page': peak_snr_db,
+            'msc_peak_snr_db_median': peak_snr_db_median,
+        }
 
     # -------- Cepstrum & Cepstral Peak --------
 
@@ -106,7 +160,18 @@ class StabilityValidator:
               - 'cepstral_peak_idx_per_page': [N]
               - 'cepstral_peak_idx_median': float
         """
-        pass
+        if run_time_series.ndim != 2:
+            raise ValueError("Expected 2D [T_run, N] run_time_series")
+        
+        cepstrum = self.cepstrum_helper.compute_cepstrum(run_time_series)
+        cepstral_peak_idx = self.cepstrum_helper.compute_cepstral_peak(cepstrum)
+        cepstral_peak_idx_median = float(np.median(cepstral_peak_idx))
+
+        return {
+            'cepstrum': cepstrum,
+            'cepstral_peak_idx_per_page': cepstral_peak_idx,
+            'cepstral_peak_idx_median': cepstral_peak_idx_median,
+        }
 
     # -------- Combined interface --------
 
@@ -124,4 +189,14 @@ class StabilityValidator:
               - 'cepstrum'         : dict (cepstrum features)
               - Optional derived summary statistics per run.
         """
-        pass
+        plv_features = self.compute_plv_features(run_time_series)
+        msc_features = self.compute_msc_features(run_time_series)
+        cepstrum_features = self.compute_cepstrum_features(run_time_series)
+
+        combined_features = {
+            'plv': plv_features,
+            'msc': msc_features,
+            'cepstrum': cepstrum_features,
+        }
+
+        return combined_features
