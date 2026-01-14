@@ -1,12 +1,12 @@
 import argparse, os, time, tempfile, shutil, random
 
-def small_file_metadata_storm(path, base, payload, T, filesInBatch, loadBytes, keep):
+def small_file_metadata_storm(path, base, payload, T, filesInBatch, keep):
     print(f"dir = {base}")
     batch = 0
     t_end = time.time() + T
 
     try:
-        while time.time() < T:
+        while time.time() < t_end:
             batch_files = []
             for _ in range(filesInBatch):
                 f_path = os.path.join(base, f"f_{batch}_{i}_{random.random(1<<30)}.bin")
@@ -38,7 +38,7 @@ def main():
     args = parser.parse_args()
 
     random.seed(args.seed)
-    payload = os.urandom(args.files_per_batch)
+    payload = os.urandom(args.payload_bytes)
     base = tempfile.mkdtemp(prefix="io_many_")
 
 
