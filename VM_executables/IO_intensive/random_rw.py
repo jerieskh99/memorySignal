@@ -31,18 +31,18 @@ def read_write_random(T: int, path: str, wRatio: float, blockSizeKB: int, fileSi
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, default=120, help="Run duration")
-    parser.add_argument("--fileMB", type=int, default=4096, help="Size of file to allocate before random rw in MB")
-    parser.add_argument("--blockKB", type=int, default=1, help="I/O block size in KB")
-    parser.add_argument("--writeRatio", type=float, default=0.5, help="0..1 probability of write")  
+    parser.add_argument("--file-kb", type=int, default=4096, help="Size of file to allocate before random rw in MB")
+    parser.add_argument("--block-kb", type=int, default=1, help="I/O block size in KB")
+    parser.add_argument("--write-ratio", type=float, default=0.5, help="0..1 probability of write")  
     parser.add_argument("--path", type=str, default="io_rand.bin")
     parser.add_argument("--seed", type=int, default=123)
-    parser.add_help("Example Command: python3 sequential_write.py --seconds 120 --chunk_kb 4096 --fsync_every 1")
+    parser.add_help("Example Command: python3 random_rw.py --seconds 120 --file-mb 2048 --block-kb 64 --write-ratio 0.5")
     args = parser.parse_args()
 
     random.seed(args.seed)
     preallocate_file(args.path, args.fileMB)
 
-    read_write_random(args.seconds, args.path, args.writeRatio, args.blockKB, args.fileMB)
+    read_write_random(args.seconds, args.path, args.write_ratio, args.block_kb, args.file_mb)
 
 
 

@@ -41,10 +41,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, default=120, help="Run duration")
     parser.add_argument("--objects", type=int, default=2000, help="Objects per batch")
-    parser.add_argument("--objectKb", type=int, default=256, help="Object size in KB")
-    parser.add_argument("--sleepMs", type=int, default=50, help="sleep duration between batches in mSec")
+    parser.add_argument("--object-kb", type=int, default=256, help="Object size in KB")
+    parser.add_argument("--sleep-ms", type=int, default=50, help="sleep duration between batches in mSec")
     parser.add_argument("--gc", action ="store_true", help="Enable Python GC (default false)")
-    parser.add_argument("--pageSize", type=int, default=None, help="Overrides the OS defined page size")
+    parser.add_argument("--page-size", type=int, default=None, help="Overrides the OS defined page size")
     parser.add_help("Example Command: python3 controlled_allocator.py --seconds 120 --objs 3000 --obj_kb 256 --sleep_ms 20")
     args = parser.parse_args()
 
@@ -53,13 +53,13 @@ def main():
     else:
         gc.disable
 
-    obj_size = 1024 * args.objectKb
-    page_size = args.pageSize
+    obj_size = 1024 * args.object_kb
+    page_size = args.page_size
 
     if not page_size:
         page_size = get_page_size()
 
-    run_allocator(obj_size, args.seconds, args.objects, args.sleepMs, page_size)
+    run_allocator(obj_size, args.seconds, args.objects, args.sleep_ms, page_size)
 
 
 

@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=int, default=120, help="Run duration")
     parser.add_argument("--kb", type=int, default=4096, help="Size of chunk in KB")
-    parser.add_argument("--fsyncWait", type=int, default=1, help="Call fsync after k chunks")
+    parser.add_argument("--fsync-wait", type=int, default=1, help="Call fsync after k chunks")
     parser.add_argument("--path", type=str, default="io_seq.bin", help="Output file")
     parser.add_help("Example Command: python3 sequential_write.py --seconds 120 --chunk_kb 4096 --fsync_every 1")
     
@@ -29,7 +29,7 @@ def main():
     chunk_size = args.kb * 1024
     data = os.urandom(chunk_size)
 
-    disk_force_allocate(data, args.fsyncWait, args.path, args.seconds)
+    disk_force_allocate(data, args.fsync_wait, args.path, args.seconds)
 
 
 
