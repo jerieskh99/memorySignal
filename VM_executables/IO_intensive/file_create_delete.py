@@ -1,6 +1,6 @@
 import argparse, os, time, tempfile, shutil, random
 
-def small_file_metadata_storm(path, base, payload, T, filesInBatch, keep):
+def small_file_metadata_storm(base, payload, T, filesInBatch, keep):
     print(f"dir = {base}")
     batch = 0
     t_end = time.time() + T
@@ -8,7 +8,7 @@ def small_file_metadata_storm(path, base, payload, T, filesInBatch, keep):
     try:
         while time.time() < t_end:
             batch_files = []
-            for _ in range(filesInBatch):
+            for i in range(filesInBatch):
                 f_path = os.path.join(base, f"f_{batch}_{i}_{random.random(1<<30)}.bin")
                 with open(f_path, "wb") as f:
                     f.write(payload)
@@ -31,7 +31,6 @@ def main():
     parser.add_argument("--files-per-batch", type=int, default=500)
     parser.add_argument("--payload-bytes", type=int, default=1024)
     parser.add_argument("--keep", action="store_true", help="Keep files (default deletes)")
-    parser.add_argument("--path", type=str, default="io_seq.bin", help="Output file")
     parser.add_argument("--seed", type=int, default=123)
     parser.add_help("Example Command: python3 file_create_delete.py --seconds 120 --files-per-batch 800 --payload-bytes 1024")
     
@@ -43,7 +42,7 @@ def main():
 
 
 
-    small_file_metadata_storm(args.path, base, payload, args.seconds, 
+    small_file_metadata_storm(base, payload, args.seconds, 
                               args.files_per_batch, args.payload_bytes, args.keep)
 
 
