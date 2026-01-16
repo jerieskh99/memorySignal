@@ -2,39 +2,44 @@ import argparse, time, gc, os
 import numpy as np
 
 
-def get_page_size() -> int:
+def get_page_size():
     try:
         return os.sysconf("SC_PAGE_SIZE")
     except:
         return 4096
 
 
-def touch_page(buf: bytearray, page_size: int):
+def touch_page(buf: bytearray, page_size: int, val: int):
     n = len(buf)
-    for b in range(0, n, page_size):
-        buf[b] = (buf[b] + 1) & 0xFF
+    for off in range(0, n, page_size):
+        buf[off] = (buf[off] + val) & 0xFF
 
 
-def run_allocator(s_obj: int, T: int, n_obj: int, tau: int, page_size: int):
+def run_allocator(obj_bytes: int, T: int, n_obj: int, sleep_ms: int, page_size: int):
     batches = 0
     t_end = time.time() + T
+    checksum = 0
+    v = 1
 
     while time.time() < t_end:
-        buffer = []
+        buffers = []
         for _ in range(n_obj):
-            curr_obj = bytearray(s_obj)
-            touch_page(curr_obj, page_size)
+            curr_obj = bytearray(obj_bytes)
+            touch_page(curr_obj, page_size, v)
             checksum ^= curr_obj[0]
-            buffer.append(curr_obj)
+            buffers.append(curr_obj)
         
-        buffer = None
-        batches += 0
+        buffers.clear()
+        del buffers
+
+        batches += 1
+        v = (v+1) & 0xFF
 
         if batches % 10 == 0:
-            print (f"Batches = {batches}")
+            print(f"batches={batches} checksum={checksum}")
 
-        if tau > 0:
-            time.sleep(tau / 1000.0)
+        if sleep_ms > 0:
+            time.sleep(sleep_ms / 1000.0)
 
 
 def main():
@@ -45,21 +50,16 @@ def main():
     parser.add_argument("--sleep-ms", type=int, default=50, help="sleep duration between batches in mSec")
     parser.add_argument("--gc", action ="store_true", help="Enable Python GC (default false)")
     parser.add_argument("--page-size", type=int, default=None, help="Overrides the OS defined page size")
-    parser.add_help("Example Command: python3 controlled_allocator.py --seconds 120 --objs 3000 --obj_kb 256 --sleep_ms 20")
     args = parser.parse_args()
 
     if args.gc:
         gc.enable()
     else:
-        gc.disable
+        gc.disable()
 
-    obj_size = 1024 * args.object_kb
-    page_size = args.page_size
+    page_size = args.page_size or get_page_size()
 
-    if not page_size:
-        page_size = get_page_size()
-
-    run_allocator(obj_size, args.seconds, args.objects, args.sleep_ms, page_size)
+    run_allocator(1024 * args.object_kb, args.seconds, args.objects, args.sleep_ms, page_size)
 
 
 

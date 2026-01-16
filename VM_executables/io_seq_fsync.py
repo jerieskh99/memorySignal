@@ -22,7 +22,6 @@ def main():
     parser.add_argument("--kb", type=int, default=4096, help="Size of chunk in KB")
     parser.add_argument("--fsync-wait", type=int, default=1, help="Call fsync after k chunks")
     parser.add_argument("--path", type=str, default="io_seq.bin", help="Output file")
-    parser.add_help("Example Command: python3 sequential_write.py --seconds 120 --chunk_kb 4096 --fsync_every 1")
     
     args = parser.parse_args()
 
