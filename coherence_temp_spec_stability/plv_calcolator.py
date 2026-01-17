@@ -29,7 +29,7 @@ class PLVStability:
         return self.baseline_plv
 
     # --------- 2) EVALUATION PHASE ---------
-    def evaluate_run(self, curr_time_series: np.ndarray, drop_threshold = -0.2, normal_threshold = 0.7, perfect_threshold = 1.00):
+    def evaluate_run(self, curr_time_series: np.ndarray, drop_threshold = 0.2, normal_threshold = 0.7, perfect_threshold = 1.00):
         if self.baseline_plv is None:
             raise RuntimeError("Call fit_baseline() first with clean data to set baseline PLV.")
         
@@ -51,12 +51,12 @@ class PLVStability:
         median_drop = float(np.median(delta_plv))             # typically <= 0 if things got worse
 
         # global anomaly flag based on median drop
-        is_anomaly = median_drop <= drop_threshold
+        is_anomaly = median_drop <= -drop_threshold
 
         # --- per-page statuses (informative labels) ---
         statuses = []
         for p, d in zip(current_plv, delta_plv):
-            if d <= drop_threshold: # recently flipped...
+            if d <= -drop_threshold: # recently flipped...
                 status = "anomalous_drop"     # lost too much stability vs baseline
             elif p < 0.4:
                 status = "very_weak_stability"

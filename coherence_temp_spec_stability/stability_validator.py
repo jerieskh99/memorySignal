@@ -21,13 +21,12 @@ class StabilityValidator:
         self,
         numPages: int,
         *,
-        window_size: int = 128,
-        window_step: int = 64,
+        window_size: int = 32,
+        window_step: int = 16,
         eps: float = 1e-10,
     ):
         """
         Args:
-            pathBitmap: Path to bitmap used by Selector to filter active pages.
             numPages: Total number of pages (before bitmap filtering).
             window_size: Window length for MSC calculations.
             window_step: Window hop size for MSC calculations.
@@ -139,7 +138,7 @@ class StabilityValidator:
         print("\n------------------------------------------------")
         print(f"Computing MSC features for run with shape: {run_time_series.shape}\n")
         
-        msc_spectrum = self.msc_helper.compute_msc(run_time_series)  # shape (F, N)
+        msc_spectrum = self.msc_helper.compute_msc_streamlined(run_time_series)  # shape (F, N)
         print(f"MSC spectrum computed with shape: {msc_spectrum.shape}")
 
         peak_snr_db = self.msc_helper.compute_peak_snr(msc_spectrum)  # shape (N,)
@@ -196,16 +195,9 @@ class StabilityValidator:
         }
 
 
+    @staticmethod
     def save_features_to_file(features: dict, filename: str = "run_features.npy"):
-        """
-        Save computed features dictionary to a .npy file.
-
-        Args:
-            features: Dictionary of features to save.
-            filename: Output filename.
-        """
-        np.save(filename, features)
-        print(f"Features saved to {filename}")
+        np.save(filename, features, allow_pickle=True)
 
 
     # -------- Combined interface --------
@@ -224,10 +216,19 @@ class StabilityValidator:
               - 'cepstrum'         : dict (cepstrum features)
               - Optional derived summary statistics per run.
         """
+        print("\n================================================")
+        print(f"Computing all stability features for run with shape: {run_time_series.shape}\n")
+        print("Starting PLV feature computation...")
         plv_features = self.compute_plv_features(run_time_series)
+        print("PLV features computed.\n")
+        print("Starting MSC feature computation...")
         msc_features = self.compute_msc_features(run_time_series)
+        print("MSC features computed.\n")
+        print("Starting cepstrum feature computation...")
         cepstrum_features = self.compute_cepstrum_features(run_time_series)
-
+        print("Cepstrum features computed.\n")
+        print("All stability features computed.")
+        print("================================================\n")
         combined_features = {
             'plv': plv_features,
             'msc': msc_features,
@@ -249,11 +250,17 @@ def main():
 
     sv = StabilityValidator(numPages=num_pages_data, window_size=32, window_step=16)
 
+    print("Fitting PLV baseline...")
     sv.fit_plv_baseline(data) # Fit baseline on the same data for demonstration
+    print("PLV baseline fitted.")
+
 
     plv_features = sv.compute_all_features(data)
 
-    sv.save_features_to_file(plv_features, filename="run_features.npy")
+    print("Saving features to file...")
+    StabilityValidator.save_features_to_file(plv_features, filename="stability_features.npy")
+    print("================================================\n")
+    print("DONE.")
 
 
 if __name__ == "__main__":

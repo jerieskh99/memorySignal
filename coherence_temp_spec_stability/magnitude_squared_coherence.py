@@ -26,6 +26,56 @@ class MagnitudeSquaredCoherence:
         self.window_step = window_step
         self.epsilon = eps
 
+
+    def generate_window_slices(self, T, L, S):
+        start = 0
+        while (start + L + S)<= (T):
+            yield (start, start + L),(start + S, start + S + L)
+            start += S
+
+
+    def compute_msc_streamlined(self, time_series: np.ndarray) -> np.ndarray:
+        if time_series.ndim != 2:
+            raise ValueError("Expected 2D [T, N] time_series")
+        
+        if np.iscomplexobj(time_series):
+            mags = np.abs(time_series) # shape (T, N)
+        else:
+            mags = time_series # shape (T, N)
+
+        sum_coherence = 0
+        count = 0
+        
+        for (s0, e0), (s1, e1) in self.generate_window_slices(mags.shape[0], self.window_size, self.window_step):
+            win_x = mags[s0:e0, :]
+            win_y = mags[s1:e1, :]
+
+            # compute msc between win_x and win_y
+            fft_x = np.fft.rfft(win_x, axis=0)
+            fft_y = np.fft.rfft(win_y, axis=0)
+            power_spectra_x = np.abs(fft_x) ** 2
+            power_spectra_y = np.abs(fft_y) ** 2
+
+            cross_spectra = fft_x * np.conj(fft_y)
+            numerator = np.abs(cross_spectra) ** 2
+            denominator = power_spectra_x * power_spectra_y + self.epsilon
+
+            coherence = numerator / denominator
+
+            sum_coherence += coherence
+            count += 1
+        
+        if count == 0:
+            raise ValueError("Not enough windows to compute MSC; increase time-series length or decrease window size/step.")
+        
+        msc_mean = sum_coherence / count  # shape (F, N)
+        return msc_mean
+       
+
+        
+
+
+
     def slice_windows(self, time_series: np.ndarray) -> np.ndarray:
         """
         Slice a time-series into overlapping windows along the time axis.
