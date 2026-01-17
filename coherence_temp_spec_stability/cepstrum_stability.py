@@ -29,6 +29,10 @@ class CepstrumStability:
             cepstrum: Real array [Q, N],
                       Q = number of quefrency bins (typically T).
         """
+        # Added because cepstrum accept real inputs
+        if np.iscomplexobj(time_series):
+            time_series = np.abs(time_series)
+
         fft = np.fft.rfft(time_series, axis=0)
         log_mag = np.log(np.abs(fft) + self.epsilon)
         cepstrum = np.fft.irfft(log_mag, axis=0)

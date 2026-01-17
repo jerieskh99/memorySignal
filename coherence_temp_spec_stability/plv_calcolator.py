@@ -2,7 +2,7 @@ import numpy as np
 
 class PLVStability:
     def __init__(self, baseline_plv: np.ndarray = None, epsilon = 0.01):
-        self.baseline_plv = None
+        self.baseline_plv = baseline_plv
         self.epsilon = epsilon
     
     @staticmethod
@@ -56,7 +56,7 @@ class PLVStability:
         # --- per-page statuses (informative labels) ---
         statuses = []
         for p, d in zip(current_plv, delta_plv):
-            if d <= -drop_threshold:
+            if d <= drop_threshold: # recently flipped...
                 status = "anomalous_drop"     # lost too much stability vs baseline
             elif p < 0.4:
                 status = "very_weak_stability"

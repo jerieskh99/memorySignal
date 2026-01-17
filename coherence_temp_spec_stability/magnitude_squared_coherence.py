@@ -120,7 +120,8 @@ class MagnitudeSquaredCoherence:
         for w in range(W - 1):
             pair_wise_msc[w] = self.compute_pair_msc(windows[w], windows[w+1])
         
-        msc_mean = np.mean(np.stack(pair_wise_msc, axis=0), axis=0)
+        # msc_mean = np.mean(np.stack(pair_wise_msc, axis=0), axis=0)
+        msc_mean = np.mean(pair_wise_msc, axis=0)  # shape (F, N)
 
         return msc_mean
 

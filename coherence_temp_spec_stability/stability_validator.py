@@ -1,9 +1,7 @@
-# coherence_temp_spec_stability/stability_validator.py
 import numpy as np
-from utils.randPageSelector import Selector
-from coherence_temp_spec_stability.plv_calcolator import PLVStability
-from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence
-from coherence_temp_spec_stability.cepstrum_stability import CepstrumStability
+from plv_calcolator import PLVStability
+from magnitude_squared_coherence import MagnitudeSquaredCoherence
+from cepstrum_stability import CepstrumStability
 
 
 class StabilityValidator:
@@ -21,7 +19,6 @@ class StabilityValidator:
 
     def __init__(
         self,
-        pathBitmap: str,
         numPages: int,
         *,
         window_size: int = 128,
@@ -36,22 +33,26 @@ class StabilityValidator:
             window_step: Window hop size for MSC calculations.
             eps: Small constant shared by coherence-related modules.
         """
-        self.pathBitmap = pathBitmap
         self.numPages = numPages
 
         self.window_size = window_size
         self.window_step = window_step
         self.eps = eps
-
-        self.selector = Selector(pathBitmap, numPages)
-
+        print("Modules initialized:")
+        
         self.plv_helper = PLVStability()
+        print(f" - {self.plv_helper.__class__.__name__}")
+
         self.msc_helper = MagnitudeSquaredCoherence(
             window_size=window_size,
             window_step=window_step,
             eps=eps,
         )
+        print(f" - {self.msc_helper.__class__.__name__}")
+
         self.cepstrum_helper = CepstrumStability(eps=eps)
+        print(f" - {self.cepstrum_helper.__class__.__name__}")
+        print("================================================")
 
     # -------- PLV (baseline + per-run) --------
 
@@ -135,10 +136,20 @@ class StabilityValidator:
                 f"Expected run_time_series with N={self.numPages} pages, got N={run_time_series.shape[1]}"
             )
         
+        print("\n------------------------------------------------")
+        print(f"Computing MSC features for run with shape: {run_time_series.shape}\n")
+        
         msc_spectrum = self.msc_helper.compute_msc(run_time_series)  # shape (F, N)
-        peak_snr_db = self.msc_helper.compute_peak_snr(msc_spectrum)  # shape (N,)
-        peak_snr_db_median = float(np.median(peak_snr_db))
+        print(f"MSC spectrum computed with shape: {msc_spectrum.shape}")
 
+        peak_snr_db = self.msc_helper.compute_peak_snr(msc_spectrum)  # shape (N,)
+        print(f"MSC peak SNR computed with shape: {peak_snr_db.shape}")
+
+        peak_snr_db_median = float(np.median(peak_snr_db))
+        print(f"MSC peak SNR median: {peak_snr_db_median}")
+
+        print(f"\nDone computing MSC features.")
+        print("------------------------------------------------")
         return {
             'msc_spectrum': msc_spectrum,
             'msc_peak_snr_db_per_page': peak_snr_db,
@@ -163,15 +174,39 @@ class StabilityValidator:
         if run_time_series.ndim != 2:
             raise ValueError("Expected 2D [T_run, N] run_time_series")
         
+        print("\n------------------------------------------------")
+        print(f"Computing cepstrum features for run with shape: {run_time_series.shape}\n")
+
         cepstrum = self.cepstrum_helper.compute_cepstrum(run_time_series)
+        print(f"Cepstrum computed with shape: {cepstrum.shape}")
+
         cepstral_peak_idx = self.cepstrum_helper.compute_cepstral_peak(cepstrum)
+        print(f"Cepstral peak indices computed with shape: {cepstral_peak_idx.shape}")
+
         cepstral_peak_idx_median = float(np.median(cepstral_peak_idx))
+        print(f"Cepstral peak index median: {cepstral_peak_idx_median}")
+
+        print("\nDone computing cepstrum features.")
+        print("------------------------------------------------\n")
 
         return {
             'cepstrum': cepstrum,
             'cepstral_peak_idx_per_page': cepstral_peak_idx,
             'cepstral_peak_idx_median': cepstral_peak_idx_median,
         }
+
+
+    def save_features_to_file(features: dict, filename: str = "run_features.npy"):
+        """
+        Save computed features dictionary to a .npy file.
+
+        Args:
+            features: Dictionary of features to save.
+            filename: Output filename.
+        """
+        np.save(filename, features)
+        print(f"Features saved to {filename}")
+
 
     # -------- Combined interface --------
 
@@ -200,3 +235,26 @@ class StabilityValidator:
         }
 
         return combined_features
+
+
+
+def main():
+    data_transpose = np.load("/Users/jeries/Desktop/projects/thesis/memorySignal/mem_sig/data/combined_data.npy", mmap_mode='r') # Load data from file memory-mapped
+    print(f"Loaded sample data with shape: {data_transpose.shape}")
+
+    data = data_transpose.T  # Transpose to [T, N]
+    print(f"Transposed data shape: {data.shape}")
+
+    num_pages_data = data.shape[1]
+
+    sv = StabilityValidator(numPages=num_pages_data, window_size=32, window_step=16)
+
+    sv.fit_plv_baseline(data) # Fit baseline on the same data for demonstration
+
+    plv_features = sv.compute_all_features(data)
+
+    sv.save_features_to_file(plv_features, filename="run_features.npy")
+
+
+if __name__ == "__main__":
+    main()
