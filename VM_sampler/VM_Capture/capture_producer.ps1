@@ -1,10 +1,10 @@
 $vmName = $config.vmName
 $imageDir = $config.imageDir
-$rustDeltaCalculationProgram = $config.rustDeltaCalculationProgram
-$pauseDuration = $config.pauseDuration
-$longPauseDuration = $config.longPauseDuration
-$resumeDuration = $config.resumeDuration
-$intervalMinutes = $config.intervalMinutes  # Convert minutes to seconds for Start-Sleep
+# $rustDeltaCalculationProgram = $config.rustDeltaCalculationProgram
+# $pauseDuration = $config.pauseDuration
+# $longPauseDuration = $config.longPauseDuration
+# $resumeDuration = $config.resumeDuration
+# $intervalMinutes = $config.intervalMinutes  # Convert minutes to seconds for Start-Sleep
 $outputDir = $config.outputDir  # New variable for output directory
 
 $queuePending = "C:\thesis\queue\pending"
@@ -68,6 +68,8 @@ while ($true) {
                 curr = $newImage
                 output = $outputDir
             } | ConvertTo-Json | Set-Content -Path $tmp -Encoding UTF8
+
+            Move-Item -Force $tmp $job
         }
         
         $prevImage = $newImage
@@ -79,7 +81,7 @@ while ($true) {
 
         # Backpressure:
         $pendingJobsCount = (Get-ChildItem -Path $queuePending -Filter *.json).count
-        $proccessingJobsCount (Get-ChildItem -Path $processing -Filter *.json).count
+        $proccessingJobsCount = (Get-ChildItem -Path $processing -Filter *.json).count
 
         if ($pendingJobsCount + $proccessingJobsCount -gt 10) {
             Write-Host "Backpressure detected. Pausing for longer duration..."
