@@ -1,10 +1,10 @@
 {
-    "vmName": "tester2_webserver",
-    "imageDir": "C:\\Users\\jeries\\Desktop\\thesis\\results\\output1",
+    "vmName": "tester1_ca",
+    "imageDir": "C:\\thesis\\results",
     "rustDeltaCalculationProgram": "C:\\Users\\jeries\\Desktop\\delta_rust\\live_delta_calc\\target\\release\\live_delta_calc.exe",
     "pauseDuration": 1,
     "longPauseDuration": 30,
     "resumeDuration": 1,
     "intervalMinutes": 1,
-    "outputDir": "C:\\Users\\jeries\\Desktop\\thesis\\results\\output1"
+    "outputDir": "C:\\thesis\\results\\output7"
 }
