@@ -1,22 +1,23 @@
 
 param (
-    [string]$root = (Get-Location).Path,
-    [string]$prod = "capture_producer.ps1",
-    [string]$cons = "capture_consumer.ps1",
-    [switch]$hidden    
+    [string]$Root = (Get-Location).Path,
+    [string]$Prod = "capture_producer.ps1",
+    [string]$Cons = "capture_consumer.ps1",
+    [switch]$Hidden    
 )
 
-$producerPath = Join-Path $root $prod
-$consumerPath = Join-Path $root $cons
+$producerPath = Join-Path $Root $Prod
+$consumerPath = Join-Path $Root $Cons
 
 if (-not (Test-Path $producerPath)) { throw ("Producer not found: $producerPath")}
 if (-not (Test-Path $consumerPath)) { throw ("Producer not found: $consumerPath")}
 
 $commonArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File")
-$startInfo = @(
-    FilePath = "powershell.exe",
-    WorkingDirectory = $root
-)
+
+$startInfo = @{
+    FilePath = "powershell.exe"
+    WorkingDirectory = $Root
+}
 
 if ($Hidden) {
     # Run both in backgroud (No new windows)

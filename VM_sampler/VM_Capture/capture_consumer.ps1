@@ -1,7 +1,17 @@
-$pending = "C:\thesis\queue\pending"
-$processing = "C:\thesis\queue\processing"
-$done = "C:\thesis\queue\done"
-$failed = "C:\thesis\queue\failed"
+$Root = (Get-Location).Path
+$config = Get-Content -Raw -Path (Join-Path $Root "config.json") | ConvertFrom-Json
+$rustDeltaCalculationProgram = $config.rustDeltaCalculationProgram
+
+$qPath = $config.queueDir
+$pending = Join-Path $qPath "pending"
+$processing = Join-Path $qPath "processing"
+$done = Join-Path $qPath "done"
+$failed = Join-Path $qPath "failed"
+
+Write-Host "[CONSUMER] Consumer started"
+Write-Host "[CONSUMER] Queue dir: $qPath"
+Write-Host "[CONSUMER] Watching: $pending"
+Write-Host "[CONSUMER] Rust program: $rustDeltaCalculationProgram"
 
 New-Item -ItemType Directory -Force -Path $pending, $processing, $done, $failed | Out-Null
 
@@ -13,12 +23,15 @@ while ($true) {
         continue
     }
 
+    Write-Host "[CONSUMER] Picked job: $($jobFile.Name)"
+
     $jobPathProc = Join-Path $processing $jobFile.Name
-    Move-Item $jobFile.FullName $jobPathProc
+    Move-Item -Force $jobFile.FullName $jobPathProc
 
     try {
         $jobContent = Get-Content -Raw -Path $jobPathProc | ConvertFrom-Json
-
+        
+        Write-Host "[CONSUMER] Running rust: prev=$(Split-Path $jobContent.prev -Leaf) curr=$(Split-Path $jobContent.curr -Leaf) out=$(Split-Path $jobContent.output -Leaf)"
         & $rustDeltaCalculationProgram $jobContent.prev $jobContent.curr $jobContent.output
         $rc = $LASTEXITCODE
 
@@ -26,11 +39,16 @@ while ($true) {
             throw "Rust program failed with exit code $rc"
         }
 
+        Write-Host "[CONSUMER] Rust finished OK (rc=0)"
+
+        # Cleanup + finalize
         Remove-Item $jobContent.prev -ErrorAction SilentlyContinue
-        Move-Item $jobPathProc (Join-Path $done $jobFile.Name)
+        Move-Item -Force $jobPathProc (Join-Path $done $jobFile.Name)
+        Write-Host "[CONSUMER] Job done -> done: $($jobFile.Name)"
     }
     catch{
-        Write-Host "Error processing job $($jobFile.Name): $_"
+        Write-Host "[CONSUMER] ERROR job=$($jobFile.Name): $($_.Exception.Message)"
         Move-Item $jobPathProc (Join-Path $failed $jobFile.name)
+        Write-Host "[CONSUMER] Job moved -> failed: $($jobFile.Name)"
     }
 }

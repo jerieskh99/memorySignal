@@ -1,13 +1,17 @@
+$Root = (Get-Location).Path
+$config = Get-Content -Raw -Path (Join-Path $Root "config.json") | ConvertFrom-Json
 $vmName = $config.vmName
 $imageDir = $config.imageDir
-# $rustDeltaCalculationProgram = $config.rustDeltaCalculationProgram
-# $pauseDuration = $config.pauseDuration
-# $longPauseDuration = $config.longPauseDuration
-# $resumeDuration = $config.resumeDuration
-# $intervalMinutes = $config.intervalMinutes  # Convert minutes to seconds for Start-Sleep
 $outputDir = $config.outputDir  # New variable for output directory
+$intervalMsec = $config.intervalMsec  # prefer seconds explicitly
+$qPath = $config.queueDir
 
-$queuePending = "C:\thesis\queue\pending"
+$imageFilePrefix = "memory_dump"
+$prevImage = ""
+
+$qPending = Join-Path $qPath "pending"
+$qProcessing = Join-Path $qPath "processing"
+New-Item -ItemType Directory -Force -Path $qPending, $qProcessing | Out-Null
 
 function Wait-VMState {
     param (
@@ -23,45 +27,53 @@ function Wait-VMState {
         $vmStateLine = VBoxManage showvminfo $vmName --machinereadable | Select-String -Pattern '^VMState='
 
         if ($vmStateLine) {
-            $currState = $vmStateLine.Tostring().Split('=')[1].Trim('"')
+            $currState = $vmStateLine.ToString().Split('=')[1].Trim('"')
             if ($currState -eq $desiredState) {
                 return $true
             }
         }
+        Start-Sleep -Milliseconds $pollIntervalMs
     }
-
-    Start-Sleep -Milliseconds $pollIntervalMs
+    throw "Timeout waiting for VM '$vmName' to reach state '$desiredState'"
 }
 
-New-item -ItemType Directory -Force -Path $queuePending | Out-Null
-
-Write-Host "Starting memory dump and delta calculation process..."
+Write-Host "Starting producer..."
 
 while ($true) {
     try {
+        # Backpressure:
+        $pendingJobsCount = (Get-ChildItem -Path $qPending -Filter *.json).Count
+        $proccessingJobsCount = (Get-ChildItem -Path $qProcessing -Filter *.json).Count
+
+        if ($pendingJobsCount + $proccessingJobsCount -gt 10) {
+            Write-Host "Backpressure: queue too large. Sleeping..."
+            Start-Sleep -Seconds 1 
+            continue
+        }
+
         Write-Host "Pausing VM..."
         VBoxManage controlvm $vmName pause
-        Wait-VMState - vmName $vmName -desiredState "paused" -timeoutSeconds 30 -pollIntervalMs 200
+        Wait-VMState -vmName $vmName -desiredState "paused" -timeoutSeconds 30 -pollIntervalMs 200
 
         # Step 2: Capture VM's memory
-        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-        $newImage = "$imageDir\$imageFilePrefix-$timestamp.elf"
+        $timestamp = Get-Date -Format "yyyyMMddHHmmssfff"
+        $newImage = Join-Path $imageDir "$imageFilePrefix-$timestamp.elf"
 
         Write-Host "Dumping memory to $newImage ..."
-        VBoxMnage debugvm $vmName dumpvmcore $newImage
+        VBoxManage debugvm $vmName dumpvmcore --filename $newImage
 
-        if (Test-Path = $newImage) {
+        if (Test-Path $newImage) {
             Write-Host "Memory dump successful: $newImage"
         } 
         else {
-            Write-Host "Memory dump failed."
+            throw "Memory dump failed."
         }
 
         if ($prevImage -ne "") {
-            $jobId = (Get-Date -Format "yyyyMMddHHmmss")
+            $jobId = $timestamp
 
-            $tmp = Join-Path $queuePending "$jobId.json.tmp"
-            $job = Join-Path $queuePending "$jobId.json"
+            $tmp = Join-Path $qPending "$jobId.json.tmp"
+            $job = Join-Path $qPending "$jobId.json"
             
             @{
                 prev = $prevImage
@@ -76,20 +88,11 @@ while ($true) {
         
         Write-Host "Resuming VM..."
         VBoxManage controlvm $vmName resume
-        Wait-VMState - vmName $vmName -desiredState "resumed" -timeoutSeconds 30 -pollIntervalMs 200
-
-
-        # Backpressure:
-        $pendingJobsCount = (Get-ChildItem -Path $queuePending -Filter *.json).count
-        $proccessingJobsCount = (Get-ChildItem -Path $processing -Filter *.json).count
-
-        if ($pendingJobsCount + $proccessingJobsCount -gt 10) {
-            Write-Host "Backpressure detected. Pausing for longer duration..."
-            Start-Sleep -Seconds 1 
-            continue
-        }
+        Wait-VMState -vmName $vmName -desiredState "running" -timeoutSeconds 30 -pollIntervalMs 200
+        Start-Sleep -Milliseconds $intervalMsec
     }
     catch {
         Write-Host "An error occurred: $_"
+        Start-Sleep -Milliseconds 500
     }
 }

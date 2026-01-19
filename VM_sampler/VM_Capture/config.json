@@ -1,10 +1,22 @@
 {
-    "vmName": "tester1_ca",
-    "imageDir": "C:\\thesis\\results",
-    "rustDeltaCalculationProgram": "C:\\Users\\jeries\\Desktop\\delta_rust\\live_delta_calc\\target\\release\\live_delta_calc.exe",
-    "pauseDuration": 1,
-    "longPauseDuration": 30,
-    "resumeDuration": 1,
-    "intervalMinutes": 1,
-    "outputDir": "C:\\thesis\\results\\output7"
+  "vmName": "tester1_ca",
+
+  "imageDir": "C:\\thesis\\results\\19_01_26\\dumps",
+  "outputDir": "C:\\thesis\\results\\19_01_26\\output",
+
+  "rustDeltaCalculationProgram": "C:\\Users\\jeries\\Desktop\\delta_rust\\live_delta_calc\\target\\release\\live_delta_calc.exe",
+
+  "intervalMsec": 500,
+
+  "queueDir": "C:\\thesis\\results\\19_01_26\\queue",
+
+  "backpressure": {
+    "maxPendingJobs": 20,
+    "sleepOnBackpressureSeconds": 1
+  },
+
+  "vmStatePolling": {
+    "pollIntervalMs": 200,
+    "timeoutSeconds": 30
+  }
 }
