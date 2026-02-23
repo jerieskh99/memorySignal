@@ -324,3 +324,30 @@ This ensures both **theoretical correctness** and **efficient computation**
 while maintaining fidelity to the original complex signal.
 
 ---
+
+## **9. Streaming / Online Equivalence**
+
+This repo now supports **online (streaming) metric computation** over sequential delta frames `D[t]`, with no need to store the full run in memory.
+
+### Exactly reproducible online (matches offline windowed definitions)
+
+* **MSC**: exact match when computed as Welch/windowed aggregation with identical:
+  * window function
+  * `win_len`, `hop_len`, `nfft`
+  * detrending and `eps`
+  * segmentation boundaries
+* **PLV**: exact match for the running-sum definition:
+  * `PLV = |(1/N) * sum exp(j * Δφ[t])|`
+* **Cepstrum (windowed / short-time)**: exact match when computed per-window and then aggregated with the same feature definitions.
+
+### Not exactly reproducible in strict discard-history mode
+
+* A single **whole-trace cepstrum** (one FFT over the entire run) is a global transform and cannot be reproduced exactly if earlier samples are discarded.
+* Use **windowed cepstrum** for streaming equivalence.
+
+### Time-resolved MSC tradeoff
+
+If you want a sliding-in-time MSC curve:
+
+* **Exact sliding MSC**: keep a ring buffer of per-window spectral contributions and subtract expired windows.
+* **EMA MSC**: lower memory and simpler updates, but not numerically identical to exact offline sliding-window MSC.

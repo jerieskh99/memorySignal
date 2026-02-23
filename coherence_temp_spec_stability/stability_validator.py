@@ -2,7 +2,13 @@ import numpy as np
 from plv_calcolator import PLVStability
 from magnitude_squared_coherence import MagnitudeSquaredCoherence
 from cepstrum_stability import CepstrumStability
+from streaming_metrics import run_streaming_on_time_series, save_streaming_results
 
+# try:
+#     from tqdm.auto import tqdm
+# except ImportError:
+#     print("tqdm not found, progress bars will be disabled. Install tqdm for better experience. Use - pip install tqdm.")
+#     tqdm = None
 
 class StabilityValidator:
     """
@@ -75,7 +81,7 @@ class StabilityValidator:
         self,
         run_time_series: np.ndarray,
         *,
-        drop_threshold: float = -0.2,
+        drop_threshold: float = 0.2,
         normal_threshold: float = 0.7,
         perfect_threshold: float = 1.0,
     ) -> dict:
@@ -150,7 +156,7 @@ class StabilityValidator:
         print(f"\nDone computing MSC features.")
         print("------------------------------------------------")
         return {
-            'msc_spectrum': msc_spectrum,
+            # 'msc_spectrum': msc_spectrum,
             'msc_peak_snr_db_per_page': peak_snr_db,
             'msc_peak_snr_db_median': peak_snr_db_median,
         }
@@ -189,7 +195,7 @@ class StabilityValidator:
         print("------------------------------------------------\n")
 
         return {
-            'cepstrum': cepstrum,
+            # 'cepstrum': cepstrum,
             'cepstral_peak_idx_per_page': cepstral_peak_idx,
             'cepstral_peak_idx_median': cepstral_peak_idx_median,
         }
@@ -238,30 +244,215 @@ class StabilityValidator:
         return combined_features
 
 
+def run_all_features_for_run(run_time_series: np.ndarray, window_size: int = 128, step_size: int = 64) -> dict:
+    '''
+        Computes PLV, MSC, and Cepstrum features for a WHOLE given run time-series using StabilityValidator.
+        Args:
+            run_time_series: Complex array [T_run, N] for the run to analyze.
+        Returns:
+            Dictionary of all computed features.
+    '''
+    sv = StabilityValidator(numPages = run_time_series.shape[1], window_size = window_size, window_step = step_size)
+    sv.fit_plv_baseline(run_time_series) # Fit baseline on the same data for demonstration
+    return sv.compute_all_features(run_time_series)
+
+
+def run_all_features_512_windows(run_time_series: np.ndarray, window_size: int = 128, step_size: int = 64) -> list:  
+    '''
+        Computes PLV, MSC, and Cepstrum features on two separate episodes of the run time series of size 512 = 128 * 4, with
+        overlap if needed (if size is less than 500) using StabilityValidator.
+        Args:
+            run_time_series: Complex array [T_run, N] for the run to analyze.
+        Returns:
+        List of both dictionaries of all computed features.
+    '''
+    num_pages = run_time_series.shape[1]
+    sv = StabilityValidator(numPages = num_pages, window_size = window_size, window_step = step_size)
+
+    sv.fit_plv_baseline(run_time_series[:512, :]) # Fit baseline on the first 512 samples
+
+    features1 = sv.compute_all_features(run_time_series[:512, :])
+    features2 = sv.compute_all_features(run_time_series[-512:, :])
+
+    return [features1, features2]
+
+
+def run_all_features_sliding_windows(run_time_series: np.ndarray, window_size: int = 128, step_size: int = 64) -> list:
+    '''
+        Computes PLV, MSC, and Cepstrum features on sliding windows of the run time series of size window_size with step step_size using StabilityValidator.
+        MSC is calculated in sliding windows internally, so no need to do it separately here.
+        Args:
+            run_time_series: Complex array [T_run, N] for the run to analyze.
+            window_size: Size of each window to analyze.
+            step_size: Step size for sliding windows.
+        Returns:
+            List of dictionaries of computed features for each window.
+    '''
+    num_pages = run_time_series.shape[1]
+    sv = StabilityValidator(numPages = num_pages, window_size = window_size, window_step = step_size)
+    sv.fit_plv_baseline(run_time_series[:window_size, :]) # Fit baseline on the first window
+
+    print("\n================================================")
+    print(f"Computing all stability features for run with shape: {run_time_series.shape}\n")
+
+    print("Starting MSC feature computation...")
+    msc_features = sv.compute_msc_features(run_time_series)
+
+    print("Starting PLV feature computation...")
+    plv_features = {}
+    for start in range(0, run_time_series.shape[0] - window_size + 1, step_size):
+        end = min(start + window_size, run_time_series.shape[0])
+        curr_plv_window = run_time_series[start:end, :]
+        plv_features_window = sv.compute_plv_features(curr_plv_window)
+        plv_features[f"wind_{start}_{end}"] = plv_features_window
+    print("PLV features computed.\n")
+
+    print("Starting cepstrum feature computation...")
+    cepstrum_features = {}
+    for start in range(0, run_time_series.shape[0] - window_size + 1, step_size):
+        end = min(start + window_size, run_time_series.shape[0])
+        curr_cepstrum_window = run_time_series[start:end, :]
+        cepstrum_features_window = sv.compute_cepstrum_features(curr_cepstrum_window)
+        cepstrum_features[f"wind_{start}_{end}"] = cepstrum_features_window
+    print("Cepstrum features computed.\n")
+
+    combined_features = {
+        'plv': plv_features,
+        'msc': msc_features,
+        'cepstrum': cepstrum_features,
+    }
+
+    return combined_features
+
+
+def run_all_features_streaming(
+    run_time_series: np.ndarray,
+    *,
+    window_size: int = 128,
+    step_size: int = 64,
+    nfft: int | None = None,
+    window: str = "hann",
+    eps: float = 1e-10,
+    detrend: bool = False,
+    keep_time_resolved: bool = False,
+    min_quef_idx: int = 1,
+    output_prefix: str | None = None,
+) -> dict:
+    """
+    Streaming/online feature extraction for delta rows D[t, :].
+
+    This processes rows sequentially (memmap-friendly), updates online accumulators,
+    and can optionally save .npz/.json outputs for a run.
+    """
+    results = run_streaming_on_time_series(
+        run_time_series,
+        win_len=window_size,
+        hop_len=step_size,
+        nfft=nfft,
+        window=window,
+        eps=eps,
+        detrend=detrend,
+        keep_time_resolved=keep_time_resolved,
+        min_quef_idx=min_quef_idx,
+    )
+    if output_prefix:
+        save_streaming_results(results, output_prefix)
+    return results
+
+
+# def main():
+#     data_transpose = np.load(r"/Volumes/Extreme SSD/thesis/runs/19_01_26/A1/combined_data.npy", mmap_mode='r') # Load data from file memory-mapped
+#     print(f"Loaded sample data with shape: {data_transpose.shape}")
+
+#     data = data_transpose.T  # Transpose to [T, N]
+#     print(f"Transposed data shape: {data.shape}")
+
+#     T, N = data.shape
+
+#     sv = StabilityValidator(numPages=N, window_size=32, window_step=16)
+
+#     print("Fitting PLV baseline...")
+#     sv.fit_plv_baseline(data) # Fit baseline on the same data for demonstration
+#     print("PLV baseline fitted.")
+
+
+#     plv_features = sv.compute_all_features(data)
+
+#     print("Saving features to file...")
+#     StabilityValidator.save_features_to_file(plv_features, filename="stability_features.npy")
+#     print("================================================\n")
+#     print("DONE.")
+
 
 def main():
-    data_transpose = np.load("/Users/jeries/Desktop/projects/thesis/memorySignal/mem_sig/data/combined_data.npy", mmap_mode='r') # Load data from file memory-mapped
-    print(f"Loaded sample data with shape: {data_transpose.shape}")
+    for _ in range(1):
+        X = "idle"
+        data_transpose = np.load(f"/Volumes/Extreme SSD/thesis/runs/19_01_26/{X}/combined_data.npy", mmap_mode='r') # Load data from file memory-mapped
+        print(f"Loaded sample data with shape: {data_transpose.shape}")
 
-    data = data_transpose.T  # Transpose to [T, N]
-    print(f"Transposed data shape: {data.shape}")
+        data = data_transpose.T  # Transpose to [T, N]
+        print(f"Transposed data shape: {data.shape}")
 
-    num_pages_data = data.shape[1]
+        print("Running all features for the whole run...")
+        full_run = run_all_features_for_run(data, window_size=128, step_size=64)
 
-    sv = StabilityValidator(numPages=num_pages_data, window_size=32, window_step=16)
+        print("Running all features for 512-sample windows...")
+        windows_512 = run_all_features_512_windows(data, window_size=128, step_size=64)
+        
+        print("Running all features for sliding windows...")
+        sliding_windows_128_64 = run_all_features_sliding_windows(data, window_size=128, step_size=64)    
 
-    print("Fitting PLV baseline...")
-    sv.fit_plv_baseline(data) # Fit baseline on the same data for demonstration
-    print("PLV baseline fitted.")
+        features = {
+            'full_run': full_run,
+            '512_windows': windows_512,
+            'sliding_windows_128_64': sliding_windows_128_64,
+        }
+
+        print("Saving features to file...")
+        StabilityValidator.save_features_to_file(features, filename=f"stability_features_{X}.npy")
+        print("================================================\n")
+        print(f"DONE {X} - features saved to stability_features_{X}.npy\n")
 
 
-    plv_features = sv.compute_all_features(data)
+def cli_run_validator() -> None:
+    """CLI for running stability (streaming) metrics on a matrix .npy (e.g. raw matrix from raw_matrix_builder)."""
+    import argparse
+    import os
 
-    print("Saving features to file...")
-    StabilityValidator.save_features_to_file(plv_features, filename="stability_features.npy")
-    print("================================================\n")
-    print("DONE.")
+    parser = argparse.ArgumentParser(
+        description="Run PLV/MSC/Cepstrum streaming metrics on a time-series matrix."
+    )
+    parser.add_argument(
+        "matrix_npy",
+        nargs="?",
+        default=None,
+        help="Path to .npy matrix; shape (num_pages, num_frames) or (num_frames, num_pages) — auto-detected",
+    )
+    parser.add_argument("--window-size", type=int, default=128, help="Window size for streaming")
+    parser.add_argument("--step-size", type=int, default=64, help="Step size for streaming")
+    parser.add_argument("--output-dir", type=str, default=".", help="Directory for output .npz and .json")
+    parser.add_argument("--prefix", type=str, default="raw", help="Output file prefix (output_dir/prefix.npz, .json)")
+    args = parser.parse_args()
+
+    if not args.matrix_npy:
+        main()
+        return
+
+    data = np.load(args.matrix_npy, mmap_mode="r")
+    # Expect (num_pages, num_frames); streaming wants (T, N) = (num_frames, num_pages)
+    if data.shape[0] < data.shape[1]:
+        data = data.T
+    data = np.asarray(data)
+    output_prefix = os.path.join(args.output_dir, args.prefix)
+    os.makedirs(args.output_dir, exist_ok=True)
+    run_all_features_streaming(
+        data,
+        window_size=args.window_size,
+        step_size=args.step_size,
+        output_prefix=output_prefix,
+    )
+    print(f"Done. Outputs: {output_prefix}.npz, {output_prefix}.json")
 
 
 if __name__ == "__main__":
-    main()
+    cli_run_validator()

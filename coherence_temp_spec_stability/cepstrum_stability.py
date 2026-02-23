@@ -44,7 +44,7 @@ class CepstrumStability:
         self,
         cepstrum: np.ndarray,
         *,
-        min_quef_idx: int = 1,
+        min_quef_idx: int = 10,
     ) -> np.ndarray:
         """
         Find dominant cepstral peak index for each page.

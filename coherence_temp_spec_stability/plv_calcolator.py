@@ -39,42 +39,61 @@ class PLVStability:
         if curr_time_series.ndim != 2:
             raise ValueError("Expected 2D [T, N] curr_time_series")
         
+        if drop_threshold < 0 or drop_threshold > 1:
+            raise ValueError("drop_threshold should be between 0 and 1")
+        
         # --- PLV for current run ---
         current_plv = self._computePLV(curr_time_series)      # shape (N,)
 
         # per-page drop: current - baseline
         delta_plv = current_plv - self.baseline_plv           # shape (N,)
 
-        # medians (for reporting)
-        median_clean = float(np.median(self.baseline_plv))
-        median_curr = float(np.median(current_plv))
-        median_drop = float(np.median(delta_plv))             # typically <= 0 if things got worse
+        # categorize pages based on drop and current PLV
+        anomalous_mask = delta_plv <= -drop_threshold
+        very_weak_mask = (current_plv < 0.4) & (delta_plv > -drop_threshold)
+        moderate_mask = (current_plv < normal_threshold) & (current_plv >= 0.4) & (current_plv >= 0.4)
+        high_mask = (current_plv < perfect_threshold) & (current_plv >= normal_threshold)
+        perfect_mask = current_plv >= perfect_threshold
 
-        # global anomaly flag based on median drop
-        is_anomaly = median_drop <= -drop_threshold
-
-        # --- per-page statuses (informative labels) ---
-        statuses = []
-        for p, d in zip(current_plv, delta_plv):
-            if d <= -drop_threshold: # recently flipped...
-                status = "anomalous_drop"     # lost too much stability vs baseline
-            elif p < 0.4:
-                status = "very_weak_stability"
-            elif p < normal_threshold:
-                status = "moderate_stability"
-            elif p < perfect_threshold:
-                status = "high_stability"
-            else:
-                status = "perfect_stability"
-            statuses.append(status)
-
+        # Return counts for each category
         return {
-            "baseline_plv": self.baseline_plv,
-            "current_plv": current_plv,
-            "delta_plv": delta_plv,
-            "median_baseline": median_clean,
-            "median_current": median_curr,
-            "median_drop": median_drop,
-            "is_anomaly": is_anomaly,
-            "statuses": statuses,            # per-page labels
+            "num_anomalous_drop": int(np.sum(anomalous_mask)),
+            "num_very_weak_stability": int(np.sum(very_weak_mask)),
+            "num_moderate_stability": int(np.sum(moderate_mask)),
+            "num_high_stability": int(np.sum(high_mask)),
+            "num_perfect_stability": int(np.sum(perfect_mask)),
         }
+    
+        # # medians (for reporting)
+        # median_clean = float(np.median(self.baseline_plv))
+        # median_curr = float(np.median(current_plv))
+        # median_drop = float(np.median(delta_plv))             # typically <= 0 if things got worse
+
+        # # global anomaly flag based on median drop
+        # is_anomaly = median_drop <= -drop_threshold
+
+        # # --- per-page statuses (informative labels) ---
+        # statuses = []
+        # for p, d in zip(current_plv, delta_plv):
+        #     if d <= -drop_threshold: # recently flipped...
+        #         status = "anomalous_drop"     # lost too much stability vs baseline
+        #     elif p < 0.4:
+        #         status = "very_weak_stability"
+        #     elif p < normal_threshold:
+        #         status = "moderate_stability"
+        #     elif p < perfect_threshold:
+        #         status = "high_stability"
+        #     else:
+        #         status = "perfect_stability"
+        #     statuses.append(status)
+
+        # return {
+        #     "baseline_plv": self.baseline_plv,
+        #     "current_plv": current_plv,
+        #     "delta_plv": delta_plv,
+        #     "median_baseline": median_clean,
+        #     "median_current": median_curr,
+        #     "median_drop": median_drop,
+        #     "is_anomaly": is_anomaly,
+        #     "statuses": statuses,            # per-page labels
+        # }

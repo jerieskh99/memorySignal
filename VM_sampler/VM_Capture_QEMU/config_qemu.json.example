@@ -1,0 +1,46 @@
+{
+  "domain": "my-vm",
+  "imageDir": "/var/lib/thesis/dumps",
+  "outputDir": "/var/lib/thesis/output",
+  "rustDeltaCalculationProgram": "/path/to/live_delta_calc",
+  "intervalMsec": 500,
+  "queueDir": "/var/lib/thesis/queue",
+  "streaming": {
+    "enabled": true,
+    "python": "python3",
+    "streamingMetricsModule": "coherence_temp_spec_stability.streaming_metrics",
+    "streamingOutputDir": "/var/lib/thesis/streaming_results",
+    "minFramesForStreaming": 128,
+    "deltaMetric": "cosine",
+    "projectRoot": "/path/to/mem_sig"
+  },
+  "rawRetention": {
+    "enabled": false,
+    "keepDumps": 50,
+    "rawDir": "/tmp/qemu_raw_kept",
+    "rawMatrixNpy": "/tmp/qemu_raw_matrix.npy",
+    "rawBuild": {
+      "enabled": true,
+      "builderProgram": "python3 -m coherence_temp_spec_stability.raw_matrix_builder",
+      "mode": "mean_byte",
+      "pageSize": 4096,
+      "maxBytes": 0
+    },
+    "rawMetrics": {
+      "enabled": true,
+      "projectRoot": "/ABS/PATH/TO/memorySignal/mem_sig",
+      "validatorModule": "coherence_temp_spec_stability.stability_validator",
+      "windowSize": 128,
+      "stepSize": 64,
+      "outputDir": "/tmp/qemu_raw_metrics_out"
+    }
+  },
+  "backpressure": {
+    "maxPendingJobs": 20,
+    "sleepOnBackpressureSeconds": 1
+  },
+  "vmStatePolling": {
+    "pollIntervalMs": 200,
+    "timeoutSeconds": 30
+  }
+}

@@ -1,3 +1,28 @@
+
+function Wait-VMState {
+    param (
+        [string]$vmName,
+        [string]$desiredState,
+        [int]$timeoutSeconds = 30,
+        [int]$pollIntervalMs = 200
+    )
+
+    $deadLine = (Get-Date).Addseconds($timeoutSeconds)
+
+    while ((Get-Date) -lt $deadLine) {
+        $vmStateLine = VBoxManage showvminfo $vmName --machinereadable | Select-String -Pattern '^VMState='
+
+        if ($vmStateLine) {
+            $currState = $vmStateLine.Tostring().Split('=')[1].Trim('"')
+            if ($currState -eq $desiredState) {
+                return $true
+            }
+        }
+    }
+
+    Start-Sleep -Milliseconds $pollIntervalMs
+}
+
 # Load configuration from JSON file
 $config = Get-Content -Raw -Path "C:\Users\jeries\Desktop\thesis\config.json" | ConvertFrom-Json
 
@@ -23,8 +48,11 @@ while ($true) {
         Write-Host "Pausing VM..."
         VBoxManage controlvm $vmName pause
         
+        # wait until paused
+        Wait-VMState -vmName $vmName -desiredState "paused" -timeoutSeconds 30 -pollIntervalMs 200
+
         # Wait for the VM to fully pause
-        Start-Sleep -Seconds $pauseDuration
+        # Start-Sleep -Seconds $pauseDuration
         
         # Step 2: Capture VM's memory
         $timestamp = Get-Date -Format "yyyyMMddHHmmss"
