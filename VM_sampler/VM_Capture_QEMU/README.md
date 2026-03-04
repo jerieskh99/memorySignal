@@ -13,12 +13,22 @@ This directory provides a **QEMU/libvirt**-based alternative to the VBoxManage (
 
 ## Flow
 
-1. **Producer** (`capture_producer_qemu.sh`)
-   - Suspends the VM: `virsh suspend <domain>`
-   - Dumps guest memory: `virsh dump <domain> <file> --memory-only` (ELF dump)
-   - Resumes: `virsh resume <domain>`
-   - Enqueues a job `{ prev, curr, output }` into `queueDir/pending/` (does **not** delete any snapshot)
-   - Repeats every `intervalMsec`
+1. **Producer** (choose one)
+   - **ELF via virsh** — `capture_producer_qemu.sh`
+     - Suspends the VM: `virsh suspend <domain>`
+     - Dumps guest memory: `virsh dump <domain> <file> --memory-only` (ELF dump)
+     - Resumes: `virsh resume <domain>`
+     - Enqueues a job `{ prev, curr, output }` into `queueDir/pending/` (does **not** delete any snapshot)
+   - **RAW via pmemsave (qemu:///system)** — `capture_producer_qemu_pmemsave.sh`
+     - Suspends the VM: `virsh -c qemu:///system suspend <domain>`
+     - Uses `virsh qemu-monitor-command ... pmemsave` to dump **flat raw physical memory** into a libvirt-owned directory (e.g. `/var/lib/libvirt/qemu/dump`)
+     - Optionally runs `sudo chown` on the new dump so the consumer (running as user) can read it
+     - Resumes: `virsh -c qemu:///system resume <domain>`
+     - Enqueues `{ prev, curr, output }` in the same way as the ELF producer
+   - **RAW via user-run QEMU (no virsh)** — `capture_producer_qemu_user_raw.sh`
+     - QEMU is started by the user with `-monitor unix:/tmp/qemu-monitor.sock,server,nowait`
+     - Uses the monitor `pmemsave` command to write flat raw memory into a user-owned directory
+     - No virsh / libvirt / sudo required; see **Raw physical memory (user-space only, no virsh)** below.
 
 2. **Consumer** (`capture_consumer_qemu.sh`) — runs **alongside** the producer
    - Picks a job from `pending`, moves to `processing`
@@ -45,8 +55,11 @@ So snapshots are kept only until the consumer has used them for delta + (optiona
 
 Copy `config_qemu.json.example` to `config_qemu.json` and set:
 
-- **domain**: libvirt domain name (e.g. `my-vm`).
-- **imageDir**: directory where memory dumps (ELF) are written.
+- **domain**: libvirt domain name (e.g. `my-vm`). Not used by the user-raw producer.
+- **qemuMonitorSocket** (optional): for [user-space raw capture](RAW_CAPTURE_ALTERNATIVE.md), path to QEMU monitor Unix socket (e.g. `/tmp/qemu-monitor.sock`). Required when using `capture_producer_qemu_user_raw.sh`.
+- **ramSizeMb** (optional): for raw capture, guest RAM size in MiB (e.g. `4096`). Required when using `capture_producer_qemu_user_raw.sh` and `capture_producer_qemu_pmemsave.sh` (used to compute the `pmemsave` size).
+- **chownUser / chownGroup** (optional): when set (e.g. `jeries` / `jeries`), `capture_producer_qemu_pmemsave.sh` will run `sudo chown chownUser:chownGroup <dump>` after each `pmemsave` so the consumer can read the dump written under `/var/lib/libvirt/qemu/dump`.
+- **imageDir**: directory where memory dumps (ELF or .raw) are written. For the pmemsave producer, this should typically be `/var/lib/libvirt/qemu/dump` or another libvirt-allowed directory.
 - **outputDir**: directory passed to the Rust delta program (it writes `cosine/` and `hamming/` here).
 - **rustDeltaCalculationProgram**: path to `live_delta_calc` binary.
 - **queueDir**: base path for queues (`pending`, `processing`, `done`, `failed`).
@@ -80,8 +93,14 @@ cd VM_sampler/VM_Capture_QEMU
 cp config_qemu.json.example config_qemu.json
 # edit config_qemu.json
 
-# Foreground (run producer and consumer in two terminals, or use the printed commands)
+# Foreground (ELF via virsh dump --memory-only)
 ./run_qemu_capture.sh
+
+# Foreground (RAW via pmemsave under qemu:///system; dumps into /var/lib/libvirt/qemu/dump)
+PRODUCER_SCRIPT=$ROOT/capture_producer_qemu_pmemsave.sh ./run_qemu_capture.sh
+
+# Foreground (RAW via user-run QEMU + monitor pmemsave; no libvirt/system)
+PRODUCER_SCRIPT=$ROOT/capture_producer_qemu_user_raw.sh ./run_qemu_capture.sh
 
 # Background (same shell, logs to producer.log / consumer.log)
 BACKGROUND=1 ./run_qemu_capture.sh
@@ -94,6 +113,21 @@ Override paths via environment:
 - `RUN_MATRIX` — consumer’s accumulated matrix file (default: `queueDir/run_matrix.npy`)
 - `RAW_RETENTION=1` — enable raw retention (overrides `rawRetention.enabled`)
 - `RAW_KEEP_DUMPS=N` — keep N raw dumps (overrides `rawRetention.keepDumps`)
+
+## Raw physical memory (user-space only, no virsh)
+
+If the VM is under **qemu:///system**, `virsh dump` produces ELF dumps that may be owned by the service account (preventing user-space processing), and **pmemsave** via QMP cannot write into user directories due to libvirt confinement. To obtain a **flat raw physical memory image** (suitable for mmap and deterministic delta computation) **without sudo or any libvirt/system policy changes**, use the **user-run QEMU** alternative:
+
+1. **Start the VM yourself** (not via system libvirt), with a monitor socket in user space, e.g.  
+   `-monitor unix:/tmp/qemu-monitor.sock,server,nowait`
+2. In config, set **qemuMonitorSocket** to that path and **ramSizeMb** to the guest RAM size in MiB.
+3. Run the **raw producer** instead of the virsh producer:
+   ```bash
+   PRODUCER_SCRIPT=$ROOT/capture_producer_qemu_user_raw.sh ./run_qemu_capture.sh
+   ```
+   Output is `.raw` (flat raw); the **same consumer** and **live_delta_calc** are used.
+
+See **[RAW_CAPTURE_ALTERNATIVE.md](RAW_CAPTURE_ALTERNATIVE.md)** for the full problem statement, constraints, and step-by-step methodology.
 
 ## Notes
 

@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
-# QEMU consumer: process snapshot pairs (run delta), accumulate frames, run streaming
-# metrics when enough frames, then delete snapshot files. Runs alongside the producer.
+# QEMU consumer for memory snapshots.
+# High-level responsibilities:
+# - Treat each producer snapshot pair as an opaque byte blob (ELF or RAW, does not matter).
+# - For every job { prev, curr, output }:
+#     - Run the Rust delta binary to compute per-page cosine / hamming distances.
+#     - Append the resulting 1D frame vector as a new *column* in a long-lived run_matrix.npy
+#       with shape [num_pages, num_frames].
+#     - Optionally run streaming metrics (e.g. PLV/MSC/Cepstrum) on the accumulated matrix.
+#     - Optionally maintain a rolling window of RAW dumps and run stability metrics on a
+#       derived "raw feature" matrix (e.g. mean_byte/var_byte per page).
+#     - Clean up prev/curr snapshot files according to configured retention policy.
+# - Drive the queue state machine: pending -> processing -> done/failed.
 
 set -euo pipefail
 
@@ -22,7 +32,11 @@ minFramesForStreaming=$(jq -r '.streaming.minFramesForStreaming // 128' "$CONFIG
 deltaMetric=$(jq -r '.streaming.deltaMetric // "cosine"' "$CONFIG")
 projectRoot=$(jq -r '.streaming.projectRoot // ""' "$CONFIG")
 
-# Raw retention: optional keep N raw dumps, build raw matrix, run stability metrics (env overrides)
+# Raw retention / raw-matrix path:
+# - Optionally keep a rolling window of the newest N *curr* dumps (RAW or ELF) on disk.
+# - Periodically build a 2D raw feature matrix from those dumps (pages x frames) using
+#   a separate Python builder (coherence_temp_spec_stability.raw_matrix_builder).
+# - Optionally run the same stability validator on this raw matrix to compare RAW vs DELTA.
 rawRetentionEnabled=$(jq -r '.rawRetention.enabled // false' "$CONFIG" 2>/dev/null)
 [[ "${RAW_RETENTION:-}" == "1" || "${RAW_RETENTION:-}" == "true" ]] && rawRetentionEnabled="true"
 keepDumps=$(jq -r '.rawRetention.keepDumps // 50' "$CONFIG" 2>/dev/null)
@@ -48,8 +62,10 @@ qDone="$qPath/done"
 qFailed="$qPath/failed"
 mkdir -p "$qPending" "$qProcessing" "$qDone" "$qFailed"
 
-# In-memory accumulation is in a temp file (matrix shape: num_pages x num_frames, stored as .npy)
-# We append one column (one frame) per job; streaming runs on (time, pages) = (num_frames, num_pages)
+# In-memory accumulation is represented on disk as a single .npy file:
+#   RUN_MATRIX: shape [num_pages, num_frames], i.e. "pages x time".
+# - Each processed job adds exactly one new column (one time step) to this matrix.
+# - Streaming metrics treat the transposed view (time x pages) internally.
 RUN_MATRIX="${RUN_MATRIX:-$qPath/run_matrix.npy}"
 RUN_MATRIX_LOCK="${RUN_MATRIX}.lock"
 
@@ -157,13 +173,13 @@ process_job() {
     fi
   fi
 
-  # Always delete prev (keeps rolling prev/curr chain correct)
+  # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
   if [[ -f "$prev" ]]; then
-    rm -f "$prev"
+    sudo rm -f "$prev" 2>/dev/null || rm -f "$prev" 2>/dev/null || true
     echo "[CONSUMER] Deleted snapshot: $prev"
   fi
 
-  # Raw retention: keep only curr in rawDir (newest N); else delete curr
+  # Raw retention: optionally move curr into rawDir (newest N); otherwise leave curr on disk for next job.
   if [[ "$rawRetentionEnabled" == "true" && -n "$rawDir" ]]; then
     mkdir -p "$rawDir"
     dest="$rawDir/$(basename "$curr")"
@@ -191,12 +207,8 @@ process_job() {
         fi
       done
     fi
-  else
-    if [[ -f "$curr" ]]; then
-      rm -f "$curr"
-      echo "[CONSUMER] Deleted snapshot: $curr"
-    fi
   fi
+  # When rawRetention is false: do not delete curr; it is the next job's prev and will be deleted then.
 
   # Raw build + raw metrics (when raw retention enabled and enough dumps)
   if [[ "$rawRetentionEnabled" == "true" && -n "$rawDir" && -n "$rawMatrixNpy" ]]; then
