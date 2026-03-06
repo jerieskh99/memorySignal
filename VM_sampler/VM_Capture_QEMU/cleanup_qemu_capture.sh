@@ -11,9 +11,11 @@ set -euo pipefail
 
 QUEUE_ROOT="${QUEUE_ROOT:-$HOME/memory_traces/queue_dir}"
 DUMP_DIR="${DUMP_DIR:-/var/lib/libvirt/qemu/dump}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-$HOME/memory_traces/output_dir}"
 
 echo "[CLEANUP] Queue root : $QUEUE_ROOT"
 echo "[CLEANUP] Dump dir   : $DUMP_DIR"
+echo "[CLEANUP] Output root: $OUTPUT_ROOT"
 
 echo "[CLEANUP] Killing capture producer/consumer processes (if any)..."
 # Kill any process whose command line contains our capture scripts.
@@ -36,6 +38,14 @@ if [[ -d "$DUMP_DIR" ]]; then
   sudo rm -f "$DUMP_DIR"/memory_dump* 2>/dev/null || true
 else
   echo "[CLEANUP] Dump dir does not exist: $DUMP_DIR (nothing to delete)"
+fi
+
+echo "[CLEANUP] Deleting DELTA files in $OUTPUT_ROOT (cosine/hamming)..."
+if [[ -d "$OUTPUT_ROOT" ]]; then
+  sudo rm -f "$OUTPUT_ROOT"/cosine/* 2>/dev/null || true
+  sudo rm -f "$OUTPUT_ROOT"/hamming/* 2>/dev/null || true
+else
+  echo "[CLEANUP] Output dir does not exist: $OUTPUT_ROOT (nothing to delete)"
 fi
 
 echo "[CLEANUP] Done."

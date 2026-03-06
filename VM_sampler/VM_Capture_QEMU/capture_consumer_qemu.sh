@@ -176,7 +176,7 @@ process_job() {
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
   # Log only when the file is actually gone (so we see if rm failed e.g. permission denied).
   if [[ -f "$prev" ]]; then
-    sudo rm -f "$prev" 2>/dev/null || sudo rm -f "$prev" 2>/dev/null || true
+    sudo rm -f "$prev" 2>/dev/null || rm -f "$prev" 2>/dev/null || true
     if [[ ! -f "$prev" ]]; then
       echo "[CONSUMER] Deleted snapshot: $prev"
     else
