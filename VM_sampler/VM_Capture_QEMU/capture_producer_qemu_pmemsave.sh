@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
-# QEMU/libvirt producer (qemu:///system) using qemu-monitor-command pmemsave:
-# 1) virsh suspend (pause VM)
-# 2) virsh qemu-monitor-command pmemsave -> /var/lib/libvirt/qemu/dump/*.raw (or imageDir)
-# 3) optional sudo chown to make dump readable by user
-# 4) enqueue { prev, curr, output } job for the existing consumer.
+# QEMU/libvirt producer (qemu:///system) using qemu-monitor-command pmemsave.
+# High-level goal: generate a *sequence* of flat RAW physical-memory images
+# for a running libvirt VM, queuing prev/curr pairs for the existing consumer
+# while keeping the VM paused only around the pmemsave window.
 #
-# This is the \"system\" variant of the raw pmemsave producer, intended for
-# VMs managed under qemu:///system where QEMU runs as libvirt-qemu and is
-# allowed to write into /var/lib/libvirt/qemu/dump.
+# Capture loop for each iteration:
+# - Enforce backpressure on the queue (do not create new dumps if consumer is behind).
+# - Pause the VM via `virsh -c qemu:///system suspend` and wait until domstate == paused.
+# - Ask QEMU (via `virsh qemu-monitor-command`) to run pmemsave(0, ramSizeBytes, newImage)
+#   into a libvirt-owned directory (typically /var/lib/libvirt/qemu/dump).
+# - Optionally run `sudo chown <user>:<group> newImage` so the user-owned consumer
+#   and analysis tools can read the dump without changing libvirt/SELinux/AppArmor.
+# - Enqueue a `{ prev, curr, output }` JSON job pointing to the old/new dump paths.
+# - Resume the VM via `virsh ... resume` and wait until domstate == running.
+# - Sleep for intervalMsec, then repeat.
 
 set -euo pipefail
 
@@ -19,27 +25,27 @@ if [[ ! -f "$CONFIG" ]]; then
   exit 1
 fi
 
-domain=$(jq -r '.domain' "$CONFIG")
-imageDir=$(jq -r '.imageDir' "$CONFIG")
-outputDir=$(jq -r '.outputDir' "$CONFIG")
-intervalMsec=$(jq -r '.intervalMsec' "$CONFIG")
-qPath=$(jq -r '.queueDir' "$CONFIG")
+domain=$(jq -r '.domain' "$CONFIG")                 # libvirt domain name (e.g. "Kali Jeries")
+imageDir=$(jq -r '.imageDir' "$CONFIG")             # where pmemsave writes RAW dumps
+outputDir=$(jq -r '.outputDir' "$CONFIG")           # directory passed to Rust delta
+intervalMsec=$(jq -r '.intervalMsec' "$CONFIG")     # capture interval in milliseconds
+qPath=$(jq -r '.queueDir' "$CONFIG")                # root of {pending,processing,done,failed}
 maxPending=$(jq -r '.backpressure.maxPendingJobs // 20' "$CONFIG")
 sleepOnBackpressure=$(jq -r '.backpressure.sleepOnBackpressureSeconds // 1' "$CONFIG")
 timeoutSeconds=$(jq -r '.vmStatePolling.timeoutSeconds // 30' "$CONFIG")
 pollIntervalMs=$(jq -r '.vmStatePolling.pollIntervalMs // 200' "$CONFIG")
 
-ramSizeMb=$(jq -r '.ramSizeMb // 0' "$CONFIG")
+ramSizeMb=$(jq -r '.ramSizeMb // 0' "$CONFIG")      # guest RAM size in MiB (e.g. 2048)
 if [[ -z "$ramSizeMb" || "$ramSizeMb" == "null" || "$ramSizeMb" -le 0 ]]; then
   echo "[PRODUCER-PMEM] ERROR: ramSizeMb required in config (guest RAM size in MiB, e.g. 2048)"
   exit 1
 fi
-ramSizeBytes=$(( ramSizeMb * 1024 * 1024 ))
+ramSizeBytes=$(( ramSizeMb * 1024 * 1024 ))         # pmemsave size (must match RAM exactly)
 
 # Optional chown of the freshly created dump so the consumer (running as user)
 # can read it without changing libvirt policies. Leave empty to disable.
-chownUser=$(jq -r '.chownUser // ""' "$CONFIG" 2>/dev/null || echo "")
-chownGroup=$(jq -r '.chownGroup // ""' "$CONFIG" 2>/dev/null || echo "")
+chownUser=$(jq -r '.chownUser // ""' "$CONFIG" 2>/dev/null || echo "")   # e.g. "jeries"
+chownGroup=$(jq -r '.chownGroup // ""' "$CONFIG" 2>/dev/null || echo "") # e.g. "jeries"
 
 qPending="$qPath/pending"
 qProcessing="$qPath/processing"

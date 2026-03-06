@@ -174,9 +174,14 @@ process_job() {
   fi
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
+  # Log only when the file is actually gone (so we see if rm failed e.g. permission denied).
   if [[ -f "$prev" ]]; then
-    sudo rm -f "$prev" 2>/dev/null || rm -f "$prev" 2>/dev/null || true
-    echo "[CONSUMER] Deleted snapshot: $prev"
+    sudo rm -f "$prev" 2>/dev/null || sudo rm -f "$prev" 2>/dev/null || true
+    if [[ ! -f "$prev" ]]; then
+      echo "[CONSUMER] Deleted snapshot: $prev"
+    else
+      echo "[CONSUMER] WARNING: could not delete prev (permission?): $prev"
+    fi
   fi
 
   # Raw retention: optionally move curr into rawDir (newest N); otherwise leave curr on disk for next job.
@@ -187,10 +192,10 @@ process_job() {
       echo "[CONSUMER] Retained snapshot -> $dest"
     else
       if cp "$curr" "$dest" 2>/dev/null; then
-        rm -f "$curr"
+        sudo rm -f "$curr"
         echo "[CONSUMER] Copied snapshot -> $dest (then removed original)"
       else
-        rm -f "$curr"
+        sudo rm -f "$curr"
         echo "[CONSUMER] Failed to move/copy curr, deleted: $curr"
       fi
     fi
@@ -202,7 +207,7 @@ process_job() {
         [[ -f "$rawDir/$f" ]] || continue
         idx=$((idx + 1))
         if [[ $idx -gt $keepDumps ]]; then
-          rm -f "$rawDir/$f"
+          sudo rm -f "$rawDir/$f"
           echo "[CONSUMER] Pruned old raw dump: $rawDir/$f"
         fi
       done
