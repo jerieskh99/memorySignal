@@ -12,10 +12,12 @@ set -euo pipefail
 QUEUE_ROOT="${QUEUE_ROOT:-$HOME/memory_traces/queue_dir}"
 DUMP_DIR="${DUMP_DIR:-/var/lib/libvirt/qemu/dump}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-$HOME/memory_traces/output_dir}"
+STREAMING_ROOT="${STREAMING_ROOT:-$HOME/memory_traces/streaming_results}"
 
 echo "[CLEANUP] Queue root : $QUEUE_ROOT"
 echo "[CLEANUP] Dump dir   : $DUMP_DIR"
 echo "[CLEANUP] Output root: $OUTPUT_ROOT"
+echo "[CLEANUP] Streaming root: $STREAMING_ROOT"
 
 echo "[CLEANUP] Killing capture producer/consumer processes (if any)..."
 # Kill any process whose command line contains our capture scripts.
@@ -33,6 +35,9 @@ for sub in failed processing done pending; do
   fi
 done
 
+echo "[CLEANUP] Deleting run matrix files in queue root..."
+rm -f "$QUEUE_ROOT"/run_matrix.npy "$QUEUE_ROOT"/run_matrix.npy.lock 2>/dev/null || true
+
 echo "[CLEANUP] Deleting RAW dumps in $DUMP_DIR (sudo rm memory_dump*)..."
 if [[ -d "$DUMP_DIR" ]]; then
   sudo rm -f "$DUMP_DIR"/memory_dump* 2>/dev/null || true
@@ -46,6 +51,13 @@ if [[ -d "$OUTPUT_ROOT" ]]; then
   sudo rm -f "$OUTPUT_ROOT"/hamming/* 2>/dev/null || true
 else
   echo "[CLEANUP] Output dir does not exist: $OUTPUT_ROOT (nothing to delete)"
+fi
+
+echo "[CLEANUP] Deleting streaming results in $STREAMING_ROOT..."
+if [[ -d "$STREAMING_ROOT" ]]; then
+  rm -f "$STREAMING_ROOT"/* 2>/dev/null || true
+else
+  echo "[CLEANUP] Streaming dir does not exist: $STREAMING_ROOT (nothing to delete)"
 fi
 
 echo "[CLEANUP] Done."
