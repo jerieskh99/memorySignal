@@ -73,6 +73,21 @@ echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${mi
 echo "[CONSUMER] Queue dir: $qPath"
 echo "[CONSUMER] Rust program: $rustDeltaCalculationProgram"
 
+# Delete helper that prefers sudo (needed for /var/lib/libvirt/qemu/dump) and logs truthfully.
+delete_file() {
+  local path="$1"
+  local context="${2:-snapshot}"
+  if [[ ! -e "$path" ]]; then
+    return 0
+  fi
+  sudo rm -f "$path" 2>/dev/null || rm -f "$path" 2>/dev/null || true
+  if [[ ! -e "$path" ]]; then
+    echo "[CONSUMER] Deleted $context: $path"
+  else
+    echo "[CONSUMER] WARNING: could not delete $context (permission?): $path"
+  fi
+}
+
 # Append one frame (column vector num_pages) to the run matrix. Matrix on disk is (num_pages, num_frames).
 append_frame() {
   local frameFile="$1"
@@ -174,14 +189,8 @@ process_job() {
   fi
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
-  # Log only when the file is actually gone (so we see if rm failed e.g. permission denied).
   if [[ -f "$prev" ]]; then
-    sudo rm -f "$prev" 2>/dev/null || rm -f "$prev" 2>/dev/null || true
-    if [[ ! -f "$prev" ]]; then
-      echo "[CONSUMER] Deleted snapshot: $prev"
-    else
-      echo "[CONSUMER] WARNING: could not delete prev (permission?): $prev"
-    fi
+    delete_file "$prev" "snapshot"
   fi
 
   # Raw retention: optionally move curr into rawDir (newest N); otherwise leave curr on disk for next job.
@@ -192,11 +201,11 @@ process_job() {
       echo "[CONSUMER] Retained snapshot -> $dest"
     else
       if cp "$curr" "$dest" 2>/dev/null; then
-        sudo rm -f "$curr"
+        delete_file "$curr" "snapshot"
         echo "[CONSUMER] Copied snapshot -> $dest (then removed original)"
       else
-        sudo rm -f "$curr"
-        echo "[CONSUMER] Failed to move/copy curr, deleted: $curr"
+        delete_file "$curr" "snapshot"
+        echo "[CONSUMER] Failed to move/copy curr; attempted cleanup of original."
       fi
     fi
     # Prune rawDir to keep only newest keepDumps (by mtime; portable: ls -t)
@@ -207,8 +216,7 @@ process_job() {
         [[ -f "$rawDir/$f" ]] || continue
         idx=$((idx + 1))
         if [[ $idx -gt $keepDumps ]]; then
-          sudo rm -f "$rawDir/$f"
-          echo "[CONSUMER] Pruned old raw dump: $rawDir/$f"
+          delete_file "$rawDir/$f" "old raw dump"
         fi
       done
     fi
