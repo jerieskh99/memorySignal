@@ -4,7 +4,7 @@
   "ramSizeMb": 2048,
   "imageDir": "/var/lib/libvirt/qemu/dump",
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",
-  "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/mem_sig/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",
+  "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",
   "intervalMsec": 5000,
   "queueDir": "/project/homes/jeries/memory_traces/queue_dir",
   "streaming": {
@@ -14,7 +14,7 @@
     "streamingOutputDir": "/project/homes/jeries/memory_traces/streaming_results",
     "minFramesForStreaming": 128,
     "deltaMetric": "cosine",
-    "projectRoot": "/project/homes/jeries/memorySignal/mem_sig"
+    "projectRoot": "/project/homes/jeries/memorySignal"
   },
   "rawRetention": {
     "enabled": false,
@@ -30,7 +30,7 @@
     },
     "rawMetrics": {
       "enabled": true,
-      "projectRoot": "/project/homes/jeries/memorySignal/mem_sig",
+      "projectRoot": "/project/homes/jeries/memorySignal",
       "validatorModule": "coherence_temp_spec_stability.stability_validator",
       "windowSize": 128,
       "stepSize": 64,
