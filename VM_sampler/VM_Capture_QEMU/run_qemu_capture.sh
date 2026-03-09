@@ -11,6 +11,18 @@ CONSUMER_SCRIPT="${CONSUMER_SCRIPT:-$ROOT/capture_consumer_qemu.sh}"
 CONFIG="${CONFIG:-$ROOT/config_qemu.json}"
 BACKGROUND="${BACKGROUND:-0}"
 
+# Optional SSH trigger for workload scripts inside the guest.
+# Example:
+#   SSH_TARGET=vmuser@10.0.2.15 SSH_COMMAND="bash ~/VM_executables/run_files.sh" SSH_ONLY=1 ./run_qemu_capture.sh
+# or run SSH first, then start capture:
+#   SSH_TARGET=vmuser@10.0.2.15 SSH_COMMAND="bash ~/VM_executables/run_files.sh" SSH_BEFORE_START=1 ./run_qemu_capture.sh
+SSH_TARGET="${SSH_TARGET:-}"           # required when SSH is used (user@host)
+SSH_COMMAND="${SSH_COMMAND:-}"         # required when SSH is used
+SSH_KEY="${SSH_KEY:-}"                 # optional private key path
+SSH_OPTS="${SSH_OPTS:-}"               # optional extra ssh options
+SSH_ONLY="${SSH_ONLY:-0}"              # 1/true => run SSH command and exit
+SSH_BEFORE_START="${SSH_BEFORE_START:-0}" # 1/true => run SSH command before producer/consumer
+
 if [[ ! -f "$PRODUCER_SCRIPT" ]]; then
   echo "Producer not found: $PRODUCER_SCRIPT"
   exit 1
@@ -24,7 +36,36 @@ if [[ ! -f "$CONFIG" ]]; then
   exit 1
 fi
 
+run_ssh_command() {
+  if [[ -z "$SSH_TARGET" || -z "$SSH_COMMAND" ]]; then
+    echo "SSH_TARGET and SSH_COMMAND are required for SSH mode."
+    echo "Example: SSH_TARGET=vmuser@10.0.2.15 SSH_COMMAND='bash ~/VM_executables/run_files.sh' SSH_ONLY=1 $0"
+    exit 1
+  fi
+  local ssh_cmd=(ssh)
+  if [[ -n "$SSH_KEY" ]]; then
+    ssh_cmd+=(-i "$SSH_KEY")
+  fi
+  if [[ -n "$SSH_OPTS" ]]; then
+    # shellcheck disable=SC2206
+    local extra_opts=($SSH_OPTS)
+    ssh_cmd+=("${extra_opts[@]}")
+  fi
+  ssh_cmd+=("$SSH_TARGET" "$SSH_COMMAND")
+  echo "Running SSH command on $SSH_TARGET ..."
+  "${ssh_cmd[@]}"
+}
+
 export CONFIG
+
+if [[ "${SSH_ONLY}" == "1" || "${SSH_ONLY}" == "true" ]]; then
+  run_ssh_command
+  exit 0
+fi
+
+if [[ "${SSH_BEFORE_START}" == "1" || "${SSH_BEFORE_START}" == "true" ]]; then
+  run_ssh_command
+fi
 
 if [[ "${BACKGROUND}" == "1" || "${BACKGROUND}" == "true" ]]; then
   echo "Starting producer and consumer in background (same terminal, nohup)."
