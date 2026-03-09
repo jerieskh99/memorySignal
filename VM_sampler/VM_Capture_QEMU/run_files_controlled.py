@@ -143,13 +143,13 @@ def load_steps() -> list[str]:
 
     # Default sequence (same intent as run_files.sh style workloads).
     return [
-        "bash ~/VM_executables/run_idle.sh --time 30",
-        "python3 ~/VM_executables/mem_stream.py --mb 128 --seconds 300",
-        "python3 ~/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 300 --seed 123",
-        "python3 ~/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds 300",
-        "python3 ~/VM_executables/io_seq_fsync.py --seconds 300 --kb 4096 --fsync-wait 1 --path io_seq.bin",
-        "python3 ~/VM_executables/io_rand_rw.py --seconds 300 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123",
-        "python3 ~/VM_executables/io_many_files.py --seconds 300 --files-per-batch 500 --payload-bytes 1024 --seed 123",
+        "bash ~/memorySignal/VM_executables/run_idle.sh --time 30",
+        "python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds 300",
+        "python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 300 --seed 123",
+        "python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds 300",
+        "python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 300 --kb 4096 --fsync-wait 1 --path io_seq.bin",
+        "python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 300 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123",
+        "python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 300 --files-per-batch 500 --payload-bytes 1024 --seed 123",
     ]
 
 
