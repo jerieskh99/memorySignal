@@ -26,7 +26,7 @@ def sweep(buf: np.ndarray, T: int, page_stride: int = 4096):
         # Touch one byte in each page of the buffer:
         for i in range(0, n, page_stride):
             buf[i] = v
-        v = np.uint8(v+1)
+        v = np.uint8((int(v) + 1) % 256)
 
         heartbeat += 1
         if heartbeat % 32 == 0:
