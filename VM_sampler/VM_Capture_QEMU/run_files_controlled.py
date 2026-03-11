@@ -178,22 +178,24 @@ def rotate_delta_files(test_name: str) -> None:
         print("[CONTROL] WARNING: could not resolve outputDir from CAPTURE_CONFIG; skipping rotation.")
         return
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Keep producer output layout intact: Rust expects output_dir/{hamming,cosine}/ as directories.
+    # We rotate only files *inside* these directories into:
+    #   output_dir/rotated/<test_name>/{hamming,cosine}/
+    rotated_root = out_dir / "rotated" / test_name
+    for metric in ("hamming", "cosine"):
+        src_dir = out_dir / metric
+        dst_dir = rotated_root / metric
+        src_dir.mkdir(parents=True, exist_ok=True)
+        dst_dir.mkdir(parents=True, exist_ok=True)
 
-    pairs = [("hamming", f"{test_name}_hamming"), ("cosine", f"{test_name}_cosine")]
-    for src_name, dst_name in pairs:
-        src = out_dir / src_name
-        dst = out_dir / dst_name
-        if src.exists():
-            # Avoid overwrite if rerunning with same test name.
-            if dst.exists():
-                dst = out_dir / f"{dst_name}_{int(time.time())}"
-            src.rename(dst)
-            print(f"[CONTROL] Rotated {src.name} -> {dst.name}")
-        else:
-            print(f"[CONTROL] WARNING: expected file not found for rotation: {src}")
-        # Create fresh file for next test.
-        src.touch(exist_ok=True)
-        print(f"[CONTROL] Created fresh file: {src}")
+        moved = 0
+        for p in src_dir.glob("*.txt"):
+            target = dst_dir / p.name
+            if target.exists():
+                target = dst_dir / f"{p.stem}_{int(time.time())}{p.suffix}"
+            p.rename(target)
+            moved += 1
+        print(f"[CONTROL] Rotated {moved} {metric} file(s) -> {dst_dir}")
 
 
 def step_name_from_command(remote_cmd: str) -> str:
