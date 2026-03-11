@@ -13,6 +13,9 @@ Flow per step:
 import os
 import shlex
 import time
+import json
+from pathlib import Path
+import re
 
 
 VIRSH_URI = os.environ.get("VIRSH_URI", "qemu:///system")
@@ -128,6 +131,94 @@ def stop_capture() -> None:
     run("pkill -f capture_consumer_qemu.sh >/dev/null 2>&1")
 
 
+def _capture_process_pids() -> list[int]:
+    pids: set[int] = set()
+    for pat in ("capture_producer_qemu_pmemsave.sh", "capture_consumer_qemu.sh"):
+        # pgrep returns one pid per line; ignore non-zero exits when not found.
+        out = os.popen(f"pgrep -f {shlex.quote(pat)} 2>/dev/null").read().strip()
+        if not out:
+            continue
+        for line in out.splitlines():
+            try:
+                pids.add(int(line.strip()))
+            except Exception:
+                pass
+    return sorted(pids)
+
+
+def pause_capture_processes() -> list[int]:
+    pids = _capture_process_pids()
+    if pids:
+        run("kill -STOP " + " ".join(str(p) for p in pids) + " >/dev/null 2>&1")
+        print(f"[CONTROL] Paused capture processes: {pids}")
+    return pids
+
+
+def resume_capture_processes(pids: list[int]) -> None:
+    if pids:
+        run("kill -CONT " + " ".join(str(p) for p in pids) + " >/dev/null 2>&1")
+        print(f"[CONTROL] Resumed capture processes: {pids}")
+
+
+def capture_output_dir() -> Path | None:
+    try:
+        with open(CAPTURE_CONFIG, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        out = cfg.get("outputDir", "")
+        if not out:
+            return None
+        return Path(out)
+    except Exception:
+        return None
+
+
+def rotate_delta_files(test_name: str) -> None:
+    out_dir = capture_output_dir()
+    if out_dir is None:
+        print("[CONTROL] WARNING: could not resolve outputDir from CAPTURE_CONFIG; skipping rotation.")
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    pairs = [("hamming", f"{test_name}_hamming"), ("cosine", f"{test_name}_cosine")]
+    for src_name, dst_name in pairs:
+        src = out_dir / src_name
+        dst = out_dir / dst_name
+        if src.exists():
+            # Avoid overwrite if rerunning with same test name.
+            if dst.exists():
+                dst = out_dir / f"{dst_name}_{int(time.time())}"
+            src.rename(dst)
+            print(f"[CONTROL] Rotated {src.name} -> {dst.name}")
+        else:
+            print(f"[CONTROL] WARNING: expected file not found for rotation: {src}")
+        # Create fresh file for next test.
+        src.touch(exist_ok=True)
+        print(f"[CONTROL] Created fresh file: {src}")
+
+
+def step_name_from_command(remote_cmd: str) -> str:
+    # Best effort extraction of script/workload name from command.
+    # Examples:
+    #   python3 ~/VM_executables/mem_stream.py ... -> mem_stream
+    #   bash ~/VM_executables/run_idle.sh --time 30 -> run_idle
+    # Falls back to generic "step".
+    try:
+        tokens = shlex.split(remote_cmd)
+    except Exception:
+        tokens = remote_cmd.split()
+
+    candidates = [t for t in tokens if t.endswith(".py") or t.endswith(".sh")]
+    if candidates:
+        name = Path(candidates[0]).stem
+    else:
+        # fallback: use first token (e.g., custom binary)
+        name = Path(tokens[0]).name if tokens else "step"
+
+    # Keep names filesystem-safe and compact
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._-")
+    return safe or "step"
+
+
 def load_steps() -> list[str]:
     if STEPS_FILE:
         if not os.path.isfile(STEPS_FILE):
@@ -167,6 +258,8 @@ def main() -> int:
     base = ssh_base()
 
     for i, remote_cmd in enumerate(steps, start=1):
+        test_label = step_name_from_command(remote_cmd)
+        test_name = f"test{i}_{test_label}"
         print(f"\n[CONTROL] ===== Step {i}/{len(steps)} =====")
         print(f"[CONTROL] Command: {remote_cmd}")
 
@@ -190,6 +283,9 @@ def main() -> int:
         print(f"[CONTROL] SSH command exit code: {rc}")
 
         if CAPTURE_MODE:
+            paused = pause_capture_processes()
+            rotate_delta_files(test_name)
+            resume_capture_processes(paused)
             stop_capture()
 
         stop_vm()
