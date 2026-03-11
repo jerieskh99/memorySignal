@@ -5,7 +5,7 @@
   "imageDir": "/var/lib/libvirt/qemu/dump",
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",
   "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",
-  "intervalMsec": 5000,
+  "intervalMsec": 1000,
   "queueDir": "/project/homes/jeries/memory_traces/queue_dir",
   "streaming": {
     "enabled": true,
@@ -18,7 +18,7 @@
   },
   "rawRetention": {
     "enabled": false,
-    "keepDumps": 50,
+    "keepDumps": 10,
     "rawDir": "/project/homes/jeries/memory_traces/raw_kept",
     "rawMatrixNpy": "/project/homes/jeries/memory_traces/raw_matrix.npy",
     "rawBuild": {
@@ -38,7 +38,7 @@
     }
   },
   "backpressure": {
-    "maxPendingJobs": 20,
+    "maxPendingJobs": 8,
     "sleepOnBackpressureSeconds": 1
   },
   "vmStatePolling": {
