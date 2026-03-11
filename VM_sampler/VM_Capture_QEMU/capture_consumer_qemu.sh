@@ -31,6 +31,9 @@ streamingOutputDir=$(jq -r '.streaming.streamingOutputDir // ""' "$CONFIG")
 minFramesForStreaming=$(jq -r '.streaming.minFramesForStreaming // 128' "$CONFIG")
 deltaMetric=$(jq -r '.streaming.deltaMetric // "cosine"' "$CONFIG")
 projectRoot=$(jq -r '.streaming.projectRoot // ""' "$CONFIG")
+BORG="${BORG:-0}"
+BORG_REPO="${BORG_REPO:-}"
+BORG_PASSPHRASE="${BORG_PASSPHRASE:-}"
 
 # Raw retention / raw-matrix path:
 # - Optionally keep a rolling window of the newest N *curr* dumps (RAW or ELF) on disk.
@@ -86,6 +89,52 @@ delete_file() {
   else
     echo "[CONSUMER] WARNING: could not delete $context (permission?): $path"
   fi
+}
+
+sanitize_name() {
+  local s="$1"
+  # borg archive names are restrictive; keep alnum, dot, underscore, dash.
+  s="${s//[^A-Za-z0-9._-]/_}"
+  # avoid empty archive tokens
+  [[ -z "$s" ]] && s="item"
+  echo "$s"
+}
+
+archive_with_borg_async() {
+  local path="$1"
+  if [[ ! -e "$path" ]]; then
+    return 0
+  fi
+  if [[ "$BORG" != "1" && "$BORG" != "true" && "$BORG" != "yes" ]]; then
+    return 1
+  fi
+  if [[ -z "$BORG_REPO" || -z "$BORG_PASSPHRASE" ]]; then
+    echo "[CONSUMER] WARNING: BORG=1 but BORG_REPO/BORG_PASSPHRASE missing; skipping borg handoff for $path"
+    return 0
+  fi
+  if ! command -v borg >/dev/null 2>&1; then
+    echo "[CONSUMER] WARNING: BORG=1 but borg command not found; skipping borg handoff for $path"
+    return 0
+  fi
+
+  local host image ts archive
+  host=$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo "host")
+  image=$(basename "$path")
+  ts=$(date +%Y%m%dT%H%M%S)
+  archive="$(sanitize_name "$host")-$(sanitize_name "$ts")-$(sanitize_name "$image")"
+
+  echo "[CONSUMER] BORG handoff start: image=$path archive=$archive"
+  (
+    export BORG_REPO BORG_PASSPHRASE
+    borg create "::${archive}" "$path" >/dev/null 2>&1
+  ) &
+  local pid=$!
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "[CONSUMER] WARNING: failed to spawn async borg process for $path"
+  else
+    echo "[CONSUMER] BORG handoff spawned (pid=$pid): $path"
+  fi
+  return 0
 }
 
 # Append one frame (column vector num_pages) to the run matrix. Matrix on disk is (num_pages, num_frames).
@@ -190,7 +239,11 @@ process_job() {
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
   if [[ -f "$prev" ]]; then
-    delete_file "$prev" "snapshot"
+    if archive_with_borg_async "$prev"; then
+      : # archived asynchronously; keep source file (no delete) when BORG is enabled.
+    else
+      delete_file "$prev" "snapshot"
+    fi
   fi
 
   # Raw retention: optionally move curr into rawDir (newest N); otherwise leave curr on disk for next job.

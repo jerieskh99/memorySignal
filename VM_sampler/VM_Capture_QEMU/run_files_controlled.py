@@ -116,9 +116,19 @@ def start_capture() -> int:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
     producer_q = shlex.quote(CAPTURE_PRODUCER_SCRIPT)
+    borg_mode = os.environ.get("BORG", "")
+    borg_repo = os.environ.get("BORG_REPO", "")
+    borg_pass = os.environ.get("BORG_PASSPHRASE", "")
+    env_prefix = ""
+    if borg_mode:
+        env_prefix += f"BORG={shlex.quote(borg_mode)} "
+    if borg_repo:
+        env_prefix += f"BORG_REPO={shlex.quote(borg_repo)} "
+    if borg_pass:
+        env_prefix += f"BORG_PASSPHRASE={shlex.quote(borg_pass)} "
     cmd = (
         f"cd {root_q} && "
-        f"CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"
+        f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"
     )
     print(f"[CONTROL] Starting capture (root={CAPTURE_ROOT})")
     return run(cmd) >> 8
