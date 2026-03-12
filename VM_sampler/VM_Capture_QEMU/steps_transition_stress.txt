@@ -1,0 +1,33 @@
+# Transition-stress design
+# Goal: stress change-point detection and short-window classification by
+# rapidly alternating workload families and intensities.
+# Uses shorter segments and irregular idle gaps.
+
+bash ~/memorySignal/VM_executables/run_idle.sh --time 90
+
+# Rapid alternation: memory <-> io with non-uniform durations
+python3 ~/memorySignal/VM_executables/mem_stream.py --mb 96 --seconds 180
+bash ~/memorySignal/VM_executables/run_idle.sh --time 20
+
+python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 180 --kb 2048 --fsync-wait 2 --path io_seq_fast1.bin
+bash ~/memorySignal/VM_executables/run_idle.sh --time 30
+
+python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 768 --seconds 210 --seed 321
+bash ~/memorySignal/VM_executables/run_idle.sh --time 25
+
+python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 210 --files-per-batch 900 --payload-bytes 512 --seed 321
+bash ~/memorySignal/VM_executables/run_idle.sh --time 20
+
+python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 1800 --object-kb 192 --sleep-ms 0 --seconds 210
+bash ~/memorySignal/VM_executables/run_idle.sh --time 35
+
+python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 210 --file-mb 1536 --block-kb 32 --write-ratio 0.7 --path io_rand_fast1.bin --seed 321
+bash ~/memorySignal/VM_executables/run_idle.sh --time 25
+
+# Repeat with different seed/intensity to test within-family variability
+python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 180 --seed 777
+bash ~/memorySignal/VM_executables/run_idle.sh --time 20
+
+python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 180 --file-mb 2048 --block-kb 64 --write-ratio 0.3 --path io_rand_fast2.bin --seed 777
+
+bash ~/memorySignal/VM_executables/run_idle.sh --time 120

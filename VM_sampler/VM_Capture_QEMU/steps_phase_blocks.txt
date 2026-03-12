@@ -1,0 +1,36 @@
+# Phase-block design
+# Goal: evaluate block-level separability + drift/recovery:
+#   baseline -> memory block -> recovery -> io block -> recovery -> repeat memory probe.
+
+# Baseline stabilization
+bash ~/memorySignal/VM_executables/run_idle.sh --time 180
+
+# ---------------- Memory block (structured -> random -> churn) ----------------
+python3 ~/memorySignal/VM_executables/mem_stream.py --mb 192 --seconds 360
+bash ~/memorySignal/VM_executables/run_idle.sh --time 45
+
+python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 360 --seed 123
+bash ~/memorySignal/VM_executables/run_idle.sh --time 45
+
+python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2400 --object-kb 256 --sleep-ms 10 --seconds 360
+
+# Recovery window
+bash ~/memorySignal/VM_executables/run_idle.sh --time 240
+
+# ---------------- I/O block (sequential -> random -> metadata) ----------------
+python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 360 --kb 4096 --fsync-wait 1 --path io_seq_block.bin
+bash ~/memorySignal/VM_executables/run_idle.sh --time 45
+
+python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 360 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand_block.bin --seed 123
+bash ~/memorySignal/VM_executables/run_idle.sh --time 45
+
+python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 360 --files-per-batch 700 --payload-bytes 1024 --seed 123
+
+# Recovery window
+bash ~/memorySignal/VM_executables/run_idle.sh --time 240
+
+# ---------------- Memory probe repeat (for hysteresis / return-to-state) ----------------
+python3 ~/memorySignal/VM_executables/mem_stream.py --mb 192 --seconds 360
+
+# Final idle
+bash ~/memorySignal/VM_executables/run_idle.sh --time 180

@@ -27,6 +27,7 @@ SSH_WAIT_TIMEOUT = int(os.environ.get("SSH_WAIT_TIMEOUT", "1200"))
 STOP_TIMEOUT = int(os.environ.get("STOP_TIMEOUT", "60"))
 FORCE_DESTROY = os.environ.get("FORCE_DESTROY", "1").lower() in {"1", "true", "yes"}
 STEPS_FILE = os.environ.get("STEPS_FILE", "")
+TEST_EXEC_SECONDS = int(os.environ.get("TEST_EXEC_SECONDS", "300"))
 
 # Optional capture mode: start/stop capture around each workload step.
 CAPTURE_MODE = os.environ.get("CAPTURE_MODE", "0").lower() in {"1", "true", "yes"}
@@ -247,12 +248,12 @@ def load_steps() -> list[str]:
     # Default sequence (same intent as run_files.sh style workloads).
     return [
         "bash ~/memorySignal/VM_executables/run_idle.sh --time 30",
-        "python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds 300",
-        "python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 300 --seed 123",
-        "python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds 300",
-        "python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 300 --kb 4096 --fsync-wait 1 --path io_seq.bin",
-        "python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 300 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123",
-        "python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 300 --files-per-batch 500 --payload-bytes 1024 --seed 123",
+        f"python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds {TEST_EXEC_SECONDS}",
+        f"python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds {TEST_EXEC_SECONDS} --seed 123",
+        f"python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds {TEST_EXEC_SECONDS}",
+        f"python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds {TEST_EXEC_SECONDS} --kb 4096 --fsync-wait 1 --path io_seq.bin",
+        f"python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds {TEST_EXEC_SECONDS} --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123",
+        f"python3 ~/memorySignal/VM_executables/io_many_files.py --seconds {TEST_EXEC_SECONDS} --files-per-batch 500 --payload-bytes 1024 --seed 123",
     ]
 
 
