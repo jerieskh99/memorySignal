@@ -3,7 +3,7 @@
 # Pattern: each workload runs 300s, with idle=60s (20%) between workloads.
 # Cycles: 2 full cycles of A/B workloads.
 
-bash ~/memorySignal/VM_executables/run_idle.sh --time 120
+bash ~/memorySignal/VM_executables/run_idle.sh --time 60
 
 # ---------------- Cycle 1 ----------------
 python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds 300

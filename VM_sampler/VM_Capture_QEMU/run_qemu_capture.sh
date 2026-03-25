@@ -73,6 +73,8 @@ if [[ "${BACKGROUND}" == "1" || "${BACKGROUND}" == "true" ]]; then
   PROD_PID=$!
   nohup bash "$CONSUMER_SCRIPT" >> "$ROOT/consumer.log" 2>&1 &
   CONS_PID=$!
+  echo "$PROD_PID" > "$ROOT/capture_pids.txt"
+  echo "$CONS_PID" >> "$ROOT/capture_pids.txt"
   echo "Producer PID: $PROD_PID (log: $ROOT/producer.log)"
   echo "Consumer PID: $CONS_PID (log: $ROOT/consumer.log)"
   echo "Root: $ROOT"

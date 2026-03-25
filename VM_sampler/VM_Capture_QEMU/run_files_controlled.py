@@ -23,7 +23,11 @@ VM_DOMAIN = os.environ.get("VM_DOMAIN", "Kali Jeries")
 SSH_TARGET = os.environ.get("SSH_TARGET", "")  # required: user@host
 SSH_KEY = os.environ.get("SSH_KEY", "")
 SSH_OPTS = os.environ.get("SSH_OPTS", "")
-SSH_WAIT_TIMEOUT = int(os.environ.get("SSH_WAIT_TIMEOUT", "1200"))
+# SSH_PASS: plaintext password passed to sshpass so no interactive prompt appears.
+# Example: SSH_PASS=kali python3 run_files_controlled.py ...
+# Requires sshpass to be installed: apt install sshpass
+SSH_PASS = os.environ.get("SSH_PASS", "")
+SSH_WAIT_TIMEOUT = int(os.environ.get("SSH_WAIT_TIMEOUT", "1200000"))
 STOP_TIMEOUT = int(os.environ.get("STOP_TIMEOUT", "60"))
 FORCE_DESTROY = os.environ.get("FORCE_DESTROY", "1").lower() in {"1", "true", "yes"}
 STEPS_FILE = os.environ.get("STEPS_FILE", "")
@@ -76,7 +80,11 @@ def ensure_vm_running() -> None:
 
 
 def ssh_base() -> str:
-    parts = ["ssh", "-o", "BatchMode=no", "-o", "ConnectTimeout=5"]
+    parts: list[str] = []
+    if SSH_PASS:
+        # Prepend sshpass so SSH never shows an interactive password prompt.
+        parts += ["sshpass", "-p", SSH_PASS]
+    parts += ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5"]
     if SSH_KEY:
         parts += ["-i", SSH_KEY]
     if SSH_OPTS:
@@ -113,7 +121,7 @@ def stop_vm() -> None:
         print("[CONTROL] WARNING: VM may still be running (graceful stop timed out).")
 
 
-def start_capture() -> int:
+def start_capture() -> tuple[int, list[int]]:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
     producer_q = shlex.quote(CAPTURE_PRODUCER_SCRIPT)
@@ -132,7 +140,18 @@ def start_capture() -> int:
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"
     )
     print(f"[CONTROL] Starting capture (root={CAPTURE_ROOT})")
-    return run(cmd) >> 8
+    rc = run(cmd) >> 8
+    pids: list[int] = []
+    pid_file = Path(CAPTURE_ROOT) / "capture_pids.txt"
+    time.sleep(0.5)
+    if pid_file.exists():
+        try:
+            lines = pid_file.read_text().strip().splitlines()
+            for line in lines[:2]:
+                pids.append(int(line.strip()))
+        except Exception:
+            pass
+    return rc, pids
 
 
 def stop_capture() -> None:
@@ -157,12 +176,25 @@ def _capture_process_pids() -> list[int]:
     return sorted(pids)
 
 
-def pause_capture_processes() -> list[int]:
-    pids = _capture_process_pids()
+def pause_capture_processes(capture_pids: list[int] | None = None) -> list[int]:
+    if capture_pids:
+        # Only pause PIDs we started; filter to those still running
+        alive = [p for p in capture_pids if _pid_alive(p)]
+        pids = alive
+    else:
+        pids = _capture_process_pids()
     if pids:
         run("kill -STOP " + " ".join(str(p) for p in pids) + " >/dev/null 2>&1")
         print(f"[CONTROL] Paused capture processes: {pids}")
     return pids
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
 
 
 def resume_capture_processes(pids: list[int]) -> None:
@@ -270,6 +302,8 @@ def main() -> int:
     print(f"[CONTROL] VM_DOMAIN={VM_DOMAIN}  SSH_TARGET={SSH_TARGET}  STEPS={len(steps)}")
     base = ssh_base()
 
+    current_capture_pids: list[int] = []
+
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
         test_name = f"test{i}_{test_label}"
@@ -282,7 +316,7 @@ def main() -> int:
             return 1
 
         if CAPTURE_MODE:
-            cap_rc = start_capture()
+            cap_rc, current_capture_pids = start_capture()
             if cap_rc != 0:
                 print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
                 return cap_rc
@@ -296,7 +330,7 @@ def main() -> int:
         print(f"[CONTROL] SSH command exit code: {rc}")
 
         if CAPTURE_MODE:
-            paused = pause_capture_processes()
+            paused = pause_capture_processes(current_capture_pids)
             rotate_delta_files(test_name)
             resume_capture_processes(paused)
             stop_capture()

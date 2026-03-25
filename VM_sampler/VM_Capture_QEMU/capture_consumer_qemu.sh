@@ -71,6 +71,9 @@ mkdir -p "$qPending" "$qProcessing" "$qDone" "$qFailed"
 # - Streaming metrics treat the transposed view (time x pages) internally.
 RUN_MATRIX="${RUN_MATRIX:-$qPath/run_matrix.npy}"
 RUN_MATRIX_LOCK="${RUN_MATRIX}.lock"
+# PID file for the async streaming metrics background process.
+# Used to skip triggering a second streaming run while one is already in flight.
+STREAMING_PID_FILE="${RUN_MATRIX}.streaming.pid"
 
 echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${minFramesForStreaming}, rawRetention=${rawRetentionEnabled})"
 echo "[CONSUMER] Queue dir: $qPath"
@@ -225,15 +228,34 @@ process_job() {
     echo "[CONSUMER] Appended frame from $latestFrame"
   fi
 
-  # Run streaming when we have enough frames
+  # Run streaming when we have enough frames.
+  # IMPORTANT: launched in background so the consumer loop is never blocked.
+  # A PID file prevents launching a second streaming run while one is in flight.
   if [[ "$streamingEnabled" == "true" && -f "$RUN_MATRIX" && -n "$streamingOutputDir" ]]; then
     local numFrames
     numFrames=$(python3 -c "import numpy as np; m=np.load('$RUN_MATRIX'); print(m.shape[1])" 2>/dev/null || echo "0")
     if [[ -n "$numFrames" && "$numFrames" -ge "$minFramesForStreaming" ]]; then
-      mkdir -p "$streamingOutputDir"
-      local outPrefix="$streamingOutputDir/streaming_$(date +%Y%m%d%H%M%S)"
-      echo "[CONSUMER] Running streaming metrics (frames=$numFrames) -> $outPrefix"
-      run_streaming_metrics "$RUN_MATRIX" "$outPrefix" || echo "[CONSUMER] Streaming metrics failed (non-fatal)"
+      local skip_streaming=false
+      if [[ -f "$STREAMING_PID_FILE" ]]; then
+        local spid
+        spid=$(cat "$STREAMING_PID_FILE" 2>/dev/null || echo "")
+        if [[ -n "$spid" ]] && kill -0 "$spid" 2>/dev/null; then
+          echo "[CONSUMER] Streaming already in flight (pid=$spid, frames=$numFrames), skipping."
+          skip_streaming=true
+        fi
+      fi
+      if [[ "$skip_streaming" == "false" ]]; then
+        mkdir -p "$streamingOutputDir"
+        local outPrefix="$streamingOutputDir/streaming_$(date +%Y%m%d%H%M%S)"
+        echo "[CONSUMER] Launching streaming metrics in background (frames=$numFrames) -> $outPrefix"
+        (
+          run_streaming_metrics "$RUN_MATRIX" "$outPrefix" || echo "[CONSUMER] Streaming metrics failed (non-fatal)"
+          rm -f "$STREAMING_PID_FILE"
+        ) &
+        local streaming_bg_pid=$!
+        echo "$streaming_bg_pid" > "$STREAMING_PID_FILE"
+        disown "$streaming_bg_pid" 2>/dev/null || true
+      fi
     fi
   fi
 
