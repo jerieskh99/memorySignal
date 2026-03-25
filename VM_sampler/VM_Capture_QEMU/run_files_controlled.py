@@ -46,6 +46,31 @@ CAPTURE_PRODUCER_SCRIPT = os.environ.get(
 )
 CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "2"))
 
+# ---------------------------------------------------------------------------
+# Step-gated offline metrics
+# ---------------------------------------------------------------------------
+# OFFLINE_METRICS_MODE=1 enables running offline_step_metrics.py after each step.
+OFFLINE_METRICS_MODE = os.environ.get("OFFLINE_METRICS_MODE", "0").lower() in {"1", "true", "yes"}
+OFFLINE_METRICS_SCRIPT = os.environ.get(
+    "OFFLINE_METRICS_SCRIPT",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "offline_step_metrics.py"),
+)
+# Path to the memorySignal repo root so offline_step_metrics.py can import
+# coherence_temp_spec_stability modules.  Falls back to streaming.projectRoot
+# from the capture config if not set explicitly.
+OFFLINE_PROJECT_ROOT = os.environ.get("OFFLINE_PROJECT_ROOT", "")
+# Directory where baseline_plv.npy is persisted across steps.
+# Defaults to <outputDir>/offline/baseline derived at runtime.
+OFFLINE_BASELINE_DIR = os.environ.get("OFFLINE_BASELINE_DIR", "")
+OFFLINE_WINDOW_SIZE = int(os.environ.get("OFFLINE_WINDOW_SIZE", "128"))
+OFFLINE_STEP_SIZE = int(os.environ.get("OFFLINE_STEP_SIZE", "64"))
+# If set, overrides the offline output root (default: same as capture outputDir).
+OFFLINE_OUTPUT_ROOT = os.environ.get("OFFLINE_OUTPUT_ROOT", "")
+# Which step number (1-based) is treated as the clean idle baseline.
+BASELINE_STEP_NUMBER = int(os.environ.get("BASELINE_STEP_NUMBER", "1"))
+# How long to wait for the consumer queue to drain before timing out (minutes).
+QUEUE_DRAIN_TIMEOUT_MINUTES = int(os.environ.get("QUEUE_DRAIN_TIMEOUT_MINUTES", "30"))
+
 
 def run(cmd: str) -> int:
     return os.system(cmd)
@@ -121,7 +146,7 @@ def stop_vm() -> None:
         print("[CONTROL] WARNING: VM may still be running (graceful stop timed out).")
 
 
-def start_capture() -> tuple[int, list[int]]:
+def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
     producer_q = shlex.quote(CAPTURE_PRODUCER_SCRIPT)
@@ -135,6 +160,14 @@ def start_capture() -> tuple[int, list[int]]:
         env_prefix += f"BORG_REPO={shlex.quote(borg_repo)} "
     if borg_pass:
         env_prefix += f"BORG_PASSPHRASE={shlex.quote(borg_pass)} "
+    # Per-step matrix path: consumer will append frames here instead of the
+    # shared default run_matrix.npy.
+    if run_matrix_path:
+        env_prefix += f"RUN_MATRIX={shlex.quote(run_matrix_path)} "
+    # In step-gated offline mode disable live streaming inside the consumer;
+    # offline metrics are computed by offline_step_metrics.py after each step.
+    if OFFLINE_METRICS_MODE:
+        env_prefix += "OFFLINE_MODE=1 "
     cmd = (
         f"cd {root_q} && "
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"
@@ -154,11 +187,147 @@ def start_capture() -> tuple[int, list[int]]:
     return rc, pids
 
 
-def stop_capture() -> None:
-    # Keep this narrow to this capture pipeline scripts.
-    print("[CONTROL] Stopping capture producer/consumer...")
+def stop_producer() -> None:
+    """Stop only the producer so the consumer can keep draining the queue."""
+    print("[CONTROL] Stopping capture producer...")
     run("pkill -f capture_producer_qemu_pmemsave.sh >/dev/null 2>&1")
+
+
+def stop_consumer() -> None:
+    """Stop only the consumer (call after queue is fully drained)."""
+    print("[CONTROL] Stopping capture consumer...")
     run("pkill -f capture_consumer_qemu.sh >/dev/null 2>&1")
+
+
+def stop_capture() -> None:
+    stop_producer()
+    stop_consumer()
+
+
+def capture_queue_dir() -> Path | None:
+    """Return the queueDir path from the active capture config."""
+    try:
+        with open(CAPTURE_CONFIG, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        q = cfg.get("queueDir", "")
+        return Path(q) if q else None
+    except Exception:
+        return None
+
+
+def step_run_matrix_path(test_name: str) -> str:
+    """Return a per-step run_matrix path so each test has its own isolated matrix."""
+    q = capture_queue_dir()
+    if q is None:
+        return ""
+    return str(q / f"run_matrix_{test_name}.npy")
+
+
+def wait_for_queue_drain(timeout_minutes: int = 30) -> bool:
+    """Poll pending+processing until both reach zero or timeout expires.
+
+    Returns True when the queue is empty, False on timeout.
+    """
+    q = capture_queue_dir()
+    if q is None:
+        print("[CONTROL] WARNING: cannot read queueDir from config; skipping drain wait.")
+        return True
+    pending = q / "pending"
+    processing = q / "processing"
+    deadline = time.time() + timeout_minutes * 60
+    poll_interval = 5
+    last_report = 0.0
+    while time.time() < deadline:
+        n_pending = len(list(pending.glob("*.json"))) if pending.is_dir() else 0
+        n_processing = len(list(processing.glob("*.json"))) if processing.is_dir() else 0
+        if n_pending + n_processing == 0:
+            print("[CONTROL] Queue fully drained (pending=0, processing=0).")
+            return True
+        now = time.time()
+        if now - last_report >= 15:
+            remaining = int(deadline - now)
+            print(
+                f"[CONTROL] Waiting for queue drain: pending={n_pending},"
+                f" processing={n_processing}, timeout_remaining={remaining}s"
+            )
+            last_report = now
+        time.sleep(poll_interval)
+    n_pending = len(list(pending.glob("*.json"))) if pending.is_dir() else 0
+    n_processing = len(list(processing.glob("*.json"))) if processing.is_dir() else 0
+    print(
+        f"[CONTROL] TIMEOUT: queue not fully drained after {timeout_minutes} min."
+        f" pending={n_pending}, processing={n_processing}"
+    )
+    return False
+
+
+def _resolve_offline_project_root() -> str:
+    """Return project root for offline metrics, from env or streaming config."""
+    if OFFLINE_PROJECT_ROOT:
+        return OFFLINE_PROJECT_ROOT
+    try:
+        with open(CAPTURE_CONFIG, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        return cfg.get("streaming", {}).get("projectRoot", "")
+    except Exception:
+        return ""
+
+
+def run_offline_step_metrics(step_name: str, matrix_path: str, is_baseline: bool) -> int:
+    """Invoke offline_step_metrics.py for one completed test step.
+
+    Returns the exit code (0 = success; non-zero logged as warning but not fatal
+    unless you want to be strict).
+    """
+    if not os.path.isfile(OFFLINE_METRICS_SCRIPT):
+        print(
+            f"[CONTROL] WARNING: offline_step_metrics.py not found at"
+            f" {OFFLINE_METRICS_SCRIPT}; skipping offline metrics."
+        )
+        return 0
+    if not os.path.isfile(matrix_path):
+        print(
+            f"[CONTROL] WARNING: step matrix not found: {matrix_path};"
+            f" skipping offline metrics for {step_name}."
+        )
+        return 0
+
+    project_root = _resolve_offline_project_root()
+    if not project_root:
+        print("[CONTROL] WARNING: OFFLINE_PROJECT_ROOT not set; skipping offline metrics.")
+        return 0
+
+    out_dir = capture_output_dir()
+    output_root = OFFLINE_OUTPUT_ROOT or (str(out_dir) if out_dir else "")
+    if not output_root:
+        print("[CONTROL] WARNING: cannot resolve output root for offline metrics; skipping.")
+        return 0
+
+    baseline_dir = OFFLINE_BASELINE_DIR or (
+        os.path.join(output_root, "offline", "baseline")
+    )
+
+    cmd_parts = [
+        "python3", OFFLINE_METRICS_SCRIPT,
+        "--matrix", matrix_path,
+        "--step-name", step_name,
+        "--output-root", output_root,
+        "--project-root", project_root,
+        "--baseline-dir", baseline_dir,
+        "--window-size", str(OFFLINE_WINDOW_SIZE),
+        "--step-size", str(OFFLINE_STEP_SIZE),
+    ]
+    if is_baseline:
+        cmd_parts.append("--is-baseline")
+    cmd = " ".join(shlex.quote(p) for p in cmd_parts)
+    print(f"[CONTROL] Offline step metrics: step={step_name} is_baseline={is_baseline}")
+    rc = run(cmd) >> 8
+    if rc != 0:
+        print(
+            f"[CONTROL] WARNING: offline_step_metrics.py exited rc={rc}"
+            f" for step {step_name} (non-fatal)."
+        )
+    return rc
 
 
 def _capture_process_pids() -> list[int]:
@@ -299,24 +468,32 @@ def main() -> int:
         print("ERROR: no steps to run.")
         return 1
 
-    print(f"[CONTROL] VM_DOMAIN={VM_DOMAIN}  SSH_TARGET={SSH_TARGET}  STEPS={len(steps)}")
+    print(
+        f"[CONTROL] VM_DOMAIN={VM_DOMAIN}  SSH_TARGET={SSH_TARGET}"
+        f"  STEPS={len(steps)}  CAPTURE_MODE={CAPTURE_MODE}"
+        f"  OFFLINE_METRICS_MODE={OFFLINE_METRICS_MODE}"
+    )
     base = ssh_base()
-
-    current_capture_pids: list[int] = []
 
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
         test_name = f"test{i}_{test_label}"
-        print(f"\n[CONTROL] ===== Step {i}/{len(steps)} =====")
-        print(f"[CONTROL] Command: {remote_cmd}")
+        is_baseline_step = (i == BASELINE_STEP_NUMBER)
+        print(f"\n[CONTROL] ===== Step {i}/{len(steps)} : {test_name} =====")
+        print(f"[CONTROL] Command : {remote_cmd}")
+        if OFFLINE_METRICS_MODE and is_baseline_step:
+            print("[CONTROL] (this step will produce the shared PLV baseline)")
 
         ensure_vm_running()
         if not wait_for_ssh():
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
             return 1
 
+        # Derive a step-specific matrix path so each test's frames are isolated.
+        step_matrix = ""
         if CAPTURE_MODE:
-            cap_rc, current_capture_pids = start_capture()
+            step_matrix = step_run_matrix_path(test_name)
+            cap_rc, _ = start_capture(run_matrix_path=step_matrix)
             if cap_rc != 0:
                 print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
                 return cap_rc
@@ -330,10 +507,34 @@ def main() -> int:
         print(f"[CONTROL] SSH command exit code: {rc}")
 
         if CAPTURE_MODE:
-            paused = pause_capture_processes(current_capture_pids)
+            # 1. Stop the producer immediately — no more new dumps for this step.
+            stop_producer()
+
+            # 2. Wait for the consumer to finish processing all queued jobs.
+            #    The consumer keeps running and draining; we just poll until done.
+            drained = wait_for_queue_drain(timeout_minutes=QUEUE_DRAIN_TIMEOUT_MINUTES)
+            if not drained:
+                print(
+                    f"[CONTROL] ERROR: Queue drain timeout at step {i} ({test_name})."
+                    " Stopping run to avoid contaminating subsequent steps."
+                )
+                stop_consumer()
+                stop_vm()
+                return 1
+
+            # 3. Now that the queue is empty it is safe to stop the consumer.
+            stop_consumer()
+
+            # 4. Run offline metrics for this isolated, fully-drained step.
+            if OFFLINE_METRICS_MODE and step_matrix:
+                run_offline_step_metrics(
+                    step_name=test_name,
+                    matrix_path=step_matrix,
+                    is_baseline=is_baseline_step,
+                )
+
+            # 5. Rotate cosine/hamming output files under a per-test subfolder.
             rotate_delta_files(test_name)
-            resume_capture_processes(paused)
-            stop_capture()
 
         stop_vm()
 

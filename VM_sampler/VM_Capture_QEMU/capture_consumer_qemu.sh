@@ -34,6 +34,9 @@ projectRoot=$(jq -r '.streaming.projectRoot // ""' "$CONFIG")
 BORG="${BORG:-0}"
 BORG_REPO="${BORG_REPO:-}"
 BORG_PASSPHRASE="${BORG_PASSPHRASE:-}"
+# When OFFLINE_MODE=1, skip the live streaming trigger entirely.
+# Offline metrics are computed per-step by offline_step_metrics.py instead.
+OFFLINE_MODE="${OFFLINE_MODE:-0}"
 
 # Raw retention / raw-matrix path:
 # - Optionally keep a rolling window of the newest N *curr* dumps (RAW or ELF) on disk.
@@ -75,7 +78,7 @@ RUN_MATRIX_LOCK="${RUN_MATRIX}.lock"
 # Used to skip triggering a second streaming run while one is already in flight.
 STREAMING_PID_FILE="${RUN_MATRIX}.streaming.pid"
 
-echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${minFramesForStreaming}, rawRetention=${rawRetentionEnabled})"
+echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${minFramesForStreaming}, rawRetention=${rawRetentionEnabled}, offlineMode=${OFFLINE_MODE})"
 echo "[CONSUMER] Queue dir: $qPath"
 echo "[CONSUMER] Rust program: $rustDeltaCalculationProgram"
 
@@ -231,7 +234,10 @@ process_job() {
   # Run streaming when we have enough frames.
   # IMPORTANT: launched in background so the consumer loop is never blocked.
   # A PID file prevents launching a second streaming run while one is in flight.
-  if [[ "$streamingEnabled" == "true" && -f "$RUN_MATRIX" && -n "$streamingOutputDir" ]]; then
+  # Skipped when OFFLINE_MODE=1 (step-gated mode) because offline_step_metrics.py
+  # computes all metrics after the queue drains for each step.
+  if [[ "$OFFLINE_MODE" != "1" && "$OFFLINE_MODE" != "true" ]] && \
+     [[ "$streamingEnabled" == "true" && -f "$RUN_MATRIX" && -n "$streamingOutputDir" ]]; then
     local numFrames
     numFrames=$(python3 -c "import numpy as np; m=np.load('$RUN_MATRIX'); print(m.shape[1])" 2>/dev/null || echo "0")
     if [[ -n "$numFrames" && "$numFrames" -ge "$minFramesForStreaming" ]]; then
