@@ -47,8 +47,10 @@ fi
 
 echo "[CLEANUP] Deleting DELTA files in $OUTPUT_ROOT (cosine/hamming)..."
 if [[ -d "$OUTPUT_ROOT" ]]; then
+  sudo rm -rf "$OUTPUT_ROOT"/rotated/* 2>/dev/null || true
   sudo rm -f "$OUTPUT_ROOT"/cosine/* 2>/dev/null || true
   sudo rm -f "$OUTPUT_ROOT"/hamming/* 2>/dev/null || true
+  sudo mkdir -p "$OUTPUT_ROOT"/cosine "$OUTPUT_ROOT"/hamming
 else
   echo "[CLEANUP] Output dir does not exist: $OUTPUT_ROOT (nothing to delete)"
 fi
