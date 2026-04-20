@@ -19,6 +19,7 @@ def traverse_array(arr: np.ndarray, T: int, seed: int, stride: int = 4096):
 
     while time.time() < t_end:
         i = (a * x + c) % m
+        x = i
         idx = x * stride
 
         acc ^= int(arr[idx])

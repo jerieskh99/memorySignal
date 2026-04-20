@@ -1,0 +1,1436 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Controlled QEMU Pipeline (Active) — Handbook</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="book-shell">
+    <nav class="book-nav" aria-label="Handbook parts">
+      <p class="book-nav-title">Handbook</p>
+      <div class="docNav" id="docNav"></div>
+    </nav>
+
+    <div class="book-main">
+      <article class="book-article">
+        <header class="book-header">
+          <h1>Active controlled QEMU pipeline</h1>
+          <p class="subtitle">Static local handbook for <code>docs/controlled-qemu-pipeline/</code>, rendered from the embedded Markdown sources.</p>
+        </header>
+
+        <section class="arch-section" aria-labelledby="arch-at-a-glance">
+          <h2 id="arch-at-a-glance">Architecture at a Glance <a class="anchor" href="#arch-at-a-glance" aria-label="Anchor">#</a></h2>
+
+          <figure class="book-figure system-overview">
+            <svg viewBox="0 0 1100 508" width="100%" role="img" aria-label="Active controlled QEMU architecture diagram">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#374151"></path>
+                </marker>
+                <marker id="arrow-opt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#92400e"></path>
+                </marker>
+                <style>
+                  .zone{fill:#f0f1f3; stroke:#c5cad3; stroke-width:1}
+                  .zone-guest{stroke:#a8b0bd}
+                  .zone-capture{stroke:#8b9aab}
+                  .zone-process{stroke:#9ca89a}
+                  .node{fill:#ffffff; stroke:#b8bec9; stroke-width:1; rx:8; ry:8}
+                  .artifact{fill:#fafbfc; stroke:#c5cad3; stroke-width:1; rx:6; ry:6}
+                  .label{font: 600 13px ui-sans-serif, system-ui, sans-serif; fill:#1a1d21}
+                  .small{font: 12px ui-sans-serif, system-ui, sans-serif; fill:#4b5563}
+                  .mono{font: 11px ui-monospace, Menlo, Monaco, Consolas, monospace; fill:#374151}
+                  .defaultArrow{stroke:#374151; stroke-width:1.75; fill:none; marker-end:url(#arrow)}
+                  .optionalArrow{stroke:#92400e; stroke-width:1.75; stroke-dasharray:8 5; fill:none; marker-end:url(#arrow-opt)}
+                  .badge{font: 600 11px ui-sans-serif, sans-serif; fill:#92400e}
+                </style>
+              </defs>
+
+              <rect class="zone" x="16" y="14" width="1068" height="100" />
+              <text class="label" x="28" y="36">1) Host orchestration</text>
+
+              <rect class="zone zone-guest" x="16" y="124" width="1068" height="100" />
+              <text class="label" x="28" y="146">2) Guest VM execution</text>
+
+              <rect class="zone zone-capture" x="16" y="234" width="1068" height="124" />
+              <text class="label" x="28" y="256">3) Capture pipeline (CAPTURE_MODE=1)</text>
+
+              <rect class="zone zone-process" x="16" y="368" width="1068" height="130" />
+              <text class="label" x="28" y="390">4) Processing & outputs</text>
+
+              <rect class="node" x="56" y="50" width="400" height="40" />
+              <text class="label" x="72" y="74">run_files_controlled.py</text>
+              <text class="small" x="72" y="88">VM lifecycle control + step loop</text>
+
+              <rect class="artifact" x="470" y="50" width="300" height="40" />
+              <text class="small" x="485" y="74">virsh start/resume + shutdown</text>
+
+              <rect class="artifact" x="782" y="50" width="288" height="40" />
+              <text class="small" x="798" y="74">wait_for_ssh(): 'echo ok'</text>
+
+              <rect class="node" x="56" y="158" width="450" height="40" />
+              <text class="label" x="72" y="182">guest command (one step over SSH)</text>
+
+              <rect class="artifact" x="520" y="158" width="550" height="40" />
+              <text class="small" x="535" y="182">VM_executables/* (run_idle, mem_*, io_*)</text>
+
+              <rect class="node" x="56" y="268" width="200" height="40" />
+              <text class="label" x="72" y="292">run_qemu_capture.sh</text>
+              <text class="small" x="72" y="306">start producer + consumer</text>
+
+              <rect class="node" x="272" y="268" width="210" height="40" />
+              <text class="label" x="288" y="292">producer</text>
+              <text class="small" x="288" y="306">capture_producer_qemu_pmemsave.sh</text>
+
+              <rect class="artifact" x="494" y="268" width="200" height="40" />
+              <text class="small" x="510" y="292">RAW dumps</text>
+              <text class="mono" x="510" y="306">imageDir/*.raw</text>
+
+              <rect class="node" x="708" y="268" width="260" height="40" />
+              <text class="label" x="724" y="292">queue jobs</text>
+              <text class="small" x="724" y="306">queueDir/pending & processing JSON</text>
+
+              <rect class="node" x="272" y="318" width="250" height="48" />
+              <text class="label" x="288" y="340">consumer</text>
+              <text class="small" x="288" y="354">capture_consumer_qemu.sh</text>
+
+              <rect class="artifact" x="534" y="318" width="190" height="48" />
+              <text class="small" x="548" y="342">Rust delta</text>
+              <text class="mono" x="548" y="356">live_delta_calc prev curr outputDir</text>
+
+              <rect class="artifact" x="738" y="318" width="230" height="48" />
+              <text class="small" x="752" y="342">run_matrix</text>
+              <text class="mono" x="752" y="356">queueDir/run_matrix_*.npy</text>
+
+              <rect class="artifact" x="56" y="402" width="340" height="40" />
+              <text class="label" x="72" y="426">delta text outputs</text>
+              <text class="small" x="72" y="440">outputDir/cosine & outputDir/hamming</text>
+
+              <rect class="artifact" x="408" y="402" width="380" height="40" />
+              <text class="label" x="424" y="426">host rotates deltas</text>
+              <text class="small" x="424" y="440">outputDir/rotated/&lt;test&gt;/cosine|hamming</text>
+
+              <rect class="node" x="802" y="398" width="266" height="72" />
+              <text class="label" x="818" y="418">Optional offline</text>
+              <text class="badge" x="818" y="432">OFFLINE_METRICS_MODE=1</text>
+              <text class="small" x="818" y="446">offline_step_metrics.py</text>
+              <text class="small" x="818" y="460">outputs: outputDir/offline/&lt;step_name&gt;/</text>
+
+              <path class="defaultArrow" d="M 480 70 C 410 108, 340 142, 300 186" />
+
+              <text class="badge" x="320" y="228">CAPTURE_MODE=1</text>
+              <path class="optionalArrow" d="M 480 78 C 400 148, 280 198, 156 286" />
+
+              <path class="optionalArrow" d="M 256 288 C 306 288, 336 288, 372 288" />
+              <path class="optionalArrow" d="M 256 288 C 300 304, 356 332, 410 344" />
+
+              <path class="optionalArrow" d="M 382 288 C 480 288, 540 288, 598 288" />
+              <path class="optionalArrow" d="M 598 288 C 688 288, 780 288, 838 288" />
+
+              <path class="optionalArrow" d="M 838 288 C 760 308, 580 326, 410 344" />
+
+              <path class="optionalArrow" d="M 658 344 C 740 344, 800 344, 856 344" />
+              <path class="optionalArrow" d="M 410 344 C 360 378, 310 394, 226 424" />
+
+              <path class="optionalArrow" d="M 226 424 C 340 424, 430 424, 598 424" />
+
+              <path class="optionalArrow" d="M 856 344 C 890 372, 912 390, 935 430" />
+            </svg>
+            <figcaption>
+              <strong>Figure 1.</strong> This diagram summarizes the active controlled-QEMU pipeline. Solid/default arrows indicate always-active behavior per step; dashed/optional arrows indicate conditional paths controlled by <code>CAPTURE_MODE</code> and <code>OFFLINE_METRICS_MODE</code>. Artifacts labeled as RAW dumps, queue jobs, <code>run_matrix</code>, rotated delta outputs (cosine/hamming), and offline outputs show where intermediate and derived results land in the active flow.
+            </figcaption>
+          </figure>
+          <ul class="figure-legend">
+            <li><span class="swatch" aria-hidden="true"></span> Default / active flow</li>
+            <li><span class="swatch optional" aria-hidden="true"></span> Optional / conditional flow</li>
+            <li><span class="legend-artifact" aria-hidden="true"></span> Output artifacts</li>
+          </ul>
+        </section>
+
+        <nav class="contents-inline" aria-label="Section outline">
+          <h2 class="contents-heading">On this page</h2>
+          <ul id="inPageToc"></ul>
+        </nav>
+
+        <div id="content"></div>
+      </article>
+    </div>
+  </div>
+
+  <!-- Embedded Markdown sources (no network; local-file friendly). -->
+  <textarea id="md-00-scope" style="display:none;"># Active Controlled QEMU Pipeline
+
+## Purpose
+This booklet documents only the currently active controlled QEMU pipeline used in the present project phase. It starts from the host-side controller in `VM_sampler/VM_Capture_QEMU/run_files_controlled.py` and follows only the files that this active flow directly invokes or clearly requires.
+
+The aim is architectural accuracy, not repository-wide coverage. When the code, config, and nearby notes disagree, this booklet favors the active implementation and labels the mismatch explicitly.
+
+## Scope Boundary
+### In Scope
+- Host orchestration in `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- Capture launcher in `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh`
+- Active producer in `VM_sampler/VM_Capture_QEMU/capture_producer_qemu_pmemsave.sh`
+- Active consumer in `VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh`
+- Active capture configuration in `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+- Guest workloads directly referenced by the default controller step list in `VM_executables/`
+- Conditional offline post-step metrics in `VM_sampler/VM_Capture_QEMU/offline_step_metrics.py`
+
+### Out Of Scope
+- Alternate producers not selected by the active controller defaults: `VM_sampler/VM_Capture_QEMU/capture_producer_qemu.sh` and `VM_sampler/VM_Capture_QEMU/capture_producer_qemu_user_raw.sh`
+- Helper and cleanup scripts not called by the active controller: `VM_sampler/VM_Capture_QEMU/cleanup_qemu_capture.sh` and `VM_sampler/VM_Capture_QEMU/fix_line_endings_server.sh`
+- Legacy or alternative notes that describe other paths rather than the active flow, including `VM_sampler/VM_Capture_QEMU/README.md` and `VM_sampler/VM_Capture_QEMU/RAW_CAPTURE_ALTERNATIVE.md`
+- `VM_executables/run_files.sh`, which is present but not used by the default `run_files_controlled.py` loop
+- Internal implementations of external metric packages unless directly visible from the active scripts
+
+## Evidence Policy
+### Directly Supported
+Claims are marked directly supported when they come from the active code or active config, for example:
+- the per-step lifecycle in `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- the producer and consumer startup logic in `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh`
+- the queue, dump, and output directories defined in `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+
+### Inferred
+Claims are marked inferred when they are reasonable consequences of the active files but are not asserted by the controller itself. Example:
+- the controller never passes `CONSUMER_SCRIPT`, but `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh` defaults it to `capture_consumer_qemu.sh`, so consumer participation is inferred from launcher defaults rather than explicitly selected in Python
+
+### Ambiguous Or Unverified
+Claims remain ambiguous when the repository shows an assumption but does not prove it in the active path. Examples:
+- the guest is assumed to contain workloads under `~/memorySignal/VM_executables/...`, but the host controller does not validate that guest-side layout
+- nearby documentation still mentions `~/VM_executables/...` in some examples, which conflicts with the active command strings in `run_files_controlled.py`
+
+## Active Flow Summary
+The active architecture is a host-controlled step runner wrapped around an optional producer-consumer memory capture pipeline:
+
+1. The host ensures the VM is running and reachable over SSH.
+2. The host runs exactly one guest workload command per step.
+3. If capture is enabled, the host starts the QEMU capture launcher before the guest step.
+4. The producer repeatedly acquires RAW memory dumps and writes queue jobs.
+5. The consumer converts each dump pair into delta outputs, appends a per-frame vector into a run matrix, and may trigger live streaming metrics.
+6. After the guest step finishes, the host stops the producer, waits for queue drain, stops the consumer, optionally runs offline step metrics, rotates delta outputs, and powers the VM down.
+
+## Booklet Map
+- [`../ACTIVE_PIPELINE_FILE_MAP.md`](../ACTIVE_PIPELINE_FILE_MAP.md): conservative file-and-folder map, dependency map, flow map, used vs excluded files (traced from `run_files_controlled.py` only)
+- `01-host-orchestrator.md`: top-level host control flow and step lifecycle
+- `02-capture-launch-and-producer.md`: shell handoff and RAW dump production
+- `03-consumer-and-run-matrix.md`: queue processing, delta outputs, run-matrix accumulation, and streaming
+- `04-guest-workloads.md`: default guest workloads and optional `STEPS_FILE` variants
+- `05-offline-metrics.md`: conditional per-step offline metrics stage
+- `06-inputs-outputs-and-directories.md`: path conventions and artifact movement
+- `07-ambiguities-and-out-of-scope.md`: direct support, inference, unresolved gaps, and explicit exclusions
+</textarea>
+
+  <textarea id="md-01-host" style="display:none;"># Host Orchestrator
+
+> **Canonical reference:** the full host-controller section lives in [`../RUN_FILES_CONTROLLED_FLOW.md`](../RUN_FILES_CONTROLLED_FLOW.md). This chapter is a shorter companion; use the linked doc for architecture role, sequence, assumptions, explicit vs inferred, and I/O.
+
+## Purpose
+This section documents `VM_sampler/VM_Capture_QEMU/run_files_controlled.py` as the host-side orchestrator for the active controlled QEMU workflow. It is the top-level entrypoint for the current phase and determines when the VM runs, when capture is started, which guest workloads execute, and when per-step outputs are finalized.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+
+## Support Level
+- Directly supported by the controller implementation
+
+## Out Of Scope
+- Producer internals beyond the callout to `run_qemu_capture.sh`
+- Consumer internals beyond queue-drain coordination
+- Mathematical internals of downstream metric modules
+
+## Controller Role
+The controller is a sequential step runner. Its module docstring states the intended lifecycle per step:
+
+```5:10:VM_sampler/VM_Capture_QEMU/run_files_controlled.py
+Flow per step:
+  1) Ensure VM is running
+  2) Wait for SSH reachability
+  3) Run one command on VM over SSH and wait until it finishes
+  4) Stop VM
+  5) Move to next command
+```
+
+In practice, the active implementation extends that loop with optional capture and optional offline metrics.
+
+## VM And SSH Control
+The controller uses `virsh` for host-side VM state control and `ssh` or `sshpass + ssh` for guest command execution.
+
+- `ensure_vm_running()` checks `virsh domstate`, resumes a paused domain, or starts a stopped domain
+- `wait_for_ssh()` polls `ssh ... 'echo ok'` until the guest becomes reachable
+- `stop_vm()` issues `virsh shutdown`, waits up to `STOP_TIMEOUT`, and can fall back to `virsh destroy` when `FORCE_DESTROY` is enabled
+
+These functions make the host controller, rather than the guest workload scripts, responsible for VM lifecycle boundaries.
+
+## Step Source
+The controller supports two step sources:
+
+- Default active sequence embedded in `load_steps()`
+- External line-based step file selected by `STEPS_FILE`
+
+If `STEPS_FILE` is unset, the default active sequence is used:
+
+```449:457:VM_sampler/VM_Capture_QEMU/run_files_controlled.py
+    return [
+        "bash ~/memorySignal/VM_executables/run_idle.sh --time 30",
+        f"python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds {TEST_EXEC_SECONDS}",
+        f"python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds {TEST_EXEC_SECONDS} --seed 123",
+        f"python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds {TEST_EXEC_SECONDS}",
+        f"python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds {TEST_EXEC_SECONDS} --kb 4096 --fsync-wait 1 --path io_seq.bin",
+        f"python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds {TEST_EXEC_SECONDS} --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123",
+        f"python3 ~/memorySignal/VM_executables/io_many_files.py --seconds {TEST_EXEC_SECONDS} --files-per-batch 500 --payload-bytes 1024 --seed 123",
+    ]
+```
+
+## Per-Step Lifecycle
+For each step, the controller derives a test label such as `test1_run_idle`, then executes the following active lifecycle:
+
+1. Ensure the VM is running.
+2. Wait for SSH reachability.
+3. If `CAPTURE_MODE=1`, derive a step-specific `run_matrix_<test>.npy` path and start capture.
+4. Run one remote command over SSH.
+5. If capture is active, stop only the producer first.
+6. Poll the capture queue until `pending` and `processing` are both empty.
+7. Stop the consumer.
+8. If `OFFLINE_METRICS_MODE=1`, invoke `offline_step_metrics.py` on the step-specific run matrix.
+9. Rotate delta text outputs into `outputDir/rotated/<test_name>/...`.
+10. Stop the VM.
+11. Abort the sequence if the guest command failed.
+
+This extended lifecycle is directly visible in the main loop:
+
+```492:543:VM_sampler/VM_Capture_QEMU/run_files_controlled.py
+        if CAPTURE_MODE:
+            step_matrix = step_run_matrix_path(test_name)
+            cap_rc, _ = start_capture(run_matrix_path=step_matrix)
+            if cap_rc != 0:
+                print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
+                return cap_rc
+            if CAPTURE_WARMUP_SECONDS > 0:
+                print(f"[CONTROL] Capture warmup: sleeping {CAPTURE_WARMUP_SECONDS}s")
+                time.sleep(CAPTURE_WARMUP_SECONDS)
+
+        print("[CONTROL] Running command over SSH...")
+        rc = run(f"{base} {shlex.quote(remote_cmd)}")
+        rc = rc >> 8
+
+        if CAPTURE_MODE:
+            stop_producer()
+            drained = wait_for_queue_drain(timeout_minutes=QUEUE_DRAIN_TIMEOUT_MINUTES)
+            if not drained:
+                stop_consumer()
+                stop_vm()
+                return 1
+
+            stop_consumer()
+
+            if OFFLINE_METRICS_MODE and step_matrix:
+                run_offline_step_metrics(
+                    step_name=test_name,
+                    matrix_path=step_matrix,
+                    is_baseline=is_baseline_step,
+                )
+
+            rotate_delta_files(test_name)
+
+        stop_vm()
+```
+
+## Environment Variables That Change The Active Flow
+The most important controller parameters are:
+
+- `SSH_TARGET`: required guest SSH destination
+- `VM_DOMAIN` and `VIRSH_URI`: host-side libvirt target
+- `STEPS_FILE`: optional external step list
+- `TEST_EXEC_SECONDS`: default duration inserted into the built-in Python workload commands
+- `CAPTURE_MODE`: enables the producer-consumer capture path
+- `CAPTURE_CONFIG`: points to the active capture config, defaulting to `config_qemu_upc.json`
+- `CAPTURE_PRODUCER_SCRIPT`: defaults to the pmemsave producer
+- `OFFLINE_METRICS_MODE`: enables per-step offline metrics after queue drain
+- `BASELINE_STEP_NUMBER`: determines which step is treated as the clean baseline for offline PLV reuse
+
+## Directly Implemented Versus Inferred
+### Directly Implemented
+- One guest command is executed per step over SSH
+- The VM is started before each step and stopped after each step
+- Capture start and stop are controlled from the host when `CAPTURE_MODE=1`
+- Offline metrics are triggered only after queue drain when `OFFLINE_METRICS_MODE=1`
+
+### Inferred Or Conditional
+- The guest-side path `~/memorySignal/VM_executables/...` is assumed by the command strings, but not validated by the controller
+- The specific consumer script used during capture is not selected in Python; it is inherited from the launcher defaults described in the next section
+
+## Exclusions For This Section
+This section does not treat unused helpers such as `pause_capture_processes()` and `resume_capture_processes()` as active architecture. They exist in the file but are not called by the current main loop.
+</textarea>
+
+  <textarea id="md-02-capture" style="display:none;"># Capture Launch And Producer
+
+> **Full subsystem (launcher + producer + consumer + artifacts):** [`../QEMU_CAPTURE_PIPELINE.md`](../QEMU_CAPTURE_PIPELINE.md)
+
+## Purpose
+This section explains how the host controller enters the active QEMU capture pipeline and how the active producer acquires RAW memory dumps and transforms them into queue jobs for downstream processing.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh`
+- `VM_sampler/VM_Capture_QEMU/capture_producer_qemu_pmemsave.sh`
+- `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+
+## Support Level
+- Directly supported for launcher invocation, background process startup, producer behavior, and active config fields
+- Inferred only where the Python controller relies on shell-script defaults rather than selecting a value itself
+
+## Out Of Scope
+- Alternate producer implementations not selected by the active default flow
+- The SSH utility mode provided by `run_qemu_capture.sh`
+- Detailed internals of the downstream consumer
+
+## Launcher Handoff From The Host Controller
+When `CAPTURE_MODE=1`, `run_files_controlled.py` starts capture by exporting a small set of environment variables and invoking `run_qemu_capture.sh` in background mode:
+
+```171:174:VM_sampler/VM_Capture_QEMU/run_files_controlled.py
+    cmd = (
+        f"cd {root_q} && "
+        f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"
+    )
+```
+
+The handoff establishes the active capture contract:
+
+- `CONFIG` points to the active capture config, by default `config_qemu_upc.json`
+- `PRODUCER_SCRIPT` points to the active producer, by default `capture_producer_qemu_pmemsave.sh`
+- `BACKGROUND=1` causes both producer and consumer to be launched with `nohup`
+- `RUN_MATRIX` is set per step so the consumer appends into an isolated matrix for that step
+- `OFFLINE_MODE=1` is added only when `OFFLINE_METRICS_MODE=1`, disabling live streaming during capture so post-step offline processing can own the metric stage
+
+## Why The Consumer Is Still Part Of This Path
+The Python controller passes only `PRODUCER_SCRIPT`, not `CONSUMER_SCRIPT`. However, the launcher itself assigns a default consumer script:
+
+```9:12:VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh
+PRODUCER_SCRIPT="${PRODUCER_SCRIPT:-$ROOT/capture_producer_qemu_pmemsave.sh}"
+CONSUMER_SCRIPT="${CONSUMER_SCRIPT:-$ROOT/capture_consumer_qemu.sh}"
+CONFIG="${CONFIG:-$ROOT/config_qemu.json}"
+BACKGROUND="${BACKGROUND:-0}"
+```
+
+In the active controller path, this means consumer startup is indirectly selected through launcher defaults. That is why this booklet treats consumer participation as part of the active flow, but labels the selection mechanism as inferred from the launcher rather than explicit in Python.
+
+## Background Startup Behavior
+With `BACKGROUND=1`, the launcher starts both capture processes in the same shell session using `nohup`, writes their process IDs into `capture_pids.txt`, and logs to `producer.log` and `consumer.log`:
+
+```70:79:VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh
+if [[ "${BACKGROUND}" == "1" || "${BACKGROUND}" == "true" ]]; then
+  echo "Starting producer and consumer in background (same terminal, nohup)."
+  nohup bash "$PRODUCER_SCRIPT" >> "$ROOT/producer.log" 2>&1 &
+  PROD_PID=$!
+  nohup bash "$CONSUMER_SCRIPT" >> "$ROOT/consumer.log" 2>&1 &
+  CONS_PID=$!
+  echo "$PROD_PID" > "$ROOT/capture_pids.txt"
+  echo "$CONS_PID" >> "$ROOT/capture_pids.txt"
+```
+
+The controller later uses process-name-based `pkill` calls to stop producer and consumer separately.
+
+## Active Producer Role
+The active producer is `capture_producer_qemu_pmemsave.sh`. Its comments describe the intended behavior clearly:
+
+```2:16:VM_sampler/VM_Capture_QEMU/capture_producer_qemu_pmemsave.sh
+# QEMU/libvirt producer (qemu:///system) using qemu-monitor-command pmemsave.
+# High-level goal: generate a *sequence* of flat RAW physical-memory images
+# for a running libvirt VM, queuing prev/curr pairs for the existing consumer
+# while keeping the VM paused only around the pmemsave window.
+#
+# Capture loop for each iteration:
+# - Enforce backpressure on the queue (do not create new dumps if consumer is behind).
+# - Pause the VM via `virsh -c qemu:///system suspend` and wait until domstate == paused.
+# - Ask QEMU (via `virsh qemu-monitor-command`) to run pmemsave(0, ramSizeBytes, newImage)
+#   into a libvirt-owned directory (typically /var/lib/libvirt/qemu/dump).
+```
+
+## Producer Inputs From Config
+The producer reads the active configuration from `config_qemu_upc.json`. In the checked file, the most relevant fields are:
+
+- `domain`: `"Kali Jeries"`
+- `ramSizeMb`: `2048`
+- `imageDir`: `"/var/lib/libvirt/qemu/dump"`
+- `outputDir`: `"/project/homes/jeries/memory_traces/output_dir"`
+- `queueDir`: `"/project/homes/jeries/memory_traces/queue_dir"`
+- `intervalMsec`: `100`
+- `backpressure.maxPendingJobs`: `20`
+- `vmStatePolling.timeoutSeconds`: `30`
+- `chownUser` and `chownGroup`: both `"jeries"`
+
+These values are directly consumed by the producer script and determine where dumps are written and when jobs are throttled.
+
+## RAW Dump Acquisition Loop
+Each producer iteration does the following:
+
+1. Count pending and processing jobs.
+2. Sleep when queue backpressure exceeds the configured maximum.
+3. Compute a timestamped RAW dump path under `imageDir`.
+4. Suspend the VM with `virsh suspend`.
+5. Wait until `domstate == paused`.
+6. Use `virsh qemu-monitor-command ... pmemsave` to dump physical memory.
+7. Optionally `sudo chown` the dump so user-space tools can read it.
+8. If there was a previous dump, write a queue job pairing `prev` and `curr`.
+9. Store `curr` as the next iteration's `prev`.
+10. Resume the VM and sleep for the configured interval.
+
+The queue job emission is explicit:
+
+```135:145:VM_sampler/VM_Capture_QEMU/capture_producer_qemu_pmemsave.sh
+  if [[ -n "$prevImage" && -f "$prevImage" ]]; then
+    jobId="$timestamp"
+    jobTmp="$qPending/${jobId}.json.tmp"
+    jobFile="$qPending/${jobId}.json"
+    jq -n \
+      --arg prev "$prevImage" \
+      --arg curr "$newImage" \
+      --arg output "$outputDir" \
+      '{ prev: $prev, curr: $curr, output: $output }' > "$jobTmp"
+    mv "$jobTmp" "$jobFile"
+```
+
+## Architectural Meaning Of The Producer
+Within the active pipeline, the producer does not perform semantic inspection of guest memory. Its job is narrower:
+
+- acquire time-ordered RAW memory states
+- preserve adjacency through `prev` and `curr` pairing
+- hand off each adjacent pair to the consumer using queue files
+
+This matches the project framing in which the active pipeline treats memory as a sequence of states whose evolution is later summarized by delta representations and downstream metrics.
+
+## Directly Implemented Versus Inferred
+### Directly Implemented
+- The active producer uses `pmemsave`, not `virsh dump`, in the default controller path
+- Queue jobs are JSON files written under `queueDir/pending`
+- The producer pauses the VM only around the dump window
+- Backpressure is enforced before new dumps are created
+
+### Inferred Or Conditional
+- The exact consumer process started alongside the producer is inferred from launcher defaults
+- The producer assumes the configured `imageDir` is writable under libvirt/QEMU constraints and that `sudo chown` is available when ownership changes are needed
+
+## Exclusions For This Section
+This section intentionally excludes the alternate ELF producer and the user-run RAW producer. Both are present in the directory, but they are not part of the active default flow rooted at `run_files_controlled.py`.
+</textarea>
+
+  <textarea id="md-03-consumer" style="display:none;"># Consumer And Run Matrix
+
+> **Full subsystem (launcher + producer + consumer + artifacts):** [`../QEMU_CAPTURE_PIPELINE.md`](../QEMU_CAPTURE_PIPELINE.md)
+
+## Purpose
+This section documents the active consumer stage: how queue jobs are processed, how delta outputs are generated, how the per-step or default run matrix is accumulated, and when live streaming metrics are triggered.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh`
+- `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+
+## Support Level
+- Directly supported for queue handling, delta processing, matrix accumulation, live streaming triggers, and current config state
+- Inferred only when translating config flags into operational scope statements
+
+## Out Of Scope
+- Internal implementation of the Rust delta binary
+- Mathematical internals of `coherence_temp_spec_stability`
+- Raw-retention metrics as an active branch, because the checked config disables them
+
+## Consumer Role
+The consumer operates as the downstream stage of the producer-consumer pipeline. Its top-level comments summarize the active responsibilities:
+
+```2:13:VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh
+# QEMU consumer for memory snapshots.
+# High-level responsibilities:
+# - Treat each producer snapshot pair as an opaque byte blob (ELF or RAW, does not matter).
+# - For every job { prev, curr, output }:
+#     - Run the Rust delta binary to compute per-page cosine / hamming distances.
+#     - Append the resulting 1D frame vector as a new *column* in a long-lived run_matrix.npy
+#       with shape [num_pages, num_frames].
+#     - Optionally run streaming metrics (e.g. PLV/MSC/Cepstrum) on the accumulated matrix.
+#     - Optionally maintain a rolling window of RAW dumps and run stability metrics on a
+#       derived "raw feature" matrix.
+# - Drive the queue state machine: pending -> processing -> done/failed.
+```
+
+Within the active project phase, the important point is that the consumer treats adjacent memory dumps as opaque inputs for delta computation. It does not decode guest semantics.
+
+## Queue State Machine
+The consumer creates and uses the queue subdirectories:
+
+- `pending`
+- `processing`
+- `done`
+- `failed`
+
+Its main loop repeatedly picks the oldest pending JSON job, moves it to `processing`, processes it, and finally moves it to `done` or `failed`:
+
+```339:356:VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh
+while true; do
+  jobFile=$(find "$qPending" -maxdepth 1 -name '*.json' -print 2>/dev/null | sort | head -1)
+  if [[ -z "$jobFile" ]]; then
+    sleep 0.1
+    continue
+  fi
+
+  jobName=$(basename "$jobFile")
+  jobProcessing="$qProcessing/$jobName"
+  mv "$jobFile" "$jobProcessing"
+
+  if process_job "$jobProcessing"; then
+    : # moved to done
+  else
+    : # moved to failed
+  fi
+done
+```
+
+This queue layout is what allows the host controller to stop the producer first, wait for `pending` and `processing` to reach zero, and only then stop the consumer.
+
+## Delta Processing
+For each job, the consumer reads `prev`, `curr`, and `output` from the JSON file and invokes the Rust delta binary declared in the config:
+
+```203:218:VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh
+process_job() {
+  local jobPath="$1"
+  ...
+  prev=$(jq -r '.prev' "$jobPath")
+  curr=$(jq -r '.curr' "$jobPath")
+  output=$(jq -r '.output' "$jobPath")
+
+  echo "[CONSUMER] Running delta: prev=$(basename "$prev") curr=$(basename "$curr")"
+
+  if ! "$rustDeltaCalculationProgram" "$prev" "$curr" "$output"; then
+    echo "[CONSUMER] ERROR: Rust delta failed (rc=$?)"
+    mv "$jobPath" "$qFailed/"
+    return 1
+  fi
+```
+
+In the checked config, `rustDeltaCalculationProgram` points to:
+
+- `/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc`
+
+That binary is external to the active `VM_Capture_QEMU` folder, so this booklet treats it as a dependency rather than reconstructing its internals.
+
+## Run Matrix Accumulation
+After delta generation, the consumer locates the newest delta frame under `output/<metric>/` and appends it as a new column in `RUN_MATRIX`:
+
+```220:231:VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh
+  local subdir="cosine"
+  [[ "$deltaMetric" == "hamming" ]] && subdir="hamming"
+  local latestFrame
+  if [[ -d "$output/$subdir" ]]; then
+    latestFrame=$(ls -t "$output/$subdir"/*.txt 2>/dev/null | head -1)
+  fi
+  ...
+  append_frame "$latestFrame"
+  echo "[CONSUMER] Appended frame from $latestFrame"
+```
+
+The matrix convention is explicit:
+
+- on disk: shape `[num_pages, num_frames]`
+- each processed job contributes one new time column
+- the controller can override the default `queueDir/run_matrix.npy` with a step-specific `RUN_MATRIX`
+
+This is how the active controller isolates each workload step into its own `run_matrix_<test_name>.npy`.
+
+## Live Streaming Metrics
+Live streaming is controlled by both config and the controller's offline mode choice.
+
+In `config_qemu_upc.json`, the checked active state is:
+- `streaming.enabled = true`
+- `streaming.minFramesForStreaming = 128`
+- `streaming.deltaMetric = "cosine"`
+- `streaming.streamingOutputDir = "/project/homes/jeries/memory_traces/streaming_results"`
+
+The consumer triggers streaming only when:
+
+1. `OFFLINE_MODE` is not enabled
+2. streaming is enabled in config
+3. the run matrix exists
+4. the number of frames is at least `minFramesForStreaming`
+5. no earlier streaming process is still in flight
+
+```237:265:VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh
+  if [[ "$OFFLINE_MODE" != "1" && "$OFFLINE_MODE" != "true" ]] && \
+     [[ "$streamingEnabled" == "true" && -f "$RUN_MATRIX" && -n "$streamingOutputDir" ]]; then
+    local numFrames
+    numFrames=$(python3 -c "import numpy as np; m=np.load('$RUN_MATRIX'); print(m.shape[1])" 2>/dev/null || echo "0")
+    if [[ -n "$numFrames" && "$numFrames" -ge "$minFramesForStreaming" ]]; then
+      ...
+      (
+        run_streaming_metrics "$RUN_MATRIX" "$outPrefix" || echo "[CONSUMER] Streaming metrics failed (non-fatal)"
+        rm -f "$STREAMING_PID_FILE"
+      ) &
+```
+
+Because `run_files_controlled.py` exports `OFFLINE_MODE=1` when `OFFLINE_METRICS_MODE=1`, live streaming is deliberately suppressed in the step-gated offline path.
+
+## Cleanup And Retention
+The active cleanup behavior is asymmetric:
+
+- `prev` is deleted after it has been consumed, unless a Borg archival handoff is enabled
+- `curr` is normally kept because it becomes the next job's `prev`
+- if raw retention were enabled, `curr` could instead be moved into a raw dump retention directory
+
+This rolling-chain behavior is important because it preserves adjacency across dump pairs without re-dumping the earlier state.
+
+## Configured But Disabled Branch: Raw Retention
+`capture_consumer_qemu.sh` contains a substantial raw-retention and raw-metrics branch. However, in the checked active config:
+
+```19:20:VM_sampler/VM_Capture_QEMU/config_qemu_upc.json
+  "rawRetention": {
+    "enabled": false,
+```
+
+For the current project phase, that means:
+
+- the raw-retention branch exists in code
+- it should be documented only as conditional or inactive
+- it should not be presented as part of the default active pipeline
+
+## Relationship To The Host Controller
+The host controller depends on the consumer in three practical ways:
+
+- the controller waits for consumer queue drain before ending a step
+- the controller relies on the consumer to populate the step-specific run matrix
+- the controller rotates delta text files only after the consumer has finished writing them
+
+The consumer therefore defines the active boundary between capture and feature computation.
+</textarea>
+
+  <textarea id="md-04-guest" style="display:none;"># Guest Workloads
+
+## Purpose
+This section documents the guest-side workloads actually executed by the active controller, and separates the default workload sequence from optional alternative step lists selected through `STEPS_FILE`.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- `VM_executables/run_idle.sh`
+- `VM_executables/mem_stream.py`
+- `VM_executables/mem_pointer_chase.py`
+- `VM_executables/mem_alloc_touch_pages.py`
+- `VM_executables/io_seq_fsync.py`
+- `VM_executables/io_rand_rw.py`
+- `VM_executables/io_many_files.py`
+- Optional only: `VM_sampler/VM_Capture_QEMU/steps_phase_blocks.txt`
+- Optional only: `VM_sampler/VM_Capture_QEMU/steps_cycle_repetition.txt`
+- Optional only: `VM_sampler/VM_Capture_QEMU/steps_transition_stress.txt`
+
+## Support Level
+- Directly supported for the default active command sequence and workload implementations
+- Inferred for the assumption that the guest filesystem mirrors the same workload scripts at `~/memorySignal/VM_executables/...`
+
+## Out Of Scope
+- `VM_executables/run_files.sh`, which is present but not used by the default controller loop
+- Broader experimental interpretation beyond the implemented workload behavior
+
+## How Workloads Are Selected
+The active controller uses one of two sources:
+
+- `STEPS_FILE`, if set and present on the host
+- otherwise the built-in default list in `load_steps()`
+
+This means the default architecture is the built-in list, while the `steps_*.txt` files are optional scenario definitions rather than mandatory components of every run.
+
+## Default Active Workload Sequence
+The active default sequence is:
+
+1. `bash ~/memorySignal/VM_executables/run_idle.sh --time 30`
+2. `python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds TEST_EXEC_SECONDS`
+3. `python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds TEST_EXEC_SECONDS --seed 123`
+4. `python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds TEST_EXEC_SECONDS`
+5. `python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds TEST_EXEC_SECONDS --kb 4096 --fsync-wait 1 --path io_seq.bin`
+6. `python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds TEST_EXEC_SECONDS --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path io_rand.bin --seed 123`
+7. `python3 ~/memorySignal/VM_executables/io_many_files.py --seconds TEST_EXEC_SECONDS --files-per-batch 500 --payload-bytes 1024 --seed 123`
+
+The controller does not batch these inside the guest. It executes exactly one command per step over SSH and waits for that command to finish before moving on.
+
+## Implemented Workload Roles
+### `run_idle.sh`
+Role:
+- idle baseline step
+
+Implemented behavior:
+- sleeps for a configurable number of seconds
+
+Support:
+- directly supported by `VM_executables/run_idle.sh`
+
+### `mem_stream.py`
+Role:
+- dense sequential page-touch memory activity
+
+Implemented behavior:
+- allocates a `uint8` NumPy buffer sized by `--mb`
+- repeatedly touches one byte per page with a fixed page stride
+
+Support:
+- directly supported by `VM_executables/mem_stream.py`
+
+### `mem_pointer_chase.py`
+Role:
+- pseudo-random page-granular memory traversal
+
+Implemented behavior:
+- fills a large buffer with random bytes
+- uses a deterministic LCG-style progression to access page-sized slots
+
+Support:
+- directly supported by `VM_executables/mem_pointer_chase.py`
+
+### `mem_alloc_touch_pages.py`
+Role:
+- allocator churn and repeated page touching
+
+Implemented behavior:
+- repeatedly allocates many bytearrays
+- touches one byte per page in each object
+- optionally sleeps between batches
+
+Support:
+- directly supported by `VM_executables/mem_alloc_touch_pages.py`
+
+### `io_seq_fsync.py`
+Role:
+- sequential file writing with forced persistence cadence
+
+Implemented behavior:
+- writes fixed-size blocks to a file
+- calls `fsync` every `K` chunks
+
+Support:
+- directly supported by `VM_executables/io_seq_fsync.py`
+
+### `io_rand_rw.py`
+Role:
+- random mixed read-write file I/O
+
+Implemented behavior:
+- preallocates a large file
+- repeatedly seeks to random block-aligned offsets
+- performs reads or writes according to `--write-ratio`
+
+Support:
+- directly supported by `VM_executables/io_rand_rw.py`
+
+### `io_many_files.py`
+Role:
+- metadata-heavy small-file churn
+
+Implemented behavior:
+- creates many small files in a temporary directory
+- writes payloads and usually deletes them in batches
+
+Support:
+- directly supported by `VM_executables/io_many_files.py`
+
+## Optional `STEPS_FILE` Variants
+The repository also contains:
+
+- `VM_sampler/VM_Capture_QEMU/steps_phase_blocks.txt`
+- `VM_sampler/VM_Capture_QEMU/steps_cycle_repetition.txt`
+- `VM_sampler/VM_Capture_QEMU/steps_transition_stress.txt`
+
+These files still point to the same guest workload scripts under `~/memorySignal/VM_executables/...`, but they are not part of the default active flow unless `STEPS_FILE` is explicitly set to one of them. For the booklet, they should be documented as optional scenario definitions, not as always-active architecture.
+
+## Directly Implemented Versus Inferred
+### Directly Implemented
+- The controller's default sequence uses exactly seven guest-side commands
+- Each command points to a specific script under `~/memorySignal/VM_executables/`
+- Each script implements a simple, steady-state workload pattern
+
+### Inferred Or Ambiguous
+- The guest is assumed to host those scripts under `~/memorySignal/VM_executables/`, but the controller does not verify their presence
+- Nearby docs mention `~/VM_executables/...` in some examples, which conflicts with the actual controller command strings
+
+## Why `run_files.sh` Is Excluded
+`VM_executables/run_files.sh` is a wrapper script present in the repository, but it is not used by the default `run_files_controlled.py` step list. The active architecture described here is the per-step SSH execution model implemented by the controller itself.
+</textarea>
+
+  <textarea id="md-05-offline" style="display:none;"># Offline Metrics
+
+> **Full module import graph and used-vs-loaded files:** [`../OFFLINE_METRICS_AND_OUTPUTS.md`](../OFFLINE_METRICS_AND_OUTPUTS.md)
+
+## Purpose
+This section documents the conditional offline metrics stage that the host controller can trigger after each captured workload step.
+
+## Relevant Files (active pipeline)
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py` — invokes offline script after queue drain
+- `VM_sampler/VM_Capture_QEMU/offline_step_metrics.py` — only offline script in the active chain
+- `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json` — supplies `streaming.projectRoot` when `OFFLINE_PROJECT_ROOT` is unset
+
+Analysis code is under **`coherence_temp_spec_stability/`** at `--project-root`. Only a **subset** of that directory is imported by `offline_step_metrics.py`; see the linked doc for the exact list (active computation vs import-only vs unused).
+
+## Support Level
+- Directly supported for invocation timing, CLI arguments, and output paths in `offline_step_metrics.py`
+- Import graph verified against `offline_step_metrics.py`, `stability_validator.py`, and `streaming_metrics.py`
+
+## Out Of Scope
+- Plotting and ad-hoc tools in `coherence_temp_spec_stability/` that are not imported by the offline path (`plot_results.py`, `visualize_single_run.py`, `deep_behavior_plots.py`, …)
+- `raw_matrix_builder.py` (consumer raw-retention path, not `offline_step_metrics.py`)
+
+## When The Offline Stage Runs
+The offline stage runs only when all of the following are true:
+
+1. `CAPTURE_MODE=1`
+2. `OFFLINE_METRICS_MODE=1`
+3. a step-specific run matrix path was created
+4. the producer has already been stopped
+5. the queue has fully drained
+6. the consumer has been stopped
+
+This ordering is enforced by `run_files_controlled.py`, which invokes offline metrics only after queue drain for a completed step.
+
+## Why Live Streaming Is Disabled In This Mode
+When offline metrics mode is active, the controller exports `OFFLINE_MODE=1` before starting the launcher. The consumer interprets that flag as a command to skip live streaming so metrics can be computed in a step-gated manner afterward.
+
+## What Runs Inside `offline_step_metrics.py` (summary)
+1. Load step matrix `.npy`, transpose to `[T, N]`.
+2. Baseline step: `PLVStability.fit_baseline` → `baseline_plv.npy`.
+3. Every step: **`run_all_features_streaming`** (MSC / cepstrum / online PLV via `streaming_metrics.py`) + **`StabilityValidator.compute_plv_features`** (baseline-aware PLV JSON).
+4. Write `meta.json`, `streaming.*`, `plv_baseline_aware.json` under `<output_root>/offline/<step_name>/`.
+
+## Inputs
+The host controller passes the arguments documented in `offline_step_metrics.py` (`--matrix`, `--step-name`, `--output-root`, `--project-root`, `--baseline-dir`, window/step sizes, optional `--is-baseline`).
+
+## Baseline Step Logic
+The active offline design assumes one step is the clean baseline, controlled by `BASELINE_STEP_NUMBER` in the host controller. By default, that is step 1.
+
+## Outputs
+Per step: `<output_root>/offline/<step_name>/` with `meta.json`, `streaming` prefix outputs, `plv_baseline_aware.json`. Shared baseline: `<baseline_dir>/baseline_plv.npy`.
+
+## Directly Implemented Versus Inferred
+### Directly Implemented
+- offline metrics run after queue drain
+- matrix transpose convention `[pages, frames]` → `[frames, pages]`
+- one baseline step can persist `baseline_plv.npy`
+- per-step output subdirectory named by `step_name`
+
+### Inferred
+- full key structure inside `.npz` / JSON unless read from `streaming_metrics.save_streaming_results` and `PLVStability.evaluate_run`
+</textarea>
+
+  <textarea id="md-06-inputs" style="display:none;"># Inputs Outputs And Directories
+
+## Purpose
+This section consolidates the path conventions, file types, and artifact movements used by the active controlled QEMU pipeline.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- `VM_sampler/VM_Capture_QEMU/capture_producer_qemu_pmemsave.sh`
+- `VM_sampler/VM_Capture_QEMU/capture_consumer_qemu.sh`
+- `VM_sampler/VM_Capture_QEMU/offline_step_metrics.py`
+
+## Support Level
+- Directly supported by the active config and scripts
+
+## Out Of Scope
+- Stale output examples from earlier experiments
+- Directories unrelated to the active controlled QEMU flow
+
+## Host-Side Inputs
+### Controller Inputs
+- `SSH_TARGET` and optional SSH credentials/options
+- `VM_DOMAIN` and `VIRSH_URI`
+- optional `STEPS_FILE`
+- optional `CAPTURE_MODE` and `OFFLINE_METRICS_MODE`
+- optional overrides for config path, producer path, and offline paths
+
+### Capture Config Inputs
+The checked active config file is `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`. It contributes these host-side path conventions:
+
+- `imageDir = /var/lib/libvirt/qemu/dump`
+- `queueDir = /project/homes/jeries/memory_traces/queue_dir`
+- `outputDir = /project/homes/jeries/memory_traces/output_dir`
+- `streaming.streamingOutputDir = /project/homes/jeries/memory_traces/streaming_results`
+- `streaming.projectRoot = /project/homes/jeries/memorySignal`
+
+## Guest-Side Inputs
+The controller expects each default workload command to exist inside the guest under:
+
+- `~/memorySignal/VM_executables/run_idle.sh`
+- `~/memorySignal/VM_executables/mem_stream.py`
+- `~/memorySignal/VM_executables/mem_pointer_chase.py`
+- `~/memorySignal/VM_executables/mem_alloc_touch_pages.py`
+- `~/memorySignal/VM_executables/io_seq_fsync.py`
+- `~/memorySignal/VM_executables/io_rand_rw.py`
+- `~/memorySignal/VM_executables/io_many_files.py`
+
+These are guest-side paths referenced by SSH command strings. Their existence on the guest is assumed, not validated by the host controller.
+
+## Queue Directory Convention
+`queueDir` is the coordination root between producer, consumer, and controller.
+
+Subdirectories used by the active flow:
+- `pending/`: jobs produced but not yet claimed
+- `processing/`: jobs claimed by the consumer and in flight
+- `done/`: completed jobs
+- `failed/`: failed jobs
+
+Additional matrix artifact:
+- `run_matrix.npy` by default, or `run_matrix_<test_name>.npy` when the controller provides a per-step override
+
+## Dump And Delta Artifacts
+### RAW Dumps
+Producer outputs:
+- timestamped `.raw` files under `imageDir`
+
+Meaning:
+- each file is one captured memory state
+- adjacent states become `prev` and `curr` in a queue job
+
+### Delta Outputs
+Consumer outputs:
+- text files under `outputDir/cosine/`
+- text files under `outputDir/hamming/`
+
+Meaning:
+- each file is a per-frame page-wise delta vector produced by the Rust binary
+- the active consumer appends one selected frame at a time into the run matrix
+
+## Run Matrix Convention
+On disk, the active consumer stores the matrix with shape:
+
+- `[num_pages, num_frames]`
+
+Active variants:
+- default shared path: `queueDir/run_matrix.npy`
+- step-scoped path from the controller: `queueDir/run_matrix_<test_name>.npy`
+
+Meaning:
+- rows correspond to memory pages
+- columns correspond to temporal frames generated from adjacent snapshot pairs
+
+For offline metrics, this matrix is loaded and transposed to `[frames, pages]`.
+
+## Streaming And Offline Outputs
+### Live Streaming Outputs
+When live streaming is active and not suppressed by `OFFLINE_MODE=1`, the consumer writes outputs under:
+
+- `streaming.streamingOutputDir`
+
+These outputs are generated asynchronously after the run matrix reaches the configured frame threshold.
+
+### Offline Outputs
+When `OFFLINE_METRICS_MODE=1`, the offline script writes under:
+
+- `<outputDir>/offline/<step_name>/`
+
+Key files:
+- `meta.json`
+- `streaming.*`
+- `plv_baseline_aware.json`
+
+Shared baseline location:
+- `<outputDir>/offline/baseline/baseline_plv.npy`, unless overridden
+
+## Rotated Delta Artifacts
+After each captured step completes, the host controller rotates text files from:
+
+- `outputDir/hamming/*.txt`
+- `outputDir/cosine/*.txt`
+
+into:
+
+- `outputDir/rotated/<test_name>/hamming/`
+- `outputDir/rotated/<test_name>/cosine/`
+
+This preserves per-step delta outputs while leaving the producer-consumer directory layout intact for subsequent capture.
+
+## Artifact Lifecycle Summary
+1. Producer writes a RAW dump into `imageDir`.
+2. Producer pairs `prev` and `curr` dumps in a JSON job under `queueDir/pending/`.
+3. Consumer moves that job through `processing` into `done` or `failed`.
+4. Consumer writes delta text outputs under `outputDir`.
+5. Consumer appends one delta frame into the active run matrix.
+6. Controller waits for queue drain, then optionally runs offline metrics on the step matrix.
+7. Controller rotates delta text files into a per-step archival subdirectory.
+
+## Directly Implemented Versus Inferred
+### Directly Implemented
+- the host-side queue, output, and matrix paths come from `config_qemu_upc.json` and the active scripts
+- per-step run matrix isolation is implemented by the controller
+- rotated per-step delta output directories are created by `rotate_delta_files()`
+
+### Inferred Or Ambiguous
+- guest-side workload paths are inferred from SSH command strings
+- retention or archival semantics beyond the checked config are conditional and should not be described as always active
+</textarea>
+
+  <textarea id="md-07-ambig" style="display:none;"># Ambiguities And Out Of Scope
+
+## Purpose
+This section records the boundary cases, inferred assumptions, current mismatches, and explicit exclusions needed to keep the booklet scientifically accurate.
+
+## Relevant Files
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
+- `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh`
+- `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`
+- `VM_sampler/VM_Capture_QEMU/docs/RUN_CONTROLLED_CAPTURE.md`
+- `VM_sampler/VM_Capture_QEMU/README.md`
+
+## Support Level
+- Mixed by design: this chapter classifies evidence rather than asserting a single behavior source
+
+## Out Of Scope
+- Resolving unsupported claims by speculation
+- Expanding the documented architecture to other `VM_sampler/` branches
+
+## Directly Supported Active Facts
+- `VM_sampler/VM_Capture_QEMU/run_files_controlled.py` is the active orchestration entrypoint for the current documentation phase
+- The controller executes one guest command per step over SSH
+- The active default capture path uses `capture_producer_qemu_pmemsave.sh`
+- The launcher starts both producer and consumer in background mode when invoked by the controller
+- The consumer builds a delta-derived run matrix and can trigger streaming metrics
+- `offline_step_metrics.py` is called only after queue drain when offline mode is enabled
+- `config_qemu_upc.json` is the active default config path for the controller
+
+## Inferred But Reasonable Claims
+- The active consumer in the controller path is `capture_consumer_qemu.sh`, inferred from the launcher's default `CONSUMER_SCRIPT`
+- The guest contains a checkout or copy of the repository under `~/memorySignal/`, inferred from the controller's command strings
+- The Rust delta program and the external metric modules are available and callable at the configured paths, inferred from configuration and call sites rather than validated in the controller
+
+## Ambiguities And Mismatches
+### Guest Workload Path Mismatch
+Active code:
+- `run_files_controlled.py` and the optional `steps_*.txt` files use `~/memorySignal/VM_executables/...`
+
+Nearby documentation:
+- `VM_sampler/VM_Capture_QEMU/docs/RUN_CONTROLLED_CAPTURE.md` still shows `~/VM_executables/...` in some examples
+
+Implication:
+- the booklet should treat the controller command strings as authoritative for the current active flow and note the documentation mismatch explicitly
+
+### Consumer Selection Is Indirect
+Active code:
+- the controller passes only `PRODUCER_SCRIPT`
+
+Launcher behavior:
+- `run_qemu_capture.sh` defaults `CONSUMER_SCRIPT` to `capture_consumer_qemu.sh`
+
+Implication:
+- consumer membership is part of the active flow, but the exact selection mechanism is indirect rather than explicit in Python
+
+### Raw Retention Exists But Is Not Active By Current Config
+Active config:
+- `rawRetention.enabled` is `false` in `config_qemu_upc.json`
+
+Implication:
+- raw dump retention, raw matrix construction, and raw metrics should be documented as a dormant branch, not as active default behavior
+
+### Optional Step Files Exist But Are Not Always Active
+Repository contents:
+- `steps_phase_blocks.txt`
+- `steps_cycle_repetition.txt`
+- `steps_transition_stress.txt`
+
+Controller behavior:
+- these files matter only when `STEPS_FILE` points to one of them
+
+Implication:
+- they belong in the booklet as optional scenario definitions, not as mandatory pipeline stages
+
+### External Metrics Internals Are Not Reconstructed Here
+Observed behavior:
+- `capture_consumer_qemu.sh` and `offline_step_metrics.py` call into external modules such as `coherence_temp_spec_stability.streaming_metrics`, `stability_validator`, and `plv_calcolator`
+
+Implication:
+- this booklet should describe those modules as dependencies and interface points, but not claim detailed formulas or internal algorithms unless another repository source directly supports them
+
+## Explicit Exclusions
+The following files exist in the repository but are excluded from the active architecture unless a future phase explicitly activates them:
+
+- `VM_sampler/VM_Capture_QEMU/capture_producer_qemu.sh`
+- `VM_sampler/VM_Capture_QEMU/capture_producer_qemu_user_raw.sh`
+- `VM_sampler/VM_Capture_QEMU/cleanup_qemu_capture.sh`
+- `VM_sampler/VM_Capture_QEMU/fix_line_endings_server.sh`
+- `VM_sampler/VM_Capture_QEMU/RAW_CAPTURE_ALTERNATIVE.md`
+- `VM_executables/run_files.sh`
+
+## Documentation Guidance
+When extending this booklet later:
+
+- prefer the active code path over generic README prose
+- mark config-disabled branches as conditional, not active
+- distinguish host-side paths from guest-side assumptions
+- keep repository-wide historical branches out of scope unless the active controller begins to depend on them
+</textarea>
+
+  <script>
+    (function(){
+      const docs = [
+        { id: '00-scope', title: '00 — Scope & Evidence', textareaId: 'md-00-scope' },
+        { id: '01-host-orchestrator', title: '01 — Host Orchestrator', textareaId: 'md-01-host' },
+        { id: '02-capture-launch-and-producer', title: '02 — Capture Launch & Producer', textareaId: 'md-02-capture' },
+        { id: '03-consumer-and-run-matrix', title: '03 — Consumer & Run Matrix', textareaId: 'md-03-consumer' },
+        { id: '04-guest-workloads', title: '04 — Guest Workloads', textareaId: 'md-04-guest' },
+        { id: '05-offline-metrics', title: '05 — Offline Metrics', textareaId: 'md-05-offline' },
+        { id: '06-inputs-outputs-and-directories', title: '06 — Inputs/Outputs/Directories', textareaId: 'md-06-inputs' },
+        { id: '07-ambiguities-and-out-of-scope', title: '07 — Ambiguities & Exclusions', textareaId: 'md-07-ambig' },
+      ];
+
+      const inPageToc = document.getElementById('inPageToc');
+      const docNav = document.getElementById('docNav');
+      const content = document.getElementById('content');
+
+      function escapeHtml(s){
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function slugify(s){
+        return s
+          .trim()
+          .toLowerCase()
+          .replace(/[`~!@#$%^&*()+={}\[\]|\\:;"'<>,.?/]/g,'-')
+          .replace(/-+/g,'-')
+          .replace(/^-|-$/g,'');
+      }
+
+      function inline(text){
+        let out = escapeHtml(text);
+        // Links: [label](url)
+        out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) => {
+          const safeUrl = String(url).replace(/"/g,'&quot;');
+          return `<a href="${safeUrl}" target="_blank" rel="noopener">${label}</a>`;
+        });
+        // Inline code
+        out = out.replace(/`([^`]+)`/g, (_m, code) => `<code>${escapeHtml(code)}</code>`);
+        // Bold
+        out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // Simple emphasis (avoid eating * used in paths by requiring word chars)
+        out = out.replace(/(^|\\s)\*([^*]+)\*(?=\\s|$)/g, '$1<em>$2</em>');
+        return out;
+      }
+
+      function calloutCategory(headingText){
+        const t = headingText.toLowerCase();
+        if (t.includes('directly implemented') || t.includes('directly supported')) return 'direct';
+        if (t.includes('inferred')) return 'infer';
+        if (t.includes('conditional') || t.startsWith('when ')) return 'cond';
+        if (t.includes('ambig')) return 'ambig';
+        return null;
+      }
+
+      function renderMarkdown(md, docId){
+        const lines = md.replace(/\r/g,'').split('\n');
+        let html = '';
+
+        let inCode = false;
+        let codeLang = '';
+        let codeBuf = [];
+
+        let paragraphBuf = [];
+
+        let listBuf = null; // {type:'ul'|'ol', items:[]}
+
+        let callout = null; // {type, level}
+
+        const flushParagraph = () => {
+          if (paragraphBuf.length === 0) return;
+          const raw = paragraphBuf.join(' ').trim();
+          paragraphBuf = [];
+          if (!raw) return;
+          html += `<p>${inline(raw)}</p>`;
+        };
+
+        const flushList = () => {
+          if (!listBuf) return;
+          if (listBuf.items.length) {
+            const items = listBuf.items.map(it => `<li>${inline(it)}</li>`).join('');
+            html += `<${listBuf.type}>${items}</${listBuf.type}>`;
+          }
+          listBuf = null;
+        };
+
+        const closeCalloutIfNeeded = (newLevel) => {
+          if (!callout) return;
+          if (newLevel <= callout.level) {
+            html += `</div>`;
+            callout = null;
+          }
+        };
+
+        for (let i=0;i<lines.length;i++){
+          const line = lines[i];
+
+          // Code fences
+          if (line.trim().startsWith('```')){
+            if (!inCode){
+              flushParagraph();
+              flushList();
+              inCode = true;
+              codeLang = line.trim().slice(3).trim();
+              codeBuf = [];
+            } else {
+              // end fence
+              const codeText = codeBuf.join('\n');
+              html += `<pre><code>${escapeHtml(codeText)}</code></pre>`;
+              inCode = false;
+              codeLang = '';
+              codeBuf = [];
+            }
+            continue;
+          }
+          if (inCode){
+            codeBuf.push(line);
+            continue;
+          }
+
+          // HR
+          if (line.trim() === '---'){
+            flushParagraph();
+            flushList();
+            closeCalloutIfNeeded(1); // force-close if any
+            html += `<hr />`;
+            continue;
+          }
+
+          // Headings
+          const mHead = line.match(/^(#{1,6})\\s+(.*)$/);
+          if (mHead){
+            const level = mHead[1].length;
+            const text = mHead[2].trim();
+            flushParagraph();
+            flushList();
+            closeCalloutIfNeeded(level);
+
+            // Open callout if this heading matches category
+            const cat = calloutCategory(text);
+            if (cat){
+              const cls = cat === 'direct' ? 'callout-direct' : (cat === 'infer' ? 'callout-infer' : (cat === 'cond' ? 'callout-cond' : 'callout-ambig'));
+              html += `<div class="callout ${cls}">`;
+              callout = { type: cat, level };
+            }
+
+            const id = `${docId}-${slugify(text)}`;
+            const tag = 'h' + Math.min(6, Math.max(2, level));
+            html += `<${tag} id="${id}">${inline(text)} <a class="anchor" href="#${id}" aria-label="Anchor">#</a></${tag}>`;
+            continue;
+          }
+
+          // Blockquotes
+          if (/^>\\s?/.test(line.trim())){
+            flushParagraph();
+            flushList();
+            const inner = line.trim().replace(/^>\\s?/, '');
+            html += `<blockquote>${inline(inner)}</blockquote>`;
+            continue;
+          }
+
+          // Unordered list
+          const mUl = line.match(/^\\s*[-*]\\s+(.*)$/);
+          if (mUl){
+            const item = mUl[1].trim();
+            if (!listBuf || listBuf.type !== 'ul') {
+              flushParagraph();
+              flushList();
+              listBuf = { type: 'ul', items: [] };
+            }
+            listBuf.items.push(item);
+            continue;
+          }
+
+          // Ordered list
+          const mOl = line.match(/^\\s*(\\d+)\\.\\s+(.*)$/);
+          if (mOl){
+            const item = mOl[2].trim();
+            if (!listBuf || listBuf.type !== 'ol') {
+              flushParagraph();
+              flushList();
+              listBuf = { type: 'ol', items: [] };
+            }
+            listBuf.items.push(item);
+            continue;
+          }
+
+          // Blank line
+          if (!line.trim()){
+            flushParagraph();
+            flushList();
+            continue;
+          }
+
+          // Default: paragraph line
+          paragraphBuf.push(line.trim());
+        }
+
+        flushParagraph();
+        flushList();
+        if (inCode){
+          // Unterminated code fence; render best-effort
+          const codeText = codeBuf.join('\\n');
+          html += `<pre><code>${escapeHtml(codeText)}</code></pre>`;
+        }
+        if (callout){
+          html += `</div>`;
+        }
+
+        return html;
+      }
+
+      function buildToc(){
+        const tocItems = [];
+        for (const doc of docs){
+          const md = document.getElementById(doc.textareaId).value;
+          const lines = md.replace(/\\r/g,'').split('\\n');
+          for (const line of lines){
+            const m = line.match(/^##\\s+(.*)$/);
+            if (m){
+              const text = m[1].trim();
+              const id = `${doc.id}-${slugify(text)}`;
+              tocItems.push({ id, text, doc: doc.title });
+            }
+          }
+        }
+        // Render TOC (filter out duplicates by id)
+        const seen = new Set();
+        const unique = tocItems.filter(x => {
+          const key = x.id;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (inPageToc) {
+          inPageToc.innerHTML = unique.map(x => {
+            return `<li><a href="#${x.id}">${escapeHtml(x.text)}</a><span class="toc-from">${escapeHtml(x.doc)}</span></li>`;
+          }).join('');
+        }
+      }
+
+      function buildSidebar(){
+        docNav.innerHTML = docs.map(doc => {
+          const topId = `doc-${doc.id}`;
+          return `<a class="docLink" href="#${topId}">${doc.title}</a>`;
+        }).join('');
+      }
+
+      function renderAll(){
+        let html = '';
+        for (const doc of docs){
+          html += `<section id="doc-${doc.id}" class="docSection md"></section>`;
+        }
+        content.innerHTML = html;
+
+        for (const doc of docs){
+          const md = document.getElementById(doc.textareaId).value;
+          const section = document.getElementById(`doc-${doc.id}`);
+          if (section){
+            section.innerHTML = renderMarkdown(md, doc.id);
+          }
+        }
+      }
+
+      buildSidebar();
+      buildToc();
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
+

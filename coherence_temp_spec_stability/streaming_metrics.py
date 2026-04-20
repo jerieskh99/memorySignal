@@ -543,7 +543,12 @@ class StreamingDeltaRunProcessor:
 
     def finalize(self) -> dict[str, Any]:
         if self._msc_pairs == 0:
-            raise ValueError("Not enough windows for MSC. Need at least 2 complete windows.")
+            wl, hl = self.config.win_len, self.config.hop_len
+            raise ValueError(
+                "Not enough windows for MSC. Need at least 2 complete magnitude windows "
+                f"(win_len={wl}, hop_len={hl} => need T >= {wl + hl} frames along time; "
+                "or reduce --win_len / --hop_len)."
+            )
 
         msc = self._msc.finalize()
         msc_peak_snr_db_per_page = 10.0 * np.log10(
@@ -647,7 +652,12 @@ def main():
     # Streaming parameters (num_pages is inferred from input shape: array must be (time, num_pages))
     parser.add_argument("--win_len", type=int, default=128)
     parser.add_argument("--hop_len", type=int, default=64)
-    parser.add_argument("--nfft", type=int, default=128)
+    parser.add_argument(
+        "--nfft",
+        type=int,
+        default=0,
+        help="FFT size; 0 means use win_len (default).",
+    )
     parser.add_argument("--window", type=str, default="hann")
     parser.add_argument("--eps", type=float, default=1e-10)
     parser.add_argument("--detrend", type=bool, default=False)
@@ -663,7 +673,18 @@ def main():
     run_time_series_transpose = np.load(args.input, mmap_mode='r')  
     run_time_series = run_time_series_transpose.T
     print(f"Loaded run time series with shape: {run_time_series.shape}")
-    results = run_streaming_on_time_series(run_time_series)
+    nfft_kw: int | None = None if args.nfft <= 0 else args.nfft
+    results = run_streaming_on_time_series(
+        run_time_series,
+        win_len=args.win_len,
+        hop_len=args.hop_len,
+        nfft=nfft_kw,
+        window=args.window,
+        eps=args.eps,
+        detrend=args.detrend,
+        keep_time_resolved=args.keep_time_resolved,
+        min_quef_idx=args.min_quef_idx,
+    )
     print(f"Results: {results}")
     save_streaming_results(results, args.output)
     print(f"Saved results to {args.output}")

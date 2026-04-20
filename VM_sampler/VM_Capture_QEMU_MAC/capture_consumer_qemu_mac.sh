@@ -152,7 +152,9 @@ process_job() {
     numFrames=$(python3 -c "import numpy as np; m=np.load('$RUN_MATRIX'); print(m.shape[1])" 2>/dev/null || echo "0")
     if [[ -n "$numFrames" && "$numFrames" -ge "$minFramesForStreaming" ]]; then
       mkdir -p "$streamingOutputDir"
-      local outPrefix="$streamingOutputDir/streaming_$(date +%Y%m%d%H%M%S)"
+      # date +%Y%m%d%H%M%S is only second-resolution; include frame count + PID + RANDOM
+      # so concurrent or back-to-back runs never clobber the same path.
+      local outPrefix="$streamingOutputDir/streaming_f${numFrames}_$(date +%Y%m%d%H%M%S)_$$_${RANDOM}"
       echo "[CONSUMER] Running streaming metrics (frames=$numFrames) -> $outPrefix"
       run_streaming_metrics "$RUN_MATRIX" "$outPrefix" || echo "[CONSUMER] Streaming metrics failed (non-fatal)"
     fi

@@ -252,7 +252,9 @@ process_job() {
       fi
       if [[ "$skip_streaming" == "false" ]]; then
         mkdir -p "$streamingOutputDir"
-        local outPrefix="$streamingOutputDir/streaming_$(date +%Y%m%d%H%M%S)"
+        # Unique prefix: date has only 1s resolution — multiple runs in the same
+        # second used to overwrite the same file, producing "identical" outputs.
+        local outPrefix="$streamingOutputDir/streaming_f${numFrames}_$(date +%Y%m%d%H%M%S)_$$_${RANDOM}"
         echo "[CONSUMER] Launching streaming metrics in background (frames=$numFrames) -> $outPrefix"
         (
           run_streaming_metrics "$RUN_MATRIX" "$outPrefix" || echo "[CONSUMER] Streaming metrics failed (non-fatal)"
