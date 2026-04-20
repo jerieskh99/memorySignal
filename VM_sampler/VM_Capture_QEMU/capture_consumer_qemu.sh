@@ -38,6 +38,17 @@ BORG_PASSPHRASE="${BORG_PASSPHRASE:-}"
 # Offline metrics are computed per-step by offline_step_metrics.py instead.
 OFFLINE_MODE="${OFFLINE_MODE:-0}"
 
+# Deletion strategy:
+# - "scan"   (default): reference-scan reaper. A dump is deleted only after its job is in
+#                       done/ AND no pending/processing job still references it as prev/curr.
+#                       Safe under single- and multi-consumer operation.
+# - "legacy"          : previous behavior — delete prev immediately after job completes.
+REAPER_MODE="${REAPER_MODE:-scan}"
+# Orphan sweep grace period (seconds). Dumps older than this in imageDir that are not
+# referenced and not claimed by rawRetention are reclaimed at consumer startup.
+ORPHAN_GRACE_SEC="${ORPHAN_GRACE_SEC:-300}"
+imageDir=$(jq -r '.imageDir // ""' "$CONFIG" 2>/dev/null)
+
 # Raw retention / raw-matrix path:
 # - Optionally keep a rolling window of the newest N *curr* dumps (RAW or ELF) on disk.
 # - Periodically build a 2D raw feature matrix from those dumps (pages x frames) using
@@ -78,7 +89,7 @@ RUN_MATRIX_LOCK="${RUN_MATRIX}.lock"
 # Used to skip triggering a second streaming run while one is already in flight.
 STREAMING_PID_FILE="${RUN_MATRIX}.streaming.pid"
 
-echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${minFramesForStreaming}, rawRetention=${rawRetentionEnabled}, offlineMode=${OFFLINE_MODE})"
+echo "[CONSUMER] Consumer started (streaming=${streamingEnabled}, minFrames=${minFramesForStreaming}, rawRetention=${rawRetentionEnabled}, offlineMode=${OFFLINE_MODE}, reaperMode=${REAPER_MODE})"
 echo "[CONSUMER] Queue dir: $qPath"
 echo "[CONSUMER] Rust program: $rustDeltaCalculationProgram"
 
@@ -95,6 +106,59 @@ delete_file() {
   else
     echo "[CONSUMER] WARNING: could not delete $context (permission?): $path"
   fi
+}
+
+# Returns 0 if `path` appears as the value of "prev" or "curr" in any JSON file currently
+# in pending/ or processing/. Uses exact-string match on the JSON-encoded path.
+dump_is_referenced() {
+  local path="$1"
+  [[ -z "$path" ]] && return 1
+  local hit
+  hit=$(find "$qPending" "$qProcessing" -maxdepth 1 -name '*.json' -print0 2>/dev/null \
+        | xargs -0 grep -lF -- "\"$path\"" 2>/dev/null | head -1)
+  [[ -n "$hit" ]] && return 0
+  return 1
+}
+
+# Idempotent, race-tolerant dump deletion.
+# No-op if path empty / file missing / still referenced by a live job.
+# Caller is responsible for skipping this when Borg async has claimed the file or
+# rawRetention has already moved it away (both of those cases leave no file at $path,
+# so this function naturally no-ops anyway).
+maybe_delete_dump() {
+  local path="$1"
+  local ctx="${2:-snapshot}"
+  [[ -z "$path" ]] && return 0
+  [[ ! -e "$path" ]] && return 0
+  if dump_is_referenced "$path"; then
+    return 0
+  fi
+  delete_file "$path" "$ctx"
+}
+
+# One-shot startup sweep: reclaim dumps left over from a prior crashed run.
+# Only removes files that are (a) older than ORPHAN_GRACE_SEC, (b) not referenced
+# by any pending/processing job, and (c) not currently retained in rawDir.
+orphan_sweep() {
+  [[ -z "$imageDir" || ! -d "$imageDir" ]] && return 0
+  local now cutoff
+  now=$(date +%s)
+  cutoff=$((now - ORPHAN_GRACE_SEC))
+  shopt -s nullglob
+  for f in "$imageDir"/*; do
+    [[ -f "$f" ]] || continue
+    local mtime
+    mtime=$(stat -c %Y "$f" 2>/dev/null || echo "$now")
+    [[ "$mtime" -lt "$cutoff" ]] || continue
+    if [[ "$rawRetentionEnabled" == "true" && -n "$rawDir" ]]; then
+      [[ -e "$rawDir/$(basename "$f")" ]] && continue
+    fi
+    if dump_is_referenced "$f"; then
+      continue
+    fi
+    delete_file "$f" "orphan dump"
+  done
+  shopt -u nullglob
 }
 
 sanitize_name() {
@@ -270,12 +334,26 @@ process_job() {
     fi
   fi
 
-  # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
+  # Commit job state to done/ BEFORE any deletion so a concurrent reaper for job N+1
+  # (or an adjacent worker under multi-consumer) sees a consistent queue snapshot.
+  mv "$jobPath" "$qDone/"
+  echo "[CONSUMER] Job done -> done: $jobName"
+
+  # Borg handoff (when enabled) claims prev and keeps the source file alive.
+  borg_claimed_prev=0
   if [[ -f "$prev" ]]; then
-    if archive_with_borg_async "$prev"; then
-      : # archived asynchronously; keep source file (no delete) when BORG is enabled.
+    if [[ "$REAPER_MODE" == "legacy" ]]; then
+      # Legacy behavior: delete prev immediately after job completes.
+      if archive_with_borg_async "$prev"; then
+        borg_claimed_prev=1
+      else
+        delete_file "$prev" "snapshot"
+      fi
     else
-      delete_file "$prev" "snapshot"
+      # Scan mode: optional Borg archive; reaper handles the delete decision below.
+      if archive_with_borg_async "$prev"; then
+        borg_claimed_prev=1
+      fi
     fi
   fi
 
@@ -336,10 +414,21 @@ process_job() {
     fi
   fi
 
-  mv "$jobPath" "$qDone/"
-  echo "[CONSUMER] Job done -> done: $jobName"
+  # Reference-scan reaper (scan mode only). Deletes dumps that are no longer referenced
+  # by any pending/processing job. Idempotent; safe under multi-consumer operation.
+  if [[ "$REAPER_MODE" == "scan" ]]; then
+    if [[ "$borg_claimed_prev" != "1" ]]; then
+      maybe_delete_dump "$prev" "snapshot(prev)"
+    fi
+    maybe_delete_dump "$curr" "snapshot(curr)"
+  fi
   return 0
 }
+
+# One-shot orphan sweep before entering the main loop (scan mode only).
+if [[ "$REAPER_MODE" == "scan" ]]; then
+  orphan_sweep
+fi
 
 while true; do
   jobFile=$(find "$qPending" -maxdepth 1 -name '*.json' -print 2>/dev/null | sort | head -1)

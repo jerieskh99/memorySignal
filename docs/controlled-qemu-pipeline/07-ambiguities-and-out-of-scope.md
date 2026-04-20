@@ -105,3 +105,18 @@ current pipeline. The combined-channel representation exists only in the downstr
 claiming combined-channel validation is unsupported and must be reworded to name the cosine
 channel explicitly. Implementing combined-channel support in the step-gated path is out of
 scope for the current pipeline phase.
+
+## Dump Lifetime — Borg and rawRetention Branches
+The reference-scan reaper (`REAPER_MODE=scan`) governs dump deletion only in the default
+path. Two existing branches manage their own file lifetime and are intentionally untouched:
+
+- **Borg async archive** (`BORG=1`): `archive_with_borg_async` spawns a background borg
+  process that reads `prev`. The reaper honors this claim and does not delete `prev` when
+  the archive was spawned. The archived source file is not reclaimed by the reaper.
+- **rawRetention** (`rawRetention.enabled=true`): the existing block moves `curr` into
+  `rawDir` before the reaper runs; the reaper's missing-file check is a no-op on the
+  original path. `rawDir` pruning by `keepDumps` remains the sole lifetime authority for
+  retained dumps.
+
+These branches are out of scope for the reaper contract and keep their pre-existing
+deletion semantics.

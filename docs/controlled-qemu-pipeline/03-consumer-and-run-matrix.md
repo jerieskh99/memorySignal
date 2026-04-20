@@ -190,3 +190,26 @@ field in the capture config (currently `"cosine"`). Hamming delta files are writ
 the Rust binary but are excluded from `run_matrix_<step>.npy`. The non-selected channel is
 available on disk for offline inspection but plays no role in the step-gated offline metrics
 path. Combined hamming+cosine analysis is handled separately in `VMsig_featureExctraction/`.
+
+## Dump Deletion Rule
+Each RAW dump can be referenced by at most two jobs: as `curr` in job N and as `prev` in
+job N+1. To remain correct under both single- and multi-consumer operation, the consumer
+uses a reference-scan reaper (`REAPER_MODE=scan`, default):
+
+1. After delta compute + frame append, the job JSON is moved to `done/` **before** any
+   deletion runs. This commits queue state atomically.
+2. The reaper then considers both `prev` and `curr`. For each, it scans `pending/` and
+   `processing/` for any JSON still referencing the path. If the path appears nowhere,
+   the dump is deleted with `rm -f`; otherwise it is left in place for the owning job.
+3. `maybe_delete_dump` is idempotent (`rm -f`) and tolerates races between workers.
+4. When `BORG=1`, the async archive claims `prev` and the reaper skips it.
+5. When `rawRetention=true`, `curr` has already been moved to `rawDir`; the reaper's
+   missing-file check is a no-op.
+
+`REAPER_MODE=legacy` restores the prior behavior (delete `prev` immediately after the
+job completes). This is safe only for single-consumer runs and is retained as a rollback
+flag.
+
+A one-shot `orphan_sweep` runs at consumer startup: dumps in `imageDir` older than
+`ORPHAN_GRACE_SEC` (default 300) that are unreferenced and not retained in `rawDir` are
+reclaimed.
