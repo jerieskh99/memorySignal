@@ -95,3 +95,13 @@ When extending this booklet later:
 - mark config-disabled branches as conditional, not active
 - distinguish host-side paths from guest-side assumptions
 - keep repository-wide historical branches out of scope unless the active controller begins to depend on them
+
+## Deferred: Combined hamming+cosine offline-step path
+
+`offline_step_metrics.py` ingests a single-channel (cosine) run matrix. A dual-channel or
+complex-valued offline-step matrix (hamming × e^{j·2π·cosine}) is **not implemented** in the
+current pipeline. The combined-channel representation exists only in the downstream path
+(`VMsig_featureExctraction/wavelet_analysis_features.py`). Any offline-step conclusion
+claiming combined-channel validation is unsupported and must be reworded to name the cosine
+channel explicitly. Implementing combined-channel support in the step-gated path is out of
+scope for the current pipeline phase.

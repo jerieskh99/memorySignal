@@ -2,6 +2,12 @@
 """
 Per-test offline metrics runner for the step-gated capture pipeline.
 
+Channel contract: the step matrix (run_matrix_<step>.npy) contains a single delta channel,
+determined by `deltaMetric` in the capture config (currently "cosine"). Hamming outputs are
+written to disk by the Rust delta binary but are NOT ingested here. Combined hamming+cosine
+analysis is a separate downstream path (VMsig_featureExctraction/). Results from this script
+therefore validate separability on the cosine channel only.
+
 Called by run_files_controlled.py after each workload step's capture queue
 has fully drained.  It:
 

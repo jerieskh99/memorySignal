@@ -59,3 +59,11 @@ Per step: `<output_root>/offline/<step_name>/` with `meta.json`, `streaming` pre
 
 ### Inferred
 - full key structure inside `.npz` / JSON unless read from `streaming_metrics.save_streaming_results` and `PLVStability.evaluate_run`
+
+## Validation Scope
+
+Offline-step metrics (PLV, MSC, Cepstrum) are computed from a **cosine-only** run matrix.
+Any clustering or classification claim derived from this path validates separability on the
+**cosine delta channel only**. These results do not validate the combined hamming+cosine
+representation. Claims requiring the combined representation must use the downstream path in
+`VMsig_featureExctraction/` (see `wavelet_analysis_features.py`).

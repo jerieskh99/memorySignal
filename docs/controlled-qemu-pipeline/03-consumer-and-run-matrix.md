@@ -182,3 +182,11 @@ The host controller depends on the consumer in three practical ways:
 - the controller rotates delta text files only after the consumer has finished writing them
 
 The consumer therefore defines the active boundary between capture and feature computation.
+
+## Channel Semantics
+
+The run matrix is **single-channel**. The channel ingested is determined by the `deltaMetric`
+field in the capture config (currently `"cosine"`). Hamming delta files are written to disk by
+the Rust binary but are excluded from `run_matrix_<step>.npy`. The non-selected channel is
+available on disk for offline inspection but plays no role in the step-gated offline metrics
+path. Combined hamming+cosine analysis is handled separately in `VMsig_featureExctraction/`.

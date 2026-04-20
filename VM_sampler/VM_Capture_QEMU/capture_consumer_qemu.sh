@@ -217,6 +217,9 @@ process_job() {
     return 1
   fi
 
+  # Single-channel run_matrix: only the selected deltaMetric channel is appended here.
+  # The non-selected channel (e.g. hamming when deltaMetric=cosine) remains on disk but
+  # is NOT ingested into the offline-step matrix or the downstream offline metrics path.
   # Find the delta output we just wrote (cosine or hamming, one value per line = one frame)
   local subdir="cosine"
   [[ "$deltaMetric" == "hamming" ]] && subdir="hamming"
