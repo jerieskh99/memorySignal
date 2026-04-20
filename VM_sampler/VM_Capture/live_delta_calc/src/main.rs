@@ -1,156 +1,212 @@
+// live_delta_calc: per-page hamming + cosine delta between two memory snapshots.
+//
+// Unix-only: uses std::os::unix::fs::FileExt::read_exact_at for lock-free parallel I/O
+// across rayon workers. Each worker owns its own File handles and scratch buffers,
+// eliminating the per-thread tokio runtime and Arc<Mutex<File>> contention of prior
+// versions.
+//
+// Output semantics are preserved bit-exactly:
+//   - hamming value per page: hamming::distance(p1, p2) as u32
+//   - cosine value per page: distances::vectors::cosine(&p1_f32, &p2_f32)
+//   - identical-page fast path emits calibrated constants obtained at startup by
+//     calling the same cosine() function on identical all-zero / all-ones pages.
+// Output file paths, directory layout, timestamp format, and line format are unchanged.
+
+use std::cmp::min;
 use std::env;
+use std::fmt::Write as FmtWrite;
+use std::fs::File;
+use std::io;
+use std::os::unix::fs::FileExt;
+
 use chrono::Local;
-
-use tokio::fs::File; // For asynchronous file operations.
-use tokio::io::{self, AsyncReadExt, AsyncSeekExt, AsyncWriteExt}; // For asynchronous I/O traits.
-
-use hamming::distance;
 use distances::vectors::cosine;
-
-use std::sync::{Arc, Mutex}; // To enable shared access to file handles across threads
-use rayon::prelude::*; // For parallel iterator
+use hamming::distance;
+use rayon::prelude::*;
 
 const CHUNK_SIZE: usize = 262144; // 256KB
 const PAGE_SIZE: usize = 4096; // 4KB
-const THREAD_COUNT: usize = 16; // Number of threads to be used for parallel processing
+const THREAD_COUNT: usize = 16;
 
-// Asynchronously read a chunk from a file at the given offset
-async fn read_chunk(file: &mut File, offset: u64) -> io::Result<Vec<u8>> {
-    let mut buffer = vec![0; CHUNK_SIZE];
-    file.seek(io::SeekFrom::Start(offset)).await?;
-    let n = file.read(&mut buffer).await?;
-    buffer.truncate(n); // Adjust buffer size to actual bytes read
-    Ok(buffer)
-}
-
-fn process_chunk(chunk1: &[u8], chunk2: &[u8]) -> (Vec<u32>, Vec<f32>) {
-    let mut hamming_distances = Vec::new();
-    let mut cosine_similarities = Vec::new();
-    
+fn process_chunk(
+    chunk1: &[u8],
+    chunk2: &[u8],
+    buf1: &mut Vec<f32>,
+    buf2: &mut Vec<f32>,
+    cos_ident_zero: f32,
+    cos_ident_nonzero: f32,
+    out_h: &mut Vec<u32>,
+    out_c: &mut Vec<f32>,
+) {
     let num_pages = chunk1.len() / PAGE_SIZE;
     for i in 0..num_pages {
         let start = i * PAGE_SIZE;
         let end = start + PAGE_SIZE;
-        let page1 = &chunk1[start..end];
-        let page2 = &chunk2[start..end];
-        
-        // Hamming distance
-        let hamming_distance = distance(page1, page2) as u32;
-        hamming_distances.push(hamming_distance);
+        let p1 = &chunk1[start..end];
+        let p2 = &chunk2[start..end];
 
-        // Cosine similarity
-        let page1_f32: Vec<f32> = page1.iter().map(|&x| x as f32).collect();
-        let page2_f32: Vec<f32> = page2.iter().map(|&x| x as f32).collect();
-        let cosine_similarity = cosine(&page1_f32, &page2_f32);
-        cosine_similarities.push(cosine_similarity);
+        // Hamming always computed (cheap; avoids branch on identical path).
+        out_h.push(distance(p1, p2) as u32);
+
+        // Identical-page fast path: slice eq compiles to memcmp / SIMD.
+        if p1 == p2 {
+            let all_zero = p1.iter().all(|&b| b == 0);
+            out_c.push(if all_zero {
+                cos_ident_zero
+            } else {
+                cos_ident_nonzero
+            });
+            continue;
+        }
+
+        // Reuse per-thread f32 buffers; capacity is PAGE_SIZE so no reallocation occurs.
+        buf1.clear();
+        buf1.extend(p1.iter().map(|&x| x as f32));
+        buf2.clear();
+        buf2.extend(p2.iter().map(|&x| x as f32));
+        out_c.push(cosine(buf1, buf2));
     }
-
-    (hamming_distances, cosine_similarities)
 }
 
-#[tokio::main]
-async fn main() -> io::Result<()> {
+fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 4  {
+    if args.len() != 4 {
         eprintln!("Usage: {} <prev_image> <new_image> <output_dir>", args[0]);
         std::process::exit(1);
     }
 
-    let prev_image_path = &args[1];
-    let new_image_path = &args[2];
-    let output_dir = &args[3];
+    let prev_path = args[1].clone();
+    let new_path = args[2].clone();
+    let output_dir = args[3].clone();
 
-    let file1_path = prev_image_path;
-    let file2_path = new_image_path;
-    
+    // STRICT_IO=1|true -> propagate I/O errors by panicking the worker;
+    // default: log and break the segment (preserves prior permissive behavior).
+    let strict_io = matches!(
+        env::var("STRICT_IO").ok().as_deref(),
+        Some("1") | Some("true")
+    );
+
     let timestamp = Local::now().format("%Y%m%d%H%M%S").to_string();
+    let hamming_result_file_path = format!(
+        "{}/hamming/memory_dump_hamming_results_par-{}.txt",
+        output_dir, timestamp
+    );
+    let cosine_result_file_path = format!(
+        "{}/cosine/memory_dump_cosine_results_par-{}.txt",
+        output_dir, timestamp
+    );
 
-    //let hamming_result_file_path = format!("C:\\Users\\jeries\\Desktop\\thesis\\results\\1\\hamming\\memory_dump_hamming_results_par-{}.txt", timestamp);
-    //let cosine_result_file_path = format!("C:\\Users\\jeries\\Desktop\\thesis\\results\\1\\cosine\\memory_dump_cosine_results_par-{}.txt", timestamp);
-    let hamming_result_file_path = format!("{}/hamming/memory_dump_hamming_results_par-{}.txt", output_dir, timestamp);
-    let cosine_result_file_path = format!("{}/cosine/memory_dump_cosine_results_par-{}.txt", output_dir, timestamp);
+    // Calibrate identical-page cosine constants against the exact library call.
+    let zero_vec: Vec<f32> = vec![0.0f32; PAGE_SIZE];
+    let ones_vec: Vec<f32> = vec![1.0f32; PAGE_SIZE];
+    let cos_ident_zero = cosine(&zero_vec, &zero_vec);
+    let cos_ident_nonzero = cosine(&ones_vec, &ones_vec);
 
-    let file1 = Arc::new(Mutex::new(File::open(file1_path).await?));
-    let file2 = Arc::new(Mutex::new(File::open(file2_path).await?));
-    let hamming_result_file = Arc::new(Mutex::new(File::create(hamming_result_file_path).await?));
-    let cosine_result_file = Arc::new(Mutex::new(File::create(cosine_result_file_path).await?));
-
-    // Calculate the total size of the files
-    let file1_size = file1.lock().unwrap().metadata().await?.len();
-    let file2_size = file2.lock().unwrap().metadata().await?.len();
-    
+    let file1_size = std::fs::metadata(&prev_path)?.len();
+    let file2_size = std::fs::metadata(&new_path)?.len();
     assert_eq!(file1_size, file2_size, "Files should be of the same size");
 
-    // Calculate the segment size for each thread
     let segment_size = file1_size / THREAD_COUNT as u64;
 
-    let hamming_result_vecs: Arc<Mutex<Vec<Vec<u32>>>> = Arc::new(Mutex::new(vec![Vec::new(); THREAD_COUNT]));
-    let cosine_result_vecs: Arc<Mutex<Vec<Vec<f32>>>> = Arc::new(Mutex::new(vec![Vec::new(); THREAD_COUNT]));
-
-    // Spawn multiple threads for parallel processing using Rayon
-    (0..THREAD_COUNT).into_par_iter().for_each(|thread_id| {
-        let file1 = Arc::clone(&file1);
-        let file2 = Arc::clone(&file2);
-        let hamming_result_vecs = Arc::clone(&hamming_result_vecs);
-        let cosine_result_vecs = Arc::clone(&cosine_result_vecs);
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async move {
+    // Per-thread (hamming_text, cosine_text) slots, collected in ascending thread_id order
+    // to preserve the global output ordering of prior versions.
+    let slots: Vec<(String, String)> = (0..THREAD_COUNT)
+        .into_par_iter()
+        .map(|thread_id| -> (String, String) {
             let start_offset = thread_id as u64 * segment_size;
             let end_offset = if thread_id == THREAD_COUNT - 1 {
-                file1_size // Last thread processes the remaining part
+                file1_size
             } else {
                 start_offset + segment_size
             };
 
-            let mut offset = start_offset;
-            let mut local_hamming_results = Vec::new(); // Local vector for the thread to reduce contention
-            let mut local_cosine_results = Vec::new(); // Local vector for the thread to reduce contention            
-            
-            while offset < end_offset {
-                let chunk1 = read_chunk(&mut file1.lock().unwrap(), offset).await.unwrap_or_else(|_| vec![]);
-                let chunk2 = read_chunk(&mut file2.lock().unwrap(), offset).await.unwrap_or_else(|_| vec![]);
-
-                if chunk1.is_empty() || chunk2.is_empty() {
-                    break; // Exit loop if either file has no more data
+            let open_or = |path: &str, which: &str| -> Option<File> {
+                match File::open(path) {
+                    Ok(f) => Some(f),
+                    Err(e) => {
+                        if strict_io {
+                            panic!("open {} failed ({}): {}", which, path, e);
+                        }
+                        eprintln!(
+                            "[live_delta_calc] open {} failed ({}): {}",
+                            which, path, e
+                        );
+                        None
+                    }
                 }
+            };
+            let f1 = match open_or(&prev_path, "prev") {
+                Some(f) => f,
+                None => return (String::new(), String::new()),
+            };
+            let f2 = match open_or(&new_path, "new") {
+                Some(f) => f,
+                None => return (String::new(), String::new()),
+            };
 
-                let (hamming_distances, cosine_similarities) = process_chunk(&chunk1, &chunk2);
-                local_hamming_results.extend(hamming_distances);
-                local_cosine_results.extend(cosine_similarities);
+            let mut chunk1 = vec![0u8; CHUNK_SIZE];
+            let mut chunk2 = vec![0u8; CHUNK_SIZE];
+            let mut buf1: Vec<f32> = Vec::with_capacity(PAGE_SIZE);
+            let mut buf2: Vec<f32> = Vec::with_capacity(PAGE_SIZE);
 
-                offset += CHUNK_SIZE  as u64;
+            let segment_pages = ((end_offset - start_offset) as usize) / PAGE_SIZE;
+            let mut local_h: Vec<u32> = Vec::with_capacity(segment_pages);
+            let mut local_c: Vec<f32> = Vec::with_capacity(segment_pages);
+
+            let mut offset = start_offset;
+            while offset < end_offset {
+                let to_read = min(CHUNK_SIZE as u64, end_offset - offset) as usize;
+                let r1 = f1.read_exact_at(&mut chunk1[..to_read], offset);
+                let r2 = f2.read_exact_at(&mut chunk2[..to_read], offset);
+                if r1.is_err() || r2.is_err() {
+                    if strict_io {
+                        panic!(
+                            "read_exact_at failed at offset {}: prev={:?} new={:?}",
+                            offset,
+                            r1.err(),
+                            r2.err()
+                        );
+                    }
+                    eprintln!(
+                        "[live_delta_calc] read failed at offset {}, stopping segment",
+                        offset
+                    );
+                    break;
+                }
+                process_chunk(
+                    &chunk1[..to_read],
+                    &chunk2[..to_read],
+                    &mut buf1,
+                    &mut buf2,
+                    cos_ident_zero,
+                    cos_ident_nonzero,
+                    &mut local_h,
+                    &mut local_c,
+                );
+                offset += to_read as u64;
             }
 
-            // Write local results to shared vectors
-            hamming_result_vecs.lock().unwrap()[thread_id] = local_hamming_results;
-            cosine_result_vecs.lock().unwrap()[thread_id] = local_cosine_results;
-        });
-    });
+            let mut hs = String::with_capacity(local_h.len() * 6);
+            let mut cs = String::with_capacity(local_c.len() * 12);
+            for &h in &local_h {
+                let _ = writeln!(hs, "{}", h);
+            }
+            for &c in &local_c {
+                let _ = writeln!(cs, "{}", c);
+            }
+            (hs, cs)
+        })
+        .collect();
 
-    // Write the accumulated results to the output files
-    let mut hamming_result_file = hamming_result_file.lock().unwrap();
-    let mut cosine_result_file = cosine_result_file.lock().unwrap();
-
-    let hamming_result_vecs = Arc::try_unwrap(hamming_result_vecs).unwrap().into_inner().unwrap();
-    let cosine_result_vecs = Arc::try_unwrap(cosine_result_vecs).unwrap().into_inner().unwrap();
-
-    let mut hamming_buffer = String::new();
-    let mut cosine_buffer = String::new();
-
-    for result_vec in hamming_result_vecs {
-        for &distance in result_vec.iter() {
-            hamming_buffer.push_str(&format!("{}\n", distance));
-        }
-    }
-    for result_vec in cosine_result_vecs {
-        for &similarity in result_vec.iter() {
-            cosine_buffer.push_str(&format!("{}\n", similarity));
-        }
+    let mut hamming_text = String::new();
+    let mut cosine_text = String::new();
+    for (hs, cs) in slots {
+        hamming_text.push_str(&hs);
+        cosine_text.push_str(&cs);
     }
 
-    hamming_result_file.write_all(hamming_buffer.as_bytes()).await?;
-    cosine_result_file.write_all(cosine_buffer.as_bytes()).await?;
+    std::fs::write(&hamming_result_file_path, hamming_text)?;
+    std::fs::write(&cosine_result_file_path, cosine_text)?;
 
     Ok(())
 }

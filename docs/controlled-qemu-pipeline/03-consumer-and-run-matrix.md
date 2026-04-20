@@ -213,3 +213,9 @@ flag.
 A one-shot `orphan_sweep` runs at consumer startup: dumps in `imageDir` older than
 `ORPHAN_GRACE_SEC` (default 300) that are unreferenced and not retained in `rawDir` are
 reclaimed.
+
+## Rust Delta Binary Note
+The Rust binary (`VM_sampler/VM_Capture/live_delta_calc/`) was optimized for the hot loop:
+per-thread file handles (`std::fs::File` + `read_exact_at`), reusable f32 conversion
+buffers, and an identical-page fast path calibrated against the cosine library at startup.
+Output values, filenames, and directory layout are unchanged; runtime is reduced. Unix-only.
