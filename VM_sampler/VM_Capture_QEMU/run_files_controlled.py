@@ -12,6 +12,8 @@ Flow per step:
 
 import os
 import shlex
+import sys
+import threading
 import time
 import json
 from pathlib import Path
@@ -70,6 +72,110 @@ OFFLINE_OUTPUT_ROOT = os.environ.get("OFFLINE_OUTPUT_ROOT", "")
 BASELINE_STEP_NUMBER = int(os.environ.get("BASELINE_STEP_NUMBER", "1"))
 # How long to wait for the consumer queue to drain before timing out (minutes).
 QUEUE_DRAIN_TIMEOUT_MINUTES = int(os.environ.get("QUEUE_DRAIN_TIMEOUT_MINUTES", "30"))
+
+
+# ---------------------------------------------------------------------------
+# Lightweight progress bar (zero-lock, daemon-thread, stderr, \r-overwrite).
+# The bar only reads a few integers; it never blocks the main thread.
+# Disabled automatically when stderr is not a TTY (e.g. redirected to a log),
+# and can be force-disabled with PROGRESS_BAR=0.
+# ---------------------------------------------------------------------------
+PROGRESS_ENABLED = os.environ.get("PROGRESS_BAR", "1").lower() in {"1", "true", "yes"}
+_PROGRESS_TTY = PROGRESS_ENABLED and sys.stderr.isatty()
+_PROGRESS_WIDTH = 32
+
+
+def _fmt_bar(frac: float, width: int = _PROGRESS_WIDTH) -> str:
+    frac = max(0.0, min(1.0, frac))
+    filled = int(width * frac)
+    return "[" + "#" * filled + "-" * (width - filled) + "]"
+
+
+def _fmt_hms(seconds: float) -> str:
+    seconds = int(max(0, seconds))
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h:d}h{m:02d}m{s:02d}s"
+    return f"{m:d}m{s:02d}s"
+
+
+class _TimedBar:
+    """Time-based progress bar driven by a known total duration."""
+
+    def __init__(self, label: str, total_seconds: int):
+        self.label = label
+        self.total = max(1, int(total_seconds))
+        self._stop = threading.Event()
+        self._t: threading.Thread | None = None
+        self._start = 0.0
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            elapsed = time.time() - self._start
+            frac = elapsed / self.total
+            bar = _fmt_bar(frac)
+            line = (
+                f"\r[PROGRESS] {self.label} {bar} "
+                f"{min(frac, 1.0) * 100:5.1f}%  "
+                f"{_fmt_hms(elapsed)}/{_fmt_hms(self.total)}   "
+            )
+            try:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            except Exception:
+                return
+            if self._stop.wait(1.0):
+                break
+
+    def __enter__(self) -> "_TimedBar":
+        if _PROGRESS_TTY:
+            self._start = time.time()
+            self._t = threading.Thread(target=self._loop, daemon=True)
+            self._t.start()
+        elif PROGRESS_ENABLED:
+            print(f"[PROGRESS] {self.label}: starting ({self.total}s expected)")
+            self._start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._stop.set()
+        if self._t is not None:
+            self._t.join(timeout=1.5)
+        if _PROGRESS_TTY:
+            try:
+                sys.stderr.write("\r" + " " * 100 + "\r")
+                sys.stderr.flush()
+            except Exception:
+                pass
+        if PROGRESS_ENABLED:
+            elapsed = time.time() - self._start
+            print(f"[PROGRESS] {self.label}: finished in {_fmt_hms(elapsed)}")
+
+
+def _extract_workload_seconds(remote_cmd: str) -> int:
+    """Best-effort parse of expected duration from the guest command.
+
+    Recognizes `--seconds N`, `--time N`, or `--seconds=N` / `--time=N`. Returns
+    0 when unknown (caller can fall back to TEST_EXEC_SECONDS or skip the bar).
+    """
+    try:
+        tokens = shlex.split(remote_cmd)
+    except Exception:
+        tokens = remote_cmd.split()
+    for idx, tok in enumerate(tokens):
+        if tok in ("--seconds", "--time"):
+            if idx + 1 < len(tokens):
+                try:
+                    return max(1, int(tokens[idx + 1]))
+                except ValueError:
+                    return 0
+        if tok.startswith("--seconds=") or tok.startswith("--time="):
+            try:
+                return max(1, int(tok.split("=", 1)[1]))
+            except ValueError:
+                return 0
+    return 0
 
 
 def run(cmd: str) -> int:
@@ -237,15 +343,43 @@ def wait_for_queue_drain(timeout_minutes: int = 30) -> bool:
     deadline = time.time() + timeout_minutes * 60
     poll_interval = 5
     last_report = 0.0
+    peak_depth = 0
     while time.time() < deadline:
         n_pending = len(list(pending.glob("*.json"))) if pending.is_dir() else 0
         n_processing = len(list(processing.glob("*.json"))) if processing.is_dir() else 0
-        if n_pending + n_processing == 0:
+        depth = n_pending + n_processing
+        if depth > peak_depth:
+            peak_depth = depth
+        if depth == 0:
+            if _PROGRESS_TTY:
+                try:
+                    sys.stderr.write("\r" + " " * 100 + "\r")
+                    sys.stderr.flush()
+                except Exception:
+                    pass
             print("[CONTROL] Queue fully drained (pending=0, processing=0).")
             return True
         now = time.time()
+        if _PROGRESS_TTY and peak_depth > 0:
+            done = peak_depth - depth
+            frac = done / peak_depth
+            bar = _fmt_bar(frac)
+            remaining = int(deadline - now)
+            line = (
+                f"\r[PROGRESS] drain {bar} "
+                f"{frac * 100:5.1f}%  "
+                f"pending={n_pending} processing={n_processing} "
+                f"peak={peak_depth} timeout_in={_fmt_hms(remaining)}   "
+            )
+            try:
+                sys.stderr.write(line)
+                sys.stderr.flush()
+            except Exception:
+                pass
         if now - last_report >= 15:
             remaining = int(deadline - now)
+            if _PROGRESS_TTY:
+                sys.stderr.write("\n")
             print(
                 f"[CONTROL] Waiting for queue drain: pending={n_pending},"
                 f" processing={n_processing}, timeout_remaining={remaining}s"
@@ -502,7 +636,10 @@ def main() -> int:
                 time.sleep(CAPTURE_WARMUP_SECONDS)
 
         print("[CONTROL] Running command over SSH...")
-        rc = run(f"{base} {shlex.quote(remote_cmd)}")
+        workload_seconds = _extract_workload_seconds(remote_cmd) or TEST_EXEC_SECONDS
+        bar_label = f"step {i}/{len(steps)} {test_name}"
+        with _TimedBar(bar_label, workload_seconds):
+            rc = run(f"{base} {shlex.quote(remote_cmd)}")
         rc = rc >> 8  # os.system stores wait status
         print(f"[CONTROL] SSH command exit code: {rc}")
 
