@@ -100,26 +100,25 @@ def _fmt_hms(seconds: float) -> str:
     return f"{m:d}m{s:02d}s"
 
 
-class _TimedBar:
-    """Time-based progress bar driven by a known total duration."""
+class _WorkloadSpinner:
+    """Spinner + wall clock for workload phase (no fake %)."""
 
-    def __init__(self, label: str, total_seconds: int):
+    def __init__(self, label: str):
         self.label = label
-        self.total = max(1, int(total_seconds))
         self._stop = threading.Event()
         self._t: threading.Thread | None = None
         self._start = 0.0
 
     def _loop(self) -> None:
+        glyphs = ("|", "/", "-", "\\")
+        idx = 0
         while not self._stop.is_set():
             elapsed = time.time() - self._start
-            frac = elapsed / self.total
-            bar = _fmt_bar(frac)
             line = (
-                f"\r[PROGRESS] {self.label} {bar} "
-                f"{min(frac, 1.0) * 100:5.1f}%  "
-                f"{_fmt_hms(elapsed)}/{_fmt_hms(self.total)}   "
+                f"\r[PROGRESS] {self.label} {glyphs[idx % len(glyphs)]} "
+                f"running wall={_fmt_hms(elapsed)}   "
             )
+            idx += 1
             try:
                 sys.stderr.write(line)
                 sys.stderr.flush()
@@ -128,14 +127,13 @@ class _TimedBar:
             if self._stop.wait(1.0):
                 break
 
-    def __enter__(self) -> "_TimedBar":
+    def __enter__(self) -> "_WorkloadSpinner":
+        self._start = time.time()
         if _PROGRESS_TTY:
-            self._start = time.time()
             self._t = threading.Thread(target=self._loop, daemon=True)
             self._t.start()
         elif PROGRESS_ENABLED:
-            print(f"[PROGRESS] {self.label}: starting ({self.total}s expected)")
-            self._start = time.time()
+            print(f"[PROGRESS] {self.label}: running (wall clock)")
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -151,31 +149,6 @@ class _TimedBar:
         if PROGRESS_ENABLED:
             elapsed = time.time() - self._start
             print(f"[PROGRESS] {self.label}: finished in {_fmt_hms(elapsed)}")
-
-
-def _extract_workload_seconds(remote_cmd: str) -> int:
-    """Best-effort parse of expected duration from the guest command.
-
-    Recognizes `--seconds N`, `--time N`, or `--seconds=N` / `--time=N`. Returns
-    0 when unknown (caller can fall back to TEST_EXEC_SECONDS or skip the bar).
-    """
-    try:
-        tokens = shlex.split(remote_cmd)
-    except Exception:
-        tokens = remote_cmd.split()
-    for idx, tok in enumerate(tokens):
-        if tok in ("--seconds", "--time"):
-            if idx + 1 < len(tokens):
-                try:
-                    return max(1, int(tokens[idx + 1]))
-                except ValueError:
-                    return 0
-        if tok.startswith("--seconds=") or tok.startswith("--time="):
-            try:
-                return max(1, int(tok.split("=", 1)[1]))
-            except ValueError:
-                return 0
-    return 0
 
 
 def run(cmd: str) -> int:
@@ -636,9 +609,8 @@ def main() -> int:
                 time.sleep(CAPTURE_WARMUP_SECONDS)
 
         print("[CONTROL] Running command over SSH...")
-        workload_seconds = _extract_workload_seconds(remote_cmd) or TEST_EXEC_SECONDS
         bar_label = f"step {i}/{len(steps)} {test_name}"
-        with _TimedBar(bar_label, workload_seconds):
+        with _WorkloadSpinner(bar_label):
             rc = run(f"{base} {shlex.quote(remote_cmd)}")
         rc = rc >> 8  # os.system stores wait status
         print(f"[CONTROL] SSH command exit code: {rc}")
