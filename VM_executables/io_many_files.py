@@ -1,7 +1,6 @@
 import argparse, os, time, tempfile, shutil, random
 
 def small_file_metadata_storm(base: str, payload: bytes, T: int, files_per_batch: int, keep: bool):
-    print(f"dir={base}")
     batch = 0
     t_end = time.time() + T
 
@@ -20,8 +19,6 @@ def small_file_metadata_storm(base: str, payload: bytes, T: int, files_per_batch
                     os.unlink(fp)
             
             batch += 1
-            if batch % 5 == 0:
-                print(f"batches={batch}")
     finally:
         if not keep:
             shutil.rmtree(base, ignore_errors=True)

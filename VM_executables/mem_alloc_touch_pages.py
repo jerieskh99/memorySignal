@@ -35,9 +35,6 @@ def run_allocator(obj_bytes: int, T: int, n_obj: int, sleep_ms: int, page_size: 
         batches += 1
         v = (v+1) & 0xFF
 
-        if batches % 10 == 0:
-            print(f"batches={batches} checksum={checksum}")
-
         if sleep_ms > 0:
             time.sleep(sleep_ms / 1000.0)
 

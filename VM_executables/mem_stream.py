@@ -5,20 +5,14 @@ import numpy as np
 def swap_arrays(a, b, x, T):
     t_end = time.time() + T
 
-    heartBeat = 0
     while time.time() < t_end:
         x[:] = a
         a[:] = b
         b[:] = x
 
-        heartBeat += 1
-        if heartBeat % 10 == 0:
-            print(f"iter={heartBeat}")
-
 
 def sweep(buf: np.ndarray, T: int, page_stride: int = 4096):
     t_end = time.time() + T
-    heartbeat = 0
     v = np.uint8(0)
     n = buf.size
 
@@ -27,10 +21,6 @@ def sweep(buf: np.ndarray, T: int, page_stride: int = 4096):
         for i in range(0, n, page_stride):
             buf[i] = v
         v = np.uint8((int(v) + 1) % 256)
-
-        heartbeat += 1
-        if heartbeat % 32 == 0:
-            print(f"iter={heartbeat}")
 
 
 

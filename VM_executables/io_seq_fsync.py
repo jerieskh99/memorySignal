@@ -11,9 +11,6 @@ def disk_force_allocate(D, K, p, T):
 
             if chunks % K == 0:
                 os.fsync(f.fileno())
-            
-            if chunks % 64 == 0:
-                print(f"Chunks={chunks}")
 
 
 def main():

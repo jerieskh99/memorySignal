@@ -15,7 +15,6 @@ def traverse_array(arr: np.ndarray, T: int, seed: int, stride: int = 4096):
     x = seed % m
 
     acc = 0
-    steps = 0
 
     while time.time() < t_end:
         i = (a * x + c) % m
@@ -23,9 +22,6 @@ def traverse_array(arr: np.ndarray, T: int, seed: int, stride: int = 4096):
         idx = x * stride
 
         acc ^= int(arr[idx])
-        steps += 1
-        if steps % 1048576 == 0: # Size of MB
-            print(f"steps={steps} acc={acc}")
 
 
 def main():

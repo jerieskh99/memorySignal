@@ -10,9 +10,8 @@ def read_write_random(T: int, path: str, write_ratio: float, block_kb: int, file
     block_size = 1024 * block_kb
     max_offset = file_size - block_size
     data = os.urandom(block_size)
-    heartbeat = 0
     t_end = time.time() + T
-    
+
     with open(path, "r+b", buffering=0) as f:
         while time.time() < t_end:
             off = random.randrange(0, max_offset + 1, block_size)
@@ -22,10 +21,6 @@ def read_write_random(T: int, path: str, write_ratio: float, block_kb: int, file
                 f.write(data)
             else:
                 _ = f.read(block_size)
-            
-            heartbeat += 1
-            if heartbeat % 5000 == 0:
-                print(f"heartbeat={heartbeat}")
 
 
 def main():
