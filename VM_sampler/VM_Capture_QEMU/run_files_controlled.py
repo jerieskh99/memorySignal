@@ -562,9 +562,6 @@ def main() -> int:
             print("[CONTROL] (this step will produce the shared PLV baseline)")
 
         ensure_vm_running()
-        if not wait_for_ssh():
-            print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
-            return 1
 
         # Derive a step-specific matrix path so each test's frames are isolated.
         step_matrix = ""
@@ -577,6 +574,10 @@ def main() -> int:
             if CAPTURE_WARMUP_SECONDS > 0:
                 print(f"[CONTROL] Capture warmup: sleeping {CAPTURE_WARMUP_SECONDS}s")
                 time.sleep(CAPTURE_WARMUP_SECONDS)
+
+        if not wait_for_ssh():
+            print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
+            return 1
 
         print("[CONTROL] Running command over SSH...")
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
