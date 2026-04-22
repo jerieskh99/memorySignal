@@ -262,6 +262,17 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     # Per-step matrix path: consumer will append frames here instead of the
     # shared default run_matrix.npy.
     if run_matrix_path:
+        # Ensure a clean matrix/stream for this step.
+        for p in (
+            run_matrix_path,
+            f"{run_matrix_path}.frames.bin",
+            f"{run_matrix_path}.frames.meta",
+        ):
+            try:
+                if os.path.isfile(p):
+                    os.remove(p)
+            except Exception:
+                pass
         env_prefix += f"RUN_MATRIX={shlex.quote(run_matrix_path)} "
     # In step-gated offline mode disable live streaming inside the consumer;
     # offline metrics are computed by offline_step_metrics.py after each step.
@@ -427,6 +438,39 @@ def run_offline_step_metrics(step_name: str, matrix_path: str, is_baseline: bool
             f" for step {step_name} (non-fatal)."
         )
     return rc
+
+
+def finalize_run_matrix_from_stream(matrix_path: str) -> None:
+    """Build run_matrix.npy once from append-only frame stream.
+
+    Stream layout: concatenated float64 frame vectors [num_pages] in append order.
+    Meta file stores num_pages.
+    """
+    stream_path = f"{matrix_path}.frames.bin"
+    meta_path = f"{matrix_path}.frames.meta"
+    if not os.path.isfile(stream_path):
+        return
+
+    cmd_parts = [
+        "python3",
+        "-c",
+        (
+            "import os,sys,numpy as np;"
+            "stream,meta,out=sys.argv[1],sys.argv[2],sys.argv[3];"
+            "data=np.fromfile(stream,dtype=np.float64);"
+            "n=int(open(meta,'r',encoding='utf-8').read().strip()) if os.path.isfile(meta) else 0;"
+            "assert n>0, f'missing/invalid meta pages: {meta}';"
+            "assert data.size % n == 0, f'stream size {data.size} not divisible by pages {n}';"
+            "t=data.size//n;"
+            "mat=data.reshape(t,n).T;"
+            "np.save(out,mat);"
+            "print(f'[CONTROL] Finalized matrix from stream: T={t} N={n} -> {out}')"
+        ),
+        stream_path,
+        meta_path,
+        matrix_path,
+    ]
+    run(" ".join(shlex.quote(p) for p in cmd_parts))
 
 
 def _capture_process_pids() -> list[int]:
@@ -625,6 +669,10 @@ def main() -> int:
 
             # 3. Now that the queue is empty it is safe to stop the consumer.
             stop_consumer()
+
+            # 3.5 Offline-mode append-only stream -> finalize matrix once.
+            if OFFLINE_METRICS_MODE and step_matrix:
+                finalize_run_matrix_from_stream(step_matrix)
 
             # 4. Run offline metrics for this isolated, fully-drained step.
             if OFFLINE_METRICS_MODE and step_matrix:

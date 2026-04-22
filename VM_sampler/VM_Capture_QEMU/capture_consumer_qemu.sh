@@ -74,6 +74,8 @@ mkdir -p "$qPending" "$qProcessing" "$qDone" "$qFailed"
 # - Streaming metrics treat the transposed view (time x pages) internally.
 RUN_MATRIX="${RUN_MATRIX:-$qPath/run_matrix.npy}"
 RUN_MATRIX_LOCK="${RUN_MATRIX}.lock"
+RUN_MATRIX_STREAM="${RUN_MATRIX}.frames.bin"
+RUN_MATRIX_STREAM_META="${RUN_MATRIX}.frames.meta"
 # PID file for the async streaming metrics background process.
 # Used to skip triggering a second streaming run while one is already in flight.
 STREAMING_PID_FILE="${RUN_MATRIX}.streaming.pid"
@@ -146,6 +148,36 @@ archive_with_borg_async() {
 # Append one frame (column vector num_pages) to the run matrix. Matrix on disk is (num_pages, num_frames).
 append_frame() {
   local frameFile="$1"
+  if [[ "$OFFLINE_MODE" == "1" || "$OFFLINE_MODE" == "true" ]]; then
+    (
+      flock 200
+      python3 -c "
+import os
+import sys
+import numpy as np
+
+frame_path = sys.argv[1]
+stream_path = sys.argv[2]
+meta_path = sys.argv[3]
+
+frame = np.loadtxt(frame_path, dtype=np.float64).reshape(-1)
+num_pages = int(frame.shape[0])
+
+if os.path.isfile(meta_path):
+    with open(meta_path, 'r', encoding='utf-8') as fh:
+        expected = int((fh.read() or '0').strip())
+    if expected != num_pages:
+        raise ValueError(f'Frame length {num_pages} != expected pages {expected}')
+else:
+    with open(meta_path, 'w', encoding='utf-8') as fh:
+        fh.write(str(num_pages))
+
+with open(stream_path, 'ab') as out:
+    frame.tofile(out)
+" "$frameFile" "$RUN_MATRIX_STREAM" "$RUN_MATRIX_STREAM_META"
+    ) 200>"$RUN_MATRIX_LOCK"
+    return
+  fi
   (
     flock 200
     if [[ -f "$RUN_MATRIX" ]]; then
