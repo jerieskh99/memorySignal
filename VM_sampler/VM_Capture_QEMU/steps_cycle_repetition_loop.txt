@@ -1,31 +1,5 @@
 # Loop the full cycle block N times on the guest.
 # Override loop count at runtime:
 #   export CYCLE_LOOPS=5
-bash -lc '
-LOOPS="${CYCLE_LOOPS:-5}"
-i=1
-
-while [ "$i" -le "$LOOPS" ]; do
-  echo "[CYCLE] $i/$LOOPS"
-
-  python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds 300
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 300 --seed 123
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds 300
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 300 --kb 4096 --fsync-wait 1 --path "io_seq_c${i}.bin"
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 300 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path "io_rand_c${i}.bin" --seed 123
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 300 --files-per-batch 500 --payload-bytes 1024 --seed 123
-  bash ~/memorySignal/VM_executables/run_idle.sh --time 60
-
-  i=$((i+1))
-done
-'
+# One physical line: the orchestrator reads one command per line.
+bash -lc 'LOOPS="${CYCLE_LOOPS:-5}"; i=1; while [ "$i" -le "$LOOPS" ]; do echo "[CYCLE] $i/$LOOPS"; python3 ~/memorySignal/VM_executables/mem_stream.py --mb 128 --seconds 300; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; python3 ~/memorySignal/VM_executables/mem_pointer_chase.py --mb 1024 --seconds 300 --seed 123; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; python3 ~/memorySignal/VM_executables/mem_alloc_touch_pages.py --objects 2000 --object-kb 256 --sleep-ms 20 --seconds 300; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; python3 ~/memorySignal/VM_executables/io_seq_fsync.py --seconds 300 --kb 4096 --fsync-wait 1 --path "io_seq_c${i}.bin"; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; python3 ~/memorySignal/VM_executables/io_rand_rw.py --seconds 300 --file-mb 2048 --block-kb 64 --write-ratio 0.5 --path "io_rand_c${i}.bin" --seed 123; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; python3 ~/memorySignal/VM_executables/io_many_files.py --seconds 300 --files-per-batch 500 --payload-bytes 1024 --seed 123; bash ~/memorySignal/VM_executables/run_idle.sh --time 60; i=$((i+1)); done'
