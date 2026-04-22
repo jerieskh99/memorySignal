@@ -12,6 +12,8 @@ Flow per step:
 
 import os
 import shlex
+import sys
+import threading
 import time
 import json
 from pathlib import Path
@@ -70,6 +72,81 @@ OFFLINE_OUTPUT_ROOT = os.environ.get("OFFLINE_OUTPUT_ROOT", "")
 BASELINE_STEP_NUMBER = int(os.environ.get("BASELINE_STEP_NUMBER", "1"))
 # How long to wait for the consumer queue to drain before timing out (minutes).
 QUEUE_DRAIN_TIMEOUT_MINUTES = int(os.environ.get("QUEUE_DRAIN_TIMEOUT_MINUTES", "30"))
+PROGRESS_BAR = os.environ.get("PROGRESS_BAR", "1").lower() in {"1", "true", "yes"}
+
+
+def _fmt_hms(seconds: float) -> str:
+    seconds = int(max(0, seconds))
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    if h:
+        return f"{h:d}h{m:02d}m{s:02d}s"
+    return f"{m:d}m{s:02d}s"
+
+
+class _WorkloadSpinner:
+    """Low-overhead spinner that tracks VM-active vs paused time."""
+
+    def __init__(self, label: str):
+        self.label = label
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._last = 0.0
+        self.active_secs = 0.0
+        self.paused_secs = 0.0
+
+    def _loop(self) -> None:
+        glyphs = ("|", "/", "-", "\\")
+        i = 0
+        while not self._stop.is_set():
+            now = time.time()
+            dt = max(0.0, now - self._last)
+            self._last = now
+            state = virsh_state().lower()
+            if "paused" in state:
+                self.paused_secs += dt
+            else:
+                self.active_secs += dt
+            wall = self.active_secs + self.paused_secs
+            try:
+                sys.stderr.write(
+                    f"\r[PROGRESS] {self.label} {glyphs[i % len(glyphs)]} "
+                    f"active={_fmt_hms(self.active_secs)} "
+                    f"paused={_fmt_hms(self.paused_secs)} "
+                    f"wall={_fmt_hms(wall)}   "
+                )
+                sys.stderr.flush()
+            except Exception:
+                return
+            i += 1
+            if self._stop.wait(1.0):
+                break
+
+    def __enter__(self) -> "_WorkloadSpinner":
+        self._last = time.time()
+        if PROGRESS_BAR and sys.stderr.isatty():
+            self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._thread.start()
+        elif PROGRESS_BAR:
+            print(f"[PROGRESS] {self.label}: running")
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.5)
+        wall = self.active_secs + self.paused_secs
+        if PROGRESS_BAR and sys.stderr.isatty():
+            try:
+                sys.stderr.write("\r" + " " * 140 + "\r")
+                sys.stderr.flush()
+            except Exception:
+                pass
+        if PROGRESS_BAR:
+            print(
+                f"[PROGRESS] {self.label}: finished in {_fmt_hms(wall)}"
+                f"  (active={_fmt_hms(self.active_secs)} paused={_fmt_hms(self.paused_secs)})"
+            )
 
 
 def run(cmd: str) -> int:
@@ -502,7 +579,8 @@ def main() -> int:
                 time.sleep(CAPTURE_WARMUP_SECONDS)
 
         print("[CONTROL] Running command over SSH...")
-        rc = run(f"{base} {shlex.quote(remote_cmd)}")
+        with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
+            rc = run(f"{base} {shlex.quote(remote_cmd)}")
         rc = rc >> 8  # os.system stores wait status
         print(f"[CONTROL] SSH command exit code: {rc}")
 
