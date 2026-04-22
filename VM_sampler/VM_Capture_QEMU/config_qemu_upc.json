@@ -1,7 +1,7 @@
 {
   "domain": "Kali Jeries",
   "qemuMonitorSocket": "",
-  "ramSizeMb": 2048,
+  "ramSizeMb": 1024,
   "imageDir": "/var/lib/libvirt/qemu/dump",
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",
   "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",

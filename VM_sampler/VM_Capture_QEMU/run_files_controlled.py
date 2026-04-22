@@ -46,7 +46,7 @@ CAPTURE_PRODUCER_SCRIPT = os.environ.get(
     "CAPTURE_PRODUCER_SCRIPT",
     os.path.join(CAPTURE_ROOT, "capture_producer_qemu_pmemsave.sh"),
 )
-CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "2"))
+CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "0"))
 
 # ---------------------------------------------------------------------------
 # Step-gated offline metrics
