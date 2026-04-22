@@ -84,8 +84,30 @@ def _fmt_hms(seconds: float) -> str:
     return f"{m:d}m{s:02d}s"
 
 
+def _read_vm_state_file() -> str:
+    """Read vm_state.txt written by the producer — 'paused' or 'running'.
+
+    Zero virsh calls; never blocks the main thread. Returns empty string if
+    the file does not exist yet (treated as running by the spinner).
+    """
+    try:
+        q = capture_queue_dir()
+        if q is None:
+            return ""
+        p = q / "vm_state.txt"
+        if not p.exists():
+            return ""
+        return p.read_text(encoding="utf-8").strip().lower()
+    except Exception:
+        return ""
+
+
 class _WorkloadSpinner:
-    """Low-overhead spinner that tracks VM-active vs paused time."""
+    """Spinner that tracks VM-active vs paused time via producer state file.
+
+    Reads queueDir/vm_state.txt written by the producer on every suspend/resume.
+    No virsh calls from the spinner thread — zero race with SSH or capture.
+    """
 
     def __init__(self, label: str):
         self.label = label
@@ -102,8 +124,8 @@ class _WorkloadSpinner:
             now = time.time()
             dt = max(0.0, now - self._last)
             self._last = now
-            state = virsh_state().lower()
-            if "paused" in state:
+            state = _read_vm_state_file()
+            if state == "paused":
                 self.paused_secs += dt
             else:
                 self.active_secs += dt

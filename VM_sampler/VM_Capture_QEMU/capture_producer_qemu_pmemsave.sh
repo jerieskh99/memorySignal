@@ -50,6 +50,8 @@ chownGroup=$(jq -r '.chownGroup // ""' "$CONFIG" 2>/dev/null || echo "") # e.g. 
 qPending="$qPath/pending"
 qProcessing="$qPath/processing"
 mkdir -p "$qPending" "$qProcessing" "$imageDir" "$outputDir"
+VM_STATE_FILE="$qPath/vm_state.txt"
+echo "running" > "$VM_STATE_FILE"
 
 imageFilePrefix="memory_dump"
 prevImage=""
@@ -85,6 +87,7 @@ while true; do
   timestamp=$(date +%Y%m%d%H%M%S%3N)
   newImage="$imageDir/${imageFilePrefix}-${timestamp}.raw"
 
+  echo "paused" > "$VM_STATE_FILE"
   echo "[PRODUCER-PMEM] Suspending VM via virsh ..."
   if ! virsh -c qemu:///system suspend "$domain" 2>/dev/null; then
     echo "[PRODUCER-PMEM] WARNING: virsh suspend failed, retrying in 500ms"
@@ -149,6 +152,7 @@ while true; do
 
   echo "[PRODUCER-PMEM] Resuming VM via virsh ..."
   virsh -c qemu:///system resume "$domain" 2>/dev/null || true
+  echo "running" > "$VM_STATE_FILE"
   if ! wait_state "running"; then
     echo "[PRODUCER-PMEM] Resume may have failed; continuing anyway"
   fi
