@@ -132,8 +132,9 @@ This preserves per-step delta outputs while leaving the producer-consumer direct
 3. Consumer moves that job through `processing` into `done` or `failed`.
 4. Consumer writes delta text outputs under `outputDir`.
 5. Consumer appends one delta frame into the active run matrix.
-6. Controller waits for queue drain, then optionally runs offline metrics on the step matrix.
-7. Controller rotates delta text files into a per-step archival subdirectory.
+6. Controller waits for queue drain, stops the consumer, and stops the VM.
+7. Controller optionally runs offline metrics on the completed step matrix.
+8. Controller rotates delta text files into a per-step archival subdirectory.
 
 ## Directly Implemented Versus Inferred
 ### Directly Implemented

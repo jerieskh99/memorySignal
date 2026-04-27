@@ -581,10 +581,10 @@ def step_name_from_command(remote_cmd: str) -> str:
     return safe or "step"
 
 
-def log_command_dispatch(step_index: int, test_name: str, remote_cmd: str) -> None:
-    """Append one line when a guest test command is dispatched over SSH."""
+def log_test_timestamp(step_index: int, test_name: str, status: str) -> None:
+    """Append one compact timestamp line for test start/end events."""
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    line = f"{ts} step={step_index} test={test_name} cmd={remote_cmd}\n"
+    line = f"test - {step_index} {test_name} - {status} - {ts}\n"
     try:
         log_path = Path(TIMESTAMPS_LOG)
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -640,6 +640,7 @@ def main() -> int:
         test_label = step_name_from_command(remote_cmd)
         test_name = f"test{i}_{test_label}"
         is_baseline_step = (i == BASELINE_STEP_NUMBER)
+        vm_stopped = False
         print(f"\n[CONTROL] ===== Step {i}/{len(steps)} : {test_name} =====")
         print(f"[CONTROL] Command : {remote_cmd}")
         if OFFLINE_METRICS_MODE and is_baseline_step:
@@ -663,12 +664,13 @@ def main() -> int:
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
             return 1
 
-        log_command_dispatch(i, test_name, remote_cmd)
-        print(f"[CONTROL] Logged dispatch timestamp -> {TIMESTAMPS_LOG}")
+        log_test_timestamp(i, test_name, "started")
         print("[CONTROL] Running command over SSH...")
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
             rc = run(f"{base} {shlex.quote(remote_cmd)}")
         rc = rc >> 8  # os.system stores wait status
+        log_test_timestamp(i, test_name, "ended")
+        print(f"[CONTROL] Logged test timestamps -> {TIMESTAMPS_LOG}")
         print(f"[CONTROL] SSH command exit code: {rc}")
 
         if CAPTURE_MODE:
@@ -690,11 +692,15 @@ def main() -> int:
             # 3. Now that the queue is empty it is safe to stop the consumer.
             stop_consumer()
 
-            # 3.5 Offline-mode append-only stream -> finalize matrix once.
+            # 3.5 Pause the VM before post-step host-side analysis.
+            stop_vm()
+            vm_stopped = True
+
+            # 4. Offline-mode append-only stream -> finalize matrix once.
             if OFFLINE_METRICS_MODE and step_matrix:
                 finalize_run_matrix_from_stream(step_matrix)
 
-            # 4. Run offline metrics for this isolated, fully-drained step.
+            # 5. Run offline metrics for this isolated, fully-drained step.
             if OFFLINE_METRICS_MODE and step_matrix:
                 run_offline_step_metrics(
                     step_name=test_name,
@@ -702,10 +708,11 @@ def main() -> int:
                     is_baseline=is_baseline_step,
                 )
 
-            # 5. Rotate cosine/hamming output files under a per-test subfolder.
+            # 6. Rotate cosine/hamming output files under a per-test subfolder.
             rotate_delta_files(test_name)
 
-        stop_vm()
+        if not vm_stopped:
+            stop_vm()
 
         if rc != 0:
             print(f"[CONTROL] ERROR: Step {i} failed (exit={rc}). Stopping sequence.")

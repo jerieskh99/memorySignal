@@ -46,7 +46,7 @@ The active architecture is a host-controlled step runner wrapped around an optio
 3. If capture is enabled, the host starts the QEMU capture launcher before the guest step.
 4. The producer repeatedly acquires RAW memory dumps and writes queue jobs.
 5. The consumer converts each dump pair into delta outputs, appends a per-frame vector into a run matrix, and may trigger live streaming metrics.
-6. After the guest step finishes, the host stops the producer, waits for queue drain, stops the consumer, optionally runs offline step metrics, rotates delta outputs, and powers the VM down.
+6. After the guest step finishes, the host stops the producer, waits for queue drain, stops the consumer, powers the VM down, optionally runs offline step metrics, and rotates delta outputs.
 
 ## Booklet Map
 - [`../ACTIVE_PIPELINE_FILE_MAP.md`](../ACTIVE_PIPELINE_FILE_MAP.md): conservative file-and-folder map, dependency map, flow map, used vs excluded files (traced from `run_files_controlled.py` only)

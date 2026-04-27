@@ -29,8 +29,9 @@ The offline stage runs only when all of the following are true:
 4. the producer has already been stopped
 5. the queue has fully drained
 6. the consumer has been stopped
+7. the VM has been stopped
 
-This ordering is enforced by `run_files_controlled.py`, which invokes offline metrics only after queue drain for a completed step.
+This ordering is enforced by `run_files_controlled.py`, which invokes offline metrics only after queue drain, consumer shutdown, and VM shutdown for a completed step. The offline analysis therefore runs as host-side post-processing while the guest is no longer executing.
 
 ## Why Live Streaming Is Disabled In This Mode
 When offline metrics mode is active, the controller exports `OFFLINE_MODE=1` before starting the launcher. The consumer interprets that flag as a command to skip live streaming so metrics can be computed in a step-gated manner afterward.
@@ -52,7 +53,7 @@ Per step: `<output_root>/offline/<step_name>/` with `meta.json`, `streaming` pre
 
 ## Directly Implemented Versus Inferred
 ### Directly Implemented
-- offline metrics run after queue drain
+- offline metrics run after queue drain, consumer shutdown, and VM shutdown
 - matrix transpose convention `[pages, frames]` → `[frames, pages]`
 - one baseline step can persist `baseline_plv.npy`
 - per-step output subdirectory named by `step_name`

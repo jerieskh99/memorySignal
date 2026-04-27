@@ -40,7 +40,7 @@ Out of scope unless an active file explicitly references them:
 ## Main entrypoint (host)
 `VM_sampler/VM_Capture_QEMU/run_files_controlled.py`
 
-It enforces the step lifecycle: VM start/resume → SSH readiness → run one guest workload command → (optional) start capture → stop producer → drain queue → stop consumer → (optional) offline metrics → rotate outputs → VM shutdown.
+It enforces the step lifecycle: VM start/resume → SSH readiness → start capture when enabled → run one guest workload command → stop producer → drain queue → stop consumer → VM shutdown → optional offline metrics → rotate outputs.
 
 ## Key capture scripts (only when `CAPTURE_MODE=1`)
 - `VM_sampler/VM_Capture_QEMU/run_qemu_capture.sh`
@@ -87,7 +87,7 @@ From `VM_sampler/VM_Capture_QEMU/config_qemu_upc.json`:
 - It enforces sequential steps and calls `ssh` for exactly one remote command per step
 - Capture is started/stopped around each step only when `CAPTURE_MODE=1`
 - After each capture-enabled step it waits for `queueDir/pending` and `queueDir/processing` to be empty, then stops the consumer
-- Offline metrics is invoked only when `OFFLINE_METRICS_MODE=1`, after the queue drain (and after the consumer is stopped)
+- Offline metrics is invoked only when `OFFLINE_METRICS_MODE=1`, after the queue drain, after the consumer is stopped, and after the VM is shut down
 - The controller rotates delta `*.txt` files from `outputDir/{hamming,cosine}/` into `outputDir/rotated/<test_name>/...`
 - The offline baseline step is controlled by `BASELINE_STEP_NUMBER` (default step 1) via `--is-baseline`
 

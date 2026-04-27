@@ -69,9 +69,9 @@ For each step, the controller derives a test label such as `test1_run_idle`, the
 5. If capture is active, stop only the producer first.
 6. Poll the capture queue until `pending` and `processing` are both empty.
 7. Stop the consumer.
-8. If `OFFLINE_METRICS_MODE=1`, invoke `offline_step_metrics.py` on the step-specific run matrix.
-9. Rotate delta text outputs into `outputDir/rotated/<test_name>/...`.
-10. Stop the VM.
+8. Stop the VM before host-side post-processing.
+9. If `OFFLINE_METRICS_MODE=1`, invoke `offline_step_metrics.py` on the step-specific run matrix.
+10. Rotate delta text outputs into `outputDir/rotated/<test_name>/...`.
 11. Abort the sequence if the guest command failed.
 
 This extended lifecycle is directly visible in the main loop:
@@ -101,6 +101,8 @@ This extended lifecycle is directly visible in the main loop:
 
             stop_consumer()
 
+            stop_vm()
+
             if OFFLINE_METRICS_MODE and step_matrix:
                 run_offline_step_metrics(
                     step_name=test_name,
@@ -110,7 +112,8 @@ This extended lifecycle is directly visible in the main loop:
 
             rotate_delta_files(test_name)
 
-        stop_vm()
+        if not vm_stopped:
+            stop_vm()
 ```
 
 ## Environment Variables That Change The Active Flow
@@ -123,7 +126,7 @@ The most important controller parameters are:
 - `CAPTURE_MODE`: enables the producer-consumer capture path
 - `CAPTURE_CONFIG`: points to the active capture config, defaulting to `config_qemu_upc.json`
 - `CAPTURE_PRODUCER_SCRIPT`: defaults to the pmemsave producer
-- `OFFLINE_METRICS_MODE`: enables per-step offline metrics after queue drain
+- `OFFLINE_METRICS_MODE`: enables per-step offline metrics after queue drain, consumer stop, and VM shutdown
 - `BASELINE_STEP_NUMBER`: determines which step is treated as the clean baseline for offline PLV reuse
 
 ## Directly Implemented Versus Inferred
@@ -131,7 +134,7 @@ The most important controller parameters are:
 - One guest command is executed per step over SSH
 - The VM is started before each step and stopped after each step
 - Capture start and stop are controlled from the host when `CAPTURE_MODE=1`
-- Offline metrics are triggered only after queue drain when `OFFLINE_METRICS_MODE=1`
+- Offline metrics are triggered only after queue drain, consumer stop, and VM shutdown when `OFFLINE_METRICS_MODE=1`
 
 ### Inferred Or Conditional
 - The guest-side path `~/memorySignal/VM_executables/...` is assumed by the command strings, but not validated by the controller

@@ -80,7 +80,7 @@ If `STEPS_FILE` is set, guest commands are **whatever** that file contains; they
 
 | Script | Env override | When |
 |--------|----------------|------|
-| `offline_step_metrics.py` | `OFFLINE_METRICS_SCRIPT` (default: same directory as `run_files_controlled.py`) | `OFFLINE_METRICS_MODE=1`, after queue drain, if `step_matrix` non-empty and files exist |
+| `offline_step_metrics.py` | `OFFLINE_METRICS_SCRIPT` (default: same directory as `run_files_controlled.py`) | `OFFLINE_METRICS_MODE=1`, after queue drain, consumer stop, and VM shutdown, if `step_matrix` non-empty and files exist |
 
 Additional gating inside `run_offline_step_metrics()`: script file must exist, matrix file must exist, `OFFLINE_PROJECT_ROOT` or `streaming.projectRoot` in config must resolve (lines 282–304).
 
@@ -156,11 +156,11 @@ sequenceDiagram
     R->>R: pkill producer
     R->>Q: poll until pending+processing empty
     R->>R: pkill consumer
+    R->>V: stop VM
     opt OFFLINE_METRICS_MODE
         R->>O: python3 args
     end
     R->>R: rotate hamming cosine txt
-    R->>V: stop VM
 ```
 
 ---

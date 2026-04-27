@@ -30,15 +30,15 @@ Flow per step:
   5) Move to next command
 ```
 
-With **`CAPTURE_MODE`** (and optionally **`OFFLINE_METRICS_MODE`**), `main()` inserts capture and offline steps **after** the guest command and **before** `stop_vm()`. The enforced order per iteration is:
+With **`CAPTURE_MODE`** (and optionally **`OFFLINE_METRICS_MODE`**), `main()` inserts capture shutdown, VM shutdown, and offline steps after the guest command. The enforced order per iteration is:
 
 1. Derive `test_name` (e.g. `test1_run_idle` from `step_name_from_command`).
 2. **`ensure_vm_running()`** — start or resume the libvirt domain.
 3. **`wait_for_ssh()`** — poll until SSH accepts a trivial command.
 4. If **`CAPTURE_MODE`**: build `step_matrix` path (`queueDir/run_matrix_<test_name>.npy`), call **`start_capture()`** (runs `run_qemu_capture.sh`), optional warmup sleep.
 5. **`run(remote_cmd)`** — single quoted guest command over SSH; wait for exit.
-6. If **`CAPTURE_MODE`**: **`stop_producer()`** → **`wait_for_queue_drain()`** → **`stop_consumer()`** → optional **`run_offline_step_metrics()`** → **`rotate_delta_files(test_name)`**.
-7. **`stop_vm()`** — shutdown or destroy after timeout.
+6. If **`CAPTURE_MODE`**: **`stop_producer()`** → **`wait_for_queue_drain()`** → **`stop_consumer()`** → **`stop_vm()`** → optional matrix finalization → optional **`run_offline_step_metrics()`** → **`rotate_delta_files(test_name)`**.
+7. If **`CAPTURE_MODE`** is off, **`stop_vm()`** still runs at the end of the step.
 8. If the guest step exit code was non-zero, **abort** the whole run (after VM stop in the capture path).
 
 ```492:543:VM_sampler/VM_Capture_QEMU/run_files_controlled.py
@@ -53,10 +53,12 @@ With **`CAPTURE_MODE`** (and optionally **`OFFLINE_METRICS_MODE`**), `main()` in
             drained = wait_for_queue_drain(...)
             ...
             stop_consumer()
+            stop_vm()
             if OFFLINE_METRICS_MODE and step_matrix:
                 run_offline_step_metrics(...)
             rotate_delta_files(test_name)
-        stop_vm()
+        if not vm_stopped:
+            stop_vm()
 ```
 
 ---
@@ -115,6 +117,8 @@ Offline runs only when:
 - **`run_offline_step_metrics()`** finds the script file, matrix file, and a resolved project root (`OFFLINE_PROJECT_ROOT` or `streaming.projectRoot` from the capture config).
 
 It shells out to **`python3 OFFLINE_METRICS_SCRIPT`** with `--matrix`, `--step-name`, `--output-root`, `--project-root`, `--baseline-dir`, window/step sizes, and **`--is-baseline`** when `i == BASELINE_STEP_NUMBER`.
+
+In the capture path, this offline analysis is intentionally invoked only after the producer has stopped, the queue has drained, the consumer has stopped, and the VM has been stopped. The completed step matrix is therefore analyzed while the guest is no longer running.
 
 **Surrounding behavior:** what `offline_step_metrics.py` writes under `offline/<step_name>/` is **explicit** in that script; this controller only passes paths and flags.
 

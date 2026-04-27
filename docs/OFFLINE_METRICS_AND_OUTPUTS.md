@@ -4,7 +4,7 @@
 This document describes the **offline metrics stage** triggered when `run_files_controlled.py` runs with **`OFFLINE_METRICS_MODE=1`** (and capture enabled). It focuses on what **`offline_step_metrics.py`** actually imports and executes, and which repository files are **active analysis dependencies** versus **import-only** or **unused** for this path.
 
 ## Where It Sits In The Pipeline
-Post-capture, post-queue-drain: one step’s `run_matrix_*.npy` is analyzed and results are written under `<output_root>/offline/...`.
+Post-capture, post-queue-drain, and post-VM-shutdown: one step’s `run_matrix_*.npy` is analyzed and results are written under `<output_root>/offline/...`.
 
 ---
 
@@ -14,7 +14,7 @@ Post-capture, post-queue-drain: one step’s `run_matrix_*.npy` is analyzed and 
 |------|------|
 | `VM_sampler/VM_Capture_QEMU/offline_step_metrics.py` | Sole offline script invoked by the host controller (`python3 …` with CLI args). |
 
-Host prerequisites (from `run_files_controlled.py`): `CAPTURE_MODE=1`, queue drained, `OFFLINE_PROJECT_ROOT` or `streaming.projectRoot` in `CAPTURE_CONFIG`, matrix file present.
+Host prerequisites (from `run_files_controlled.py`): `CAPTURE_MODE=1`, queue drained, consumer stopped, VM stopped, `OFFLINE_PROJECT_ROOT` or `streaming.projectRoot` in `CAPTURE_CONFIG`, matrix file present.
 
 ---
 
