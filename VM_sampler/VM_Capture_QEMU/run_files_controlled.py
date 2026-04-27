@@ -648,6 +648,10 @@ def main() -> int:
 
         ensure_vm_running()
 
+        if not wait_for_ssh():
+            print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
+            return 1
+
         # Derive a step-specific matrix path so each test's frames are isolated.
         step_matrix = ""
         if CAPTURE_MODE:
@@ -659,10 +663,6 @@ def main() -> int:
             if CAPTURE_WARMUP_SECONDS > 0:
                 print(f"[CONTROL] Capture warmup: sleeping {CAPTURE_WARMUP_SECONDS}s")
                 time.sleep(CAPTURE_WARMUP_SECONDS)
-
-        if not wait_for_ssh():
-            print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
-            return 1
 
         log_test_timestamp(i, test_name, "started")
         print("[CONTROL] Running command over SSH...")
