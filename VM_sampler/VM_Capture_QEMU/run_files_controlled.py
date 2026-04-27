@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 
@@ -45,6 +46,10 @@ CAPTURE_CONFIG = os.environ.get("CAPTURE_CONFIG", os.path.join(CAPTURE_ROOT, "co
 CAPTURE_PRODUCER_SCRIPT = os.environ.get(
     "CAPTURE_PRODUCER_SCRIPT",
     os.path.join(CAPTURE_ROOT, "capture_producer_qemu_pmemsave.sh"),
+)
+TIMESTAMPS_LOG = os.environ.get(
+    "TIMESTAMPS_LOG",
+    os.path.join(CAPTURE_ROOT, "timestamps.log"),
 )
 CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "0"))
 
@@ -576,6 +581,19 @@ def step_name_from_command(remote_cmd: str) -> str:
     return safe or "step"
 
 
+def log_command_dispatch(step_index: int, test_name: str, remote_cmd: str) -> None:
+    """Append one line when a guest test command is dispatched over SSH."""
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    line = f"{ts} step={step_index} test={test_name} cmd={remote_cmd}\n"
+    try:
+        log_path = Path(TIMESTAMPS_LOG)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(line)
+    except Exception as exc:
+        print(f"[CONTROL] WARNING: failed to write timestamps log ({TIMESTAMPS_LOG}): {exc}")
+
+
 def load_steps() -> list[str]:
     if STEPS_FILE:
         if not os.path.isfile(STEPS_FILE):
@@ -645,6 +663,8 @@ def main() -> int:
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
             return 1
 
+        log_command_dispatch(i, test_name, remote_cmd)
+        print(f"[CONTROL] Logged dispatch timestamp -> {TIMESTAMPS_LOG}")
         print("[CONTROL] Running command over SSH...")
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
             rc = run(f"{base} {shlex.quote(remote_cmd)}")
