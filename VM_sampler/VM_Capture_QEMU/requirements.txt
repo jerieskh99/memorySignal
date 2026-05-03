@@ -1,0 +1,11 @@
+dask
+h5py
+kymatio
+matplotlib
+numpy
+plotly
+pyeeg
+PyWavelets
+scipy
+scikit-learn
+torch

@@ -57,10 +57,14 @@ import numpy as np
 
 
 def load_matrix(matrix_path: str) -> np.ndarray:
-    """Load [pages, frames] .npy from disk and return [T, N] = [frames, pages]."""
+    """Load [pages, frames] .npy and return [T, N] = [frames, pages].
+
+    Preserve dtype (real or complex). Complex deltas are required for
+    phase-aware metrics (PLV uses np.angle internally).
+    """
     mat = np.load(matrix_path, mmap_mode="r")
     # Consumer stores (pages, frames); all metric modules expect (time, pages).
-    return np.asarray(mat.T, dtype=np.float64)
+    return np.asarray(mat.T)
 
 
 # ---------------------------------------------------------------------------
