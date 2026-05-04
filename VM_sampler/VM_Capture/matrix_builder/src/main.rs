@@ -89,14 +89,23 @@ fn parse_args() -> Result<Args, String> {
 
 // ---------------------------------------------------------------------------
 // Timestamp extraction
-// Filenames look like: 2026-04-27T10:47:14.123456+00:00_frame_0042.txt
-// or any prefix up to the first underscore that is consistent between dirs.
+//
+// Filenames written by `live_delta_calc` look like:
+//   memory_dump_hamming_results_par-20260427124713.txt
+//   memory_dump_cosine_results_par-20260427124713.txt
+//
+// The unique pairing key is the digit string that follows "par-".
+// We deliberately use rsplit_once so any future prefix changes that still
+// keep the "par-<timestamp>" suffix continue to work, and so files that do
+// not match the convention are skipped (returning None).
 // ---------------------------------------------------------------------------
 
 fn extract_timestamp(path: &Path) -> Option<String> {
     let stem = path.file_stem()?.to_str()?;
-    // Take everything before the first '_' as the timestamp key.
-    let ts = stem.splitn(2, '_').next()?;
+    let (_, ts) = stem.rsplit_once("par-")?;
+    if ts.is_empty() {
+        return None;
+    }
     Some(ts.to_owned())
 }
 
