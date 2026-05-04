@@ -1,0 +1,12 @@
+[package]
+name = "matrix_builder"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "matrix_builder"
+path = "src/main.rs"
+
+[dependencies]
+rayon = "1.10.0"
+chrono = "0.4"
