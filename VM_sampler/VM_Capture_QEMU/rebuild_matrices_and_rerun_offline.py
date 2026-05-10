@@ -194,6 +194,7 @@ def run_offline(
     window_size: int,
     step_size: int,
     is_baseline: bool,
+    num_segments: int = 1,
 ) -> int:
     cmd = [
         python_bin,
@@ -213,6 +214,8 @@ def run_offline(
         "--step-size",
         str(step_size),
     ]
+    if num_segments > 1:
+        cmd += ["--segments", str(num_segments)]
     if is_baseline:
         cmd.append("--is-baseline")
 
@@ -295,6 +298,15 @@ def main() -> int:
     )
     parser.add_argument("--window-size", type=int, default=128)
     parser.add_argument("--step-size", type=int, default=64)
+    parser.add_argument(
+        "--segments",
+        type=int,
+        default=1,
+        help=(
+            "Number of contiguous temporal segments for the optional segment-level pass."
+            " Default 1 disables segmentation. Forwarded to offline_step_metrics.py."
+        ),
+    )
     parser.add_argument(
         "--continue-on-error",
         action="store_true",
@@ -420,6 +432,7 @@ def main() -> int:
             window_size=args.window_size,
             step_size=args.step_size,
             is_baseline=(test_name == baseline_test),
+            num_segments=args.segments,
         )
         if rc != 0:
             if args.continue_on_error:

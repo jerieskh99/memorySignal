@@ -71,6 +71,9 @@ OFFLINE_PROJECT_ROOT = os.environ.get("OFFLINE_PROJECT_ROOT", "")
 OFFLINE_BASELINE_DIR = os.environ.get("OFFLINE_BASELINE_DIR", "")
 OFFLINE_WINDOW_SIZE = int(os.environ.get("OFFLINE_WINDOW_SIZE", "128"))
 OFFLINE_STEP_SIZE = int(os.environ.get("OFFLINE_STEP_SIZE", "64"))
+# Number of contiguous temporal segments for the optional segment-level pass.
+# Default 1 disables segmentation (current behavior preserved).
+OFFLINE_SEGMENTS = int(os.environ.get("OFFLINE_SEGMENTS", "1"))
 # If set, overrides the offline output root (default: same as capture outputDir).
 OFFLINE_OUTPUT_ROOT = os.environ.get("OFFLINE_OUTPUT_ROOT", "")
 # Which step number (1-based) is treated as the clean idle baseline.
@@ -432,6 +435,8 @@ def run_offline_step_metrics(step_name: str, matrix_path: str, is_baseline: bool
         "--window-size", str(OFFLINE_WINDOW_SIZE),
         "--step-size", str(OFFLINE_STEP_SIZE),
     ]
+    if OFFLINE_SEGMENTS > 1:
+        cmd_parts += ["--segments", str(OFFLINE_SEGMENTS)]
     if is_baseline:
         cmd_parts.append("--is-baseline")
     cmd = " ".join(shlex.quote(p) for p in cmd_parts)
