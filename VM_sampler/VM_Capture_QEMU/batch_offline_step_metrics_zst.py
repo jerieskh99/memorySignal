@@ -270,6 +270,14 @@ def main() -> int:
         default=Path(__file__).with_name("offline_step_metrics.py"),
         help="Path to offline_step_metrics.py (default: same directory as this script).",
     )
+    parser.add_argument(
+        "--start-with-same-baseline", type=int, default=None, metavar="N",
+        help=(
+            "Resume from test N, reusing the existing baseline_plv.npy in --baseline-dir."
+            " Files with test number < N are skipped. --is-baseline is never passed."
+            " Default: start from test 0 (normal full-batch mode)."
+        ),
+    )
     args = parser.parse_args()
 
     # -- Validate paths --
@@ -283,6 +291,17 @@ def main() -> int:
         print(f"ERROR: --segments must be >= 1, got {args.segments}", file=sys.stderr)
         return 1
 
+    resume_from: int | None = args.start_with_same_baseline
+    if resume_from is not None:
+        baseline_plv = args.baseline_dir / "baseline_plv.npy"
+        if not baseline_plv.is_file():
+            print(
+                f"ERROR: --start-with-same-baseline requires an existing baseline at"
+                f" {baseline_plv}",
+                file=sys.stderr,
+            )
+            return 1
+
     # -- Check zstd --
     try:
         zstd_bin = _find_zstd()
@@ -291,17 +310,33 @@ def main() -> int:
         return 1
 
     # -- Discover files --
-    files = _discover_files(args.matrix_folder)
-    if not files:
+    all_files = _discover_files(args.matrix_folder)
+    if not all_files:
         print(f"WARNING: no .npy.zst files found in {args.matrix_folder}")
+        return 0
+
+    # When resuming, split into skipped (test# < N) and to-process (test# >= N).
+    if resume_from is not None:
+        skipped_files = [f for f in all_files if _test_number(f)[0] < resume_from]
+        files = [f for f in all_files if _test_number(f)[0] >= resume_from]
+    else:
+        skipped_files = []
+        files = all_files
+
+    if not files:
+        print(f"WARNING: no files with test number >= {resume_from} found in {args.matrix_folder}")
         return 0
 
     # -- Print processing order --
     print(f"Batch: {args.folder_name}")
-    print(f"Files found: {len(files)}")
-    print(f"Processing order:")
+    print(f"Files found: {len(all_files)}")
+    if skipped_files:
+        print(f"Skipping {len(skipped_files)} file(s) (test# < {resume_from}, baseline reused):")
+        for f in skipped_files:
+            print(f"       {f.name}")
+    print(f"Processing order ({len(files)} file(s)):")
     for i, f in enumerate(files):
-        label = " [BASELINE]" if i == 0 else ""
+        label = " [BASELINE]" if (resume_from is None and i == 0) else ""
         print(f"  {i + 1:3d}. {f.name}{label}")
     print()
 
@@ -312,7 +347,7 @@ def main() -> int:
             zstd_bin=zstd_bin,
             offline_script=args.offline_script,
             matrix_zst=matrix_zst,
-            is_baseline=(i == 0),
+            is_baseline=(resume_from is None and i == 0),
             output_root=args.output_root,
             project_root=args.project_root,
             baseline_dir=args.baseline_dir,
