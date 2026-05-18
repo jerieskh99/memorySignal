@@ -56,6 +56,26 @@ echo "running" > "$VM_STATE_FILE"
 imageFilePrefix="memory_dump"
 prevImage=""
 
+# Optional timing instrumentation. When TIMING_JSONL_PATH is set, the producer
+# emits one JSON line per snapshot with t0..t5 host-side timestamps. See
+# VM_sampler/VM_Capture_QEMU/docs/tuning_plans/01_instrumentation_logging_plan.md.
+TIMING_JSONL_PATH="${TIMING_JSONL_PATH:-}"
+ts_ns() { date +%s.%N; }
+SNAP_SEQ=0
+if [[ -n "$TIMING_JSONL_PATH" ]]; then
+  mkdir -p "$(dirname "$TIMING_JSONL_PATH")"
+  : > "$TIMING_JSONL_PATH"
+  echo "[PRODUCER-PMEM] timing JSONL: $TIMING_JSONL_PATH"
+fi
+emit_timing() {
+  # args: t0 t1 t2 t3 t4 t5 backpressure_flag backpressure_wait_ms pending_count image_path bytes
+  [[ -z "$TIMING_JSONL_PATH" ]] && return 0
+  printf '{"seq":%d,"t0_before_suspend":%s,"t1_after_suspend":%s,"t2_pmemsave_start":%s,"t3_pmemsave_end":%s,"t4_before_resume":%s,"t5_after_resume":%s,"backpressure_event":%s,"backpressure_wait_ms":%s,"queue_depth":%s,"image_path":"%s","dump_bytes":%s,"interval_msec":%s,"ram_mb":%s}\n' \
+    "$SNAP_SEQ" "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "$intervalMsec" "$ramSizeMb" \
+    >> "$TIMING_JSONL_PATH"
+  SNAP_SEQ=$((SNAP_SEQ + 1))
+}
+
 wait_state() {
   local want="$1"
   local deadline=$((SECONDS + timeoutSeconds))
@@ -80,6 +100,11 @@ while true; do
   total=$((pendingCount + processingCount))
   if ((total >= maxPending)); then
     echo "[PRODUCER-PMEM] Backpressure: queue size $total >= $maxPending, sleeping ${sleepOnBackpressure}s"
+    if [[ -n "$TIMING_JSONL_PATH" ]]; then
+      __bp_t=$(ts_ns)
+      printf '{"seq":-1,"backpressure_event":true,"backpressure_wait_ms":%s,"queue_depth":%s,"t_host":%s}\n' \
+        "$((sleepOnBackpressure * 1000))" "$total" "$__bp_t" >> "$TIMING_JSONL_PATH"
+    fi
     sleep "$sleepOnBackpressure"
     continue
   fi
@@ -89,6 +114,7 @@ while true; do
 
   echo "paused" > "$VM_STATE_FILE"
   echo "[PRODUCER-PMEM] Suspending VM via virsh ..."
+  __t0=$(ts_ns)
   if ! virsh -c qemu:///system suspend "$domain" 2>/dev/null; then
     echo "[PRODUCER-PMEM] WARNING: virsh suspend failed, retrying in 500ms"
     sleep 0.5
@@ -100,15 +126,18 @@ while true; do
     sleep 0.5
     continue
   fi
+  __t1=$(ts_ns)
 
   echo "[PRODUCER-PMEM] Dumping RAW memory to $newImage using pmemsave (size=$ramSizeBytes bytes) ..."
   pmem_cmd=$(printf '{"execute":"pmemsave","arguments":{"val":0,"size":%d,"filename":"%s"}}' "$ramSizeBytes" "$newImage")
+  __t2=$(ts_ns)
   if ! virsh -c qemu:///system qemu-monitor-command "$domain" --cmd "$pmem_cmd" 2>/dev/null; then
     echo "[PRODUCER-PMEM] pmemsave failed, resuming VM"
     virsh -c qemu:///system resume "$domain" 2>/dev/null || true
     sleep 0.5
     continue
   fi
+  __t3=$(ts_ns)
 
   # Give QEMU a brief moment to flush the dump file
   sleep 0.5
@@ -151,11 +180,16 @@ while true; do
   prevImage="$newImage"
 
   echo "[PRODUCER-PMEM] Resuming VM via virsh ..."
+  __t4=$(ts_ns)
   virsh -c qemu:///system resume "$domain" 2>/dev/null || true
   echo "running" > "$VM_STATE_FILE"
   if ! wait_state "running"; then
     echo "[PRODUCER-PMEM] Resume may have failed; continuing anyway"
   fi
+  __t5=$(ts_ns)
+
+  # Emit one JSONL timing record for this snapshot (no-op if TIMING_JSONL_PATH unset).
+  emit_timing "$__t0" "$__t1" "$__t2" "$__t3" "$__t4" "$__t5" "false" "0" "$total" "$newImage" "$ramSizeBytes"
 
   if command -v bc &>/dev/null; then
     sleep "$(echo "scale=3; $intervalMsec/1000" | bc)"
