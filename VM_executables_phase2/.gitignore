@@ -1,0 +1,4 @@
+bin/
+smoke_out/
+min_batch_out/
+*.dSYM/
