@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snapshot Interval Q&amp;A — VM_Capture_QEMU</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#fafafa;--fg:#1c1c1c;--muted:#5a5a5a;--accent:#0a5aa0;
+  --card:#fff;--border:#d8d8d8;--good:#2c7a3a;--warn:#a3540a;
+  --bad:#a01b2a;--callout:#f1f6fb;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  line-height:1.55;font-size:16px;}
+main{max-width:920px;margin:0 auto;padding:32px 24px 64px;}
+h1{font-size:1.8rem;margin:0 0 8px;}
+h2{margin-top:36px;padding-bottom:6px;border-bottom:1px solid var(--border);
+  font-size:1.3rem;}
+h3{margin-top:24px;font-size:1.05rem;}
+header p.lede{color:var(--muted);margin-top:0;}
+.toc{margin-top:16px;border:1px solid var(--border);border-radius:6px;
+  background:var(--card);padding:10px 16px;}
+.toc ol{padding-left:22px;margin:8px 0;}
+.toc a{color:var(--accent);text-decoration:none;}
+.toc a:hover{text-decoration:underline;}
+.callout-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:12px;margin:18px 0 24px;}
+.card{background:var(--card);border:1px solid var(--border);
+  border-radius:6px;padding:12px 14px;}
+.card.axis-a{border-left:4px solid var(--good);}
+.card.axis-b{border-left:4px solid var(--warn);}
+.card.axis-c{border-left:4px solid var(--accent);}
+.card.axis-d{border-left:4px solid var(--bad);}
+.card h4{margin:0 0 4px;font-size:0.95rem;}
+.card p{margin:0;color:var(--muted);font-size:0.9rem;}
+details{background:var(--card);border:1px solid var(--border);
+  border-radius:6px;margin:8px 0;}
+details summary{cursor:pointer;padding:10px 14px;font-weight:600;
+  list-style:none;}
+details summary::-webkit-details-marker{display:none;}
+details summary::before{content:"▸ ";color:var(--muted);}
+details[open] summary::before{content:"▾ ";}
+details[open] summary{border-bottom:1px solid var(--border);}
+details .body{padding:12px 16px 16px;}
+code,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  font-size:0.92em;}
+pre{background:#f4f4f4;border:1px solid var(--border);border-radius:4px;
+  padding:10px 12px;overflow-x:auto;}
+.callout{background:var(--callout);border-left:4px solid var(--accent);
+  padding:10px 14px;border-radius:4px;margin:12px 0;}
+.callout.warn{background:#fff7ec;border-left-color:var(--warn);}
+.callout.bad{background:#fff0f1;border-left-color:var(--bad);}
+.callout.good{background:#eef7f0;border-left-color:var(--good);}
+table{border-collapse:collapse;margin:12px 0;font-size:0.92em;}
+th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;}
+th{background:#f0f0f0;}
+small.note{display:block;color:var(--muted);margin-top:4px;}
+a.anchor{color:var(--accent);text-decoration:none;}
+a.anchor:hover{text-decoration:underline;}
+.section-intro{color:var(--muted);font-size:0.95rem;}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Snapshot Interval — Q&amp;A</h1>
+  <p class="lede">Companion to
+  <a class="anchor" href="./SNAPSHOT_INTERVAL_TUNING_STUDY.md">SNAPSHOT_INTERVAL_TUNING_STUDY.md</a>
+  and <a class="anchor" href="./SNAPSHOT_INTERVAL_QA.md">SNAPSHOT_INTERVAL_QA.md</a>.
+  Explains the corrected timing model for the QEMU/pmemsave capture pipeline.</p>
+</header>
+
+<section id="takeaway">
+  <h2>Main takeaway</h2>
+  <p>The pipeline has <strong>three different time axes</strong>. An earlier
+  study conflated them and produced wrong conclusions about what
+  <code>intervalMsec</code> buys you.</p>
+
+  <div class="callout-row">
+    <div class="card axis-a">
+      <h4>A · Guest-running interval</h4>
+      <p>Wall-clock gap as seen by the guest's own monotonic clock.
+      Frozen during pmemsave. <strong>Sets analysis frame spacing.</strong></p>
+    </div>
+    <div class="card axis-b">
+      <h4>B · Host wall-clock per snapshot</h4>
+      <p>Real host time per frame: suspend + pmemsave + resume. About
+      2.5 s for 1 GiB RAM on SSD. <strong>Sets production rate.</strong></p>
+    </div>
+    <div class="card axis-c">
+      <h4>C · Analysis frame spacing</h4>
+      <p>What the analyzer uses for cepstra/MSC/PLV time axes.
+      <strong>Equals Axis A</strong>, <em>not</em> Axis B.</p>
+    </div>
+    <div class="card axis-d">
+      <h4>D · Experiment throughput</h4>
+      <p><code>total_snapshots × Axis-B</code>. The wall-clock cost of
+      the experiment. What makes it "feel slow".</p>
+    </div>
+  </div>
+
+  <div class="callout good">
+    <strong>Bottom line.</strong>
+    <code>intervalMsec</code> sets <strong>Axis A</strong>, not Axis B.
+    With <code>intervalMsec = 100</code>, the analyzer sees ~100 ms of
+    <em>guest activity</em> between consecutive frames, even though each
+    frame takes ~2.5 s of host wall-clock to produce. The two are
+    decoupled.
+  </div>
+</section>
+
+<section id="toc-section">
+  <h2>Table of contents</h2>
+  <div class="toc">
+    <strong>Core Validation Questions</strong>
+    <ol>
+      <li><a href="#q1">Does the current capture loop pause the VM during pmemsave?</a></li>
+      <li><a href="#q2">Does <code>intervalMsec</code> represent guest-running time, host wall-clock, or something else?</a></li>
+      <li><a href="#q3">Where exactly does sleep happen relative to resume/suspend?</a></li>
+      <li><a href="#q4">During pmemsave, does the guest workload progress or is it frozen?</a></li>
+      <li><a href="#q5">Should analysis frame spacing be interpreted as guest-running interval or host wall-clock time?</a></li>
+      <li><a href="#q6">What timing values must be logged to prove this?</a></li>
+      <li><a href="#q7">Which parts of the previous study remain correct?</a></li>
+      <li><a href="#q8">Which parts are incorrect or overstated?</a></li>
+      <li><a href="#q9">How should the interval/duration tuning plan be revised?</a></li>
+      <li><a href="#q10">What does this imply for window=128, hop=64, and segment-level analysis?</a></li>
+    </ol>
+    <strong>Practical Understanding Questions</strong>
+    <ol start="11">
+      <li><a href="#q11">Is my 100 ms interval actually wrong?</a></li>
+      <li><a href="#q12">Does pmemsave time count as workload execution time?</a></li>
+      <li><a href="#q13">What is the difference between guest-running time and host wall-clock time?</a></li>
+      <li><a href="#q14">If the VM is paused during pmemsave, what does one frame mean?</a></li>
+      <li><a href="#q15">Why does the experiment feel slow if the guest only runs 100 ms between samples?</a></li>
+      <li><a href="#q16">Does increasing <code>intervalMsec</code> make each snapshot cheaper?</a></li>
+      <li><a href="#q17">What does increasing <code>intervalMsec</code> actually change?</a></li>
+      <li><a href="#q18">How many frames do I need for window=128 and hop=64?</a></li>
+      <li><a href="#q19">What does a 128-frame window mean in guest time?</a></li>
+      <li><a href="#q20">What does it mean in host collection time?</a></li>
+      <li><a href="#q21">How does this affect segment-level analysis?</a></li>
+      <li><a href="#q22">How should I choose 100 ms vs 250 ms vs 500 ms?</a></li>
+      <li><a href="#q23">What timing should I log to prove the real behavior?</a></li>
+      <li><a href="#q24">What claims from the old MD were wrong or overstated?</a></li>
+      <li><a href="#q25">What claims remain correct?</a></li>
+      <li><a href="#q26">What should I do next experimentally?</a></li>
+    </ol>
+  </div>
+</section>
+
+<section id="core">
+  <h2>Core Validation Questions</h2>
+  <p class="section-intro">The ten questions used to verify the corrected
+  timing model against the actual producer script.</p>
+
+  <details id="q1" open>
+    <summary>1. Does the current capture loop pause the VM during pmemsave?</summary>
+    <div class="body">
+      <p>Yes. The producer
+      (<code>capture_producer_qemu_pmemsave.sh</code>) calls
+      <code>virsh suspend</code> before every snapshot and
+      <code>virsh resume</code> after it. The exact order
+      (lines 91–164):</p>
+<pre>virsh suspend       (line 92)   ← VM goes paused
+wait domstate=paused (line 98)
+pmemsave 1 GiB      (line 106)  ← VM frozen, dump to disk
+sleep 0.5           (line 114)  ← flush
+enqueue prev/curr   (line 138)
+virsh resume        (line 154)  ← VM goes running
+wait domstate=running (line 156)
+sleep intervalMsec  (line 161)  ← VM running
+[next iteration]</pre>
+      <p>The VM is paused from line 92 to line 154 — across the pmemsave
+      window.</p>
+    </div>
+  </details>
+
+  <details id="q2">
+    <summary>2. Does <code>intervalMsec</code> represent guest-running time, host wall-clock, or something else?</summary>
+    <div class="body">
+      <p><strong>Guest-running time between snapshots (Axis A).</strong>
+      The <code>sleep intervalMsec/1000</code> (line 161) happens
+      <em>after</em> <code>virsh resume</code>, while the VM is
+      running. The next iteration's <code>virsh suspend</code> follows
+      that sleep.</p>
+      <p>So between two consecutive pmemsave moments, the guest
+      executes for approximately <code>intervalMsec</code> of its own
+      time, plus a few milliseconds of bash bookkeeping.</p>
+    </div>
+  </details>
+
+  <details id="q3">
+    <summary>3. Where exactly does sleep happen relative to resume/suspend?</summary>
+    <div class="body">
+      <p>After <code>resume</code>, before the next iteration's
+      <code>suspend</code>. The sleep is the <strong>only</strong>
+      part of the loop where guest time advances. Everything else
+      either (a) happens before resume (so the VM is still paused)
+      or (b) happens after <code>resume</code> but is so brief it
+      adds only a few ms.</p>
+      <p>There is one additional <code>sleep 0.5</code> (line 114)
+      <em>inside</em> the paused window — a flush wait for pmemsave.
+      That sleep happens while the VM is paused, so it does not
+      consume guest time; it adds 0.5 s to Axis B.</p>
+      <div class="callout">
+        <strong>Clarification on "inflates Axis B".</strong> Axis B
+        is the additive sum of all host-side wall-clock costs per
+        snapshot. The 0.5 s flush is one term in that sum; it is not
+        double-counted anywhere. The choice of "inflates" was
+        informal. The flush is also arguably redundant:
+        <code>qemu-monitor-command pmemsave</code> returns
+        synchronously after writing all bytes, so the 0.5 s
+        belt-and-braces sleep is a safety margin from when this path
+        was first prototyped, not a correctness requirement. Whether
+        to keep it is a separate decision (see
+        <code>docs/tuning_plans/02_interval_tuning_experiment.md</code>);
+        the accounting itself is correct.
+      </div>
+    </div>
+  </details>
+
+  <details id="q4">
+    <summary>4. During pmemsave, does the guest workload progress or is it frozen?</summary>
+    <div class="body">
+      <p>It is frozen. QEMU stops the VCPUs and pauses the guest TSC
+      during <code>virsh suspend</code>. Inside the VM,
+      <code>clock_gettime(CLOCK_MONOTONIC)</code> does not advance. A
+      workload thread blocked on <code>nanosleep(100ms)</code> does
+      not wake during pause — it wakes at guest-time
+      <code>T + 100ms</code>, which on the host wall-clock may be
+      <code>T + 100ms + (2 s of pmemsave + bookkeeping)</code>.</p>
+      <p>From the workload's perspective, the snapshot is
+      instantaneous. The delta between consecutive snapshots reflects
+      what the workload changed during ~100 ms of its own execution —
+      exactly the thing the analyzer should measure.</p>
+    </div>
+  </details>
+
+  <details id="q5">
+    <summary>5. Should analysis frame spacing be interpreted as guest-running interval or host wall-clock time?</summary>
+    <div class="body">
+      <p><strong>Guest-running interval.</strong> The deltas computed
+      by the consumer measure guest memory change per
+      <code>intervalMsec</code> of guest execution. Cepstral peak
+      indices, MSC frequencies, PLV time axes — all of these should
+      be reported using <code>Δt_frame = intervalMsec</code>, not
+      the host wall-clock per snapshot.</p>
+      <p>If a downstream consumer converts frame index <code>k</code>
+      to seconds, it should multiply by
+      <code>intervalMsec / 1000</code>, not by
+      <code>host_dt_mean_s</code>.</p>
+    </div>
+  </details>
+
+  <details id="q6">
+    <summary>6. What timing values must be logged to prove this?</summary>
+    <div class="body">
+      <p>Six per-snapshot timestamps from the producer
+      (<code>clock_gettime(CLOCK_REALTIME)</code> on the host):</p>
+      <table>
+        <thead><tr><th>Timestamp</th><th>Where in the loop</th></tr></thead>
+        <tbody>
+        <tr><td><code>t0_before_suspend</code></td><td>Before <code>virsh suspend</code> (line 92).</td></tr>
+        <tr><td><code>t1_after_suspend</code></td><td>After <code>domstate == paused</code> (line 98).</td></tr>
+        <tr><td><code>t2_pmemsave_start</code></td><td>Before invoking the pmemsave monitor cmd (line 106).</td></tr>
+        <tr><td><code>t3_pmemsave_end</code></td><td>After the monitor cmd returns.</td></tr>
+        <tr><td><code>t4_before_resume</code></td><td>Before <code>virsh resume</code> (line 154).</td></tr>
+        <tr><td><code>t5_after_resume</code></td><td>After <code>domstate == running</code> (line 156).</td></tr>
+        </tbody>
+      </table>
+      <p>Derived per-snapshot:</p>
+      <ul>
+        <li><code>host_dt = next_t0 − t0</code> — Axis B.</li>
+        <li><code>pmemsave_dt = t3 − t2</code>.</li>
+        <li><code>vm_pause_dt = t5 − t0</code> — host wall-clock the VM was paused.</li>
+        <li><code>guest_run_dt = next_t0 − t5</code> — Axis A on the host side
+        (equals <code>sleep intervalMsec/1000</code> plus bash overhead when no
+        backpressure).</li>
+      </ul>
+      <p>Optional: probe the guest's <code>CLOCK_MONOTONIC</code> over
+      SSH at <code>t5</code> and at <code>next_t0</code>; the delta
+      should match <code>guest_run_dt</code> to within a few ms.</p>
+    </div>
+  </details>
+
+  <details id="q7">
+    <summary>7. Which parts of the previous snapshot interval study remain correct?</summary>
+    <div class="body">
+      <ul>
+        <li>Capture loop description and location of
+        <code>intervalMsec</code> in <code>config_qemu_upc.json</code>.</li>
+        <li>1 GiB pmemsave is expensive and dominates host wall-clock
+        per snapshot.</li>
+        <li>Raw I/O exposure numbers (snapshot_count × 1 GiB).</li>
+        <li>Backpressure can corrupt sampling regularity.</li>
+        <li>Pilot factorial design, defining metrics, parameter holds.</li>
+        <li>Option B (per-family interval profile) — justification
+        revised but recommendation stands.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details id="q8">
+    <summary>8. Which parts are incorrect or overstated?</summary>
+    <div class="body">
+      <div class="callout bad">
+        These claims were tied to confusing Axis B with Axis A.
+        They are <strong>corrected</strong> in the revised study.
+      </div>
+      <ul>
+        <li>"Effective sampling frequency is closer to 0.2–0.4 Hz, not
+        10 Hz" — wrong if read as frame spacing. That's Axis B
+        (production rate), not Axis A (frame spacing).</li>
+        <li>"Realistic effective Δt ≈ 3 s" — wrong axis when applied
+        to spectral analysis.</li>
+        <li>Section 3's "realistic" sub-tables showing 0 windows for any
+        10-min run — wrong; window count is set by guest duration ÷
+        <code>intervalMsec</code>, not by wall-clock cost.</li>
+        <li>"k=2 segmentation requires 5.4 hr at realistic Δt" —
+        confused 10.9 min of <em>guest time</em> with ~4.5 h of
+        <em>wall clock</em>.</li>
+        <li>"window=128 covers ~6.4 minutes of wall clock" — wrong;
+        window is <code>128 × intervalMsec</code> of <em>guest</em>
+        time.</li>
+        <li>"sandbox_ransom_seq is infeasible at 1 GiB pmemsave" —
+        wrong as a resolution claim.</li>
+        <li>"<code>vm_pause_fraction ≤ 0.30</code> because of
+        guest/host wall-clock divergence" — wrongly framed.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details id="q9">
+    <summary>9. How should the interval/duration tuning plan be revised?</summary>
+    <div class="body">
+      <ol>
+        <li>Rename "Δt" → "Δt_frame" everywhere, defined as
+        <code>intervalMsec</code>.</li>
+        <li>Add a parallel host-wall-clock-cost view for every guest-time
+        plan, so the throughput-vs-resolution trade-off is visible.</li>
+        <li>Reframe family recommendations as "what guest-time
+        resolution does each family need?" — wall-clock cost is set
+        by guest duration, not by interval.</li>
+      </ol>
+      <p>Option B per-family profile still stands; profiles select
+      resolution (<code>intervalMsec</code>) and guest duration
+      jointly. Wall-clock cost falls out of those choices.</p>
+    </div>
+  </details>
+
+  <details id="q10">
+    <summary>10. What does this imply for window=128, hop=64, and segment-level analysis?</summary>
+    <div class="body">
+      <ul>
+        <li>One window covers <code>128 × intervalMsec</code> of
+        <strong>guest</strong> time.</li>
+        <li>One hop covers <code>64 × intervalMsec</code> of guest
+        time.</li>
+        <li>Spectral peaks at <code>k / (window × intervalMsec)</code>
+        Hz in guest time.</li>
+        <li>k-segment segmentation needs ≥ <code>50 k</code> windows ≈
+        <code>3264 k</code> frames ≈ <code>3264 k × intervalMsec</code>
+        of guest time.</li>
+        <li>Wall-clock cost ≈ <code>3264 k × 2.5 s</code> ≈ 2.3 k
+        hours, <strong>independent of <code>intervalMsec</code></strong>.</li>
+      </ul>
+      <p>So k=2 segmentation at any <code>intervalMsec</code> costs ≈
+      4.6 host hours regardless of whether the chosen interval is
+      100 ms or 1 s. The interval controls <em>resolution</em>, not
+      cost.</p>
+    </div>
+  </details>
+</section>
+
+<section id="practical">
+  <h2>Practical Understanding Questions</h2>
+  <p class="section-intro">The plain-language version of the same
+  ideas.</p>
+
+  <details id="q11">
+    <summary>11. Is my 100 ms interval actually wrong?</summary>
+    <div class="body">
+      <p>No. It is a legitimate choice for guest-time resolution — you
+      get 100 ms frame spacing in the analyzer. What is "wrong" is
+      the <em>expectation</em> that 100 ms means anything about how
+      long the experiment takes. At 1 GiB RAM you pay ~25 s of host
+      wall-clock per second of guest data.</p>
+    </div>
+  </details>
+
+  <details id="q12">
+    <summary>12. Does pmemsave time count as workload execution time?</summary>
+    <div class="body">
+      <p>No. While pmemsave runs, the VM is paused; the guest's
+      monotonic clock does not advance. Workload threads do not run;
+      their internal timers do not fire.</p>
+    </div>
+  </details>
+
+  <details id="q13">
+    <summary>13. What is the difference between guest-running time and host wall-clock time?</summary>
+    <div class="body">
+      <p>Guest-running time advances only while the VM is
+      <em>running</em>. Host wall-clock advances always. During
+      pmemsave the VM is paused for ~2 s of host wall-clock, but the
+      guest sees 0 ms.</p>
+      <p>A 60 s guest workload at <code>intervalMsec=100ms</code>
+      makes 600 snapshots; at 2.5 s host cost per snapshot, the host
+      pays ≈ 25 minutes to collect 60 s of guest activity.</p>
+      <p><strong>Why does it feel like the experiment is much longer
+      than the guest run?</strong> Because each snapshot is ~25× more
+      expensive than the gap it covers. With
+      <code>intervalMsec=100ms</code> and a ~2.5 s pmemsave, every
+      100 ms of guest execution costs ≈ 2500 ms of host wall-clock.
+      Over a 60 s guest run, that ratio compounds into a 25-minute
+      host run. The guest log still shows 60 s of activity (correct,
+      in guest time); the operator's wall clock shows 25 minutes
+      (also correct, in host time). The two are not in conflict —
+      they are the two axes from the main takeaway.</p>
+    </div>
+  </details>
+
+  <details id="q14">
+    <summary>14. If the VM is paused during pmemsave, what does one frame mean?</summary>
+    <div class="body">
+      <p>It is a snapshot of guest RAM taken at a particular instant
+      of guest execution. The <em>delta</em> between consecutive
+      frames is "what changed in guest memory during the
+      <code>intervalMsec</code> of guest time between the two
+      pmemsave moments". From the guest's perspective, ~100 ms of
+      execution.</p>
+    </div>
+  </details>
+
+  <details id="q15">
+    <summary>15. Why does the experiment feel slow if the guest only runs 100 ms between samples? Why does it take hours for a few minutes of guest activity?</summary>
+    <div class="body">
+      <p>Because <strong>producing</strong> the snapshot is expensive.
+      The host has to suspend the VM, write 1 GiB to disk, resume the
+      VM, run the delta, append to the run matrix, optionally compute
+      streaming metrics — all of that takes ~2.5 s. The "slowness" is
+      Axis B (production rate), not Axis A (sampling resolution).</p>
+      <table>
+        <thead><tr><th>Guest duration</th><th><code>intervalMsec</code></th><th>Snapshots</th><th>Host wall-clock (≈2.5 s/snap)</th></tr></thead>
+        <tbody>
+          <tr><td>1 min</td><td>100 ms</td><td>600</td><td>25 min</td></tr>
+          <tr><td>5 min</td><td>100 ms</td><td>3 000</td><td>2 h 5 min</td></tr>
+          <tr><td>10 min</td><td>100 ms</td><td>6 000</td><td>4 h 10 min</td></tr>
+          <tr><td>5 min</td><td>1 s</td><td>300</td><td>12 m 30 s</td></tr>
+          <tr><td>10 min</td><td>1 s</td><td>600</td><td>25 min</td></tr>
+        </tbody>
+      </table>
+      <p>Two levers move host wall-clock:</p>
+      <ol>
+        <li><strong>Snapshot count</strong> — set by
+        <code>guest_duration / intervalMsec</code>. Bigger
+        <code>intervalMsec</code> → fewer snapshots → less wall-clock.</li>
+        <li><strong>Per-snapshot cost</strong> — set by Axis B,
+        dominated by 1 GiB pmemsave and disk bandwidth. Smaller VM RAM
+        → cheaper per snapshot.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details id="q16">
+    <summary>16. Does increasing <code>intervalMsec</code> make each snapshot cheaper? Will the same guest run finish faster because the VM is paused fewer times?</summary>
+    <div class="body">
+      <p><strong>No to the first; yes to the second.</strong> Each
+      pmemsave still writes 1 GiB and each suspend/resume cycle has
+      the same latency — per-snapshot cost (Axis B) is unchanged. But
+      a bigger <code>intervalMsec</code> means <em>fewer</em>
+      snapshots per guest second, so fewer pauses, fewer pmemsave
+      dumps, fewer disk writes, and a proportionally shorter
+      <strong>total</strong> host wall-clock for the same guest
+      duration.</p>
+      <p>The cost is in <em>guest-time resolution</em>: 1 s frame
+      spacing cannot see rhythms faster than ~2 s (Nyquist), and
+      windows become 10× coarser in guest time. The right joint
+      choice of <code>(intervalMsec, window, hop)</code> depends on
+      the rhythm of interest — see
+      <code>docs/tuning_plans/02_interval_tuning_experiment.md</code>
+      and
+      <code>docs/tuning_plans/03_window_hop_tuning_experiment.md</code>.</p>
+    </div>
+  </details>
+
+  <details id="q17">
+    <summary>17. What does increasing <code>intervalMsec</code> actually change?</summary>
+    <div class="body">
+      <ol>
+        <li><strong>Guest-time spacing between samples</strong> grows.
+        Analyzer sees coarser temporal resolution — rhythms faster
+        than <code>2 × intervalMsec</code> become invisible
+        (Nyquist).</li>
+        <li><strong>Snapshot count for the same guest duration</strong>
+        drops proportionally, so the experiment finishes in
+        proportionally less wall-clock time.</li>
+      </ol>
+      <p>So <code>intervalMsec</code> is a
+      <strong>throughput-vs-resolution</strong> knob, not a
+      "how-slow-is-each-snapshot" knob.</p>
+    </div>
+  </details>
+
+  <details id="q18">
+    <summary>18. How many frames do I need for window=128 and hop=64? <em>(deferred — revisit after window/hop tuning)</em></summary>
+    <div class="body">
+      <p>Minimum 128 (one window). For useful sliding-window
+      statistics, the offline analyzer's default expects at least 50
+      windows per segment, which is <code>(50 − 1) × 64 + 128 =
+      3264</code> frames per segment. For <code>k</code> segments, ≈
+      <code>3264 k</code> frames.</p>
+      <div class="callout warn">
+        <strong>Deferred.</strong> The right values of
+        <code>window</code> and <code>hop</code> (and the
+        50-windows-per-segment threshold) for Phase 2 are themselves
+        open questions — see
+        <code>docs/tuning_plans/03_window_hop_tuning_experiment.md</code>.
+        This answer will be revisited once that tuning lands.
+      </div>
+    </div>
+  </details>
+
+  <details id="q19">
+    <summary>19. What does a 128-frame window mean in guest time?</summary>
+    <div class="body">
+      <p><code>128 × intervalMsec</code>.</p>
+      <table>
+        <thead><tr><th><code>intervalMsec</code></th><th>Window in guest time</th></tr></thead>
+        <tbody>
+          <tr><td>100 ms</td><td>12.8 s</td></tr>
+          <tr><td>250 ms</td><td>32.0 s</td></tr>
+          <tr><td>500 ms</td><td>64.0 s</td></tr>
+          <tr><td>1 s</td><td>128.0 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details id="q20">
+    <summary>20. What does it mean in host collection time?</summary>
+    <div class="body">
+      <p>≈ <code>128 × wallclock_per_snapshot</code> ≈ <code>128 × 2.5
+      s</code> ≈ 5.3 min, almost <strong>independent</strong> of
+      <code>intervalMsec</code>. Each window costs roughly the same
+      wall-clock to produce regardless of which guest-time interval
+      you chose.</p>
+    </div>
+  </details>
+
+  <details id="q21">
+    <summary>21. How does this affect segment-level analysis?</summary>
+    <div class="body">
+      <p>Segment-level analysis is bounded by <em>frame count</em>,
+      not directly by guest time or wall-clock time. To get
+      <code>k</code> segments × 50 windows × ~64 hop ≈
+      <code>3264 k</code> frames, choose:</p>
+      <ul>
+        <li>a small <code>intervalMsec</code> if you need fine
+        guest-time resolution within each segment, and accept the
+        wall-clock cost; or</li>
+        <li>a larger <code>intervalMsec</code> if your phenomenon is
+        slow in guest time, and pay less wall-clock.</li>
+      </ul>
+      <p>In both cases the host pays roughly the same wall-clock to
+      produce the segmenter input.</p>
+    </div>
+  </details>
+
+  <details id="q22">
+    <summary>22. How should I choose 100 ms vs 250 ms vs 500 ms?</summary>
+    <div class="body">
+      <ol>
+        <li>What is the <strong>fastest</strong> guest-time rhythm I
+        care about? Need <code>intervalMsec ≤ rhythm / 2</code> for
+        Nyquist; <code>≤ rhythm / 4</code> to see the peak cleanly in
+        cepstra.</li>
+        <li>What is the <strong>slowest</strong> guest-time rhythm I
+        care about? Need <code>window × intervalMsec ≥ rhythm</code>
+        (otherwise the window cannot contain a full period).</li>
+        <li>What is my <strong>wall-clock budget</strong>? Compute
+        <code>snapshots × 2.5 s = guest_duration / intervalMsec × 2.5
+        s</code>. If too high, increase <code>intervalMsec</code>
+        until it fits.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details id="q23">
+    <summary>23. What timing should I log to prove the real behavior?</summary>
+    <div class="body">
+      <p>The six per-snapshot timestamps in question
+      <a class="anchor" href="#q6">6</a>. Plus per-run aggregates:
+      <code>guest_dt_mean_s</code>, <code>guest_dt_std_s</code>,
+      <code>host_dt_mean_s</code>, <code>vm_pause_fraction</code>,
+      <code>backpressure_events</code>.</p>
+    </div>
+  </details>
+
+  <details id="q24">
+    <summary>24. What claims from the old MD were wrong or overstated? Where have they been corrected?</summary>
+    <div class="body">
+      <p>See question <a class="anchor" href="#q8">8</a>. Short list:</p>
+      <ul>
+        <li>"Effective Δt = 2.5–5.5 s" applied to spectral analysis.</li>
+        <li>"Realistic effective Δt ≈ 3 s" used to argue most runs
+        have 0 windows.</li>
+        <li>"Window covers 6.4 min of wall clock at realistic Δt" —
+        wrong axis.</li>
+        <li>"k=2 segmentation impossible at realistic Δt" — confused
+        guest time with wall-clock.</li>
+        <li>"<code>sandbox_ransom_seq</code> infeasible because of
+        pmemsave cost" — wrong axis.</li>
+        <li>"<code>vm_pause_fraction ≤ 0.30</code> because it biases
+        inter-snapshot timestamps" — wrong mechanism.</li>
+      </ul>
+      <p><strong>Corrected in:</strong></p>
+      <ul>
+        <li><code>SNAPSHOT_INTERVAL_TUNING_STUDY.md</code> — full
+        revision (§0–§10).</li>
+        <li><code>SNAPSHOT_INTERVAL_QA.md</code> — this file's MD
+        twin.</li>
+        <li><code>snapshot_interval_qa.html</code> — this page.</li>
+      </ul>
+      <p>A scan of the rest of the repo's documentation
+      (<code>VM_sampler/VM_Capture_QEMU/README.md</code>,
+      <code>RUN_CONTROLLED_CAPTURE.md</code>,
+      <code>RAW_CAPTURE_ALTERNATIVE.md</code>,
+      <code>docs/QEMU_CAPTURE_PIPELINE.md</code>,
+      <code>VM_executables_phase2/docs/*</code>, and the workload
+      test site HTML) found no other docs that propagate the wrong
+      claims, so no further edits are needed there. The website
+      <code>workload_test_site/index.html</code> describes test
+      cards, not capture timing, and is unaffected.</p>
+    </div>
+  </details>
+
+  <details id="q25">
+    <summary>25. What claims remain correct?</summary>
+    <div class="body">
+      <ul>
+        <li>1 GiB pmemsave is expensive and dominates wall-clock per
+        snapshot.</li>
+        <li>Raw I/O totals (1 GiB written per snapshot).</li>
+        <li>Backpressure can corrupt sampling regularity.</li>
+        <li>Per-family profile recommendation
+        (justification revised; recommendation stands).</li>
+        <li>Pilot factorial design and choice of defining metrics.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details id="q26">
+    <summary>26. What should I do next experimentally?</summary>
+    <div class="body">
+      <ol>
+        <li>Instrument the producer to log all six per-snapshot
+        timestamps.</li>
+        <li>Run a tiny 4-cell pilot: <code>(intervalMsec,
+        guest_duration) ∈ {100 ms, 1 s} × {1 min, 5 min}</code> on
+        <code>sandbox_ransom_batched</code>. Verify
+        <code>guest_dt_mean_s ≈ intervalMsec</code> and
+        <code>guest_dt_std_s</code> is tiny when no backpressure
+        fires.</li>
+        <li>If that holds, scale to the Section 6 pilot in the main
+        study.</li>
+        <li>Decide per-family <code>intervalMsec</code> from rhythm
+        requirements, not from wall-clock cost.</li>
+        <li>Set guest duration per family from the segmentation
+        <code>k</code> requirement (<code>3264 k</code> frames per
+        segment minimum).</li>
+        <li>Compute wall-clock cost as a consequence; decide whether
+        to reduce RAM size to bring it down.</li>
+      </ol>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <hr>
+  <p style="color:var(--muted);font-size:0.9rem;">
+  Generated to accompany the revised
+  <code>SNAPSHOT_INTERVAL_TUNING_STUDY.md</code>. No external
+  dependencies; this page renders with the user-agent's default
+  styling plus the inline CSS above.</p>
+</footer>
+
+</main>
+</body>
+</html>
