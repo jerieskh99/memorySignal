@@ -19,6 +19,18 @@ config, or data files were modified by this study.
 
 ## 0. Correction notice and the three time axes (added in revision)
 
+> **Second-pass correction (after Experiment 1 ran on `pcrserral`).**
+> The "intervalMsec = guest-running interval" claim is conditional on the
+> producer's post-resume `sleep` actually firing. The 2026-05-19 Experiment 1
+> run measured a guest-running gap of **6.6 ms** at `intervalMsec=100`
+> (see [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md)).
+> Most plausible cause: `bc` is not installed on the capture host, so the
+> producer's bc-based sleep falls back to `sleep "$(( 100/1000 ))"` =
+> `sleep 0`. Until that is fixed, every per-family `intervalMsec`
+> recommendation in this study is mis-calibrated on the present host.
+> Treat the recommendations below as **target intentions**, not measured
+> behaviour, until a re-run confirms `guest_dt_mean_s ≈ intervalMsec`.
+
 > **What changed.** An earlier revision of this study conflated *host
 > wall-clock cost per snapshot* with *analysis frame spacing in guest time*
 > and concluded that the effective Δt for spectral analysis was 2.5–5.5 s.

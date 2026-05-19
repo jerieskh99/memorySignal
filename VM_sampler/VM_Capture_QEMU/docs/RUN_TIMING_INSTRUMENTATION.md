@@ -82,6 +82,14 @@ Prereqs:
   `--config`) whose `domain`, `ramSizeMb`, and `imageDir` are correct
   for the live VM.
 - Python 3.9+ on the host.
+- **`bc` must be installed on the capture host** (`command -v bc`
+  must return a path). The producer's post-resume sleep falls back
+  to integer `sleep "$(( intervalMsec/1000 ))"` when `bc` is missing,
+  which evaluates to `sleep 0` for any `intervalMsec < 1000` —
+  producing a guest-running interval of only a few ms instead of the
+  configured value. See
+  [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md)
+  for the 2026-05-19 run that caught this.
 - Free disk space under `imageDir` for ~`duration / interval × ramSizeMb`
   snapshot bytes (the orchestrator cleans them up by default).
 

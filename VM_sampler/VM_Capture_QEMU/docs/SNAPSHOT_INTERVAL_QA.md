@@ -28,6 +28,15 @@ need?"* — not *"how long will this experiment take?"*
 
 ## Core Validation Questions
 
+> **Update — Experiment 1 results (2026-05-19, `pcrserral`).** The first
+> live timing run revealed that on the capture host `bc` is missing, so
+> the producer's `sleep "$(echo ... | bc)"` falls back to `sleep 0` and
+> the guest-running interval is **6.6 ms** instead of the configured
+> 100 ms. The Axis A claim below is correct **in theory**; until `bc` is
+> installed (or the sleep is rewritten), it is **not** what the producer
+> actually delivers. Full data in
+> [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md).
+
 ### 1. Does the current capture loop pause the VM during pmemsave?
 
 Yes. The producer (`capture_producer_qemu_pmemsave.sh`) calls
@@ -444,3 +453,130 @@ test cards, not capture timing, and is unaffected.
    (`3264 k` frames per segment minimum).
 6. Compute wall-clock cost as a *consequence* of (4) + (5), and
    decide whether to reduce RAM size to bring it down.
+
+### Could these timing problems explain the high confusion I was getting in tests that should have been easily separable over long traces?
+
+**Plausibly yes, and there are at least three concrete mechanisms by
+which the Experiment 1 findings would cause exactly the kind of
+"workloads that should separate are getting confused" failure described.**
+None of this is yet *proven* against the classifier results — only the
+timing facts are measured. But the mechanisms below are sufficient on
+their own to inflate confusion, and they all point in the same direction.
+
+The reasoning rests on what
+[`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md)
+actually measured on the capture host:
+
+- Configured `intervalMsec = 100`, **measured guest-running gap ≈ 6.6 ms**
+  (about 15× too short). Probable cause: missing `bc` → fallback
+  `sleep "$(( 100/1000 ))"` = `sleep 0`.
+- **Suspend latency drifted** across only three snapshots:
+  0.97 s → 4.20 s → 5.80 s.
+- `pmemsave` itself is fast and stable (~0.75 s, σ ≈ 10 ms).
+- **VM pause fraction ≈ 99.8 %** at the present cadence.
+
+The three mechanisms:
+
+**1. Workload-distinguishing rhythms fall outside the window.**
+
+With Δt_frame ≈ 6.6 ms, the Phase 1 canonical window of 128 frames
+covers only **~0.85 s** of *guest* time (not the 12.8 s it was tuned
+for). Phase 2 and Phase 1 workloads carry their identifying
+rhythms at much longer guest-time scales:
+
+| Workload | Defining rhythm (guest time) | Visible in 0.85 s window? |
+| --- | --- | --- |
+| `app_sqlite_oltp_v2` | WAL checkpoint cadence (~10 s default) | No — well above 0.85 s |
+| `sandbox_ransom_batched` | Five mechanism phases, each ~tens of seconds | No |
+| `sandbox_ransom_slowburn` | One file every 5 s | No |
+| `io_seq_fsync_v2` | Sustained writeback rhythm | Marginal |
+| `mem_alloc_v2_cadence_sweep` | 20 ms inter-batch sleep | Yes |
+| `mem_stream_v2` | None (steady-state) | Yes (steady) |
+
+So **the workloads whose identity lives in the longer rhythms cannot
+be distinguished** — their characteristic features are slower than a
+single window can contain. They all look like "broad write activity
+over 0.85 s" — and they all confuse with one another.
+
+This matches the "long traces that should have been easy to separate"
+pattern: long traces contain many windows, but each window is too
+short to see the rhythm that would actually have separated the
+workloads.
+
+**2. Cepstral / spectral peaks are mis-located by a factor of ~15.**
+
+A cepstral peak at frame index `k` is interpreted as a rhythm of
+period `k × intervalMsec`. The analyzer assumed `intervalMsec = 100 ms`,
+so a peak at `k=10` was read as 1 s period. Actual frame spacing is
+6.6 ms, so the same peak is really a 66 ms rhythm. Two workloads that
+have their identifying rhythms at, say, 0.6 s and 1.0 s of guest time
+should produce peaks at `k=6` and `k=10` in a properly-calibrated
+pipeline. Under the broken sleep, both rhythms are aliased into much
+higher `k` values (~91 and ~151) — which may fall in the same noise
+floor or get truncated by the FFT, producing **indistinguishable
+spectra**.
+
+**3. Non-stationary Δt destroys cepstral / MSC assumptions outright.**
+
+Even worse than a wrong constant Δt is a Δt that drifts. Suspend
+latency growing from 0.97 s → 4.20 s → 5.80 s across just three
+snapshots means the time *between* consecutive snapshots is not the
+same throughout a long trace. Cepstrum, MSC, and PLV all assume a
+stationary sampling rate. A long trace with monotonically growing
+host_dt produces:
+
+- spectral peaks that smear across many bins (no clean periodicity);
+- per-segment metrics whose "stationarity" check (Phase 1's
+  `StabilityValidator`) silently rejects later segments at a
+  different rate than earlier ones;
+- a workload whose later frames carry less true delta-per-host-second
+  than its earlier frames — so the classifier sees a "drifting"
+  identity even when the workload is genuinely steady.
+
+The growth pattern matches a "long-running classifier that gets worse
+over time" failure mode. If training used the early part of a trace
+and testing used the late part (or vice versa), the result is exactly
+the kind of confusion where two workloads with distinct rhythms
+collapse into one "drifting" cluster.
+
+**Plus a secondary mechanism: VM pause fraction ≈ 99.8 %.**
+
+This is not directly a confusion driver, but it changes what the
+workload-internal clocks see. A workload that internally schedules
+"do X every 5 seconds of `clock_gettime(CLOCK_MONOTONIC)`" gets ~5 s
+of guest-time spread over **2500 s of host wall-clock**. Any
+host-driven rhythm (NTP, host-side resource contention from other VMs,
+host disk-flush cycles) that bleeds into the captured memory state
+becomes a stronger relative signal than the workload's own rhythm.
+This **adds noise** in a workload-correlated way (because every
+workload's host wall-clock context is similarly stretched), making
+all traces look more alike than they should.
+
+**Bounded conclusion.** The findings are sufficient to explain
+substantial confusion between workloads in long traces, especially
+between workloads whose identity lives in rhythms slower than 1 s of
+guest time. They do not prove that this is the *only* cause of
+confusion in the data — class imbalance, feature selection,
+normalization, and many classifier-level issues could co-exist. But
+the timing problem alone is large enough to dominate, and the obvious
+next test is:
+
+1. Fix the sleep (`apt install bc` or rewrite the sleep without
+   `bc`).
+2. Re-collect a small representative slice of the dataset under the
+   fixed pipeline.
+3. Re-run the classifier on the new slice.
+4. Compare the confusion matrix to the old one.
+
+If confusion collapses to expected levels, the timing bug was
+load-bearing. If it does not collapse, the timing bug was contributing
+but is not the whole story, and the next layer (window / hop / k)
+needs revisiting before any classifier conclusions are trusted.
+
+**Practical recommendation:** treat every prior confusion-matrix
+result from this host as **suspect** until a re-collected dataset
+is in hand. Do not redesign workloads, change feature definitions, or
+add more training data on top of the existing dataset until the
+timing fix is in and at least one re-collected workload is verified
+to produce `guest_dt_mean_s ≈ intervalMsec`. The dataset on disk is
+the wrong substrate to debug a classifier against.
