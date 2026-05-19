@@ -1,10 +1,33 @@
 # Experiment 1 — Timing Instrumentation: Conclusions
 
-**Run ID:** `20260519T000307Z_7428bb09`
+**Run 1 ID:** `20260519T000307Z_7428bb09` (pre-bc-fix, 3 snapshots, 15 s)
+**Run 2 ID:** `20260519T222407Z_c169d947` (post-bc-fix, 19 snapshots + 85 backpressure events, 298 s)
 **Host:** `pcrserral` (Linux capture host)
-**Date analysed:** 2026-05-19
+**Date analysed:** 2026-05-20
 
-## Executive summary
+## Headline after Run 2
+
+The `bc` fix worked. The configured `intervalMsec = 100` is now honoured: measured
+`guest_dt = 125 ms ± 5 ms` (CV = 4.2 %). Analysis frame spacing is correct and
+stationary. The original 15× mis-calibration is gone.
+
+But Run 2 surfaced two new problems:
+
+1. **Backpressure became binding.** The producer hit the queue cap (20) within 19
+   snapshots, then spent 85 seconds in `sleep 1` waiting. The consumer cannot
+   keep up with one 1 GiB pmemsave per ~2 s.
+2. **Suspend latency is wildly non-stationary** once the consumer competes for
+   disk and libvirtd. Range 0.075 s – **80.3 s** (single spike at seq=4).
+   Most cycles 0.2–2 s. Pmemsave throughput also halved under contention
+   (0.77 s → 1.5–3.9 s).
+
+These do not corrupt **Δt_frame** (still stationary). They do corrupt
+**experiment throughput predictability** and may cause irregular gaps in
+**real** captures where consumer + producer run together. Plan 02 should
+address consumer throughput before any per-family `intervalMsec` recommendation
+is finalized.
+
+## Executive summary (Run 1, kept for historical record)
 
 The instrumentation worked. The data revealed two surprises and one confirmed
 behaviour. The headline finding is that the configured `intervalMsec=100`
@@ -300,3 +323,191 @@ seq=2  t0=...4122.055203100  t1=...4127.850189505  t2=...4127.851648669
 `memory_dump-20260519020529165.raw` shows a pmemsave start with no matching
 "RAW memory dump OK" — consistent with orchestrator shutdown during the
 dump).
+
+---
+
+# Run 2 — post bc-fix (2026-05-20)
+
+**Run ID:** `20260519T222407Z_c169d947`
+**Configuration:** `intervalMsec=100`, `ramSizeMb=1024`, idle VM (no `--test-command`).
+**Duration:** ~298 s host wall-clock.
+**Snapshots:** 19 complete (seq 0–18) + 85 backpressure-event records.
+**Method:** Same instrumented producer; `bc` installed on capture host this time.
+
+## Measured timing table (Run 2)
+
+| seq | suspend | pmemsave | flush | resume | host_dt | guest_run | queue |
+| --: | ------: | -------: | ----: | -----: | ------: | --------: | ----: |
+|  0  |  0.185  |  0.789   | 0.518 | 0.038  |  1.659  | **0.126** |   2 |
+|  1  |  0.292  |  0.770   | 0.517 | 0.035  |  1.740  | **0.126** |   2 |
+|  2  |  0.201  |  0.770   | 0.522 | 0.035  |  1.656  | **0.126** |   3 |
+|  3  |  1.832  |  0.752   | 0.522 | 0.036  |  3.270  | **0.126** |   4 |
+|  4  | **80.318** | 0.753 | 0.521 | 0.037  | 81.744  | 0.113     |   5 |
+|  5  |  1.843  |  0.769   | 0.521 | 0.036  |  3.297  | **0.126** |   6 |
+|  6  |  8.241  |  0.771   | 0.522 | 0.546  | 10.209  | 0.128     |   7 |
+|  7  |  1.497  |  0.765   | 0.522 | 0.035  |  2.946  | **0.126** |   8 |
+|  8  |  1.902  |  3.020   | 0.522 | 0.034  |  8.303  | **0.126** |   9 |
+|  9  |  3.427  |  3.920   | 0.524 | 0.037  |  8.036  | **0.126** |  10 |
+| 10  |  2.836  |  3.076   | 0.522 | 0.036  |  6.597  | **0.126** |  11 |
+| 11  |  0.873  |  2.024   | 0.522 | 0.039  |  3.570  | 0.110     |  12 |
+| 12  | 10.453  |  1.865   | 0.523 | 0.038  | 13.622  | **0.126** |  13 |
+| 13  |  3.949  |  3.236   | 0.520 | 0.037  |  7.870  | **0.126** |  14 |
+| 14  |  0.480  |  2.350   | 0.522 | 0.036  |  3.516  | **0.126** |  15 |
+| 15  |  1.662  |  1.474   | 0.521 | 0.035  |  3.808  | 0.114     |  16 |
+| 16  |  0.075  |  1.526   | 0.522 | 0.036  |  2.287  | **0.126** |  17 |
+| 17  |  0.253  |  1.438   | 0.559 | 0.040  |  2.418  | **0.126** |  18 |
+| 18  |  0.908  |  2.609   | 0.538 | 0.041  |   —     | —         |  19 |
+
+All times in seconds.
+
+### Aggregates (n = 19 components, n = 18 inter-snapshot deltas)
+
+| Quantity         |     mean |   median |      min |      max |      std |       CV |
+| ---------------- | -------: | -------: | -------: | -------: | -------: | -------: |
+| suspend          |  6.380 s |  1.662 s |  0.075 s | 80.318 s | 17.633 s |   276 %  |
+| pmemsave         |  1.720 s |  1.474 s |  0.752 s |  3.920 s |  1.011 s |    59 %  |
+| flush+chown      |  0.524 s |  0.522 s |  0.517 s |  0.559 s |  0.009 s |   1.8 %  |
+| resume           |  0.064 s |  0.036 s |  0.034 s |  0.547 s |  0.114 s |   179 %  |
+| host_dt          |  9.253 s |  3.543 s |  1.656 s | 81.744 s | 17.887 s |   193 %  |
+| **guest_run** (Axis A) | **0.124 s** | **0.126 s** | **0.110 s** | **0.128 s** | **0.005 s** | **4.2 %** |
+
+## What this confirms
+
+**1. The `bc` hypothesis was correct.** Run 1 measured `guest_dt = 6.6 ms`
+when configured `intervalMsec = 100`. Run 2 measures `guest_dt = 125 ms`. The
+producer's post-resume sleep is now firing. The +25 ms over the 100 ms target
+is bash-bookkeeping overhead between `t5_after_resume` and the next
+`t0_before_suspend` (two `find` forks for the backpressure check, one `date`
+fork for the timestamp, file writes, echo statements). Unavoidable without a
+producer rewrite and small enough to ignore for spectral analysis.
+
+**2. Axis A is stationary.** `guest_run_interval` CV = 4.2 %. Range
+0.110–0.128 s. The 0.110 and 0.114 outliers correspond to seq=4 and seq=11
+which had slightly compressed pre-suspend bookkeeping; not large enough to
+break cepstral assumptions. Phase 1's `StabilityValidator` would accept this.
+
+**3. The frame-spacing claim of the corrected timing model is now empirically
+validated.** With `intervalMsec = 100` the analyzer truly sees ~125 ms per
+frame. `window = 128` covers `128 × 0.125 = 16 s` of guest time, not the
+0.85 s from Run 1. Slow rhythms (sqlite checkpoint, sandbox phases) can now
+fit in a single window.
+
+## What Run 2 also revealed (new problems)
+
+**A. Backpressure is the binding constraint.** Queue depth grew monotonically
+from 2 → 19 over the 19 snapshots, then hit cap=20 and the producer spent
+85 s in `sleepOnBackpressureSeconds=1` waits while the consumer drained.
+With `pmemsave ≈ 1–2 s`, the producer can issue snapshots at ~0.4 Hz; the
+consumer (Rust delta + queue file management) clearly can't sustain that
+when the prev dump is still being read for delta computation. **For any
+real Phase 2 capture, this needs addressing before plan 02 is run** — either
+raise `maxPendingJobs`, throttle the producer, or speed the consumer.
+
+**B. Suspend latency is wildly non-stationary.** Range 0.075 s to 80.3 s.
+The 80 s spike at seq=4 is one event but it utterly dominates the
+host-side statistics. Median 1.66 s, mean 6.38 s, std 17.6 s. Most likely
+cause: the consumer's concurrent `live_delta_calc` process reading the
+previous dump from `/var/lib/libvirt/qemu/dump` competes with the
+producer's `virsh suspend` / `domstate` calls (the libvirtd socket is
+single-threaded for monitor commands on many builds). The 80 s spike may
+be a libvirtd RPC backlog clearing.
+
+**C. Pmemsave throughput halved under contention.** Seq 0–7 measured
+~0.77 s (1.36 GiB/s, matching Run 1). Seq 8–18 measured 1.5–3.9 s
+(0.27–0.71 GiB/s). The break is gradual but real. Almost certainly disk
+bandwidth contention with the consumer reading prior 1 GiB dumps.
+
+**D. VM pause fraction effectively unchanged.** With `guest_dt ≈ 0.125 s`
+and `host_dt ≈ 5–10 s` (excluding the outlier), pause fraction is still
+≈ 98.6 %. The bc fix did not change the host throughput because pmemsave +
+suspend confirmation dominate, not the post-resume sleep.
+
+## Implications for downstream analysis
+
+**Δt_frame is now correct.** This unblocks the cepstral / MSC / PLV
+interpretation. Window=128 hop=64 now means 16 s × 8 s of guest time at
+`intervalMsec=100`. Slow rhythms (sqlite checkpoint ~10 s, sandbox phases
+~10 s, slowburn 5 s/file) fit inside a window.
+
+**Old datasets remain mis-calibrated.** Any data collected before the bc
+fix has `Δt_frame ≈ 6.6 ms` and is unusable for spectral analysis at the
+canonical (128, 64). Either re-collect or reanalyze with corrected Δt.
+
+**Throughput is still bad.** With 9 s mean host_dt per snapshot, a 300 s
+guest-time run needs ~2400 snapshots and ~6 host-hours. Backpressure
+saturation makes the real number even worse. A 5 min Phase 2 workload at
+`intervalMsec = 100` is impractical until the consumer keeps up.
+
+**The host-side variability does not affect Δt_frame.** A snapshot whose
+host cycle takes 80 s still represents 125 ms of guest activity between
+prev and curr. The analyzer sees a clean frame; the operator just waits
+longer. So *for analysis purposes* the bc fix is sufficient. For
+*experiment throughput* the next bottleneck is consumer + libvirtd
+contention.
+
+## Updated recommended next actions
+
+1. **Re-run Experiment 1 producer-only (consumer disabled)** to isolate
+   pure pmemsave + suspend latency from the contention pattern. The current
+   orchestrator already disables `streaming` and `rawRetention.enabled`,
+   but the consumer process itself still runs because of the default
+   capture launch path. Stop the consumer, or run the producer
+   stand-alone, and re-measure suspend / pmemsave latency without the
+   delta-calc disk contention.
+
+2. **Profile the consumer** (`capture_consumer_qemu.sh` + `live_delta_calc`)
+   to see why one dump takes longer than `intervalMsec + pmemsave + flush`
+   to process. If the Rust delta calc reads both prev and curr at full
+   1 GiB each, it does 2 GiB of sequential read per job. At a typical SSD
+   read rate ~1 GiB/s that is 2 s — already at the producer's rate, no
+   headroom. Either speed the calc or skip it in the timing experiment.
+
+3. **Raise `backpressure.maxPendingJobs`** for diagnostic runs only. The
+   default 20 is enough to mask a slow consumer for ~20 snapshots before
+   the producer stalls. Raising it does not fix the consumer but lets
+   longer runs collect more pre-stall data.
+
+4. **Document the +25 ms script overhead** in the producer's comments
+   (and `RUN_TIMING_INSTRUMENTATION.md`) so the operator knows the
+   effective `Δt_frame ≈ intervalMsec + 25 ms` regardless of the
+   configured value.
+
+5. **Investigate the 80 s suspend spike.** Single spike out of 19 is
+   not enough to characterise the tail. The next Run 2-equivalent
+   experiment should run longer (≥ 5 min producer-only, large
+   `maxPendingJobs`) so the tail of the suspend distribution is
+   sampled with enough events to estimate.
+
+6. **Plan 02 (per-family `intervalMsec` tuning) is now unblocked for
+   analysis-side claims** (Δt_frame works). But it is still blocked for
+   *throughput* claims until the consumer / contention story is resolved.
+   The pilot's wall-clock cost table needs to be re-derived from
+   measured Run 2 numbers (mean host_dt ≈ 5 s when stable, not 2.5 s as
+   originally estimated).
+
+## What is now known with confidence
+
+- Configured `intervalMsec = 100` produces `guest_dt ≈ 125 ms` (target + 25 ms).
+- `guest_dt` is stationary across the 19 snapshots (CV 4.2 %).
+- pmemsave on quiet host: ~0.77 s for 1 GiB (1.36 GiB/s).
+- pmemsave under consumer contention: 1.5–3.9 s.
+- suspend confirmation: 0.2–2 s when uncontended, can spike to >80 s.
+- backpressure starts firing at queue cap within ~20 snapshots if consumer is active.
+
+## What remains uncertain
+
+- Long-run distribution of suspend latency (single 80 s spike is not enough
+  to estimate the tail).
+- Whether removing the consumer brings suspend latency to a stable
+  sub-second value or whether libvirtd alone introduces variance.
+- Whether the +25 ms script overhead is truly a constant or scales with
+  queue depth / disk load.
+- Whether the 0.5 s flush sleep is still necessary now that we can measure
+  pmemsave completion directly via the monitor return.
+
+## Appendix: backpressure timing
+
+Backpressure events fired starting at host time `1779229744.453` (after
+seq=18 enqueued) and continued for 85 events over ~127 s of host
+wall-clock. The orchestrator killed the producer at the duration cap with
+the queue still saturated.

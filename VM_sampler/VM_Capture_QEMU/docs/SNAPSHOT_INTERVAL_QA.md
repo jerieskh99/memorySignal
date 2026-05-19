@@ -28,14 +28,18 @@ need?"* — not *"how long will this experiment take?"*
 
 ## Core Validation Questions
 
-> **Update — Experiment 1 results (2026-05-19, `pcrserral`).** The first
-> live timing run revealed that on the capture host `bc` is missing, so
-> the producer's `sleep "$(echo ... | bc)"` falls back to `sleep 0` and
-> the guest-running interval is **6.6 ms** instead of the configured
-> 100 ms. The Axis A claim below is correct **in theory**; until `bc` is
-> installed (or the sleep is rewritten), it is **not** what the producer
-> actually delivers. Full data in
-> [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md).
+> **Update — Experiment 1 Run 2 (2026-05-20, `pcrserral`).** `bc` was
+> installed and the experiment was re-run. The post-resume sleep now
+> fires correctly: measured `guest_dt = 125 ms ± 5 ms` (CV 4.2 %) at
+> `intervalMsec = 100`. The +25 ms over target is unavoidable bash
+> bookkeeping between snapshots. **Axis A is now stationary and matches
+> the configured value.** Two new problems surfaced under load:
+> consumer-driven backpressure saturates the queue within ~20 snapshots,
+> and suspend latency is wildly non-stationary on the host side
+> (range 0.075–80 s) — but these do not corrupt Δt_frame, only
+> throughput. See
+> [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md)
+> for full data.
 
 ### 1. Does the current capture loop pause the VM during pmemsave?
 

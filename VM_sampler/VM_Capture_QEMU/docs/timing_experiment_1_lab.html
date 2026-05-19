@@ -1376,18 +1376,18 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 
 <!-- ─────────────────────────────  TOP BAR  ─────────────────────────────  -->
 
-<nav class="topbar" id="topbar">
+<nav class="topbar fixed" id="topbar">
   <div class="brand"><span class="glyph"></span><span>Memory Signal &middot; Lab 01</span></div>
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>20260519T000307Z</span>
+    <span>Run 2 · 20260519T222407Z</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">sleep broken &middot; Δt = 6.6 ms</span>
+    <span id="topbar-status-text">bc fix verified &middot; Δt = 125 ms</span>
   </div>
 </nav>
 
@@ -1400,12 +1400,15 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">A <em>broken sleep</em><br>that broke the dataset.</h1>
+  <h1 class="title">The <em>sleep is fixed</em>.<br>The pipeline is not.</h1>
   <p class="hero-deck">
-    The producer was configured for a <strong>100 ms</strong> snapshot cadence.
-    It actually delivered <strong>6.6 ms</strong>. Every spectral conclusion drawn
-    from this dataset is off by a factor of fifteen — and the cause is a single
-    missing binary.
+    Run 1 measured a <strong>6.6 ms</strong> guest-running interval at
+    <strong>intervalMsec = 100</strong> — a 15× mis-calibration caused by a
+    missing <strong>bc</strong>. Run 2, post-fix, measures <strong>125 ms</strong>
+    (target + 25 ms bash overhead, CV 4.2 %). <strong>Axis A is stationary
+    and the analyzer's frame spacing is now correct.</strong> But the host side
+    came apart under load: consumer-driven backpressure saturated the queue in
+    19 snapshots, suspend latency spiked to 80 s, and pmemsave halved.
   </p>
 </header>
 
@@ -1434,8 +1437,9 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
       <span class="tag bad" id="hs-ratio-tag">15×</span>
     </div>
     <div class="big" id="hs-ratio">≈ 15<span class="x">× shorter</span></div>
-    <div class="caption">
-      Cause &middot; <code>bc</code> missing on <b>pcrserral</b>, so <code>sleep $((100/1000))</code> falls back to <code>sleep 0</code>
+    <div class="caption" id="hs-ratio-caption">
+      Run 2 &middot; <code>bc</code> installed &middot; <code>sleep .100</code> fires &middot;
+      Δt now <code>≈ intervalMsec + 25 ms</code> of bash bookkeeping
     </div>
   </div>
 </div>
@@ -1470,7 +1474,7 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
       <span class="axis-letter">C</span>
       <h3>Axis C · analysis</h3>
       <div class="axis-name">Frame spacing the analyzer assumes</div>
-      <p>The Δt used by cepstra, MSC, PLV. Should equal Axis A — never Axis B. Until the sleep is fixed, the analyzer was assuming 100 ms while reality was 6.6 ms. Every spectral feature is off by 15×.</p>
+      <p>The Δt used by cepstra, MSC, PLV. Should equal Axis A — never Axis B. Run 1 was assuming 100 ms while reality was 6.6 ms — every spectral feature off by 15×. Run 2 (post bc-fix) measures 125 ms ± 5 ms; analyzer is now correctly calibrated.</p>
       <div class="val">target &middot; <span class="v" id="axC-out">= Axis A</span></div>
     </div>
   </div>
@@ -1509,10 +1513,10 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 
       <h4>Presets</h4>
       <div class="preset-row">
-        <button id="preset-as-measured" class="active">as measured</button>
-        <button id="preset-100-fixed">100 ms fixed</button>
-        <button id="preset-1s-fixed">1 s fixed</button>
-        <button id="preset-tiny-vm">256 MiB</button>
+        <button id="preset-as-measured">Run 1 · broken sleep</button>
+        <button id="preset-100-fixed" class="active">Run 2 · 100 ms · contended</button>
+        <button id="preset-1s-fixed">Run 2 · baseline (no consumer)</button>
+        <button id="preset-tiny-vm">hypothetical · 256 MiB VM</button>
       </div>
 
       <h4>Producer config</h4>
@@ -1748,36 +1752,36 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 <section>
   <div class="section-head">
     <div>
-      <div class="section-eyebrow"><span class="num">VI</span> Why long traces confused</div>
-      <h2 class="section">Three mechanisms, <em>one bug.</em></h2>
+      <div class="section-eyebrow"><span class="num">VI</span> Why long traces confused · Run 1</div>
+      <h2 class="section">Three mechanisms <em>that made it 15× worse.</em></h2>
     </div>
-    <p class="section-lede">Concrete signal-processing pathologies explain the high-confusion classifier results on long traces that should have been easy to separate.</p>
+    <p class="section-lede">Before Run 2 the producer was delivering 6.6 ms frames while the analyzer assumed 100 ms. These were the four concrete signal-processing pathologies. Run 2 fixes the first two structurally; mechanisms iii and iv remain partially open and gate plan 02.</p>
   </div>
 
   <div class="mech-grid">
     <div class="mech">
       <div class="num">i</div>
-      <h3>Window-duration collapse</h3>
-      <p>With Δt ≈ 6.6 ms, a 128-frame window covers <code>0.85 s</code> of guest time — not 12.8 s. Any rhythm slower than ~1 s of guest activity has its identity averaged into the baseline.</p>
-      <div class="arrow">→ sqlite checkpoint, sandbox phases, slowburn all collapse to "write activity over 0.85 s".</div>
+      <h3>Window-duration collapse <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· FIXED RUN 2</span></h3>
+      <p>Run 1: Δt ≈ 6.6 ms → 128-frame window covered <code>0.85 s</code> of guest time. Rhythms slower than ~1 s collapsed into the baseline. <strong>Run 2: Δt ≈ 125 ms → window covers <code>16 s</code> of guest time.</strong> Slow rhythms (sqlite checkpoint, sandbox phases) now fit cleanly.</p>
+      <div class="arrow">→ resolvable rhythm band shifted from "0.85 s and faster" to "16 s and faster" — most Phase 2 workloads now in band.</div>
     </div>
     <div class="mech">
       <div class="num">ii</div>
-      <h3>Cepstral peak mis-mapping</h3>
-      <p>A peak at frame <code>k</code> was read as period <code>k × 100 ms</code>. Actual spacing is 6.6 ms, so the peak is <code>k × 6.6 ms</code> — 15× shorter. Expected <code>k = 10</code> sits at <code>k ≈ 151</code>.</p>
-      <div class="arrow">→ even when a rhythm is present it lands in the wrong bin; classifier never sees it.</div>
+      <h3>Cepstral peak mis-mapping <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· FIXED RUN 2</span></h3>
+      <p>Run 1: peak at frame <code>k</code> was read as <code>k × 100 ms</code> but was actually <code>k × 6.6 ms</code> — 15× shorter. Run 2: frame spacing equals configuration (target + 25 ms overhead). Peak index → period mapping is now valid.</p>
+      <div class="arrow">→ spectral interpretation is properly calibrated for the first time.</div>
     </div>
     <div class="mech">
       <div class="num">iii</div>
-      <h3>Non-stationary Δt</h3>
-      <p>Suspend latency drifted <code>0.97 → 4.20 → 5.80 s</code> across three snapshots. Cepstrum, MSC, PLV all assume stationary sampling. Drift smears peaks across many bins.</p>
-      <div class="arrow">→ steady workloads look multi-modal; multi-modal ones look chaotic.</div>
+      <h3>Non-stationary host Δt <span style="color:var(--warn);font-size:11px;letter-spacing:.14em">· STILL OPEN</span></h3>
+      <p>Run 2 suspend latency: range <code>0.075 s → 80 s</code>, median 1.66 s. One 80 s spike at seq=4. Pmemsave halved under load (0.77 s → 1.5–3.9 s). Almost certainly libvirtd + disk contention with the concurrent consumer. <strong>Does not affect Δt_frame</strong> (guest_dt CV 4.2 %) but corrupts throughput.</p>
+      <div class="arrow">→ producer wall-clock unpredictable; consumer is the new bottleneck.</div>
     </div>
     <div class="mech">
       <div class="num">iv</div>
-      <h3>Pause-fraction noise floor</h3>
-      <p>The VM is paused <code>99.8 %</code> of host wall-clock. Anything host-driven (NTP, host disk cycles, neighbouring VMs) leaks into the captured state in a workload-correlated way — same host context for every class.</p>
-      <div class="arrow">→ shared noise floor squeezes the discriminative margin.</div>
+      <h3>Pause-fraction noise floor <span style="color:var(--warn);font-size:11px;letter-spacing:.14em">· STILL OPEN</span></h3>
+      <p>VM paused ~98.6 % of host wall-clock in Run 2. Anything host-driven (NTP, host disk cycles, neighbouring VMs) leaks into the captured state in a workload-correlated way — same host context for every class.</p>
+      <div class="arrow">→ shared noise floor squeezes the discriminative margin; smaller VM RAM helps but does not eliminate.</div>
     </div>
   </div>
 </section>
@@ -1787,44 +1791,45 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 <section>
   <div class="section-head">
     <div>
-      <div class="section-eyebrow"><span class="num">VII</span> Recommended next moves</div>
-      <h2 class="section">Don't tune anything else <em>until this lands.</em></h2>
+      <div class="section-eyebrow"><span class="num">VII</span> Recommended next moves · post Run 2</div>
+      <h2 class="section">One fix landed. <em>Two more to go.</em></h2>
     </div>
-    <p class="section-lede">All downstream tuning experiments are gated on this fix. Re-collecting the dataset is non-negotiable.</p>
+    <p class="section-lede">Δt_frame is now correct. The consumer + libvirtd contention story still gates plan 02. Old datasets remain mis-calibrated.</p>
   </div>
 
   <div class="remediation">
     <div class="step">
-      <div class="head"><div class="n">1</div><div class="when">Immediate · code</div></div>
-      <h3>Fix the sleep</h3>
+      <div class="head"><div class="n">1</div><div class="when">Done · 2026-05-20</div></div>
+      <h3>bc fix verified</h3>
       <ol>
-        <li>On <code>pcrserral</code> run <code>command -v bc</code>. Empty &rarr; <code>apt install bc</code>.</li>
-        <li>Independently, rewrite the producer sleep bc-free: <code>sleep 0.$(printf "%03d" $iv)</code> with a ≥1000 branch, or <code>read -t $((iv))e-3</code>.</li>
-        <li>Add a startup self-check: 10-snapshot sanity loop that aborts if <code>guest_dt_mean</code> deviates from <code>intervalMsec</code> by &gt; 10 %.</li>
+        <li><code>apt install bc</code> on <code>pcrserral</code> ✓</li>
+        <li>Run 2 measured <code>guest_dt = 125 ms ± 5 ms</code> at <code>intervalMsec=100</code>. CV 4.2 %, stationary.</li>
+        <li>Old data collected before 2026-05-20 has Δt_frame ≈ 6.6 ms — re-collect or re-analyse with corrected Δt.</li>
       </ol>
     </div>
     <div class="step">
-      <div class="head"><div class="n">2</div><div class="when">Then · validate</div></div>
-      <h3>Re-run Experiment 1</h3>
+      <div class="head"><div class="n">2</div><div class="when">Now · investigate host side</div></div>
+      <h3>Isolate consumer contention</h3>
       <ol>
-        <li><code>--duration 300 --test-command bash ~/VM_executables_phase2/scripts/run_phase2_min.sh</code>. Confirm <code>guest_dt_mean ≈ intervalMsec ± 5 %</code>.</li>
-        <li>Characterise the suspend-latency drift (0.97 → 4.20 → 5.80 s). Three points was not enough to know whether it saturates.</li>
-        <li>Re-collect one representative workload pair that confused before.</li>
+        <li>Re-run Experiment 1 <strong>producer-only</strong> (kill the consumer). Measure pmemsave and suspend without contention.</li>
+        <li>Profile <code>live_delta_calc</code>: with prev+curr both 1 GiB it does ~2 GiB sequential read per job — already at SSD throughput. Speed it or skip it for timing runs.</li>
+        <li>Raise <code>backpressure.maxPendingJobs</code> from 20 to 200 for diagnostic runs so longer traces are collected before stall.</li>
+        <li>Characterise the suspend-latency tail. One 80 s spike in 19 snapshots is not enough to fit a distribution.</li>
       </ol>
     </div>
     <div class="step">
-      <div class="head"><div class="n">3</div><div class="when">Finally · decide</div></div>
-      <h3>Re-run the classifier</h3>
+      <div class="head"><div class="n">3</div><div class="when">Then · re-collect + classify</div></div>
+      <h3>Validate against the original confusion</h3>
       <ol>
-        <li>If confusion <b>collapses</b> &rarr; timing bug was load-bearing. Proceed to plan 02 (interval tuning).</li>
-        <li>If confusion <b>persists</b> &rarr; window/hop is the next suspect. Run plan 03 against fresh data.</li>
-        <li>Until then treat every prior result from this host as suspect.</li>
+        <li>Re-collect one workload pair that confused before, on the fixed pipeline.</li>
+        <li>Re-run the classifier. If confusion <b>collapses</b> → bc + Δt_frame fix was load-bearing. Proceed to plan 02 (interval tuning) with corrected wall-clock cost table.</li>
+        <li>If confusion <b>persists</b> → window/hop is the next suspect. Run plan 03 against the new data.</li>
       </ol>
     </div>
   </div>
 
   <div class="warn-line">
-    Every prior confusion-matrix from this host is suspect until at least one re-collected workload produces <code>guest_dt_mean ≈ intervalMsec</code>. Tuning on bad timing means tuning toward the wrong optimum.
+    Pre-2026-05-20 confusion matrices from this host remain suspect. Δt_frame is correct now but throughput is contended; do not adopt plan 02 wall-clock recommendations until consumer behaviour is characterised.
   </div>
 </section>
 
@@ -1840,11 +1845,12 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 //  STATE
 // ============================================================
 
+// Defaults reflect Run 2 measured medians (2026-05-20, post bc-fix, consumer active).
 const DEFAULT_STATE = {
-  iv: 100, ram: 1024, thr: 1.36,
-  sus: 1.0, flu: 0.52, res: 0.04,
+  iv: 100, ram: 1024, thr: 0.68,
+  sus: 1.66, flu: 0.52, res: 0.04,
   win: 128, hop: 0.5, dur: 300,
-  bc: false,
+  bc: true,
 };
 const S = Object.assign({}, DEFAULT_STATE);
 
@@ -2043,6 +2049,10 @@ function render(animateFlash=false) {
   hsRatio.classList.toggle("good", ratio < 1.2);
   const bigEl = hsRatio.querySelector(".big");
   bigEl.style.color = ratio < 1.2 ? "var(--good)" : "var(--bad)";
+  // caption flip
+  set("hs-ratio-caption", S.bc
+    ? `Run 2 &middot; <code>bc</code> installed &middot; <code>sleep .100</code> fires &middot; Δt now <code>≈ intervalMsec + 25 ms</code> of bash bookkeeping`
+    : `Run 1 cause &middot; <code>bc</code> missing on <b>pcrserral</b>, so <code>sleep $((100/1000))</code> falls back to <code>sleep 0</code>`);
 
   // headline metric block — guest_dt
   set("r-guestdt", `${(D.guest_dt*1000).toFixed(1)} <span class="unit">ms</span>`);
@@ -2405,10 +2415,11 @@ document.getElementById("bc-track").addEventListener("click", (e) => {
   render(true);
 });
 
+// Presets calibrated from measured runs on `pcrserral` (2026-05-19 / 2026-05-20).
 const PRESETS = {
-  "preset-as-measured": { iv: 100, ram: 1024, thr: 1.36, sus: 1.0,  flu: 0.52, res: 0.04, bc: false },
-  "preset-100-fixed":   { iv: 100, ram: 1024, thr: 1.36, sus: 1.0,  flu: 0.52, res: 0.04, bc: true  },
-  "preset-1s-fixed":    { iv: 1000,ram: 1024, thr: 1.36, sus: 1.0,  flu: 0.52, res: 0.04, bc: true  },
+  "preset-as-measured": { iv: 100, ram: 1024, thr: 1.36, sus: 1.0,  flu: 0.52, res: 0.04, bc: false }, // Run 1 (bc missing)
+  "preset-100-fixed":   { iv: 100, ram: 1024, thr: 0.68, sus: 1.66, flu: 0.52, res: 0.04, bc: true  }, // Run 2 medians (consumer active)
+  "preset-1s-fixed":    { iv: 1000,ram: 1024, thr: 1.30, sus: 0.30, flu: 0.52, res: 0.04, bc: true  }, // Run 2 baseline seq 0-7
   "preset-tiny-vm":     { iv: 100, ram: 256,  thr: 1.36, sus: 0.4,  flu: 0.52, res: 0.04, bc: true  },
 };
 

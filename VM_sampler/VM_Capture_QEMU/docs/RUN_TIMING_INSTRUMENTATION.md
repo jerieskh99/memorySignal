@@ -89,7 +89,19 @@ Prereqs:
   producing a guest-running interval of only a few ms instead of the
   configured value. See
   [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md)
-  for the 2026-05-19 run that caught this.
+  for the 2026-05-19 Run 1 that caught this and the 2026-05-20 Run 2
+  that confirmed the fix.
+- **Expected effective frame spacing.** With `bc` installed, measured
+  `guest_dt ≈ intervalMsec + 25 ms` of unavoidable bash bookkeeping
+  (two `find` forks for backpressure check, `date` fork for timestamp,
+  file writes between iterations). At `intervalMsec = 100`, expect
+  ~125 ms per frame. At `intervalMsec = 1000`, expect ~1025 ms. The
+  overhead is approximately constant.
+- **Backpressure under consumer load.** If the consumer
+  (`capture_consumer_qemu.sh`) is running alongside, expect queue
+  saturation within ~20 snapshots at default `maxPendingJobs=20`.
+  Raise the cap (e.g. 200) for diagnostic runs or disable the
+  consumer to measure pure producer throughput.
 - Free disk space under `imageDir` for ~`duration / interval × ramSizeMb`
   snapshot bytes (the orchestrator cleans them up by default).
 
