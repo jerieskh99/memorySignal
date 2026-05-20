@@ -124,6 +124,10 @@ def run_pass(name: str, workdir: Path, cfg_path: Path, producer_script: Path,
         time.sleep(duration)
     finally:
         e1.stop_producer(proc, grace)
+        # ensure VM is not left paused by mid-cycle SIGTERM
+        with open(cfg_path) as _f:
+            _cfg = json.load(_f)
+        e1.resume_vm_if_paused("qemu:///system", _cfg.get("domain", ""))
     t1 = time.time()
 
     snaps, bps = e1.parse_jsonl(jsonl_path)
@@ -164,6 +168,12 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--skip-pass1", action="store_true",
                    help="Skip the consumer-on pass (e.g. if consumer isn't running anyway).")
     p.add_argument("--keep-dumps", action="store_true")
+    p.add_argument("--purge-stale-dumps", action="store_true",
+                   help="Before pass 1, aggressively `sudo rm` ALL "
+                        "memory_dump-*.raw files in imageDir. Recovers from "
+                        "stale dumps left by previous runs.")
+    p.add_argument("--drain-before-pass1", action="store_true",
+                   help="Drain the queue dir before pass 1 too (default: only before pass 2).")
     p.add_argument("--virsh-uri", default="qemu:///system")
     p.add_argument("--no-vm-start", action="store_true")
     p.add_argument("--grace-stop-seconds", type=int, default=10)
@@ -231,6 +241,17 @@ def main(argv: list[str] | None = None) -> int:
         state = e1.virsh_start_if_needed(args.virsh_uri, eff_cfg.get("domain",""), False)
         if state != "running":
             result["notes"].append(f"VM not running after start attempt: {state!r}")
+
+    # Optional purge of stale dumps left by prior experiments. Uses sudo.
+    if args.purge_stale_dumps:
+        n = e1.purge_all_dumps(image_dir, use_sudo=True)
+        log(f"purged {n} stale dump file(s) from {image_dir}")
+        result["pre_run"] = {"stale_dumps_purged": n}
+
+    # Optional drain before pass 1 if user wants a clean slate
+    if args.drain_before_pass1:
+        d0 = drain_queue(queue_dir)
+        log(f"pre-pass1: drained {d0} queue file(s)")
 
     run_start_epoch = time.time()
 

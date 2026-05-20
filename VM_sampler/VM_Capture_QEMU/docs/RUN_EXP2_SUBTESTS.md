@@ -1,5 +1,12 @@
 # Experiment 2 — sub-tests 2a / 2b / 2c
 
+> **Read [`EXP2_RESULTS.md`](./EXP2_RESULTS.md) first if you are doing a
+> re-run.** The first round of these experiments surfaced a structural
+> bug (dump cleanup silently fails because `imageDir` is root-owned) and
+> a flawed integrity probe in 2c. Both are now fixed in the scripts; the
+> new flags (`--purge-stale-dumps`, `--per-cell-purge`,
+> `--purge-between-passes`, `--drain-before-pass1`) are listed below.
+
 Three orchestrators that target the two open mechanisms from
 [`TIMING_EXPERIMENT_1_CONCLUSIONS.md`](./TIMING_EXPERIMENT_1_CONCLUSIONS.md):
 non-stationary host Δt (iii) and the pause-fraction noise floor (iv).
@@ -165,30 +172,39 @@ The headline is the `recommendation` field:
 If REMOVE, follow up with a one-line patch removing the
 `sleep 0.5` from the producer (now guarded by `TIMING_NO_FLUSH`).
 
-## Order of execution
-
-Recommended sequence in a single Linux session:
+## Order of execution (mandatory protocol)
 
 ```sh
-# 1. Confirm bc fix still healthy with a quick sanity (30 s)
-python3 run_timing_instrumentation_experiment.py \
-    --duration 30 --output-json ./sanity_post_fix.json
+# 0. Manual one-time cleanup: nuke ALL stale dumps left by previous runs.
+#    Required because /var/lib/libvirt/qemu/dump/ is root-owned and the
+#    orchestrators' fallback `sudo -n rm` only works when sudo is passwordless.
+sudo rm -f /var/lib/libvirt/qemu/dump/memory_dump-*.raw
 
-# 2. 2a — consumer isolation (~2 min)
+# 1. Verify disk free space
+df -h /var/lib/libvirt/qemu/dump
+
+# 2. Sanity check (Δt_frame still tracking intervalMsec?)
+python3 run_timing_instrumentation_experiment.py \
+    --duration 30 --output-json ./sanity.json
+
+# 3. 2a — consumer isolation (~2 min)
 python3 run_exp2a_consumer_isolation.py --duration 60 \
+    --purge-stale-dumps --drain-before-pass1 \
     --output-json ./exp2a.json
 
-# 3. 2c — cheap (~2 min); needs consumer already killed by 2a, fine to chain
+# 4. 2c — flush sensitivity (~2 min)
 python3 run_exp2c_flush_sensitivity.py --duration 60 \
+    --purge-stale-dumps --purge-between-passes \
     --output-json ./exp2c.json
 
-# 4. 2b — interval sweep (~5 min default; longer if --ram-sweep)
+# 5. 2b — interval sweep (~5 min default)
 python3 run_exp2b_interval_sweep.py --duration 60 \
     --intervals 100,250,500,1000 \
+    --purge-stale-dumps --per-cell-purge \
     --output-json ./exp2b.json
 ```
 
-Then ship the four JSON files back for analysis.
+Ship the four JSON files back for analysis.
 
 ## What to send for analysis
 

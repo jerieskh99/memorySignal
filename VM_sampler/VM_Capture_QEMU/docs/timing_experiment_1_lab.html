@@ -1782,7 +1782,7 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="section-head">
     <div>
       <div class="section-eyebrow"><span class="num">VI</span> Why long traces confused · Run 1</div>
-      <h2 class="section">Three mechanisms <em>that made it 15× worse.</em></h2>
+      <h2 class="section">Four mechanisms <em>plus one hidden bug.</em></h2>
     </div>
     <p class="section-lede">Before Run 2 the producer was delivering 6.6 ms frames while the analyzer assumed 100 ms. These were the four concrete signal-processing pathologies. Run 2 fixes the first two structurally; mechanisms iii and iv remain partially open and gate plan 02.</p>
   </div>
@@ -1802,15 +1802,21 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     </div>
     <div class="mech">
       <div class="num">iii</div>
-      <h3>Non-stationary host Δt <span style="color:var(--warn);font-size:11px;letter-spacing:.14em">· STILL OPEN</span></h3>
-      <p>Run 2 suspend latency: range <code>0.075 s → 80 s</code>, median 1.66 s. One 80 s spike at seq=4. Pmemsave halved under load (0.77 s → 1.5–3.9 s). Almost certainly libvirtd + disk contention with the concurrent consumer. <strong>Does not affect Δt_frame</strong> (guest_dt CV 4.2 %) but corrupts throughput.</p>
-      <div class="arrow">→ producer wall-clock unpredictable; consumer is the new bottleneck.</div>
+      <h3>Non-stationary host Δt <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· LARGELY FIXED (2a)</span></h3>
+      <p>2a confirmed: with the consumer killed, suspend drops from <code>6.38 s → 0.062 s</code> (~100×) and host_dt from <code>9.25 s → 1.64 s</code>. Pmemsave still drifts within a run (0.77 s → 1.66 s over 21 snaps) but that turned out to be <em>disk pressure from accumulated dumps</em>, not libvirtd contention. The dump-cleanup bug (mechanism v below) is the real culprit and is now patched in the scripts.</p>
+      <div class="arrow">→ consumer is confirmed as the dominant source of host-side variability. Cleanup-fix removes the residual pmemsave drift.</div>
     </div>
     <div class="mech">
       <div class="num">iv</div>
       <h3>Pause-fraction noise floor <span style="color:var(--warn);font-size:11px;letter-spacing:.14em">· STILL OPEN</span></h3>
-      <p>VM paused ~98.6 % of host wall-clock in Run 2. Anything host-driven (NTP, host disk cycles, neighbouring VMs) leaks into the captured state in a workload-correlated way — same host context for every class.</p>
-      <div class="arrow">→ shared noise floor squeezes the discriminative margin; smaller VM RAM helps but does not eliminate.</div>
+      <p>2a pass 2 still shows ~92 % pause. 2b's intended sweep over <code>intervalMsec</code> was contaminated by the dump-cleanup bug and is being re-run. Pause-fraction reduction needs a real VM-RAM downscale (separate boot) plus a larger <code>intervalMsec</code>; pmemsave-size override alone is a planning estimate, not a definitive answer.</p>
+      <div class="arrow">→ awaiting re-run of 2b with --per-cell-purge. Expected: ~55 % pause at intervalMsec=1000.</div>
+    </div>
+    <div class="mech">
+      <div class="num">v</div>
+      <h3>Dump cleanup silently fails <span style="color:var(--bad);font-size:11px;letter-spacing:.14em">· FIXED IN SCRIPTS</span></h3>
+      <p>Discovered during 2a/2b/2c analysis. <code>/var/lib/libvirt/qemu/dump/</code> is root-owned, so the user can't <code>unlink</code> files inside even though the files themselves are jeries-owned. Every Experiment 1/2 run was leaving its dumps behind; by the time 2b ran, ~50 GiB of stale dumps had filled the disk and pmemsave latency exploded to <code>15–31 s</code>.</p>
+      <div class="arrow">→ scripts now try direct unlink, fall back to <code>sudo -n rm -f</code>. New flags: <code>--purge-stale-dumps</code>, <code>--per-cell-purge</code>, <code>--purge-between-passes</code>. Re-run protocol in <code>RUN_EXP2_SUBTESTS.md</code>.</div>
     </div>
   </div>
 </section>

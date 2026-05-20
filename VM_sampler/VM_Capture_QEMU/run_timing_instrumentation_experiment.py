@@ -442,23 +442,107 @@ def summarize(records: list[dict], bps: list[dict]) -> dict:
 # Cleanup
 # ---------------------------------------------------------------------------
 
+def _try_sudo_rm(paths: list[Path]) -> int:
+    """Best-effort `sudo rm` for paths the user cannot unlink directly
+    (e.g. dumps under a root-owned imageDir). Returns count attempted.
+    Silent if sudo is not configured for passwordless rm."""
+    if not paths:
+        return 0
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "rm", "-f", *[str(p) for p in paths]],
+            capture_output=True, text=True, timeout=30,
+        )
+        return len(paths) if out.returncode == 0 else 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return 0
+
+
 def cleanup_run_dumps(image_dir: Path, run_start_epoch: float, keep: bool) -> int:
-    """Remove memory_dump-*.raw files created after run_start. Returns count."""
+    """Remove memory_dump-*.raw files created after run_start. Returns count.
+
+    Tries direct `unlink` first. Falls back to `sudo -n rm -f` for files that
+    refuse to unlink (typical when imageDir is root-owned even though the
+    files themselves are jeries-owned). The sudo step is silent if sudo is
+    not configured passwordless — in that case the file count reported is
+    just what unlink could remove.
+    """
     if keep:
         return 0
     if not image_dir.is_dir():
         return 0
     removed = 0
+    needs_sudo: list[Path] = []
     for p in image_dir.glob("memory_dump-*.raw"):
         try:
             if p.stat().st_mtime >= run_start_epoch - 1.0:
-                p.unlink()
-                removed += 1
+                try:
+                    p.unlink()
+                    removed += 1
+                except PermissionError:
+                    needs_sudo.append(p)
         except FileNotFoundError:
             continue
         except OSError as e:
-            log(f"WARNING: failed to remove {p}: {e}")
+            log(f"WARNING: failed to stat {p}: {e}")
+    if needs_sudo:
+        sudo_removed = _try_sudo_rm(needs_sudo)
+        removed += sudo_removed
+        if sudo_removed == 0:
+            log(f"WARNING: {len(needs_sudo)} dumps could not be removed "
+                f"(parent dir is read-only for current user). Consider running "
+                f"`sudo rm {image_dir}/memory_dump-*.raw` between experiments.")
     return removed
+
+
+def purge_all_dumps(image_dir: Path, use_sudo: bool = True) -> int:
+    """Aggressively remove ALL memory_dump-*.raw files in imageDir, ignoring
+    mtime. Used by --purge-stale-dumps before a fresh experiment."""
+    if not image_dir.is_dir():
+        return 0
+    all_paths = list(image_dir.glob("memory_dump-*.raw"))
+    if not all_paths:
+        return 0
+    direct_removed = 0
+    stragglers: list[Path] = []
+    for p in all_paths:
+        try:
+            p.unlink(); direct_removed += 1
+        except (FileNotFoundError, PermissionError):
+            stragglers.append(p)
+        except OSError:
+            stragglers.append(p)
+    if use_sudo and stragglers:
+        return direct_removed + _try_sudo_rm(stragglers)
+    return direct_removed
+
+
+def disk_free_check(image_dir: Path, snapshots_expected: int, ram_mb: int,
+                    margin: float = 1.5) -> tuple[bool, dict]:
+    """Refuse to start if free space < snapshots × ram × margin."""
+    try:
+        st = os.statvfs(image_dir if image_dir.is_dir() else image_dir.parent)
+    except (OSError, AttributeError):
+        return True, {"free_bytes": None, "note": "statvfs unavailable"}
+    free = st.f_bavail * st.f_frsize
+    need = int(snapshots_expected * ram_mb * 1024 * 1024 * margin)
+    return (free >= need), {"free_bytes": free, "needed_bytes": need,
+                             "margin": margin, "snapshots_expected": snapshots_expected}
+
+
+def resume_vm_if_paused(virsh_uri: str, domain: str) -> bool:
+    """Best-effort resume in case a SIGTERM'd producer left the VM paused.
+    Returns True if the resume was attempted (regardless of outcome).
+    Safe to call on a running VM — virsh resume on running domain errors
+    harmlessly."""
+    try:
+        subprocess.run(
+            ["virsh", "-c", virsh_uri, "resume", domain],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
 
 
 # ---------------------------------------------------------------------------

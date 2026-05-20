@@ -74,6 +74,7 @@ def run_cell(idx: int, total: int, workdir: Path, base_cfg: dict,
         time.sleep(duration)
     finally:
         e1.stop_producer(proc, grace)
+        e1.resume_vm_if_paused("qemu:///system", base_cfg.get("domain", ""))
     wall = round(time.time() - pass_start, 3)
 
     snaps, bps = e1.parse_jsonl(jsonl_path)
@@ -119,6 +120,13 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--producer-script", default=str(e1.DEFAULT_PRODUCER))
     p.add_argument("--workdir", default=None)
     p.add_argument("--keep-dumps", action="store_true")
+    p.add_argument("--purge-stale-dumps", action="store_true",
+                   help="Before the sweep, aggressively `sudo rm` ALL "
+                        "memory_dump-*.raw files in imageDir.")
+    p.add_argument("--per-cell-purge", action="store_true",
+                   help="Purge all dumps between every cell (NOT just the one "
+                        "created by the previous cell). Use if disk pressure "
+                        "is contaminating cells.")
     p.add_argument("--virsh-uri", default="qemu:///system")
     p.add_argument("--no-vm-start", action="store_true")
     p.add_argument("--grace-stop-seconds", type=int, default=10)
@@ -203,12 +211,33 @@ def main(argv: list[str] | None = None) -> int:
         if state != "running":
             result["notes"].append(f"VM not running after start attempt: {state!r}")
 
+    queue_dir = Path(base_cfg.get("queueDir","/tmp/queue_dir"))
     killed = e2a.kill_consumer(grace=5)
-    drained = e2a.drain_queue(Path(base_cfg.get("queueDir","/tmp/queue_dir")))
-    log(f"pre-sweep: killed {killed} consumer process(es); drained {drained} queue file(s)")
-    result["pre_sweep"] = {"consumer_processes_killed": killed, "queue_files_drained": drained}
+    drained = e2a.drain_queue(queue_dir)
+    purged = 0
+    if args.purge_stale_dumps:
+        purged = e1.purge_all_dumps(image_dir, use_sudo=True)
+        log(f"pre-sweep: purged {purged} stale dump file(s)")
+    log(f"pre-sweep: killed {killed} consumer; drained {drained} queue file(s); purged {purged} dump(s)")
+    result["pre_sweep"] = {"consumer_processes_killed": killed,
+                           "queue_files_drained": drained,
+                           "stale_dumps_purged": purged}
+
+    # Disk-free pre-check based on heaviest cell
+    heaviest_snaps = max(args.duration // (iv / 1000) for iv in intervals) + 10
+    heaviest_ram = max(rams_effective)
+    ok_disk, disk_info = e1.disk_free_check(image_dir, int(heaviest_snaps), heaviest_ram)
+    result["pre_sweep"]["disk_free_check"] = disk_info
+    if not ok_disk:
+        result["notes"].append(f"WARNING: disk free space {disk_info} may be insufficient")
 
     for i, (iv, ram) in enumerate(cells_plan, 1):
+        # Per-cell prep: drain queue, ensure VM is running, optional dump purge
+        d_cell = e2a.drain_queue(queue_dir)
+        e1.resume_vm_if_paused(args.virsh_uri, base_cfg.get("domain", ""))
+        if args.per_cell_purge:
+            n_pre = e1.purge_all_dumps(image_dir, use_sudo=True)
+            log(f"[{i}/{len(cells_plan)}] per-cell purge: removed {n_pre} dump(s); drained {d_cell} queue")
         cell = run_cell(i, len(cells_plan), workdir, base_cfg, iv, ram,
                         args.duration, producer, args.grace_stop_seconds,
                         image_dir, args.keep_dumps)
