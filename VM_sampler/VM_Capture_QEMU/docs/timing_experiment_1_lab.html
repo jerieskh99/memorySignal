@@ -1353,6 +1353,198 @@ canvas#ruler-canvas {
 .warn-line code { color: var(--bad-2); background: rgba(232,85,58,.10); padding: 1px 4px; border-radius: 2px; }
 
 /* ============================================================
+   EXPLAINER SUBSECTIONS — used in time-axes, mechanisms, remediation
+   ============================================================ */
+
+.subsection {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.subsection h3 {
+  font-family: var(--serif);
+  font-variation-settings: "opsz" 36, "wght" 500, "SOFT" 30;
+  font-size: 22px;
+  letter-spacing: -.01em;
+  margin: 0 0 6px 0;
+}
+.subsection h3 .marker {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin-right: 10px;
+  padding: 3px 7px;
+  border-radius: 2px;
+}
+.subsection h3 .marker.simple { background: rgba(95,179,212,.12); color: var(--guest); }
+.subsection h3 .marker.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+.subsection h3 .marker.case   { background: rgba(124,185,110,.12); color: var(--good); }
+.subsection h3 .marker.viz    { background: rgba(232,85,58,.10);   color: var(--bad-2); }
+.subsection > p,
+.subsection .body > p { font-size: 15.5px; line-height: 1.65; color: var(--text-dim); margin: 12px 0; }
+.subsection p code { color: var(--accent); font-family: var(--mono); font-size: 13px; background: rgba(212,168,90,.06); padding: 1px 5px; border-radius: 2px; }
+
+.pair-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 18px 0;
+}
+@media (max-width: 880px) { .pair-block { grid-template-columns: 1fr; } }
+.pair-block > div {
+  padding: 18px 20px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.pair-block .lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.pair-block.simple .lbl { color: var(--guest); }
+.pair-block.tech .lbl { color: var(--accent); }
+.pair-block p { margin: 6px 0; font-size: 15px; line-height: 1.6; }
+
+/* timeline-style ASCII illustration */
+.illustration {
+  margin: 22px 0;
+  padding: 20px 24px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.illustration .cap {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.illustration .scene {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+}
+.illustration .legend-row {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+.illustration .legend-row .swatch {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 2px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+/* worked-example box */
+.worked {
+  margin: 22px 0;
+  padding: 18px 22px;
+  background: linear-gradient(to right, rgba(212,168,90,.06), transparent 60%);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+}
+.worked .who {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.worked p { font-size: 15px; line-height: 1.6; margin: 8px 0; color: var(--text-dim); }
+.worked .compute {
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.worked .compute em { color: var(--accent); font-style: normal; }
+.worked .verdict {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 7px 12px;
+  display: inline-block;
+  border-radius: 2px;
+}
+.worked .verdict.bad  { background: rgba(232,85,58,.14);  color: var(--bad); }
+.worked .verdict.good { background: rgba(124,185,110,.14); color: var(--good); }
+
+/* decision-tree style */
+.decision-tree {
+  margin: 20px 0;
+  padding: 22px 24px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.decision-tree pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.decision-tree pre .ok  { color: var(--good); }
+.decision-tree pre .fail{ color: var(--bad); }
+.decision-tree pre .acc { color: var(--accent); }
+
+/* compact table for cost/risk */
+.cost-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0;
+  font-size: 14px;
+}
+.cost-table th,
+.cost-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.cost-table th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.cost-table td.mono { font-family: var(--mono); font-size: 12.5px; }
+.cost-table .ok   { color: var(--good); }
+.cost-table .warn { color: var(--warn); }
+.cost-table .bad  { color: var(--bad); }
+
+
+/* ============================================================
    FOOTER
    ============================================================ */
 
@@ -1505,6 +1697,94 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
       <div class="axis-name">Frame spacing the analyzer assumes</div>
       <p>The Δt used by cepstra, MSC, PLV. Should equal Axis A — never Axis B. Run 1 was assuming 100 ms while reality was 6.6 ms — every spectral feature off by 15×. Run 2 (post bc-fix) measures 125 ms ± 5 ms; analyzer is now correctly calibrated.</p>
       <div class="val">target &middot; <span class="v" id="axC-out">= Axis A</span></div>
+    </div>
+  </div>
+
+  <!-- ───── Subsection 1 · plain-language analogy ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">In one breath</span>The pause-the-video analogy</h3>
+    <p>Imagine watching a film while someone keeps hitting <strong>pause</strong> every few seconds to photograph the screen. The film's running time is unchanged — characters age at the same rate, scenes last the same number of minutes. But <em>your</em> evening gets very long because every pause adds real seconds to the wall clock without advancing the story.</p>
+    <p>The guest VM is the film. The host orchestrator is the photographer. <code>pmemsave</code> is the photograph. Every snapshot pauses the film for ~1–2 host-seconds, takes the photo, then unpauses. The film's timeline (Axis A) is short and contiguous from the guest's perspective. The photographer's evening (Axis B) is long and full of waiting.</p>
+    <p>Every later confusion about timing reduces to "which clock are we reading right now". The analyzer must read the film's clock (Axis A) when assigning periods to spectral peaks; the operator reads the wall clock (Axis B) when estimating how long an experiment will take.</p>
+  </div>
+
+  <!-- ───── Subsection 2 · illustrated timeline ───── -->
+  <div class="subsection">
+    <h3><span class="marker viz">Illustration</span>Three clocks ticking side by side</h3>
+    <p>Four consecutive snapshots, drawn to scale. Top row: host wall-clock. Bottom row: guest's own clock. Shaded blocks are "VM paused"; the guest clock does not advance during them.</p>
+    <div class="illustration">
+      <div class="cap">Time axis (host seconds, runs left → right)</div>
+      <div class="scene">  HOST  ├─sus─█▓▓pmemsave▓▓█─flush─├─resume─├  RUN  ├─sus─█▓▓pmemsave▓▓█─flush─├─resume─├ RUN ├─sus─█▓▓pmem▓▓█─flush─├─res─├ RUN ├
+                          ↑     0.06s   0.77s            0.50s    0.04s    0.10s   0.06s   0.77s            0.50s    0.04s   0.10s
+                          t0    t1                       t3       t4       t5      t0'    t1'                t3'     t4'     t5'
+
+  GUEST ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒├ RUN ├▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒├ RUN ├▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒├ RUN ├
+                                                          0.10s                                              0.10s                  0.10s
+                                                          Axis A                                            Axis A                 Axis A
+
+  HOST host_dt = t0' − t0 = 1.50 s            ← Axis B                          GUEST cumulative time after 4 snaps = 0.30 s   ← Axis A
+</div>
+      <div class="legend-row">
+        <span><span class="swatch" style="background:rgba(110,91,143,1)"></span>VM paused (suspend)</span>
+        <span><span class="swatch" style="background:var(--host)"></span>pmemsave dump (VM still paused)</span>
+        <span><span class="swatch" style="background:#b8865a"></span>flush + chown (VM still paused)</span>
+        <span><span class="swatch" style="background:#8f6b56"></span>resume (VM still paused)</span>
+        <span><span class="swatch" style="background:var(--guest)"></span>guest running (the only time the bottom row advances)</span>
+      </div>
+    </div>
+    <p>Each snapshot looks the same on the host (~1.5 s wall-clock). Each snapshot moves the guest forward by exactly the configured <code>intervalMsec</code> (≈ 100 ms here, plus ~25 ms bash overhead). Four snapshots = 6 s of host time, but only 0.4 s of guest time. The two clocks are decoupled.</p>
+  </div>
+
+  <!-- ───── Subsection 3 · what each axis controls ───── -->
+  <div class="subsection">
+    <h3><span class="marker tech">Why it matters · technical</span>Which axis controls which knob</h3>
+    <div class="pair-block">
+      <div>
+        <div class="lbl simple">simple terms</div>
+        <p>Axis&nbsp;A is what your <em>analysis</em> measures. Axis&nbsp;B is what your <em>patience</em> measures. Get them mixed up and a 0.1&nbsp;Hz workload rhythm looks like a 0.007&nbsp;Hz rhythm (or vice versa).</p>
+      </div>
+      <div>
+        <div class="lbl tech">spectral</div>
+        <p>For a cepstral peak at frame index <code>k</code>, the period in physical time is <code>k × Δt</code>. The correct Δt is Axis&nbsp;A (= <code>intervalMsec + ~25 ms</code>). Using Axis&nbsp;B (the per-snapshot wall-clock cost) inflates every period by ~15× on this host.</p>
+      </div>
+    </div>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr><th>Symptom</th><th>Diagnosis</th><th>Lever</th></tr></thead>
+        <tbody>
+          <tr><td>"Experiment takes forever"</td><td>Axis B too high</td><td class="mono">smaller VM RAM, faster disk, larger <code>intervalMsec</code></td></tr>
+          <tr><td>"Signal looks wrong"</td><td>Axis A wrong or unstable</td><td class="mono">fix <code>sleep</code>, install <code>bc</code>, kill consumer</td></tr>
+          <tr><td>"Spectral peaks off by 15×"</td><td>Axis B mistaken for Axis A</td><td class="mono">re-read which Δt the analyzer is using</td></tr>
+          <tr><td>"Workloads merge into one cluster"</td><td>window too short in Axis A</td><td class="mono">larger window, longer guest duration, or larger <code>intervalMsec</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ───── Subsection 4 · worked numerical example ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">Worked example</span>5 minutes of guest activity</h3>
+    <div class="worked">
+      <div class="who">guest duration = 5 min &middot; intervalMsec = 100 ms</div>
+      <p>Question: how many snapshots, and how long on the host?</p>
+      <div class="compute">snapshots = guest_duration / guest_dt
+        = 300 s / 0.125 s
+        = <em>2 400 snapshots</em>
+
+host wall-clock = snapshots × host_dt
+        = 2 400 × 1.50 s
+        = <em>3 600 s = 60 min host</em>
+
+multiplier = host / guest = 60 / 5 = <em>12×</em>
+</div>
+      <p>So a 5-minute guest workload costs 1 hour of operator patience on this host. Choose your <code>intervalMsec</code> and your guest duration with the multiplier in mind.</p>
+      <p>Switch <code>intervalMsec</code> to 1 s, same guest duration:</p>
+      <div class="compute">snapshots = 300 / 1.025 ≈ <em>293</em>
+host wall-clock = 293 × ≈ 1.45 s = <em>≈ 7 min host</em>
+multiplier drops to <em>1.4×</em>
+</div>
+      <p>Same guest content, but coarser temporal resolution (rhythms faster than ~2 s become invisible) and 9× less wall-clock. This is the operator's lever; whether 1 s resolution is enough depends on the workload's rhythm of interest.</p>
+      <p class="verdict good">Decoupling Axis A and Axis B = freedom to trade resolution against throughput.</p>
     </div>
   </div>
 </section>
@@ -1831,6 +2111,62 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
       <div class="arrow">→ Plan 3 in <code>docs/EXP2_RESULTS.md</code>. Expected verdict after fix: <code>REMOVE</code> the flush.</div>
     </div>
   </div>
+
+  <!-- ───── Subsection 1 · how they compound ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">Plain language</span>The four mechanisms don't add — they multiply</h3>
+    <p>Each mechanism degrades classifier separability on its own. Together they compound: a workload pair that loses 60 % of its margin to (i), another 40 % of what's left to (ii), and another 30 % to (iii) keeps only <code>0.4 × 0.6 × 0.7 = 17 %</code> of its original discriminability. By the time the classifier sees the data, two genuinely distinct workloads look ~83 % identical.</p>
+    <p>That is the difference between a classifier you can interpret and a confusion matrix you can't trust. Each individual mechanism looks survivable; the product does not.</p>
+  </div>
+
+  <!-- ───── Subsection 2 · numerical worked example ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">Worked example</span>Why <code>sandbox_ransom_batched</code> blurred into <code>mem_stream_v2</code></h3>
+    <div class="worked">
+      <div class="who">workload A · sandbox_ransom_batched (5 phases, ~10 s each in guest time)</div>
+      <div class="who">workload B · mem_stream_v2 (steady continuous writes)</div>
+
+      <p><strong>Their true rhythms.</strong> A has a strong cepstral peak at period <em>T<sub>A</sub> = 10 s</em>; B has no peak at all (steady). On a correctly-calibrated pipeline they should separate cleanly.</p>
+
+      <p><strong>Under the broken sleep (Run 1).</strong> Δt_frame measured 6.6 ms.</p>
+      <div class="compute">window in guest time = 128 × 0.0066 = <em>0.85 s</em>
+A's rhythm period = <em>10 s</em>
+periods that fit in window = 0.85 / 10 = <em>0.085</em>      ← far less than 1
+
+→ A's cepstral peak <em>cannot exist</em> inside any single window.
+→ All windows of A look like "broad write activity over 0.85 s".
+→ All windows of B also look like "broad write activity over 0.85 s".
+→ A and B become indistinguishable.
+</div>
+
+      <p><strong>After bc fix + clean disk (Round 2).</strong> Δt_frame = 0.125 s.</p>
+      <div class="compute">window in guest time = 128 × 0.125 = <em>16 s</em>
+A's rhythm period = <em>10 s</em>
+periods that fit in window = 16 / 10 = <em>1.6</em>          ← more than 1, less than 4
+
+→ A's peak shows up but cepstral estimator is noisy at low period count.
+→ Going to intervalMsec = 250 ms: window = 32 s = <em>3.2 periods</em>      ← clean.
+</div>
+
+      <p class="verdict bad">Run 1: confusion ≈ 50 % (random).</p>
+      <p class="verdict good">Round 2 at <code>intervalMsec=250 ms</code>: separation recovered; classifier should converge.</p>
+    </div>
+  </div>
+
+  <!-- ───── Subsection 3 · stopwatch analogy ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">Memorable image</span>A song identifier on broken hardware</h3>
+    <p>Imagine trying to identify which song is playing from <strong>6-millisecond audio clips</strong> taken every fraction of a second, using a stopwatch that drifts unpredictably. Each clip is too short to contain even one phrase of the lyrics. The stopwatch drift means consecutive clips don't sit at known time offsets. Every song you sample sounds like white noise.</p>
+    <p>That is what the analyzer faced in Run 1. Mechanism i made the clips too short; ii put each clip's timestamp on the wrong axis; iii made the stopwatch unreliable; iv made every song sound like it had the same background hiss.</p>
+    <p>The Round 2 fix is "use a real 16-second sample at the correct guest-time rate, on a stopwatch that runs steady". Suddenly the same songs are easy to tell apart.</p>
+  </div>
+
+  <!-- ───── Subsection 4 · stable-vs-drift, why we now see it ───── -->
+  <div class="subsection">
+    <h3><span class="marker tech">Round 2 nuance</span>Why mechanism vi only appeared after the others were fixed</h3>
+    <p>In Run 1, every measurement was so broken that mechanism vi was invisible — pmemsave drift from 0.77 s to 4.7 s is irrelevant when guest_dt itself is mis-calibrated by 15×. Only after fixing the bc bug, killing the consumer, and adding the start-of-pass purge could we see the producer's accumulation problem clearly: a clean drift profile against a baseline that was actually stable.</p>
+    <p>The general pattern: each layer of bug masks the next. Plan 1 (producer self-clean) is expected to be the <em>last</em> structural issue, because the layers below it are now solid. If after Plan 1 the analyzer still struggles, the next suspect is window/hop choice, not the capture pipeline.</p>
+  </div>
 </section>
 
 <!-- ─────────────────────  NEXT MOVES  ───────────────────── -->
@@ -1921,6 +2257,114 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
 
   <div class="warn-line">
     Pre-2026-05-20 confusion matrices from this host remain suspect. Round 2 confirms Δt_frame is correct end-to-end; in-pass drift fix is the last structural item before plan 02 is unblocked.
+  </div>
+
+  <!-- ───── Subsection 1 · why this exact order ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">In one paragraph</span>Why this order, not a different one</h3>
+    <p>Each step exposes the next problem. With <code>bc</code> missing, none of the host-side data was credible — fix that first. With the consumer running, suspend latency dominates everything else — kill the consumer next. With the consumer gone, dump accumulation now shows up clearly — fix the producer's self-clean third. With everything stable, the 2c verdict logic finally has clean data to read — fix it fourth. Reverse the order and each step is debugging on a foundation that's still moving.</p>
+  </div>
+
+  <!-- ───── Subsection 2 · decision tree ───── -->
+  <div class="subsection">
+    <h3><span class="marker viz">Decision tree</span>What "success" looks like at each step</h3>
+    <div class="decision-tree"><pre>
+[Plan 1 · producer self-clean]   →   re-run 2a / 2c / 2b
+                                       │
+                                       ▼
+  pmemsave stays at <span class="ok">0.77 ± 0.05 s</span> for all 21 snaps?
+                                       │
+            ┌──────────yes──────────────┴───────────no───────────┐
+            ▼                                                     ▼
+[Plan 3 · 2c stable-subset]                  <span class="fail">drift remains</span> → look for another
+   verdict comes back <span class="ok">REMOVE</span>?                   accumulator (queue files, log files,
+            │                                  per-snap RAM growth on host)
+            ▼
+[Plan 4 · disk-free check policy-aware]
+   warning silent on normal runs?
+            │
+            ▼
+[Plan 02 · per-family intervalMsec profile] ──→ <span class="acc">unblocked</span>
+            │
+            ▼
+[Plan 03 · window / hop tuning] (uses Plan 02 captures)
+            │
+            ▼
+[Plan 04 · k-segmentation sweep]
+            │
+            ▼
+re-collect 1 confused workload pair → re-run classifier
+            │
+            ▼
+  confusion <span class="ok">collapses</span>?  → timing chain was load-bearing. Done.
+  confusion <span class="fail">persists</span>?  → escalate to feature-design / classifier-design.
+</pre></div>
+  </div>
+
+  <!-- ───── Subsection 3 · acceptance criteria + cost table ───── -->
+  <div class="subsection">
+    <h3><span class="marker tech">Acceptance criteria + cost</span>Per-plan checklist</h3>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr>
+          <th>Plan</th><th>What it does</th><th>Lines changed</th><th>Risk</th><th>Re-run cost</th><th>"Done" looks like</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>1</b></td>
+            <td><code>TIMING_SELF_CLEAN</code> guard in producer</td>
+            <td class="mono">~6 lines bash</td>
+            <td class="ok">low</td>
+            <td class="mono">≈ 5 min</td>
+            <td>pmemsave flat at 0.77 s for entire pass</td>
+          </tr>
+          <tr>
+            <td><b>1b</b></td>
+            <td>Orchestrators export env var</td>
+            <td class="mono">~3 lines × 3 files</td>
+            <td class="ok">trivial</td>
+            <td class="mono">≈ 1 min</td>
+            <td>2a / 2b / 2c each set the env</td>
+          </tr>
+          <tr>
+            <td><b>3</b></td>
+            <td>2c uses <code>mean_first_10</code> for verdict</td>
+            <td class="mono">~20 lines Python</td>
+            <td class="ok">low</td>
+            <td class="mono">≈ 2 min</td>
+            <td>recommendation field comes back <code>REMOVE</code></td>
+          </tr>
+          <tr>
+            <td><b>4</b></td>
+            <td>disk_free_check honours self-clean</td>
+            <td class="mono">~10 lines Python</td>
+            <td class="ok">trivial</td>
+            <td class="mono">0</td>
+            <td>warning silent on 2b normal run</td>
+          </tr>
+          <tr>
+            <td><b>re-run</b></td>
+            <td>2a (60 s) + 2c (60 s) + 2b (4×60 s)</td>
+            <td class="mono">—</td>
+            <td class="ok">none</td>
+            <td class="mono">≈ 10 min host wall-clock</td>
+            <td>all four JSONs ship; numbers match Round 2 predictions</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ───── Subsection 4 · what comes after ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">After Plan 1+3+4 lands</span>What unblocks</h3>
+    <p>Mechanisms i–vii are then closed end-to-end. The capture pipeline produces measurable, calibrated data. At that point three things become possible:</p>
+    <ul style="font-size:15px;color:var(--text-dim);line-height:1.7;padding-left:22px;">
+      <li><strong>Plan 02 · per-family <code>intervalMsec</code> profile.</strong> Use the pause-fraction sweep + each workload's defining rhythm to pick the right Δt per Phase-2 family. Mechanism iv becomes a knob, not a bug.</li>
+      <li><strong>Plan 03 · window / hop tuning.</strong> With Δt now correct, the canonical (128, 64) can finally be validated against actual workload rhythms.</li>
+      <li><strong>Re-collection of confused workload pairs.</strong> The dataset gets the right calibration; the classifier sees properly-shaped features for the first time.</li>
+    </ul>
+    <p>If after all that the classifier still confuses pairs that <em>should</em> separate, the next suspect is no longer the capture pipeline — it's feature definition, normalization, or the classifier itself. That is the clean diagnostic outcome this whole experiment chain was designed to produce.</p>
   </div>
 </section>
 
