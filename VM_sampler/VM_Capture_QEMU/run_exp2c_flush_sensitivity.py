@@ -131,8 +131,7 @@ def run_pass(name: str, workdir: Path, cfg_path: Path, producer: Path,
     integrity_ok = bool(probes) and all(p["ok"] for p in probes)
 
     # cleanup dumps from THIS pass only
-    if not keep_dumps:
-        e1.cleanup_run_dumps(image_dir, pass_start, keep_dumps=False)
+    e1.cleanup_run_dumps(image_dir, pass_start, keep_dumps)
 
     return {
         "wall_clock_seconds": wall,
