@@ -139,8 +139,11 @@ while true; do
   fi
   __t3=$(ts_ns)
 
-  # Give QEMU a brief moment to flush the dump file
-  sleep 0.5
+  # Give QEMU a brief moment to flush the dump file. Set TIMING_NO_FLUSH=1
+  # to skip this sleep (see exp2c flush-sensitivity test).
+  if [[ -z "${TIMING_NO_FLUSH:-}" ]]; then
+    sleep 0.5
+  fi
 
   if [[ ! -f "$newImage" ]]; then
     echo "[PRODUCER-PMEM] Dump file not created: $newImage"

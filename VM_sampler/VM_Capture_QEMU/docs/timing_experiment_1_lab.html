@@ -1309,6 +1309,35 @@ canvas#ruler-canvas {
   padding: 1px 4px;
   border-radius: 2px;
 }
+.step .step-target {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  color: var(--bad);
+  margin: 0 0 12px 0;
+  padding: 6px 10px;
+  background: rgba(232,85,58,.06);
+  border-left: 2px solid var(--bad);
+  border-radius: 2px;
+}
+.step .step-expect {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--good);
+  margin: 12px 0 0 0;
+  padding: 6px 10px;
+  background: rgba(124,185,110,.06);
+  border-left: 2px solid var(--good);
+  border-radius: 2px;
+}
+.step .step-target strong, .step .step-expect strong {
+  font-weight: 600;
+}
+.step.substep .head .n {
+  font-size: 14px;
+  letter-spacing: -.02em;
+}
 
 .warn-line {
   margin-top: 22px;
@@ -1808,20 +1837,49 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
       </ol>
     </div>
     <div class="step">
-      <div class="head"><div class="n">2</div><div class="when">Now · investigate host side</div></div>
+      <div class="head"><div class="n">2a</div><div class="when">Now · fix mechanism iii</div></div>
       <h3>Isolate consumer contention</h3>
+      <p class="step-target">Targets: non-stationary host Δt &middot; suspend spike to 80 s &middot; pmemsave 0.77 s → 3.9 s drift.</p>
       <ol>
-        <li>Re-run Experiment 1 <strong>producer-only</strong> (kill the consumer). Measure pmemsave and suspend without contention.</li>
-        <li>Profile <code>live_delta_calc</code>: with prev+curr both 1 GiB it does ~2 GiB sequential read per job — already at SSD throughput. Speed it or skip it for timing runs.</li>
-        <li>Raise <code>backpressure.maxPendingJobs</code> from 20 to 200 for diagnostic runs so longer traces are collected before stall.</li>
-        <li>Characterise the suspend-latency tail. One 80 s spike in 19 snapshots is not enough to fit a distribution.</li>
+        <li>Re-run Experiment 1 <strong>producer-only</strong> (kill the consumer). Measure suspend + pmemsave without disk/libvirtd contention.</li>
+        <li>Profile <code>live_delta_calc</code>: prev+curr at 1 GiB each ≈ 2 GiB sequential read per job — already at SSD throughput. Speed it or skip it for timing runs.</li>
+        <li>Raise <code>backpressure.maxPendingJobs</code> from 20 to 200 for diagnostic runs so longer traces collect before stall.</li>
+        <li>Characterise suspend-latency tail. One 80 s spike in 19 snapshots is not enough to fit a distribution.</li>
       </ol>
+      <p class="step-expect">Expected outcome: suspend median ≈ 0.2 s, pmemsave ≈ 0.77 s, CV ≪ 50 %. <strong>Pause fraction will <em>not</em> drop</strong> from this fix — that is step 2b.</p>
     </div>
+
+    <div class="step">
+      <div class="head"><div class="n">2b</div><div class="when">Next · fix mechanism iv</div></div>
+      <h3>Lower the pause-fraction floor</h3>
+      <p class="step-target">Targets: pause-fraction noise injection &middot; host-correlated noise leaking into all classes equally.</p>
+      <ol>
+        <li>Sensitivity sweep on VM RAM: 256 / 512 / 1024 MiB. Cuts pmemsave roughly linearly. Pause ~92 % → ~70 % at 256 MiB.</li>
+        <li>Sensitivity sweep on <code>intervalMsec</code>: 100 / 250 / 500 / 1000 ms. Larger interval → more guest_run per cycle → pause ~92 % → ~55 % at 1 s.</li>
+        <li>Both sweeps run on the consumer-disabled config from 2a so numbers are clean.</li>
+        <li>The two levers interact (smaller RAM at larger interval compounds), so do at least one cross-cell (256 MiB × 1 s).</li>
+      </ol>
+      <p class="step-expect">Expected outcome: a (RAM, intervalMsec) pair with pause &lt; 70 % and Δt_frame still adequate for slowest workload rhythm of interest.</p>
+    </div>
+
+    <div class="step">
+      <div class="head"><div class="n">2c</div><div class="when">Cheap · evaluate flush</div></div>
+      <h3>Remove the 0.5 s flush sleep</h3>
+      <p class="step-target">Targets: ~0.5 s per snapshot of host wall-clock with no analytical benefit.</p>
+      <ol>
+        <li><code>qemu-monitor-command pmemsave</code> returns synchronously after writing all bytes — the post-dump <code>sleep 0.5</code> on line 114 of the producer is a precautionary holdover.</li>
+        <li>Patch a one-line branch removing the flush sleep, run Experiment 1 producer-only with and without it.</li>
+        <li>Compare dump integrity (size + content checksum) across N=20 snapshots each branch. Identical → flush was redundant; remove permanently.</li>
+        <li>If any size mismatch → keep it and document why.</li>
+      </ol>
+      <p class="step-expect">Expected outcome: host_dt drops by 0.5 s per snapshot (−10 % at current ~5 s baseline). Pause-fraction effect small but free.</p>
+    </div>
+
     <div class="step">
       <div class="head"><div class="n">3</div><div class="when">Then · re-collect + classify</div></div>
       <h3>Validate against the original confusion</h3>
       <ol>
-        <li>Re-collect one workload pair that confused before, on the fixed pipeline.</li>
+        <li>Re-collect one workload pair that confused before, on the post-2c pipeline.</li>
         <li>Re-run the classifier. If confusion <b>collapses</b> → bc + Δt_frame fix was load-bearing. Proceed to plan 02 (interval tuning) with corrected wall-clock cost table.</li>
         <li>If confusion <b>persists</b> → window/hop is the next suspect. Run plan 03 against the new data.</li>
       </ol>
