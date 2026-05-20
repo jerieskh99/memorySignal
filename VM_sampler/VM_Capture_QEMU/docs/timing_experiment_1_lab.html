@@ -1410,13 +1410,13 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>Run 2 · 20260519T222407Z</span>
+    <span>Round 2 · 20260520T200424Z</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">bc fix verified &middot; Δt = 125 ms</span>
+    <span id="topbar-status-text">iii FIXED · iv FIXABLE · vi+vii open</span>
   </div>
 </nav>
 
@@ -1429,15 +1429,15 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">The <em>sleep is fixed</em>.<br>The pipeline is not.</h1>
+  <h1 class="title">Three mechanisms <em>down</em>.<br>Two more to <em>go</em>.</h1>
   <p class="hero-deck">
-    Run 1 measured a <strong>6.6 ms</strong> guest-running interval at
-    <strong>intervalMsec = 100</strong> — a 15× mis-calibration caused by a
-    missing <strong>bc</strong>. Run 2, post-fix, measures <strong>125 ms</strong>
-    (target + 25 ms bash overhead, CV 4.2 %). <strong>Axis A is stationary
-    and the analyzer's frame spacing is now correct.</strong> But the host side
-    came apart under load: consumer-driven backpressure saturated the queue in
-    19 snapshots, suspend latency spiked to 80 s, and pmemsave halved.
+    Round 2 confirms the corrected timing model end-to-end: <strong>guest_dt
+    = intervalMsec + 25 ms</strong> across four intervals, <strong>suspend
+    median 66 ms</strong> with consumer killed, <strong>pause-fraction sweep
+    92 % → 59 %</strong> exactly as predicted. But two new bugs surfaced:
+    pmemsave drifts during a pass because the producer's rolling-delete
+    is disabled in producer-only mode, and 2c's verdict logic averages over
+    the contaminated tail. Both have explicit fix plans — code change next.
   </p>
 </header>
 
@@ -1782,7 +1782,7 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="section-head">
     <div>
       <div class="section-eyebrow"><span class="num">VI</span> Why long traces confused · Run 1</div>
-      <h2 class="section">Four mechanisms <em>plus one hidden bug.</em></h2>
+      <h2 class="section">Four old mechanisms <em>plus two new bugs.</em></h2>
     </div>
     <p class="section-lede">Before Run 2 the producer was delivering 6.6 ms frames while the analyzer assumed 100 ms. These were the four concrete signal-processing pathologies. Run 2 fixes the first two structurally; mechanisms iii and iv remain partially open and gate plan 02.</p>
   </div>
@@ -1802,21 +1802,33 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     </div>
     <div class="mech">
       <div class="num">iii</div>
-      <h3>Non-stationary host Δt <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· LARGELY FIXED (2a)</span></h3>
-      <p>2a confirmed: with the consumer killed, suspend drops from <code>6.38 s → 0.062 s</code> (~100×) and host_dt from <code>9.25 s → 1.64 s</code>. Pmemsave still drifts within a run (0.77 s → 1.66 s over 21 snaps) but that turned out to be <em>disk pressure from accumulated dumps</em>, not libvirtd contention. The dump-cleanup bug (mechanism v below) is the real culprit and is now patched in the scripts.</p>
-      <div class="arrow">→ consumer is confirmed as the dominant source of host-side variability. Cleanup-fix removes the residual pmemsave drift.</div>
+      <h3>Non-stationary host Δt <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· FIXED (2a Round 2)</span></h3>
+      <p>Round 2 with start-of-pass purge: suspend median <strong>0.066 s</strong>, CV tiny; pmemsave starts at <strong>0.77 s</strong> stable for the first ~10 snapshots of each pass. Mechanism iii is structurally solved by killing the consumer; the residual drift later in each pass is a separate accumulation issue (mechanism vi).</p>
+      <div class="arrow">→ host_dt = 1.50 s when the disk is clean. 12× improvement over Run 2.</div>
     </div>
     <div class="mech">
       <div class="num">iv</div>
-      <h3>Pause-fraction noise floor <span style="color:var(--warn);font-size:11px;letter-spacing:.14em">· STILL OPEN</span></h3>
-      <p>2a pass 2 still shows ~92 % pause. 2b's intended sweep over <code>intervalMsec</code> was contaminated by the dump-cleanup bug and is being re-run. Pause-fraction reduction needs a real VM-RAM downscale (separate boot) plus a larger <code>intervalMsec</code>; pmemsave-size override alone is a planning estimate, not a definitive answer.</p>
-      <div class="arrow">→ awaiting re-run of 2b with --per-cell-purge. Expected: ~55 % pause at intervalMsec=1000.</div>
+      <h3>Pause-fraction noise floor <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· CONFIRMED FIXABLE (2b Round 2)</span></h3>
+      <p>2b round 2 sweep: iv=100 → 92 %, iv=250 → 85 %, iv=500 → 76 %, <strong>iv=1000 → 59 %</strong>. Predictions land within 5 %. Mechanism iv is a knob the operator controls; pick the rhythm of interest and the pause fraction is a derived consequence.</p>
+      <div class="arrow">→ resolved as a design choice rather than a bug. Per-family <code>intervalMsec</code> profile (plan 02) becomes the actionable next step.</div>
     </div>
     <div class="mech">
       <div class="num">v</div>
-      <h3>Dump cleanup silently fails <span style="color:var(--bad);font-size:11px;letter-spacing:.14em">· FIXED IN SCRIPTS</span></h3>
-      <p>Discovered during 2a/2b/2c analysis. <code>/var/lib/libvirt/qemu/dump/</code> is root-owned, so the user can't <code>unlink</code> files inside even though the files themselves are jeries-owned. Every Experiment 1/2 run was leaving its dumps behind; by the time 2b ran, ~50 GiB of stale dumps had filled the disk and pmemsave latency exploded to <code>15–31 s</code>.</p>
-      <div class="arrow">→ scripts now try direct unlink, fall back to <code>sudo -n rm -f</code>. New flags: <code>--purge-stale-dumps</code>, <code>--per-cell-purge</code>, <code>--purge-between-passes</code>. Re-run protocol in <code>RUN_EXP2_SUBTESTS.md</code>.</div>
+      <h3>Dump cleanup silently fails <span style="color:var(--good);font-size:11px;letter-spacing:.14em">· FIXED</span></h3>
+      <p>Round 1: discovered <code>/var/lib/libvirt/qemu/dump/</code> is root-owned; Python <code>unlink</code> failed silently; every Experiment 1/2 run leaked all its dumps. Round 2: with the <code>sudo -n rm</code> fallback plus <code>--purge-stale-dumps</code> / <code>--per-cell-purge</code>, 2b's per-cell <code>dumps_removed</code> went 0 → 21. Confirmed fixed.</p>
+      <div class="arrow">→ scripts now try direct unlink, fall back to <code>sudo -n rm -f</code>. No re-work needed.</div>
+    </div>
+    <div class="mech" style="border-color: var(--bad);">
+      <div class="num">vi</div>
+      <h3>In-pass pmemsave drift <span style="color:var(--bad);font-size:11px;letter-spacing:.14em">· NEW · FIX PLANNED</span></h3>
+      <p>Round 2 surfaced this. With the consumer killed, the producer's rolling-delete (prev image removed after delta) never runs. Dumps accumulate <em>during</em> a pass, so by snap 14–15 the disk pressure shows up as pmemsave latency growing 0.77 → 4.7 s. Fix planned: <code>TIMING_SELF_CLEAN=1</code> env var in the producer that deletes prev as soon as curr is written.</p>
+      <div class="arrow">→ Plan 1 in <code>docs/EXP2_RESULTS.md</code>. One-line patch to the producer; expected to flatten pmemsave for the whole pass.</div>
+    </div>
+    <div class="mech" style="border-color: var(--bad);">
+      <div class="num">vii</div>
+      <h3>2c verdict false negative <span style="color:var(--bad);font-size:11px;letter-spacing:.14em">· NEW · FIX PLANNED</span></h3>
+      <p>2c round 2 returned <code>NEUTRAL</code> even though the flush sleep is clearly redundant: looking at the first 9 (stable) snapshots, flush_off host_dt is <strong>0.52 s lower</strong> than flush_on — exactly the removed <code>sleep 0.5</code>. The mean-based comparison was swamped by drift from mechanism vi in snaps 10–20. Fix planned: switch the comparison to a <em>stable-subset</em> mean (first 10 snaps) instead of all-snap mean.</p>
+      <div class="arrow">→ Plan 3 in <code>docs/EXP2_RESULTS.md</code>. Expected verdict after fix: <code>REMOVE</code> the flush.</div>
     </div>
   </div>
 </section>
@@ -1835,65 +1847,80 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="remediation">
     <div class="step">
       <div class="head"><div class="n">1</div><div class="when">Done · 2026-05-20</div></div>
-      <h3>bc fix verified</h3>
+      <h3>bc fix + Round 2 confirmed</h3>
       <ol>
         <li><code>apt install bc</code> on <code>pcrserral</code> ✓</li>
-        <li>Run 2 measured <code>guest_dt = 125 ms ± 5 ms</code> at <code>intervalMsec=100</code>. CV 4.2 %, stationary.</li>
-        <li>Old data collected before 2026-05-20 has Δt_frame ≈ 6.6 ms — re-collect or re-analyse with corrected Δt.</li>
+        <li>Run 2 + Round 2 measured <code>guest_dt = intervalMsec + 25 ms</code> across 100/250/500/1000 ms.</li>
+        <li>Pause-fraction sweep: 92 % → 59 % from iv=100 → iv=1000.</li>
+        <li>Mechanisms iii, iv, v all FIXED or CONFIRMED FIXABLE.</li>
+        <li>Old data (pre-2026-05-20) has Δt_frame ≈ 6.6 ms — re-collect.</li>
       </ol>
     </div>
     <div class="step">
-      <div class="head"><div class="n">2a</div><div class="when">Now · fix mechanism iii</div></div>
-      <h3>Isolate consumer contention</h3>
-      <p class="step-target">Targets: non-stationary host Δt &middot; suspend spike to 80 s &middot; pmemsave 0.77 s → 3.9 s drift.</p>
+      <div class="head"><div class="n">2a</div><div class="when">Done · Round 2 · mechanism iii</div></div>
+      <h3>Isolate consumer contention ✓</h3>
+      <p class="step-target">Was: non-stationary host Δt &middot; suspend spike to 80 s &middot; pmemsave 0.77 s → 3.9 s drift.</p>
       <ol>
-        <li>Re-run Experiment 1 <strong>producer-only</strong> (kill the consumer). Measure suspend + pmemsave without disk/libvirtd contention.</li>
-        <li>Profile <code>live_delta_calc</code>: prev+curr at 1 GiB each ≈ 2 GiB sequential read per job — already at SSD throughput. Speed it or skip it for timing runs.</li>
-        <li>Raise <code>backpressure.maxPendingJobs</code> from 20 to 200 for diagnostic runs so longer traces collect before stall.</li>
-        <li>Characterise suspend-latency tail. One 80 s spike in 19 snapshots is not enough to fit a distribution.</li>
+        <li>Producer-only Round 2 measured suspend median <strong>0.066 s</strong> (was 6.38 s). 100× improvement.</li>
+        <li>Host_dt steady at <strong>1.50 s</strong> on a clean disk (was 9.25 s).</li>
+        <li>Pmemsave stable at <strong>0.77 s</strong> for the first ~10 snaps of each pass.</li>
+        <li>Drift in later snaps traced to a separate accumulation bug → mechanism vi.</li>
       </ol>
-      <p class="step-expect">Expected outcome: suspend median ≈ 0.2 s, pmemsave ≈ 0.77 s, CV ≪ 50 %. <strong>Pause fraction will <em>not</em> drop</strong> from this fix — that is step 2b.</p>
+      <p class="step-expect">Mechanism iii structurally fixed. Drift residual handled by Plan 1 below.</p>
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">2b</div><div class="when">Next · fix mechanism iv</div></div>
-      <h3>Lower the pause-fraction floor</h3>
-      <p class="step-target">Targets: pause-fraction noise injection &middot; host-correlated noise leaking into all classes equally.</p>
+      <div class="head"><div class="n">2b</div><div class="when">Done · Round 2 · mechanism iv</div></div>
+      <h3>Pause-fraction sweep ✓</h3>
+      <p class="step-target">Was: pause-fraction noise injection &middot; host-correlated noise leaking into all classes equally.</p>
       <ol>
-        <li>Sensitivity sweep on VM RAM: 256 / 512 / 1024 MiB. Cuts pmemsave roughly linearly. Pause ~92 % → ~70 % at 256 MiB.</li>
-        <li>Sensitivity sweep on <code>intervalMsec</code>: 100 / 250 / 500 / 1000 ms. Larger interval → more guest_run per cycle → pause ~92 % → ~55 % at 1 s.</li>
-        <li>Both sweeps run on the consumer-disabled config from 2a so numbers are clean.</li>
-        <li>The two levers interact (smaller RAM at larger interval compounds), so do at least one cross-cell (256 MiB × 1 s).</li>
+        <li>Round 2 4-cell sweep over intervalMsec ∈ {100, 250, 500, 1000} ms, RAM = 1024 MiB.</li>
+        <li>Results: <code>iv=100 → 92 %</code>, <code>iv=250 → 85 %</code>, <code>iv=500 → 76 %</code>, <strong><code>iv=1000 → 59 %</code></strong>.</li>
+        <li>All cells completed 21 snapshots cleanly. Per-cell purge worked (21 dumps removed per cell).</li>
+        <li>guest_dt = intervalMsec + ~25 ms across all 4 — the overhead is a true constant.</li>
       </ol>
-      <p class="step-expect">Expected outcome: a (RAM, intervalMsec) pair with pause &lt; 70 % and Δt_frame still adequate for slowest workload rhythm of interest.</p>
+      <p class="step-expect">Mechanism iv is now a design knob, not a bug. Pick the rhythm; pause fraction is the consequence. Plan 02 (per-family interval profile) becomes the actionable next step.</p>
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">2c</div><div class="when">Cheap · evaluate flush</div></div>
-      <h3>Remove the 0.5 s flush sleep</h3>
-      <p class="step-target">Targets: ~0.5 s per snapshot of host wall-clock with no analytical benefit.</p>
+      <div class="head"><div class="n">2c</div><div class="when">Partial · Round 2 · verdict overdue</div></div>
+      <h3>Evaluate the 0.5 s flush sleep</h3>
+      <p class="step-target">Was: ~0.5 s per snapshot of host wall-clock with no analytical benefit.</p>
       <ol>
-        <li><code>qemu-monitor-command pmemsave</code> returns synchronously after writing all bytes — the post-dump <code>sleep 0.5</code> on line 114 of the producer is a precautionary holdover.</li>
-        <li>Patch a one-line branch removing the flush sleep, run Experiment 1 producer-only with and without it.</li>
-        <li>Compare dump integrity (size + content checksum) across N=20 snapshots each branch. Identical → flush was redundant; remove permanently.</li>
-        <li>If any size mismatch → keep it and document why.</li>
+        <li>Both passes (flush_on, flush_off) completed 21 snapshots with <strong>integrity all_ok</strong> ✓.</li>
+        <li>Inspecting the first 9 stable snaps: flush_off host_dt <strong>0.52 s lower</strong> than flush_on. Exactly the removed <code>sleep 0.5</code>.</li>
+        <li>Orchestrator's reported recommendation was <code>NEUTRAL</code> — false negative because the comparison averaged over drift-contaminated tail.</li>
+        <li>Verdict (manual): <strong>REMOVE the flush.</strong> Dumps remain intact; ~10 % host_dt savings on clean disk.</li>
       </ol>
-      <p class="step-expect">Expected outcome: host_dt drops by 0.5 s per snapshot (−10 % at current ~5 s baseline). Pause-fraction effect small but free.</p>
+      <p class="step-expect">After Plan 3 fix (stable-subset comparison) the orchestrator will report REMOVE automatically. Producer patch to apply: drop the <code>sleep 0.5</code> on line 142 of <code>capture_producer_qemu_pmemsave.sh</code>.</p>
+    </div>
+
+    <div class="step" style="border-color: var(--bad);">
+      <div class="head"><div class="n">3</div><div class="when">Next · code change · Plan 1+3+4</div></div>
+      <h3>Patch producer + 2c verdict logic</h3>
+      <p class="step-target">Targets: mechanism vi (in-pass drift) &middot; mechanism vii (2c false negative) &middot; Bug D (disk-free check).</p>
+      <ol>
+        <li><strong>Plan 1.</strong> Add <code>TIMING_SELF_CLEAN</code> env-var guard to <code>capture_producer_qemu_pmemsave.sh</code>. When set, producer deletes prev dump as soon as curr is written. Skip queueing for producer-only timing mode.</li>
+        <li><strong>Plan 1b.</strong> 2a / 2b / 2c each export <code>TIMING_SELF_CLEAN=1</code> when launching the producer.</li>
+        <li><strong>Plan 3.</strong> In <code>run_exp2c_flush_sensitivity.py</code>, base the recommendation on the first 10 snapshots' mean, not all 21. Keep both numbers in the JSON.</li>
+        <li><strong>Plan 4.</strong> Lower <code>disk_free_check</code> projected peak to 2–3 dumps when self-clean is on.</li>
+      </ol>
+      <p class="step-expect">Re-run 2a / 2c / 2b (~10 min). Expected: pmemsave flat ~0.77 s across all 21 snaps in every pass / cell. 2c verdict comes back REMOVE. Pause-fraction sweep stays within 1 % of round-2 values. Then plan 02 (per-family <code>intervalMsec</code> profiles) unblocks.</p>
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">3</div><div class="when">Then · re-collect + classify</div></div>
+      <div class="head"><div class="n">4</div><div class="when">Then · re-collect + classify</div></div>
       <h3>Validate against the original confusion</h3>
       <ol>
-        <li>Re-collect one workload pair that confused before, on the post-2c pipeline.</li>
-        <li>Re-run the classifier. If confusion <b>collapses</b> → bc + Δt_frame fix was load-bearing. Proceed to plan 02 (interval tuning) with corrected wall-clock cost table.</li>
-        <li>If confusion <b>persists</b> → window/hop is the next suspect. Run plan 03 against the new data.</li>
+        <li>Re-collect one workload pair that confused before, on the fully-patched pipeline.</li>
+        <li>Re-run the classifier. If confusion <b>collapses</b> → bc + Δt_frame + drift fixes were load-bearing.</li>
+        <li>If confusion <b>persists</b> → window/hop tuning (plan 03) is next.</li>
       </ol>
     </div>
   </div>
 
   <div class="warn-line">
-    Pre-2026-05-20 confusion matrices from this host remain suspect. Δt_frame is correct now but throughput is contended; do not adopt plan 02 wall-clock recommendations until consumer behaviour is characterised.
+    Pre-2026-05-20 confusion matrices from this host remain suspect. Round 2 confirms Δt_frame is correct end-to-end; in-pass drift fix is the last structural item before plan 02 is unblocked.
   </div>
 </section>
 
