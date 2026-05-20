@@ -2040,6 +2040,75 @@ multiplier drops to <em>1.4×</em>
       <span><span class="dot" style="background:var(--accent)"></span>workload rhythms</span>
     </div>
   </div>
+
+  <!-- ───── Subsection 1 · what the ruler is ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">In one breath</span>What this ruler actually shows</h3>
+    <p>The ruler above is a <strong>map of rhythms</strong>, drawn in <em>guest time</em>. Left edge is fast (a few milliseconds per cycle); right edge is slow (minutes per cycle). Every workload has its own characteristic rhythm — sqlite WAL checkpoint every 10&nbsp;s, sandbox phase every 60&nbsp;s, mem-alloc burst every 20&nbsp;ms — and lives somewhere along this axis.</p>
+    <p>The coloured bands are <em>what the current configuration can still see</em>. The green band ("clean peak") is the sweet spot: rhythms in there produce sharp, easy-to-detect cepstral peaks. The yellow ("marginal") is the borderline zone — a peak exists but the cepstral estimator gets noisy. The red zones on either end are dead zones: rhythms either too fast (aliased) or too slow (no full period fits in a window).</p>
+    <p>Drag the sliders above and the bands slide along the ruler. The gold tick-marks (workload rhythms) stay where they are. <strong>You can literally see which workloads fall into the dead zone for any given configuration.</strong></p>
+  </div>
+
+  <!-- ───── Subsection 2 · the math of each boundary ───── -->
+  <div class="subsection">
+    <h3><span class="marker tech">Math · technical</span>Where the four boundaries come from</h3>
+    <div class="illustration">
+      <div class="cap">Frequency-band boundaries in guest-time period (T)</div>
+      <div class="scene">  ALIASED          CLEAN PEAK             MARGINAL              INVISIBLE
+  ◄─────────►   ◄──────────────────►   ◄──────────────►   ◄────────────────►
+  T < 2·Δt      2·Δt ≤ T ≤ W/4         W/4 < T ≤ W          T > W
+       ↑              ↑                       ↑                    ↑
+       │              │                       │                    │
+       │              │                       │                    └─ workload's rhythm period
+       │              │                       │                       exceeds entire window;
+       │              │                       │                       analyzer sees only one
+       │              │                       │                       fragment of one cycle.
+       │              │                       │
+       │              │                       └─ window contains 1–4 cycles. Peak detectable
+       │              │                          but estimator variance is high; expect noisy
+       │              │                          peak location across runs.
+       │              │
+       │              └─ window contains ≥ 4 full cycles. Cepstral estimator works as
+       │                 designed; peak location is stable across runs.
+       │
+       └─ Nyquist limit. Two samples per cycle required; less is aliased.
+          For Δt = 0.125 s: anything faster than 4 Hz (period < 0.25 s) is unrecoverable.
+
+  Δt = guest_dt          (current value shown in readout above)
+  W  = window × Δt        (current window = 128 frames)
+</div>
+    </div>
+    <p>The "4 periods per window" rule is a soft recommendation from short-time spectral analysis — fewer than 4 periods and the cepstral peak location is dominated by edge effects of the windowing function. Some pipelines use 2 periods as the minimum; this lab uses 4 as the "clean" threshold and shows 1–4 as "marginal" so you can see both regimes.</p>
+  </div>
+
+  <!-- ───── Subsection 3 · worked example reading the ruler ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">How to read it</span>Three workloads at the current configuration</h3>
+    <div class="worked">
+      <div class="who">at intervalMsec = 100 ms · Δt_frame = 0.125 s · window = 128 frames · W = 16 s guest</div>
+      <p>Each gold pin on the ruler is one workload. Take three:</p>
+      <div class="compute"><em>mem_alloc_v2 cadence sweep</em>     · T = 20 ms
+          2·Δt = 250 ms; T = 20 ms &lt; 2·Δt → <em>ALIASED (red band)</em>
+
+<em>io_seq_fsync</em>                     · T = 1 s
+          W/4 = 4 s; W = 16 s
+          2·Δt = 0.25 s ≤ T = 1 s ≤ W/4 = 4 s → <em>CLEAN (green band)</em>
+
+<em>sandbox_ransom_batched</em>           · T = 60 s
+          W = 16 s; T = 60 s > W → <em>INVISIBLE (right red band)</em>
+</div>
+      <p>So at this configuration the classifier can cleanly separate any pair where both rhythms land in green. <code>io_seq_fsync</code> vs <code>app_sqlite_oltp_v2</code> (10 s)? Both green → separable. <code>sandbox_ransom_batched</code> vs <code>mem_stream_v2</code> (steady)? batched is invisible → both look like "broad activity" → confusion.</p>
+      <p class="verdict bad">Configurations that put many workload pins in the red bands are configurations that produce high classifier confusion. The lab visualises this directly.</p>
+    </div>
+  </div>
+
+  <!-- ───── Subsection 4 · how Run 1 looked vs Round 2 ───── -->
+  <div class="subsection">
+    <h3><span class="marker viz">Before / after</span>The ruler shifted by 15× between Run 1 and Round 2</h3>
+    <p>In Run 1, Δt was 6.6 ms (not 100 ms), so the entire ruler was compressed 15× to the left. The "clean peak" band shrank from <code>[0.25 s, 4 s]</code> down to <code>[13 ms, 210 ms]</code>. Every workload with a guest-time rhythm slower than ~210 ms slid right into the invisible band — including <em>every Phase 2 SECURITY-LIKE test</em> and <em>most APP-REALISTIC tests</em>.</p>
+    <p>In Round 2 the ruler is correctly positioned. The clean band sits at <code>[0.25 s, 4 s]</code>; bump <code>intervalMsec</code> to 1 s and it slides to <code>[2 s, 32 s]</code>, covering most Phase 2 workloads' defining rhythms. The cost (Section II) is wall-clock throughput.</p>
+    <p>Switch the toggle at the top of the lab between "Run 1 · broken" and any of the Round 2 presets to see the entire ruler slide. That visual shift, in one click, is the whole point of this experiment chain.</p>
+  </div>
 </section>
 
 <!-- ─────────────────────  WORKLOAD BARS  ───────────────────── -->
@@ -2054,6 +2123,53 @@ multiplier drops to <em>1.4×</em>
   </div>
 
   <div class="wkl-list" id="wkl-list"></div>
+
+  <!-- ───── Subsection 1 · how to read a single bar ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">In one breath</span>What a single bar means</h3>
+    <p>Each row is one Phase&nbsp;1 / Phase&nbsp;2 workload. The bar's <em>fill width</em> shows what fraction of the workload's defining rhythm fits inside one analysis window at the current configuration. The bar's <em>colour</em> encodes resolvability:</p>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr><th>Bar colour</th><th>Fill width</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="fit clean">clean</span></td><td>full or near-full green</td><td>≥ 4 full cycles fit in one window — cepstral peak is sharp and stable</td></tr>
+          <tr><td><span class="fit marginal">marginal</span></td><td>1–4 cycles, yellow</td><td>peak exists but estimator noisy; results vary run-to-run</td></tr>
+          <tr><td><span class="fit invisible">invisible</span></td><td>tiny red sliver</td><td>rhythm slower than the window — peak literally cannot be observed</td></tr>
+          <tr><td><span class="fit aliased">aliased</span></td><td>diagonal-stripe red</td><td>rhythm faster than 2·Δt (Nyquist violation) — peak folds back to wrong frequency</td></tr>
+          <tr><td><span class="fit steady">n/a (steady)</span></td><td>cyan</td><td>workload has no rhythm; cepstral peak not the relevant feature</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A configuration is "good for classifying workload pair (A, B)" if both A and B's bars are <strong>green or cyan</strong>. If either is invisible or aliased, the classifier cannot tell them apart on rhythm alone, no matter how much data you collect.</p>
+  </div>
+
+  <!-- ───── Subsection 2 · why the bars change when you drag ───── -->
+  <div class="subsection">
+    <h3><span class="marker tech">Why bars flip</span>The two levers that control every bar</h3>
+    <p>Each bar is recomputed live from the sliders above. The math behind one bar is:</p>
+    <div class="illustration">
+      <div class="cap">Per-workload classification at the current configuration</div>
+      <div class="scene">  workload rhythm period T (guest seconds)        ← FIXED per workload
+  current Δt_frame    = intervalMsec + 25 ms       ← LEVER #1 (left-side sliders)
+  current window (W)  = window_size × Δt_frame     ← LEVER #2 (analyzer config)
+
+  if T &lt; 2·Δt_frame:           bar = <em>aliased</em>      (Nyquist violation)
+  elif T ≤ W/4:                bar = <em>clean</em>        (≥ 4 cycles in window)
+  elif T ≤ W:                  bar = <em>marginal</em>     (1–4 cycles)
+  else:                        bar = <em>invisible</em>    (rhythm > window)
+</div>
+    </div>
+    <p>Only two things you can change move bars: <strong>(1) intervalMsec</strong>, which shifts Δt_frame (and therefore the entire window length in guest time), and <strong>(2) window_size</strong>, which scales the window directly. VM RAM and pmemsave throughput change <em>Axis B</em> (host wall-clock), not the bars — which is exactly the decoupling described in §&nbsp;I.</p>
+    <p>Try it: at default <code>intervalMsec=100, window=128</code>, <code>sandbox_ransom_batched</code> shows invisible. Push <code>intervalMsec</code> to 1000 — the window becomes 128 s of guest time, comfortably wider than batched's 60 s rhythm, and the bar flips to clean. <strong>This is the per-family <code>intervalMsec</code> recommendation in visible form.</strong></p>
+  </div>
+
+  <!-- ───── Subsection 3 · what "fill width" measures ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">Geometry · case</span>Why the fill width is "cycles per window"</h3>
+    <p>The fill width on each bar is literally the ratio <code>W / T</code> capped at some upper bound for display. A bar at "full width" means the window contains the workload's rhythm many times over — easy to detect, easy to characterise. A bar at "tiny sliver" means the workload's rhythm needs many windows just to fit one period — impossible to detect inside a single window.</p>
+    <p>That makes the bars an honest discriminability proxy. Two workloads whose bars are both full-width but at <em>different green shades</em> still separate; two workloads with both bars at slivers are doomed regardless of model choice.</p>
+    <p>To map a specific scenario: at <code>intervalMsec=100</code> the window is 16 s. <code>io_seq_fsync</code>'s rhythm is 1 s → bar shows W/T = 16 cycles → full green. <code>sandbox_ransom_batched</code>'s rhythm is 60 s → bar shows W/T ≈ 0.27 cycles → tiny red sliver. Even though the workloads are structurally very different, their bars converge to the same visual signal at the broken configuration: "incomplete information, classifier can't tell".</p>
+  </div>
 </section>
 
 <!-- ─────────────────────  MECHANISMS  ───────────────────── -->
@@ -2112,11 +2228,32 @@ multiplier drops to <em>1.4×</em>
     </div>
   </div>
 
+  <!-- ───── Subsection 0 · build the intuition first ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">Build the intuition</span>What "discriminability" actually means</h3>
+    <p>Before we can say the four mechanisms multiply, we need a clear picture of what they multiply <em>against</em>. The thing being eroded is called <strong>discriminability</strong>: how much numerical distance separates the feature vectors of two distinct workloads.</p>
+    <p>Imagine each workload produces a point cloud in feature space — many windows per recording, each contributing one point. Two well-separated workloads produce two cleanly-distinct clouds with a wide gap between them. The classifier draws a boundary in that gap. Two confused workloads produce overlapping clouds; no boundary can cleanly separate them.</p>
+    <div class="illustration">
+      <div class="cap">Discriminability geometry</div>
+      <div class="scene">  CLEAN CASE                      DEGRADED CASE                    CONFUSED CASE
+  ████████                ········                        ··········
+   ███<em>A</em>███   ▓▓▓▓▓▓▓▓     ░░·<em>A</em>·░░░  ▓░░░░░▓                 ·<em>A</em>·▓·<em>B</em>·····
+   ████████   ▓▓<em>B</em>▓▓▓▓     ··░░░░·   ▓▓▓<em>B</em>░▓░                 ··░░░·░░░░░
+              ▓▓▓▓▓▓        ░░░·░      ·░░░▓▓▓                  classifier guesses
+        clear gap          margin narrows                       50 % of the time
+        accuracy ~100 %    accuracy ~80 %                       accuracy ~50 %
+</div>
+    </div>
+    <p>Each mechanism we're about to describe takes a knife to the gap. Mechanism (i) collapses both clouds toward the middle. (ii) shifts both clouds in the same wrong direction. (iii) blurs each cloud outward. (iv) inflates the noise floor under both. None of these alone wipe out separation entirely. <strong>Together they squeeze the gap until the classifier can't find a boundary.</strong></p>
+    <p>The point of saying "multiply" is that we cannot fix three of them and expect 75 % recovery. Each surviving mechanism keeps a multiplicative chunk of the damage. The chain has to be unbroken end to end.</p>
+  </div>
+
   <!-- ───── Subsection 1 · how they compound ───── -->
   <div class="subsection">
     <h3><span class="marker simple">Plain language</span>The four mechanisms don't add — they multiply</h3>
-    <p>Each mechanism degrades classifier separability on its own. Together they compound: a workload pair that loses 60 % of its margin to (i), another 40 % of what's left to (ii), and another 30 % to (iii) keeps only <code>0.4 × 0.6 × 0.7 = 17 %</code> of its original discriminability. By the time the classifier sees the data, two genuinely distinct workloads look ~83 % identical.</p>
-    <p>That is the difference between a classifier you can interpret and a confusion matrix you can't trust. Each individual mechanism looks survivable; the product does not.</p>
+    <p>With the gap-geometry picture in mind: imagine each mechanism survives some fraction <em>f</em> of the gap that existed before it acted. A perfect pipeline preserves <em>f = 1.0</em>. A mechanism that halves the discriminability has <em>f = 0.5</em>. If you stack four mechanisms with survival fractions <em>f<sub>i</sub>, f<sub>ii</sub>, f<sub>iii</sub>, f<sub>iv</sub></em>, the gap that reaches the classifier is the product <em>f<sub>i</sub> · f<sub>ii</sub> · f<sub>iii</sub> · f<sub>iv</sub></em>.</p>
+    <p>Numerical example: a workload pair that loses 60 % of its margin to mechanism i (so <em>f<sub>i</sub></em> = 0.4), another 40 % of what's left to ii (<em>f<sub>ii</sub></em> = 0.6), and another 30 % to iii (<em>f<sub>iii</sub></em> = 0.7) keeps <code>0.4 × 0.6 × 0.7 = 0.168</code> ≈ <strong>17 %</strong> of its original discriminability. By the time the classifier sees the data, two genuinely distinct workloads look ~83 % identical.</p>
+    <p>That is the difference between a classifier you can interpret and a confusion matrix you can't trust. Each individual mechanism looks survivable on its own — fix the worst one and you'd expect a clean dataset. The product math says otherwise: even one surviving mechanism with <em>f</em> = 0.3 caps your recoverable signal at 30 %. <strong>Fixing only some of them leaves a low ceiling.</strong></p>
   </div>
 
   <!-- ───── Subsection 2 · numerical worked example ───── -->
@@ -2144,9 +2281,20 @@ periods that fit in window = 0.85 / 10 = <em>0.085</em>      ← far less than 1
 A's rhythm period = <em>10 s</em>
 periods that fit in window = 16 / 10 = <em>1.6</em>          ← more than 1, less than 4
 
-→ A's peak shows up but cepstral estimator is noisy at low period count.
-→ Going to intervalMsec = 250 ms: window = 32 s = <em>3.2 periods</em>      ← clean.
+→ A's peak shows up but cepstral estimator is <em>noisy</em> at low period count.
+→ classification works, but with elevated variance — borderline.
 </div>
+
+      <p><strong>Why we'd push to <code>intervalMsec</code> = 250 ms for this workload pair.</strong> The "4 periods per window" rule from §IV (spectral coverage map) sets the boundary between the clean and marginal bands. With A's rhythm at 10 s, we need a window of at least <code>4 × 10 = 40 s</code> in guest time to land cleanly. Working backwards:</p>
+      <div class="compute">required window in guest seconds  W_need = 4 × T_A = 4 × 10 s = <em>40 s</em>
+window size in frames             W = 128 (Phase 1 canonical)
+required Δt_frame                 Δt = W_need / W = 40 / 128 ≈ <em>0.31 s</em>
+required intervalMsec             iv = Δt − 25 ms overhead ≈ <em>285 ms</em>
+nearest "nice" round number       <em>250 ms</em>
+</div>
+      <p>At <code>intervalMsec = 250 ms</code>: Δt_frame ≈ 275 ms, window ≈ 35 s of guest time, periods per window ≈ 3.5. <strong>Just below the 4-period threshold</strong> — slightly marginal in the strict sense, but well above the 1-period invisibility threshold and far from the noisy 1–2 period zone. The cost: each window now covers more guest seconds, so we need a longer guest run to collect the same number of windows, plus each second of guest time costs less host wall-clock (good — see §I subsection 4).</p>
+      <p>Why not <code>intervalMsec = 500 ms</code> or 1 s instead? Those would push deeper into the clean band (5.3 and 10.6 periods/window respectively) but at a cost: a small workload-internal sub-rhythm at, say, 1 s would now be near the Nyquist edge at <code>intervalMsec = 500 ms</code> (2·Δt = 1.05 s = T) and outright aliased at 1 s. 250 ms is the smallest <code>intervalMsec</code> that pushes A's main rhythm clear of the marginal band while still keeping ~0.5 s sub-rhythms safely above Nyquist. <strong>Goldilocks choice for this pair.</strong></p>
+      <p>For a workload pair with much slower rhythms (say sandbox_ransom_batched's 60 s phases) we'd push further to 1 s. Plan 02 (per-family <code>intervalMsec</code> profile) is exactly this calculation done per workload family.</p>
 
       <p class="verdict bad">Run 1: confusion ≈ 50 % (random).</p>
       <p class="verdict good">Round 2 at <code>intervalMsec=250 ms</code>: separation recovered; classifier should converge.</p>
