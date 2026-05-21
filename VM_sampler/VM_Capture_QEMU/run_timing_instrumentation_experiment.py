@@ -140,6 +140,16 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--keep-dumps", action="store_true",
                    help="Do not remove snapshot images written by this run. By default "
                         "the orchestrator cleans up dumps it created.")
+    p.add_argument("--no-self-clean", action="store_true",
+                   help="Disable the producer's TIMING_SELF_CLEAN behavior. "
+                        "Default is self-clean ON for the sanity / Experiment 1 "
+                        "producer-only run (Plan 1c, matches exp2a/2b/2c default).")
+    p.add_argument("--no-drain-queue-on-start", dest="drain_queue_on_start",
+                   action="store_false",
+                   help="Skip the pre-run drain of stale job files in "
+                        "queueDir/{pending,processing}. Default is to drain "
+                        "(Plan 1c · Bug E fix — a stale queue at maxPendingJobs "
+                        "pins the producer in backpressure for the entire run).")
     p.add_argument("--no-vm-start", action="store_true",
                    help="Do not run 'virsh start'; assume the VM is already running.")
     p.add_argument("--virsh-uri", type=str, default="qemu:///system",
@@ -634,6 +644,9 @@ def main(argv: list[str] | None = None) -> int:
         notes.append("dry-run: no VM operation, no producer started, no JSONL parsed")
         notes.append(f"would launch producer with TIMING_JSONL_PATH={jsonl_path}")
         notes.append(f"would run for --duration={args.duration}s at intervalMsec={interval_ms}")
+        notes.append(f"plan-1c: TIMING_SELF_CLEAN={'1' if not args.no_self_clean else 'OFF'}, "
+                     f"drain_queue_on_start={args.drain_queue_on_start} "
+                     f"(queueDir={eff_cfg.get('queueDir', '/tmp/queue_dir')})")
         if args.test_command:
             notes.append(f"would run workload over SSH ({args.ssh_target}): {args.test_command}")
         else:
@@ -659,6 +672,27 @@ def main(argv: list[str] | None = None) -> int:
             notes.append("SSH not reachable within 120 s; workload will not run, "
                          "timing measurement proceeds")
             args.test_command = ""  # downgrade
+
+    # Plan 1c (Bug E fix): match the exp2a/2b/2c default — turn on the
+    # producer's rolling-delete and drain any stale queue files before the
+    # producer starts. Without this, a queue left at maxPendingJobs from a
+    # prior crashed run pins the producer in backpressure for the entire
+    # duration and yields 0 snapshots (observed in sanity_v3.json).
+    if not args.no_self_clean:
+        os.environ["TIMING_SELF_CLEAN"] = "1"
+    drained = 0
+    if args.drain_queue_on_start:
+        queue_dir = Path(eff_cfg.get("queueDir", "/tmp/queue_dir"))
+        # Lazy import: run_exp2a_consumer_isolation imports this module, so a
+        # top-level import would be circular.
+        from run_exp2a_consumer_isolation import drain_queue as _drain_queue
+        drained = _drain_queue(queue_dir)
+        log(f"Plan 1c: drained {drained} stale queue file(s) from {queue_dir}")
+        notes.append(f"plan-1c: drained {drained} stale queue file(s) from "
+                     f"{queue_dir} before start")
+    plan["config"]["self_clean"] = (not args.no_self_clean)
+    plan["config"]["drain_queue_on_start"] = bool(args.drain_queue_on_start)
+    plan["config"]["queue_files_drained"] = drained
 
     run_start_epoch = time.time()
     plan["config"]["run_start_epoch"] = run_start_epoch

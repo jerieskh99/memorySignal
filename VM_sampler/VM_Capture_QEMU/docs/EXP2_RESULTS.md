@@ -575,45 +575,58 @@ Plan 3 computed exactly the right number: `mean_host_snapshot_cycle_sec_first_n.
 
 Two small additions. Both expose existing behaviour as flags rather than introducing new logic.
 
-### Plan 1c · apply Plan 1b to the sanity script
+### Plan 1c · apply Plan 1b to the sanity script · **LANDED**
 
-In `run_timing_instrumentation_experiment.py` `main()`:
+`run_timing_instrumentation_experiment.py` updated:
 
-```python
-# Default on for producer-only timing sanity. Add --no-self-clean opt-out.
-if not args.no_self_clean:
-    os.environ["TIMING_SELF_CLEAN"] = "1"
-```
+- Added `--no-self-clean` flag (opt-out). Default sets `os.environ["TIMING_SELF_CLEAN"] = "1"` before the producer launches.
+- Added `--no-drain-queue-on-start` opt-out. Default lazy-imports `drain_queue` from `run_exp2a_consumer_isolation` and removes all `queueDir/{pending,processing}/*.json` files before the producer starts. The import is lazy because `run_exp2a_consumer_isolation` itself imports the sanity module (`import run_timing_instrumentation_experiment as e1`), so a top-level import would be circular.
+- The run JSON's `config` block now records `self_clean`, `drain_queue_on_start`, and `queue_files_drained` so Round 4 analysis can verify the patch took effect.
+- Dry-run plan also surfaces the new flags via an extra `notes` entry.
 
-Plus a `--drain-queue-on-start` flag that imports `e2a.drain_queue` (or duplicates the small helper) so a stale queue can't bork the run. Default this to ON for sanity (it's a sanity script, no state should leak in).
+Cost: 34 LOC across the one file (12 logic, rest docstrings + dry-run wiring).
 
-Estimated: ~10 lines Python in one file.
+### Plan 5 · 2c keeps dumps until probe runs · **LANDED** (Option A)
 
-### Plan 5 · 2c keeps dumps until probe runs
+`run_exp2c_flush_sensitivity.py` updated:
 
-Two options, pick one:
+- The default behaviour is now **`TIMING_SELF_CLEAN` OFF** for 2c. Dumps accumulate during each pass long enough for the integrity probe to find them.
+- `--no-self-clean` is retained as a back-compat no-op (clearly documented in `--help`).
+- A new `--force-self-clean` flag is available for diagnostic side-by-side runs. When set, it logs a loud WARNING that the probe will see 0 dumps and the recommendation will lock to KEEP regardless of host_dt savings.
+- Plan 3's first-10 stable-subset comparison still drives the verdict, so any in-pass drift in snaps 11+ does not contaminate the host_dt delta.
 
-**Option A** (simpler): 2c overrides the Plan 1b default. In its `main()`, when self-clean is enabled, log a warning that integrity probe will not run, OR override to OFF for 2c specifically. The flush-comparison's Plan 3 stable-subset gives a clean verdict on host_dt even without self-clean — the first 10 snaps of each pass are stable regardless of what mechanism vi does to snaps 11+. So 2c can safely turn self-clean OFF and accumulate ~20 dumps per pass (fits in 50 GiB; well within budget).
+Option B (producer-side `TIMING_SELF_CLEAN_KEEP_LAST=N`) is **not** implemented — Option A solves the problem with ~21 LOC of which ~9 are logic; Option B would be more invasive without solving anything 2c needs.
 
-**Option B** (structural): producer keeps the last N dumps when self-clean is on. Add `TIMING_SELF_CLEAN_KEEP_LAST=N` env var; producer deletes only `prev_prev_prev...` beyond the last N. Cleaner long-term but more code change.
+### Status summary
 
-Recommend **Option A** for Round 4. Estimated: ~5 lines Python in 2c.
-
-### Why these two together
-
-Plan 1c fixes the sanity script (small standalone fix). Plan 5 (Option A) lets 2c's integrity probe see real files. Together they unblock Round 4 → produces a clean 4-JSON set with no caveats.
-
-Estimated total: ~15 lines Python, one file each.
+Both follow-ups landed in code. Round 4 (sanity + 2c only; 2a and 2b already at A+) is the empirical verification step.
 
 ## Round 4 expected predictions
 
-After Plan 1c + Plan 5 land:
+Plans 1c + 5 are now in code. Round 4 is the empirical verification re-run (~3 min host wall-clock):
 
-| test | expected |
-| ---- | -------- |
-| sanity v4 | ≥ 6 snapshots in 30 s, guest_dt 0.125 ± 0.01 s, host_dt ≈ 1.55 s |
-| 2a v4 | unchanged from v3 (already at A+) |
-| 2b v4 | unchanged from v3 (already at A+) |
-| 2c v4 | `integrity_on: true` AND `integrity_off: true` · `recommendation` = "REMOVE the flush..." |
+| test | expected | new JSON fields to verify |
+| ---- | -------- | ------------------------- |
+| sanity v4 | ≥ 6 snapshots in 30 s, guest_dt 0.125 ± 0.01 s, host_dt ≈ 1.55 s | `config.self_clean = true`, `config.drain_queue_on_start = true`, `config.queue_files_drained` reported |
+| 2a v4 | unchanged from v3 (already at A+) | — skipped |
+| 2b v4 | unchanged from v3 (already at A+) | — skipped |
+| 2c v4 | `integrity_on: true` AND `integrity_off: true` · `recommendation` = "REMOVE the flush..." | `integrity_on.probes_examined > 0`, `integrity_off.probes_examined > 0` |
 
 If those land, **all 8 mechanisms / bugs (i–vii + D + E + F) are closed**. Plan 02 (per-family `intervalMsec` profiles) is then unblocked with no caveats. The producer's `sleep 0.5` flush can be removed permanently for ~10 % wall-clock saving on every Phase 2 capture going forward.
+
+### Round 4 commands (on `pcrserral`)
+
+```sh
+cd /project/homes/jeries/memorySignal/VM_sampler/VM_Capture_QEMU
+# Sanity (Plan 1c smoke test): 30 s, idle Kali
+python3 run_timing_instrumentation_experiment.py \
+    --duration 30 --interval-ms 100 --ram-mb 1024 \
+    --output-json /project/homes/jeries/memorySignal/timing_runs/sanity_v4.json
+
+# 2c (Plan 5 smoke test): 60 s per pass, two passes
+python3 run_exp2c_flush_sensitivity.py \
+    --duration 60 --interval-ms 100 --ram-mb 1024 \
+    --output-json /project/homes/jeries/memorySignal/timing_runs/exp2c_v4.json
+```
+
+No 2a / 2b needed — they were A+ in Round 3 and the two code changes do not touch them.

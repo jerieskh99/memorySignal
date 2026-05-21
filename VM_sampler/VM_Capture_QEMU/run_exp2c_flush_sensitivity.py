@@ -189,8 +189,15 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="Also purge dumps between pass A (flush_on) and "
                         "pass B (flush_off).")
     p.add_argument("--no-self-clean", action="store_true",
-                   help="Disable the producer's TIMING_SELF_CLEAN behavior. "
-                        "Default is self-clean ON for producer-only timing runs.")
+                   help="(Plan 5: kept for back-compat, now a no-op for 2c.) "
+                        "Producer's TIMING_SELF_CLEAN is OFF by default in 2c "
+                        "because the integrity probe requires dumps to remain "
+                        "on disk to verify content (Bug F fix).")
+    p.add_argument("--force-self-clean", action="store_true",
+                   help="Force TIMING_SELF_CLEAN=1 even for 2c. The integrity "
+                        "probe will see 0 dumps and the recommendation will "
+                        "lock to KEEP regardless of host_dt savings. For "
+                        "diagnostics only.")
     p.add_argument("--stable-n", type=int, default=10,
                    help="Number of snapshots from the start of each pass to use "
                         "for the stable-subset comparison (default 10). The "
@@ -224,9 +231,19 @@ def main(argv: list[str] | None = None) -> int:
     if not config_path.is_file(): log(f"ERROR: config not found: {config_path}"); return 2
     if not producer.is_file():    log(f"ERROR: producer not found: {producer}"); return 2
 
-    # Plan 1b: enable producer-side rolling-delete by default.
-    if not args.no_self_clean:
+    # Plan 5 (Bug F fix): force TIMING_SELF_CLEAN OFF for 2c so the integrity
+    # probe can actually find dumps on disk. Plan 3's stable-subset comparison
+    # uses only the first --stable-n (=10) snapshots of each pass, which
+    # complete well before any dump pile-up would distort host_dt. So 2c does
+    # NOT need self-clean for the timing-delta check, and DOES need dumps
+    # present for the content probe. Use --force-self-clean to override (the
+    # probe will then see 0 dumps; recommendation locks to KEEP).
+    if args.force_self_clean:
         os.environ["TIMING_SELF_CLEAN"] = "1"
+        log("WARNING: --force-self-clean ON — integrity probe will see 0 dumps "
+            "(Bug F); recommendation will lock to KEEP regardless of host_dt.")
+    else:
+        os.environ.pop("TIMING_SELF_CLEAN", None)
 
     workdir = Path(args.workdir).expanduser().resolve() if args.workdir else (
         Path.cwd() / "timing_runs" /

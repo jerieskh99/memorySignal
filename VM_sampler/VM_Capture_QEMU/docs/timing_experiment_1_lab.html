@@ -1722,13 +1722,13 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>Round 3 · 20260521T005533Z</span>
+    <span>Round 3 + Plans 1c·5 landed · Round 4 pending</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">Plans 1·1b·3·4 verified · 2 small follow-ups</span>
+    <span id="topbar-status-text">All six plans coded · awaiting Round 4 re-run</span>
   </div>
 </nav>
 
@@ -1741,17 +1741,18 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">Plans 1·1b·3·4 <em>landed</em>.<br>Two small follow-ups <em>left</em>.</h1>
+  <h1 class="title">All six plans <em>coded</em>.<br>One Round-4 re-run away from <em>green</em>.</h1>
   <p class="hero-deck">
-    Round 3 (post code-fixes) confirms <strong>pmemsave flat at 0.77 s
-    across the entire pass</strong> in every cell — drift gone. Both 2a
-    passes and all four 2b cells now hit <strong>zero backpressure
-    events</strong> and <strong>queue_max=0</strong>. Plan 3's stable-subset
-    delta correctly computed <code>−0.515 s</code> for the flush. But two
-    small follow-ups surfaced: the sanity script never got Plan 1b
-    (zero snapshots on a stale queue) and 2c's integrity probe runs after
-    self-clean has already deleted the dumps. Fix Plan 1c + Plan 5 next,
-    Round 4 is the final pass before plan 02 unblocks.
+    Round 3 verified Plans 1·1b·3·4 (pmemsave flat at <strong>0.77 s</strong>
+    across every pass, <strong>zero backpressure</strong>, Plan 3's stable
+    delta = <code>−0.515 s</code>). The two follow-ups surfaced — sanity
+    script lacked self-clean (Bug E), 2c probe ran on zero dumps (Bug F) —
+    are now both <strong>landed in code</strong>. Plan 1c adds
+    <code>TIMING_SELF_CLEAN=1</code> + <code>--no-drain-queue-on-start</code>
+    opt-out to the sanity script. Plan 5 flips 2c's default to OFF so the
+    integrity probe sees real files. ~55 lines across two files. Round 4
+    (sanity + 2c, ~3 min on the capture host) is the final pass before
+    plan 02 (per-family <code>intervalMsec</code> profile) unblocks.
   </p>
 </header>
 
@@ -2454,8 +2455,8 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">10 done</span>
-      <span class="board-tag next">3 next</span>
+      <span class="board-tag done">12 done</span>
+      <span class="board-tag next">1 next</span>
       <span class="board-tag blocked">4 blocked</span>
     </div>
 
@@ -2511,23 +2512,24 @@ nearest "nice" round number       <em>250 ms</em>
       <span class="meta"><span class="ok">Bug E (sanity), Bug F (2c probe)</span></span>
     </div>
 
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 1c · sanity script · self-clean default + queue drain</span>
+      <span class="meta"><span class="ok">~34 LOC · Bug E patched</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 5 · 2c keeps dumps alive (TIMING_SELF_CLEAN OFF default)</span>
+      <span class="meta"><span class="ok">~21 LOC · Bug F patched</span></span>
+    </div>
+
     <div class="board-divider"></div>
 
     <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Plan 1c · apply Plan 1b to sanity script</span>
-      <span class="meta">~10 lines Python · fixes Bug E</span>
-    </div>
-    <div class="status-line">
-      <span class="badge next">next</span>
-      <span class="what">Plan 5 · 2c keeps dumps alive for integrity probe</span>
-      <span class="meta">~5 lines Python · fixes Bug F</span>
-    </div>
-    <div class="status-line">
-      <span class="badge next">next</span>
-      <span class="what">Round 4 re-run · sanity + 2c (2a + 2b stable)</span>
-      <span class="meta">~3 min host wall-clock</span>
+      <span class="what">Round 4 re-run · sanity + 2c (2a + 2b already locked at A+)</span>
+      <span class="meta">~3 min host wall-clock · expects all 4 JSONs green</span>
     </div>
 
     <div class="board-divider"></div>
@@ -2580,26 +2582,26 @@ nearest "nice" round number       <em>250 ms</em>
         <div class="id">vi</div><div class="name">in-pass pmemsave drift</div>
         <div class="verdict fixed">FIXED · Plan 1 + Round 3</div>
       </div>
-      <div class="mech-pill fixable">
+      <div class="mech-pill fixed">
         <div class="id">vii</div><div class="name">2c verdict false negative</div>
-        <div class="verdict fixable">LOGIC FIXED · waits on Plan 5</div>
+        <div class="verdict fixed">FIXED · Plan 5 coded · Round 4 verifies</div>
       </div>
       <div class="mech-pill fixed">
         <div class="id">D</div><div class="name">disk-free check pessimistic</div>
         <div class="verdict fixed">FIXED · Plan 4 + Round 3</div>
       </div>
-      <div class="mech-pill open">
+      <div class="mech-pill fixed">
         <div class="id">E</div><div class="name">sanity script lacks self-clean</div>
-        <div class="verdict open">NEW · Plan 1c designed</div>
+        <div class="verdict fixed">FIXED · Plan 1c coded · Round 4 verifies</div>
       </div>
-      <div class="mech-pill open">
+      <div class="mech-pill fixed">
         <div class="id">F</div><div class="name">2c integrity probe finds 0 dumps</div>
-        <div class="verdict open">NEW · Plan 5 designed</div>
+        <div class="verdict fixed">FIXED · Plan 5 coded · Round 4 verifies</div>
       </div>
     </div>
 
     <div class="headline-progress">
-      Round 3 done · Plans 1·1b·3·4 <strong>verified</strong> · two small follow-ups remain (<code>~15 lines Python</code>) · Round 4 is the final pass before plan 02 unblocks.
+      Round 3 done · Plans 1·1b·3·4 <strong>verified empirically</strong> · Plans 1c·5 <strong>landed in code</strong> · Round 4 (≈3 min) is the final empirical verification before plan 02 unblocks.
     </div>
   </div>
 
@@ -2677,36 +2679,38 @@ nearest "nice" round number       <em>250 ms</em>
 
   <!-- next-steps: simple+pro -->
   <div class="subsection">
-    <h3><span class="marker case">What's next</span>The two small follow-ups before plan 02 unblocks</h3>
+    <h3><span class="marker case">What just landed</span>Plans 1c + 5 in code · one Round-4 re-run away from green</h3>
 
     <div class="pair-block simple">
       <div>
-        <div class="lbl simple">Plan 1c · "make sanity not stall on leftovers"</div>
-        <p>Same trick that worked for 2a/2b/2c (telling the producer to delete its own dumps), but applied to the sanity script too. Plus drain the queue at startup so a previous experiment's leftovers can't make the new run sit idle.</p>
+        <div class="lbl simple">Plan 1c · <em>LANDED</em> · "make sanity not stall on leftovers"</div>
+        <p>Applied the same trick that worked for 2a/2b/2c (tell the producer to delete its own dumps) to the sanity script too. Added a pre-run drain of the queue so a previous experiment's leftovers can't make the new run sit idle. Both behaviors are ON by default; <code>--no-self-clean</code> and <code>--no-drain-queue-on-start</code> opt out.</p>
       </div>
       <div>
         <div class="lbl tech">technical</div>
-        <p>In <code>run_timing_instrumentation_experiment.py</code> <code>main()</code>: set <code>os.environ["TIMING_SELF_CLEAN"]="1"</code> by default + add <code>--no-self-clean</code> opt-out. Plus optional <code>--drain-queue-on-start</code> using the same helper 2a/2b/2c use. ~10 lines.</p>
+        <p><code>run_timing_instrumentation_experiment.py</code>: added two CLI flags, set <code>os.environ["TIMING_SELF_CLEAN"]="1"</code> when not opted out, lazy-imported <code>drain_queue</code> from <code>run_exp2a_consumer_isolation</code> (lazy to avoid the back-reference cycle), recorded <code>self_clean</code> / <code>drain_queue_on_start</code> / <code>queue_files_drained</code> in the run JSON's <code>config</code> block. ~34 LOC of which ~12 are logic; remainder is docstring + dry-run note.</p>
       </div>
     </div>
 
     <div class="pair-block simple">
       <div>
-        <div class="lbl simple">Plan 5 · "give the camera time to look at the photos"</div>
-        <p>The producer was set to throw away each dump as soon as the next one was written. That kept disk pressure flat (great for 2a/2b) but meant the integrity probe in 2c arrived at an empty folder. Fix: tell 2c specifically to leave the dumps in place during its pass; clean up only at the very end. Plan 3's stable-subset already protects the verdict from any drift this re-introduces.</p>
+        <div class="lbl simple">Plan 5 · <em>LANDED</em> · "give the camera time to look at the photos"</div>
+        <p>2c now defaults to <strong>self-clean OFF</strong> so dumps survive long enough for the integrity probe to inspect them. The <code>--no-self-clean</code> flag stays for back-compat (now a no-op for 2c). A new <code>--force-self-clean</code> exists for diagnostics — it prints a loud warning that the probe will see 0 dumps. Plan 3's first-10 stable-subset already protects the host_dt delta from any drift the kept dumps would re-introduce.</p>
       </div>
       <div>
         <div class="lbl tech">technical</div>
-        <p>In <code>run_exp2c_flush_sensitivity.py</code> <code>main()</code>: set <code>os.environ.pop("TIMING_SELF_CLEAN", None)</code> when <code>--no-self-clean</code> is the default (or invert the default flag specifically for 2c). End-of-pass cleanup still runs. ~5 lines.</p>
+        <p><code>run_exp2c_flush_sensitivity.py</code>: inverted the env-var default — replaced <code>if not args.no_self_clean: os.environ["TIMING_SELF_CLEAN"]="1"</code> with <code>if args.force_self_clean: os.environ["TIMING_SELF_CLEAN"]="1" else: os.environ.pop("TIMING_SELF_CLEAN", None)</code>. Added <code>--force-self-clean</code> flag. ~21 LOC of which ~9 are logic.</p>
       </div>
     </div>
 
     <div class="worked">
-      <div class="who">After Plan 1c + Plan 5 + Round 4 · expected JSONs</div>
-      <p>Round 4 only needs to re-run sanity + 2c (2a and 2b are already at A+). Expected:</p>
+      <div class="who">After Round 4 (sanity + 2c) · expected JSONs</div>
+      <p>Round 4 only needs to re-run sanity + 2c (2a and 2b are already at A+ in Round 3 and the two code changes don't touch them). Expected:</p>
       <div class="compute"><em>sanity v4</em>     · snapshots_completed ≥ 6
                   · guest_dt_mean ≈ 0.125 s
                   · host_dt_mean ≈ 1.55 s
+                  · config.self_clean = true
+                  · config.queue_files_drained ≥ 0
 
 <em>2c v4</em>         · integrity_on  = true
                   · integrity_off = true
@@ -2715,7 +2719,7 @@ nearest "nice" round number       <em>250 ms</em>
 
 <em>2a v4 / 2b v4</em>  · skipped (already at A+ in Round 3)
 </div>
-      <p class="verdict good">If those land, mechanisms i through F are all closed. Plan 02 (per-family <code>intervalMsec</code> profile) unblocks with no caveats.</p>
+      <p class="verdict good">When those land, mechanisms i through F are all closed empirically. Plan 02 (per-family <code>intervalMsec</code> profile) unblocks with no caveats. The producer's <code>sleep 0.5</code> flush can be removed permanently — ~10 % wall-clock saving on every Phase-2 capture going forward.</p>
     </div>
   </div>
 
