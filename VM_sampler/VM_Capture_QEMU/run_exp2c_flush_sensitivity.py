@@ -307,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
             "would kill consumer + drain queue, then run pass flush_on then flush_off",
             f"would probe up to {args.probes_per_pass} dumps per pass for integrity",
         ]
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         with out_path.open("w") as f: json.dump(result, f, indent=2)
         log(f"dry-run plan written to {out_path}")
         return 0
@@ -421,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
                                     "comparison; check integrity carefully before "
                                     "removing.")
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as f: json.dump(result, f, indent=2)
     log(f"wrote {out_path}")
     log(f"recommendation: {result['recommendation']}")

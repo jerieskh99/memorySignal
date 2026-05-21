@@ -209,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
                 "interval_ms": iv, "ram_mb": ram,
                 "status": "planned",
             })
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         with out_path.open("w") as f: json.dump(result, f, indent=2)
         log(f"dry-run plan written to {out_path}")
         return 0
@@ -285,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     result["comparison"]["worst_pause"] = ranked[-1] if ranked else None
     result["comparison"]["best_pause"]  = ranked[0]  if ranked else None
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as f: json.dump(result, f, indent=2)
     log(f"wrote {out_path}")
     return 0
