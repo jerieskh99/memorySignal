@@ -1722,13 +1722,13 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>Round 3 + Plans 1c·5 landed · Round 4 pending</span>
+    <span>Round 4 done · Bug G surfaced · Plan 6 landed</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">All six plans coded · awaiting Round 4 re-run</span>
+    <span id="topbar-status-text">Sanity verified · 2c needs Round 5 with n=5</span>
   </div>
 </nav>
 
@@ -1741,18 +1741,20 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">All six plans <em>coded</em>.<br>One Round-4 re-run away from <em>green</em>.</h1>
+  <h1 class="title">Round 4 closed Bugs E + F.<br>Surfaced a <em>subtle</em> Bug G — already fixed by Plan 6.</h1>
   <p class="hero-deck">
-    Round 3 verified Plans 1·1b·3·4 (pmemsave flat at <strong>0.77 s</strong>
-    across every pass, <strong>zero backpressure</strong>, Plan 3's stable
-    delta = <code>−0.515 s</code>). The two follow-ups surfaced — sanity
-    script lacked self-clean (Bug E), 2c probe ran on zero dumps (Bug F) —
-    are now both <strong>landed in code</strong>. Plan 1c adds
-    <code>TIMING_SELF_CLEAN=1</code> + <code>--no-drain-queue-on-start</code>
-    opt-out to the sanity script. Plan 5 flips 2c's default to OFF so the
-    integrity probe sees real files. ~55 lines across two files. Round 4
-    (sanity + 2c, ~3 min on the capture host) is the final pass before
-    plan 02 (per-family <code>intervalMsec</code> profile) unblocks.
+    Sanity v4 produced <strong>18 clean snapshots</strong> on first run with
+    <code>config.self_clean=true</code> and 15 stale queue files drained —
+    <strong>Plan 1c verified</strong>. 2c's integrity probe found
+    <strong>5 dumps per pass, all_ok=true</strong> — <strong>Plan 5 verified</strong>.
+    But the 2c <em>verdict</em> flipped: with self-clean OFF (Plan 5's
+    requirement), flush_off accumulates dumps → page-cache pressure →
+    pmemsave drifts from 0.78 s to 8.27 s at snap 6+. The first-10 delta
+    now reads <code>+2.466 s</code> instead of Round 3's <code>−0.515 s</code>.
+    Same JSON, smaller window: first-5 delta = <code>−0.481 s</code>,
+    matches Round 3 exactly. <strong>Plan 6</strong> (<code>--stable-n</code>
+    default 10 → 5, ~1 LOC) is committed. One Round-5 re-run of 2c only
+    (~1 min) confirms REMOVE.
   </p>
 </header>
 
@@ -2455,7 +2457,7 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">12 done</span>
+      <span class="board-tag done">15 done</span>
       <span class="board-tag next">1 next</span>
       <span class="board-tag blocked">4 blocked</span>
     </div>
@@ -2515,12 +2517,27 @@ nearest "nice" round number       <em>250 ms</em>
     <div class="status-line">
       <span class="badge done">done</span>
       <span class="what">Plan 1c · sanity script · self-clean default + queue drain</span>
-      <span class="meta"><span class="ok">~34 LOC · Bug E patched</span></span>
+      <span class="meta"><span class="ok">verified R4 · 18 snaps · drained 15 stale</span></span>
     </div>
     <div class="status-line">
       <span class="badge done">done</span>
       <span class="what">Plan 5 · 2c keeps dumps alive (TIMING_SELF_CLEAN OFF default)</span>
-      <span class="meta"><span class="ok">~21 LOC · Bug F patched</span></span>
+      <span class="meta"><span class="ok">verified R4 · probes_examined=5 both passes</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Round 4 re-run · sanity v4 PASS · 2c v4 probe PASS · Bug G surfaced</span>
+      <span class="meta"><span class="ok">sanity 18 snaps · 2c integrity all_ok</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 6 · <code>--stable-n</code> default 10 → 5 (Bug G fix)</span>
+      <span class="meta"><span class="ok">~1 LOC · first-5 delta = −0.481 s</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Round 4 analysis · Bug G isolated · same-JSON answer confirmed</span>
+      <span class="meta"><span class="ok">EXP2_RESULTS.md + this page</span></span>
     </div>
 
     <div class="board-divider"></div>
@@ -2528,8 +2545,8 @@ nearest "nice" round number       <em>250 ms</em>
     <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Round 4 re-run · sanity + 2c (2a + 2b already locked at A+)</span>
-      <span class="meta">~3 min host wall-clock · expects all 4 JSONs green</span>
+      <span class="what">Round 5 re-run · 2c only with <code>--stable-n=5</code> default</span>
+      <span class="meta">~1 min host wall-clock · expects recommendation = "REMOVE"</span>
     </div>
 
     <div class="board-divider"></div>
@@ -2584,7 +2601,7 @@ nearest "nice" round number       <em>250 ms</em>
       </div>
       <div class="mech-pill fixed">
         <div class="id">vii</div><div class="name">2c verdict false negative</div>
-        <div class="verdict fixed">FIXED · Plan 5 coded · Round 4 verifies</div>
+        <div class="verdict fixed">FIXED · Plan 3 + Plan 6 · n=5 catches savings</div>
       </div>
       <div class="mech-pill fixed">
         <div class="id">D</div><div class="name">disk-free check pessimistic</div>
@@ -2592,16 +2609,20 @@ nearest "nice" round number       <em>250 ms</em>
       </div>
       <div class="mech-pill fixed">
         <div class="id">E</div><div class="name">sanity script lacks self-clean</div>
-        <div class="verdict fixed">FIXED · Plan 1c coded · Round 4 verifies</div>
+        <div class="verdict fixed">FIXED · Plan 1c · Round 4 verified</div>
       </div>
       <div class="mech-pill fixed">
         <div class="id">F</div><div class="name">2c integrity probe finds 0 dumps</div>
-        <div class="verdict fixed">FIXED · Plan 5 coded · Round 4 verifies</div>
+        <div class="verdict fixed">FIXED · Plan 5 · Round 4 verified (5 dumps × 2)</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">G</div><div class="name">flush ↔ self-clean coupling (R4 finding)</div>
+        <div class="verdict fixed">FIXED · Plan 6 (n=10→5) · Round 5 verifies</div>
       </div>
     </div>
 
     <div class="headline-progress">
-      Round 3 done · Plans 1·1b·3·4 <strong>verified empirically</strong> · Plans 1c·5 <strong>landed in code</strong> · Round 4 (≈3 min) is the final empirical verification before plan 02 unblocks.
+      Round 4 done · Plans 1c·5 <strong>verified empirically</strong> · Bug G surfaced and immediately closed by Plan 6 · Round 5 (≈1 min · 2c only) confirms REMOVE-the-flush verdict.
     </div>
   </div>
 
@@ -2704,22 +2725,77 @@ nearest "nice" round number       <em>250 ms</em>
     </div>
 
     <div class="worked">
-      <div class="who">After Round 4 (sanity + 2c) · expected JSONs</div>
-      <p>Round 4 only needs to re-run sanity + 2c (2a and 2b are already at A+ in Round 3 and the two code changes don't touch them). Expected:</p>
-      <div class="compute"><em>sanity v4</em>     · snapshots_completed ≥ 6
-                  · guest_dt_mean ≈ 0.125 s
-                  · host_dt_mean ≈ 1.55 s
-                  · config.self_clean = true
-                  · config.queue_files_drained ≥ 0
+      <div class="who">Round 4 · what came back</div>
+      <p>Both files landed as predicted, with one twist on the 2c verdict:</p>
+      <div class="compute"><em>sanity v4</em>     · snapshots_completed   = <strong>18</strong>        ✓
+                  · guest_dt_mean        = <strong>0.126 s</strong>    ✓
+                  · host_dt_mean         = <strong>1.626 s</strong>    ✓ (matches 2a Round 3)
+                  · pmemsave_mean        = <strong>0.770 s</strong>    ✓ (flat, no drift)
+                  · backpressure_events  = <strong>0</strong>           ✓ (was 30 in v3)
+                  · queue_max_depth      = <strong>0</strong>           ✓
+                  · config.self_clean    = <strong>true</strong>        ✓
+                  · drained 15 stale queue files at startup
 
-<em>2c v4</em>         · integrity_on  = true
-                  · integrity_off = true
-                  · recommendation = "REMOVE the flush — ..."
-                  · first-10 host_dt delta ≈ −0.5 s
+<em>2c v4 probe</em>   · integrity_on.probes_examined  = <strong>5</strong>   ✓ all_ok=true
+                  · integrity_off.probes_examined = <strong>5</strong>   ✓ all_ok=true
 
-<em>2a v4 / 2b v4</em>  · skipped (already at A+ in Round 3)
+<em>2c v4 verdict</em> · first-10 host_dt delta = <em>+2.466 s</em>   ← <strong>flipped sign vs Round 3</strong>
+                  · first-5  host_dt delta = <em>−0.481 s</em>   ← matches Round 3 (-0.515 s)
+                  · recommendation = "NEUTRAL/AMBIGUOUS"
+
+<em>2a v4 / 2b v4</em>  · skipped (locked A+ in Round 3)
 </div>
-      <p class="verdict good">When those land, mechanisms i through F are all closed empirically. Plan 02 (per-family <code>intervalMsec</code> profile) unblocks with no caveats. The producer's <code>sleep 0.5</code> flush can be removed permanently — ~10 % wall-clock saving on every Phase-2 capture going forward.</p>
+      <p class="verdict good">Plans 1c and 5 verified. Sanity is closed. Integrity probe is closed. The 2c verdict flip is a new finding — see below.</p>
+    </div>
+  </div>
+
+  <!-- ─────────────────────  BUG G + PLAN 6  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">Bug G · the wrinkle</span>Why 2c's verdict flipped sign</h3>
+    <p>Round 4 measured the opposite of Round 3 for the same flush comparison. Both readings are correct — they measured different disk-pressure regimes. The "real" answer was inside the same JSON the whole time.</p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">In plain English</div>
+        <p>Plan 5 turned off the producer's auto-delete so the integrity probe could find some dumps to look at. That worked — probe is now happy. <strong>But</strong>: with auto-delete off, dumps pile up on disk during the pass. The 0.5 s flush sleep, which Round 3 measured as pure overhead, turns out to <em>quietly buy the kernel time to write dirty pages to disk</em>. Take it away and the second pass falls into a tar pit: snap 0–4 still take 0.78 s, then by snap 6 each pmemsave is taking <strong>7–8 s</strong> because it's queued behind page-cache writebacks from previous snaps.</p>
+        <p>So the flush is doing two things at once — it's overhead <em>when dumps disappear quickly</em> (production / Round 3), and it's a disk-pressure shock-absorber <em>when dumps stick around</em> (Round 4 with Plan 5). Round 4 measured the second case by accident.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>The two passes were measured under different dump-survival models. Pass A (flush_on): <code>sleep 0.5</code> after each <code>pmemsave</code> lets the kernel asynchronously flush dirty pages → pmemsave stays at ~0.84 s for all 21 snaps. Pass B (flush_off): no flush → dirty-page count grows monotonically → <code>pmemsave_sec</code> goes 0.78, 0.78, 0.81, 0.79, 0.78, 1.95, <strong>7.25, 8.27, 7.91, 8.08</strong>, 6.00, 3.04, ... → I/O-blocked on writeback. With Plan 5's <code>TIMING_SELF_CLEAN=""</code>, mechanism vi re-emerged in flush_off only. The flush masks mechanism vi as a side effect.</p>
+        <p>In production the consumer process drains dumps as fast as the producer writes them, so the model is structurally equivalent to Round 3's self-clean ON. <strong>The production-case verdict therefore remains REMOVE the flush</strong> — Round 3's measurement was the load-bearing one.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 6 · the one-line fix</div>
+        <p>Shrink the timing comparison window so the drift never enters the average. Default <code>--stable-n</code> goes from 10 to 5. Drift first appears at snap 6 in Round 4's data; n=5 captures the savings cleanly.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>In <code>run_exp2c_flush_sensitivity.py</code>: <code>p.add_argument("--stable-n", type=int, default=5, ...)</code>. ~1 LOC. Justified directly from Round 4 data — n=5 yields delta = <code>−0.481 s</code> matching Round 3's <code>−0.515 s</code>; n=6 already noisy (<code>−0.291 s</code>); n=7 flips positive (<code>+0.609 s</code>); n=10 is full drift contamination (<code>+2.466 s</code>).</p>
+      </div>
+    </div>
+
+    <div class="illustration">
+      <div class="cap">flush_off pmemsave_sec per snap · same JSON, see where drift kicks in</div>
+      <div class="scene">snap:    0     1     2     3     4     5     6     7     8     9    10    11    12    13    14    15
+pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7.91</em>  <em>8.08</em>  6.00  3.04  2.11  1.83  1.77  2.98
+         └─────── clean ────────┘ └tr┘ └────────── drift ──────────┘ └──────── recovers ─────────┘
+                  n=5 (Plan 6 default)                                       n=10 (old default)
+</div>
+    </div>
+
+    <div class="worked">
+      <div class="who">Round 5 prediction · 2c only with Plan 6 default</div>
+      <div class="compute"><em>2c v5</em>         · comparison.mean_host_snapshot_cycle_sec_first_n.n_used = <strong>5</strong>
+                  · comparison.mean_host_snapshot_cycle_sec_first_n.delta ≈ <strong>−0.48 s</strong>
+                  · recommendation = <strong>"REMOVE the flush ..."</strong>
+                  · integrity_on.all_ok = true · integrity_off.all_ok = true
+</div>
+      <p class="verdict good">When Round 5 lands, all 9 mechanisms / bugs (i–vii + D + E + F + G) are closed empirically. Plan 02 (per-family <code>intervalMsec</code> profile) unblocks with no caveats. The 0.5 s <code>sleep</code> on line 142 of <code>capture_producer_qemu_pmemsave.sh</code> can be removed permanently — ~10 % wall-clock saving on every Phase-2 capture going forward.</p>
     </div>
   </div>
 

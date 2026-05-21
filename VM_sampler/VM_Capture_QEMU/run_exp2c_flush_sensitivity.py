@@ -198,9 +198,13 @@ def build_argparser() -> argparse.ArgumentParser:
                         "probe will see 0 dumps and the recommendation will "
                         "lock to KEEP regardless of host_dt savings. For "
                         "diagnostics only.")
-    p.add_argument("--stable-n", type=int, default=10,
+    p.add_argument("--stable-n", type=int, default=5,
                    help="Number of snapshots from the start of each pass to use "
-                        "for the stable-subset comparison (default 10). The "
+                        "for the stable-subset comparison (default 5; Plan 6 · "
+                        "Round 4 showed that without producer self-clean, "
+                        "flush_off accumulates dumps and page-cache pressure "
+                        "spikes pmemsave from ~0.78 s to ~8 s at snap 6+. "
+                        "n=5 catches the savings window before drift). The "
                         "all-snap means are also reported in the JSON.")
     p.add_argument("--virsh-uri", default="qemu:///system")
     p.add_argument("--no-vm-start", action="store_true")

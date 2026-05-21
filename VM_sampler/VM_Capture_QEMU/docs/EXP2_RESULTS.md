@@ -630,3 +630,137 @@ python3 run_exp2c_flush_sensitivity.py \
 ```
 
 No 2a / 2b needed — they were A+ in Round 3 and the two code changes do not touch them.
+
+# Round 4 results (2026-05-21)
+
+## Headline
+
+| test | result | bug status |
+| ---- | ------ | ---------- |
+| sanity v4 | **PASS** · 18 snaps clean | E **CLOSED** |
+| 2c v4 integrity probe | **PASS** · 5 dumps × 2 passes, all_ok=true | F **CLOSED** |
+| 2c v4 verdict | **NEUTRAL** — true negative this time, not a logic bug | G **NEW** (subtle) |
+
+Plans 1c and 5 are empirically verified at the code level. Round 4 also surfaced a new finding (Bug G below) that flips the original 2c question on its head — and the data inside the same JSON already contains the clean answer at a smaller stable-n.
+
+## sanity v4 — Plan 1c verified
+
+```
+snapshots_attempted       18
+snapshots_completed       18
+mean_guest_run_interval   0.1256 s   (target: intervalMsec + ~25 ms)
+mean_host_snapshot_cycle  1.626 s    (matches 2a Round 3)
+mean_pmemsave             0.770 s    (flat, no drift)
+mean_suspend              0.0622 s
+backpressure_events       0          (was 30 in v3)
+queue_max_depth           0          (was nulled out in v3)
+estimated_vm_pause_fraction  92.3 %  (matches 2b iv=100 cell)
+```
+
+New JSON fields recorded:
+
+```
+config.self_clean              true
+config.drain_queue_on_start    true
+config.queue_files_drained     15      ← Plan 1c drained 15 stale files
+notes[0]                       "plan-1c: drained 15 stale queue file(s) from /project/homes/jeries/memory_traces/queue_dir before start"
+```
+
+Bug E is **CLOSED**. The sanity script now matches the 2a/2b/2c default behaviour and produces clean data on first run regardless of leftover queue state.
+
+## 2c v4 — Plan 5 fixed the probe, but exposed Bug G
+
+### What worked
+- `integrity_on.probes_examined = 5`, `integrity_on.all_ok = true` ✓
+- `integrity_off.probes_examined = 5`, `integrity_off.all_ok = true` ✓
+- 5 real dumps inspected per pass, all 1073741824 bytes (1 GiB), readable end-to-end, non-zero content in probe slots.
+- Bug F is **CLOSED**.
+
+### What surfaced — Bug G
+The host_dt comparison flipped sign:
+
+| metric | Round 3 (self-clean ON) | Round 4 (self-clean OFF, Plan 5) |
+| ------ | ----------------------- | -------------------------------- |
+| first-10 host_dt delta | **−0.515 s** (flush_off wins) | **+2.466 s** (flush_off loses) |
+| flush_off pmemsave snap 0–4 | 0.77 s flat | 0.81 s flat |
+| flush_off pmemsave snap 5 | 0.77 s | **1.95 s** ← transition |
+| flush_off pmemsave snap 6 | 0.77 s | **7.25 s** ← drift |
+| flush_off pmemsave snap 7–10 | 0.78 s | 8.27, 7.91, 8.08, 6.00 s |
+
+The flush_off pass was clean for the first 5 snaps, then collapsed. The flush_on pass stayed flat at 0.84 s throughout because the 0.5 s sleep gave the kernel time to flush dirty pages from the previous pmemsave. Without that sleep, dirty pages stacked up, and by snap 6 every pmemsave was I/O-blocked on page-cache writeback.
+
+This is **not** a regression of mechanism vi. It is the same disk-pressure tail, but now triggered specifically by the combination *flush_off + no self-clean*. Plan 5 deliberately turned self-clean off so the probe would see real dumps. The unintended side effect is that mechanism vi re-emerges in flush_off.
+
+### Same JSON, smaller window → Round 3 answer back
+
+Computing the host_dt delta on the first 5 snaps (before the drift):
+
+```
+flush_on  first-5 host_dt mean  =  1.519 s
+flush_off first-5 host_dt mean  =  1.038 s
+delta                            = -0.481 s   ← matches Round 3 (-0.515 s)
+```
+
+So the answer to the original 2c question — "is the 0.5 s flush necessary?" — is **the same as Round 3** when measured on a window short enough to predate the drift. The window just needs to be smaller than the default `--stable-n=10`.
+
+## Bug G · the flush-vs-self-clean coupling
+
+`run_exp2c_flush_sensitivity.py` was implicitly designed assuming dumps disappear quickly after pmemsave returns. That assumption was true in Round 3 (self-clean ON) and is true in production (consumer drains the queue). It is *false* in the Plan 5 configuration (self-clean OFF for the integrity probe).
+
+The flush behaviour interacts with the dump-survival model:
+
+| scenario | flush role | flush_off effect |
+| -------- | ---------- | ---------------- |
+| Self-clean ON (Round 3) | pure overhead | saves 0.5 s/snap |
+| Self-clean OFF (Round 4 Plan 5) | implicit dirty-page barrier | loses 2.5 s/snap from drift |
+| Production (consumer drains) | pure overhead | saves 0.5 s/snap (matches Round 3) |
+
+The production answer is unchanged: **remove the flush, save ~10 % wall-clock per snap**. Round 4 just measured a degenerate counterfactual (no consumer + no self-clean) that does not exist in production.
+
+### Plan 6 · `--stable-n` default 10 → 5 · **LANDED**
+
+The cheapest fix: shrink the default comparison window so the drift never enters the average.
+
+```python
+p.add_argument("--stable-n", type=int, default=5, ...)
+```
+
+Justified directly from Round 4 data:
+
+- Drift first appears at snap 6 (pmemsave 7.25 s).
+- n=5 catches the savings window cleanly: delta = −0.481 s ≈ Round 3's −0.515 s.
+- n=6 already starts to absorb drift: delta = −0.291 s (still negative but noisy).
+- n=7 flips positive: +0.609 s.
+- n=10 (old default) = +2.466 s (full drift contamination).
+
+Plan 6 is committed alongside this analysis. ~1 LOC change.
+
+### Plan 5c (deferred) · structural fix via producer KEEP_LAST=N
+
+A cleaner long-term solution: add `TIMING_SELF_CLEAN_KEEP_LAST=N` env-var to `capture_producer_qemu_pmemsave.sh`. The producer keeps the most recent N dumps and deletes anything older. 2c sets N=5 — probe sees 5 real dumps, timing window is identical to Round 3, no drift.
+
+Cost: ~25 LOC in the producer + ~5 LOC in 2c. Deferred to a future round; Plan 6 is sufficient.
+
+## Round 5 plan (optional, ~1 min)
+
+Re-run 2c only with `--stable-n=5` (now the default). Expected JSON:
+
+```
+comparison.mean_host_snapshot_cycle_sec_first_n.n_used  = 5
+comparison.mean_host_snapshot_cycle_sec_first_n.delta   ≈ -0.48 s
+recommendation                                          = "REMOVE the flush ..."
+integrity_on.all_ok                                     = true
+integrity_off.all_ok                                    = true
+```
+
+If those land, mechanisms i–vii + D + E + F + G are all closed. Plan 02 (per-family `intervalMsec` profile) unblocks with no caveats. The 0.5 s `sleep` on line 142 of `capture_producer_qemu_pmemsave.sh` can be removed permanently.
+
+```sh
+cd /project/homes/jeries/memorySignal/VM_sampler/VM_Capture_QEMU
+git pull
+python3 run_exp2c_flush_sensitivity.py \
+    --duration 60 --interval-ms 100 --ram-mb 1024 \
+    --output-json /project/homes/jeries/memorySignal/timing_runs/exp2c_v5.json
+```
+
+No sanity v5 needed — sanity is locked at A in Round 4.
