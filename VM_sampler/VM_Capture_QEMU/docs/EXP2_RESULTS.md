@@ -764,3 +764,49 @@ python3 run_exp2c_flush_sensitivity.py \
 ```
 
 No sanity v5 needed — sanity is locked at A in Round 4.
+
+# Round 5 results (2026-05-21)
+
+## Headline
+
+| field | value | check |
+| ----- | ----- | ----- |
+| `comparison.mean_host_snapshot_cycle_sec_first_n.n_used` | **5** | Plan 6 default landed on host ✓ |
+| `comparison.mean_host_snapshot_cycle_sec_first_n.delta` | **−0.380 s** | negative · flush_off wins ✓ |
+| `integrity_on.all_ok` / `integrity_off.all_ok` | `true / true` | probe still works ✓ |
+| `recommendation` | `"REMOVE the flush — dumps remain intact and host_dt drops by 0.380 s (25.0%) on the first-5 comparison."` | orchestrator verdict ✓ |
+| both passes `snapshots_completed` | 21 / 21 | symmetric, full window ✓ |
+
+Bug G is **CLOSED empirically**. All 9 mechanisms / bugs (i–vii + D + E + F + G) are closed.
+
+## Inter-round delta comparison
+
+| round | n | flush_on first-n | flush_off first-n | delta | verdict |
+| ----- | - | ---------------- | ----------------- | ----- | ------- |
+| R2 manual | 9 | (manual inspection) | (manual) | −0.520 s | REMOVE (manual) |
+| R3 | 10 | (self-clean ON) | (self-clean ON) | **−0.515 s** | REMOVE (Plan 3) |
+| R4 first-5 | 5 | 1.519 s | 1.038 s | **−0.481 s** | (manual; n=10 verdict was NEUTRAL +2.466) |
+| **R5** | **5** | **1.520 s** | **1.140 s** | **−0.380 s** | **REMOVE (Plan 6 default)** |
+
+All four rounds agree on direction. R5's smaller magnitude is explained by flush_off snap 0 (`suspend_sec = 0.633 s` cold-start, vs ~0.066 s steady-state) and snap 9+ drift starting earlier than R4 — both stochastic, both expected; the n=5 window still captured the right sign.
+
+## Bug H · `mkdir -p` parent of `--output-json`
+
+Discovered in the first R5 attempt: 2c (and 2b) crashed on `json.dump` because `out_path.parent` didn't exist. Sanity script + 2a already handled this; 2b + 2c didn't. Fix is one line × 4 sites (dry-run + real-run paths in each of 2b and 2c). Committed alongside this analysis.
+
+## Status after Round 5
+
+| stage | state |
+| ----- | ----- |
+| 9 mechanisms / bugs | **all CLOSED** |
+| 8 plans (1 / 1b / 1c / 3 / 4 / 5 / 6 + Bug H fix) | **all LANDED** |
+| 5 rounds + 2 sanity runs | **all done** |
+| Phase-2 production tooling | **calibrated, audit-trailed, ready** |
+| Plan 02 (per-family `intervalMsec` profile) | **UNBLOCKED** |
+| Phase-2 producer `sleep 0.5` flush | safe to remove · saves ~10 % wall-clock per snap |
+
+## Next steps (no longer blocked)
+
+1. **Drop `sleep 0.5`** from `capture_producer_qemu_pmemsave.sh` line 142 (or guard it behind a production-mode flag). ~1 LOC.
+2. **Plan 02** — per-family `intervalMsec` profile. The thesis-contribution experiment. Pick the smallest `intervalMsec` per workload family such that the defining rhythm fits ≥ 4 periods in a 128-sample window. Use R2's pause-fraction sweep (92/85/76/59 % at iv=100/250/500/1000) as the bound.
+3. **Re-collect one previously-confused workload pair** and rerun classifier. If confusion collapses, the bc + Δt + drift + interval-profile chain is load-bearing. If it persists, escalate to Plan 03 (window/hop).
