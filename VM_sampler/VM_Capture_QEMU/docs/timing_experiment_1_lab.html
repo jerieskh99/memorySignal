@@ -1516,6 +1516,126 @@ canvas#ruler-canvas {
 .decision-tree pre .fail{ color: var(--bad); }
 .decision-tree pre .acc { color: var(--accent); }
 
+/* ============================================================
+   STATUS BOARD · where we are right now
+   ============================================================ */
+
+.status-board {
+  margin: 28px 0 8px;
+  padding: 24px 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.status-board .board-title {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+.status-board .board-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  margin-left: 8px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.status-board .board-tag.done    { background: rgba(124,185,110,.14); color: var(--good); }
+.status-board .board-tag.next    { background: rgba(212,168,90,.14);  color: var(--accent); }
+.status-board .board-tag.blocked { background: rgba(232,85,58,.10);   color: var(--bad-2); }
+
+.status-line {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-top: 1px solid rgba(255,255,255,.04);
+  color: var(--text-dim);
+}
+.status-line:first-of-type { border-top: none; }
+.status-line .badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 2px;
+  text-align: center;
+  font-weight: 600;
+}
+.status-line .badge.done    { background: rgba(124,185,110,.16); color: var(--good); }
+.status-line .badge.next    { background: rgba(212,168,90,.16);  color: var(--accent); }
+.status-line .badge.blocked { background: rgba(232,85,58,.12);   color: var(--bad-2); }
+.status-line .what { color: var(--text); }
+.status-line .meta { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.status-line .meta .ok { color: var(--good); }
+.status-line .meta .acc { color: var(--accent); }
+
+.board-divider {
+  border-top: 1px dashed var(--line);
+  margin: 12px 0 4px;
+}
+
+.headline-progress {
+  margin-top: 22px;
+  padding: 14px 18px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  font-family: var(--serif);
+  font-variation-settings: "opsz" 18, "wght" 440;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.headline-progress strong { font-variation-settings: "opsz" 18, "wght" 620; color: var(--accent); }
+.headline-progress code { color: var(--accent); font-family: var(--mono); font-size: 13px; background: rgba(212,168,90,.06); padding: 1px 5px; border-radius: 2px; }
+
+/* mechanism mini-grid */
+.mech-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 22px;
+}
+.mech-pill {
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mech-pill .id {
+  font-size: 10px;
+  letter-spacing: .16em;
+  color: var(--muted);
+}
+.mech-pill .name { color: var(--text); font-size: 12.5px; margin: 2px 0; }
+.mech-pill .verdict {
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.mech-pill .verdict.fixed    { color: var(--good); }
+.mech-pill .verdict.fixable  { color: var(--good); }
+.mech-pill .verdict.open     { color: var(--bad-2); }
+.mech-pill.fixed   { border-left: 3px solid var(--good); }
+.mech-pill.fixable { border-left: 3px solid var(--good); }
+.mech-pill.open    { border-left: 3px solid var(--bad); }
+
 /* compact table for cost/risk */
 .cost-table {
   width: 100%;
@@ -2326,6 +2446,136 @@ nearest "nice" round number       <em>250 ms</em>
       <h2 class="section">One fix landed. <em>Two more to go.</em></h2>
     </div>
     <p class="section-lede">Δt_frame is now correct. The consumer + libvirtd contention story still gates plan 02. Old datasets remain mis-calibrated.</p>
+  </div>
+
+  <!-- ─────────────────────  STATUS BOARD  ───────────────────── -->
+  <div class="status-board">
+    <div class="board-title">
+      Where we are right now
+      <span class="board-tag done">5 done</span>
+      <span class="board-tag next">5 next</span>
+      <span class="board-tag blocked">4 blocked</span>
+    </div>
+
+    <!-- DONE block -->
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">bc fix · Run 2 + Round 2 verified</span>
+      <span class="meta"><span class="ok">guest_dt = intervalMsec + 25 ms</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">2a Round 2 · consumer-off measured</span>
+      <span class="meta"><span class="ok">suspend 6.4 s → 0.066 s</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">2b Round 2 · pause-fraction sweep</span>
+      <span class="meta"><span class="ok">92 % @ iv=100 → 59 % @ iv=1000</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">2c Round 2 · data clean, verdict logic wrong</span>
+      <span class="meta"><span class="ok">passes complete, recommendation pending Plan 3</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Bug analysis + 4-plan fix proposal in MD + HTML</span>
+      <span class="meta"><span class="ok">EXP2_RESULTS.md + this page</span></span>
+    </div>
+
+    <div class="board-divider"></div>
+
+    <!-- NEXT block (code change → re-run) -->
+    <div class="status-line">
+      <span class="badge next">next</span>
+      <span class="what">Plan 1 · producer <code>TIMING_SELF_CLEAN</code> env var</span>
+      <span class="meta">~6 lines bash</span>
+    </div>
+    <div class="status-line">
+      <span class="badge next">next</span>
+      <span class="what">Plan 1b · 2a/2b/2c orchestrators export env var</span>
+      <span class="meta">~3 lines × 3 files</span>
+    </div>
+    <div class="status-line">
+      <span class="badge next">next</span>
+      <span class="what">Plan 3 · 2c stable-subset verdict</span>
+      <span class="meta">~20 lines Python</span>
+    </div>
+    <div class="status-line">
+      <span class="badge next">next</span>
+      <span class="what">Plan 4 · <code>disk_free_check</code> cleanup-aware</span>
+      <span class="meta">~10 lines Python</span>
+    </div>
+    <div class="status-line">
+      <span class="badge next">next</span>
+      <span class="what">Round 3 re-run · sanity + 2a + 2c + 2b</span>
+      <span class="meta">~10 min host wall-clock</span>
+    </div>
+
+    <div class="board-divider"></div>
+
+    <!-- BLOCKED block (depends on the above) -->
+    <div class="status-line">
+      <span class="badge blocked">blocked</span>
+      <span class="what">Plan 02 · per-family <code>intervalMsec</code> profile</span>
+      <span class="meta">waits on Round 3</span>
+    </div>
+    <div class="status-line">
+      <span class="badge blocked">blocked</span>
+      <span class="what">Plan 03 · window / hop tuning</span>
+      <span class="meta">waits on Plan 02</span>
+    </div>
+    <div class="status-line">
+      <span class="badge blocked">blocked</span>
+      <span class="what">Plan 04 · k-segmentation sweep</span>
+      <span class="meta">waits on Plan 03</span>
+    </div>
+    <div class="status-line">
+      <span class="badge blocked">blocked</span>
+      <span class="what">Classifier re-validation on a re-collected workload pair</span>
+      <span class="meta">final gate</span>
+    </div>
+
+    <!-- mechanism mini-grid -->
+    <div class="mech-status-grid">
+      <div class="mech-pill fixed">
+        <div class="id">i</div><div class="name">window-duration collapse</div>
+        <div class="verdict fixed">FIXED · bc</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">ii</div><div class="name">cepstral peak mis-mapping</div>
+        <div class="verdict fixed">FIXED · bc</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">iii</div><div class="name">non-stationary host Δt</div>
+        <div class="verdict fixed">FIXED · 2a + cleanup</div>
+      </div>
+      <div class="mech-pill fixable">
+        <div class="id">iv</div><div class="name">pause-fraction noise floor</div>
+        <div class="verdict fixable">FIXABLE · interval choice</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">v</div><div class="name">dump cleanup silent fail</div>
+        <div class="verdict fixed">FIXED · sudo rm fallback</div>
+      </div>
+      <div class="mech-pill open">
+        <div class="id">vi</div><div class="name">in-pass pmemsave drift</div>
+        <div class="verdict open">OPEN · Plan 1 designed</div>
+      </div>
+      <div class="mech-pill open">
+        <div class="id">vii</div><div class="name">2c verdict false negative</div>
+        <div class="verdict open">OPEN · Plan 3 designed</div>
+      </div>
+      <div class="mech-pill open">
+        <div class="id">D</div><div class="name">disk-free check pessimistic</div>
+        <div class="verdict open">OPEN · Plan 4 designed</div>
+      </div>
+    </div>
+
+    <div class="headline-progress">
+      Analysis <strong>100 %</strong> done. Code change <strong>0 %</strong> done. About <code>~40 lines of code</code> away from running Round 3.
+    </div>
   </div>
 
   <div class="remediation">
