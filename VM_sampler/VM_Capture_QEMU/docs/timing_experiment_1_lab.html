@@ -1722,13 +1722,13 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>Round 2 · 20260520T200424Z</span>
+    <span>Round 3 · 20260521T005533Z</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">iii FIXED · iv FIXABLE · vi+vii open</span>
+    <span id="topbar-status-text">Plans 1·1b·3·4 verified · 2 small follow-ups</span>
   </div>
 </nav>
 
@@ -1741,15 +1741,17 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">Three mechanisms <em>down</em>.<br>Two more to <em>go</em>.</h1>
+  <h1 class="title">Plans 1·1b·3·4 <em>landed</em>.<br>Two small follow-ups <em>left</em>.</h1>
   <p class="hero-deck">
-    Round 2 confirms the corrected timing model end-to-end: <strong>guest_dt
-    = intervalMsec + 25 ms</strong> across four intervals, <strong>suspend
-    median 66 ms</strong> with consumer killed, <strong>pause-fraction sweep
-    92 % → 59 %</strong> exactly as predicted. But two new bugs surfaced:
-    pmemsave drifts during a pass because the producer's rolling-delete
-    is disabled in producer-only mode, and 2c's verdict logic averages over
-    the contaminated tail. Both have explicit fix plans — code change next.
+    Round 3 (post code-fixes) confirms <strong>pmemsave flat at 0.77 s
+    across the entire pass</strong> in every cell — drift gone. Both 2a
+    passes and all four 2b cells now hit <strong>zero backpressure
+    events</strong> and <strong>queue_max=0</strong>. Plan 3's stable-subset
+    delta correctly computed <code>−0.515 s</code> for the flush. But two
+    small follow-ups surfaced: the sanity script never got Plan 1b
+    (zero snapshots on a stale queue) and 2c's integrity probe runs after
+    self-clean has already deleted the dumps. Fix Plan 1c + Plan 5 next,
+    Round 4 is the final pass before plan 02 unblocks.
   </p>
 </header>
 
@@ -2452,8 +2454,8 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">5 done</span>
-      <span class="board-tag next">5 next</span>
+      <span class="board-tag done">10 done</span>
+      <span class="board-tag next">3 next</span>
       <span class="board-tag blocked">4 blocked</span>
     </div>
 
@@ -2475,42 +2477,57 @@ nearest "nice" round number       <em>250 ms</em>
     </div>
     <div class="status-line">
       <span class="badge done">done</span>
-      <span class="what">2c Round 2 · data clean, verdict logic wrong</span>
-      <span class="meta"><span class="ok">passes complete, recommendation pending Plan 3</span></span>
+      <span class="what">Bug analysis + 4-plan fix proposal in MD + HTML</span>
+      <span class="meta"><span class="ok">EXP2_RESULTS.md + this page</span></span>
     </div>
     <div class="status-line">
       <span class="badge done">done</span>
-      <span class="what">Bug analysis + 4-plan fix proposal in MD + HTML</span>
-      <span class="meta"><span class="ok">EXP2_RESULTS.md + this page</span></span>
+      <span class="what">Plan 1 · producer <code>TIMING_SELF_CLEAN</code> env var</span>
+      <span class="meta"><span class="ok">pmemsave drift gone; 0.77 ± 0.04 s</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 1b · 2a/2b/2c set env var</span>
+      <span class="meta"><span class="ok">queue_max=0 in 2a + all 2b cells</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 3 · 2c stable-subset verdict logic</span>
+      <span class="meta"><span class="ok">first-10 delta = −0.515 s ✓</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 4 · <code>disk_free_check</code> cleanup-aware</span>
+      <span class="meta"><span class="ok">no WARNING in 2b v3 notes</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Round 3 re-run · 2a v3 + 2b v3 PASS · 2c partial · sanity failed</span>
+      <span class="meta"><span class="ok">36 snaps × 2 passes 2a · all 4 cells 2b</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Round 3 analysis · 2 follow-ups identified</span>
+      <span class="meta"><span class="ok">Bug E (sanity), Bug F (2c probe)</span></span>
     </div>
 
     <div class="board-divider"></div>
 
-    <!-- NEXT block (code change → re-run) -->
+    <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Plan 1 · producer <code>TIMING_SELF_CLEAN</code> env var</span>
-      <span class="meta">~6 lines bash</span>
+      <span class="what">Plan 1c · apply Plan 1b to sanity script</span>
+      <span class="meta">~10 lines Python · fixes Bug E</span>
     </div>
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Plan 1b · 2a/2b/2c orchestrators export env var</span>
-      <span class="meta">~3 lines × 3 files</span>
+      <span class="what">Plan 5 · 2c keeps dumps alive for integrity probe</span>
+      <span class="meta">~5 lines Python · fixes Bug F</span>
     </div>
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Plan 3 · 2c stable-subset verdict</span>
-      <span class="meta">~20 lines Python</span>
-    </div>
-    <div class="status-line">
-      <span class="badge next">next</span>
-      <span class="what">Plan 4 · <code>disk_free_check</code> cleanup-aware</span>
-      <span class="meta">~10 lines Python</span>
-    </div>
-    <div class="status-line">
-      <span class="badge next">next</span>
-      <span class="what">Round 3 re-run · sanity + 2a + 2c + 2b</span>
-      <span class="meta">~10 min host wall-clock</span>
+      <span class="what">Round 4 re-run · sanity + 2c (2a + 2b stable)</span>
+      <span class="meta">~3 min host wall-clock</span>
     </div>
 
     <div class="board-divider"></div>
@@ -2519,7 +2536,7 @@ nearest "nice" round number       <em>250 ms</em>
     <div class="status-line">
       <span class="badge blocked">blocked</span>
       <span class="what">Plan 02 · per-family <code>intervalMsec</code> profile</span>
-      <span class="meta">waits on Round 3</span>
+      <span class="meta">waits on Round 4</span>
     </div>
     <div class="status-line">
       <span class="badge blocked">blocked</span>
@@ -2559,22 +2576,146 @@ nearest "nice" round number       <em>250 ms</em>
         <div class="id">v</div><div class="name">dump cleanup silent fail</div>
         <div class="verdict fixed">FIXED · sudo rm fallback</div>
       </div>
-      <div class="mech-pill open">
+      <div class="mech-pill fixed">
         <div class="id">vi</div><div class="name">in-pass pmemsave drift</div>
-        <div class="verdict open">OPEN · Plan 1 designed</div>
+        <div class="verdict fixed">FIXED · Plan 1 + Round 3</div>
       </div>
-      <div class="mech-pill open">
+      <div class="mech-pill fixable">
         <div class="id">vii</div><div class="name">2c verdict false negative</div>
-        <div class="verdict open">OPEN · Plan 3 designed</div>
+        <div class="verdict fixable">LOGIC FIXED · waits on Plan 5</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">D</div><div class="name">disk-free check pessimistic</div>
+        <div class="verdict fixed">FIXED · Plan 4 + Round 3</div>
       </div>
       <div class="mech-pill open">
-        <div class="id">D</div><div class="name">disk-free check pessimistic</div>
-        <div class="verdict open">OPEN · Plan 4 designed</div>
+        <div class="id">E</div><div class="name">sanity script lacks self-clean</div>
+        <div class="verdict open">NEW · Plan 1c designed</div>
+      </div>
+      <div class="mech-pill open">
+        <div class="id">F</div><div class="name">2c integrity probe finds 0 dumps</div>
+        <div class="verdict open">NEW · Plan 5 designed</div>
       </div>
     </div>
 
     <div class="headline-progress">
-      Analysis <strong>100 %</strong> done. Code change <strong>0 %</strong> done. About <code>~40 lines of code</code> away from running Round 3.
+      Round 3 done · Plans 1·1b·3·4 <strong>verified</strong> · two small follow-ups remain (<code>~15 lines Python</code>) · Round 4 is the final pass before plan 02 unblocks.
+    </div>
+  </div>
+
+  <!-- ─────────────────────  ROUND 3 RESULTS  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">Round 3 · what we just measured</span>The three big wins and the two small misses</h3>
+    <p>Round 3 was the re-run on the patched pipeline. Four JSONs came back. Three are clean wins; two surface follow-up items that take ~15 lines of Python to close.</p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">2a (consumer isolation) · A+</div>
+        <p>Both passes: <strong>36 snapshots each</strong>, zero backpressure, queue stays at 0. Pmemsave is flat at <strong>0.78 s ± 0.04</strong> for the entire pass — no drift to 4.7 s like Round 2. The producer's self-clean works exactly as designed.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p><code>std/mean(pmemsave)</code> = 0.054 across 36 snaps both passes. Suspend median ~63 ms. host_dt mean 1.64–1.66 s, CV 2.5 %. Consumer_on / consumer_off labels are now degenerate (both effectively producer-only thanks to self-clean) — the comparison reduces to a reproducibility check across two back-to-back passes. Numbers match within 1.5 %.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">2b (interval sweep) · A+</div>
+        <p>All four cells (iv = 100 / 250 / 500 / 1000 ms) collected <strong>24–36 snapshots</strong> cleanly. Pmemsave is flat at ~0.77 s in <em>every</em> cell. Pause-fraction sweep reproduces Round 2 within 0.1 % — 92.4 % at iv=100, 59.3 % at iv=1000. The disk-space warning that fired in Round 2 is gone (Plan 4 verified).</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>All cells: <code>backpressure_events=0</code>, <code>queue_max_depth=0</code>. <code>pause_fraction</code> monotone decreasing with intervalMsec. <code>peak_concurrent_dumps: 2</code> recorded in JSON, <code>needed_bytes</code> drops from 980 GiB to 3.2 GiB → no false-positive WARNING in <code>notes</code>. <code>guest_run_interval_sec</code> = intervalMsec + 25 ms across all four cells (CV &lt; 4 % within each cell).</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">sanity v3 · failed (Bug E)</div>
+        <p>30-second sanity check produced <strong>zero snapshots</strong>. Why: the sanity script (the original Experiment 1 driver) did not get the same env-var update that 2a/2b/2c got. So it tried to enqueue dumps for a consumer that wasn't running, hit the queue-full cap on its first iteration, and stayed there for the entire 30 seconds.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p><code>backpressure_events=30</code>, <code>snapshots_completed=0</code>. Producer's <code>$pendingCount</code> read &gt;= <code>maxPendingJobs=20</code> from start because previous sessions left queue files in <code>queueDir/pending/</code>. <strong>Plan 1c</strong>: apply <code>TIMING_SELF_CLEAN=1</code> default + <code>--drain-queue-on-start</code> in <code>run_timing_instrumentation_experiment.py</code>. ~10 lines Python in one file.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">2c v3 · partial (Bug F)</div>
+        <p>The timing comparison <em>worked</em> — flush_off was 0.515 s faster than flush_on on the first-10 stable subset. That's exactly the removed <code>sleep 0.5</code>. But the verdict came back <strong>"KEEP the flush"</strong> because the integrity probe ran on <strong>0 dump files</strong> — Plan 1's self-clean had already deleted them all before the orchestrator got to phase 2.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p><code>integrity.probes_examined = 0</code> in both passes; <code>integrity.all_ok = false</code> by void-vacuously. Recommendation falls into the "KEEP because integrity failed" branch even though <code>mean_host_snapshot_cycle_sec_first_n.delta = -0.5153</code> would otherwise produce REMOVE. <strong>Plan 5</strong>: 2c sets <code>--no-self-clean</code> by default so dumps persist long enough for the post-pass probe to run. ~5 lines Python in 2c. Plan 3's stable-subset comparison already protects the verdict from the resulting in-pass drift.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- worked example: the numbers side-by-side -->
+  <div class="subsection">
+    <h3><span class="marker viz">Round 2 → Round 3 · before/after</span>How the numbers moved</h3>
+    <div class="illustration">
+      <div class="cap">Same workload (idle Kali, intervalMsec=100), three rounds compared</div>
+      <div class="scene">  metric                       Run 2 (Round 1)   Round 2 (cleanup)   Round 3 (Plans 1-4)
+  ──────────────────────────────────────────────────────────────────────────
+  suspend mean                       6.380 s             0.066 s            <em>0.063 s</em>
+  host_dt mean                       9.25 s              1.64 s             <em>1.65 s</em>
+  pmemsave first 5 snaps             0.770 s             0.77 s             <em>0.79 s</em>
+  pmemsave last 5 snaps              4.65 s              1.66 s             <em>0.78 s</em>   ← drift gone
+  backpressure events                85                  25 (pass 2)        <em>0 (both passes)</em>
+  queue max depth                    20 (cap)            19                 <em>0</em>
+  vm pause fraction                  99.8 %              92.3 %             <em>92.3 %</em>
+  disk free WARNING in 2b            (n/a)               fired              <em>silent</em>
+  2c verdict                         inconclusive        NEUTRAL (wrong)    <em>KEEP (correct logic, blocked by Bug F)</em>
+</div>
+    </div>
+    <p>Every column flipped in the right direction or stayed stable. The only Round 3 cell that didn't land yet is 2c's verdict — and the underlying timing data inside that JSON already says "REMOVE" via <code>mean_host_snapshot_cycle_sec_first_n.delta = -0.515 s</code>. The integrity probe just couldn't observe the dumps.</p>
+  </div>
+
+  <!-- next-steps: simple+pro -->
+  <div class="subsection">
+    <h3><span class="marker case">What's next</span>The two small follow-ups before plan 02 unblocks</h3>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 1c · "make sanity not stall on leftovers"</div>
+        <p>Same trick that worked for 2a/2b/2c (telling the producer to delete its own dumps), but applied to the sanity script too. Plus drain the queue at startup so a previous experiment's leftovers can't make the new run sit idle.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>In <code>run_timing_instrumentation_experiment.py</code> <code>main()</code>: set <code>os.environ["TIMING_SELF_CLEAN"]="1"</code> by default + add <code>--no-self-clean</code> opt-out. Plus optional <code>--drain-queue-on-start</code> using the same helper 2a/2b/2c use. ~10 lines.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 5 · "give the camera time to look at the photos"</div>
+        <p>The producer was set to throw away each dump as soon as the next one was written. That kept disk pressure flat (great for 2a/2b) but meant the integrity probe in 2c arrived at an empty folder. Fix: tell 2c specifically to leave the dumps in place during its pass; clean up only at the very end. Plan 3's stable-subset already protects the verdict from any drift this re-introduces.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>In <code>run_exp2c_flush_sensitivity.py</code> <code>main()</code>: set <code>os.environ.pop("TIMING_SELF_CLEAN", None)</code> when <code>--no-self-clean</code> is the default (or invert the default flag specifically for 2c). End-of-pass cleanup still runs. ~5 lines.</p>
+      </div>
+    </div>
+
+    <div class="worked">
+      <div class="who">After Plan 1c + Plan 5 + Round 4 · expected JSONs</div>
+      <p>Round 4 only needs to re-run sanity + 2c (2a and 2b are already at A+). Expected:</p>
+      <div class="compute"><em>sanity v4</em>     · snapshots_completed ≥ 6
+                  · guest_dt_mean ≈ 0.125 s
+                  · host_dt_mean ≈ 1.55 s
+
+<em>2c v4</em>         · integrity_on  = true
+                  · integrity_off = true
+                  · recommendation = "REMOVE the flush — ..."
+                  · first-10 host_dt delta ≈ −0.5 s
+
+<em>2a v4 / 2b v4</em>  · skipped (already at A+ in Round 3)
+</div>
+      <p class="verdict good">If those land, mechanisms i through F are all closed. Plan 02 (per-family <code>intervalMsec</code> profile) unblocks with no caveats.</p>
     </div>
   </div>
 

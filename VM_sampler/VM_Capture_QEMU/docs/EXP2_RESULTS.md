@@ -501,3 +501,119 @@ self-clean / per-cell purge is on.
 If those land, mechanism iii is FULLY FIXED end-to-end (no drift),
 the flush patch can be applied to the producer, and plan 02 (per-family
 `intervalMsec` profiles) is unblocked.
+
+---
+
+# Round 3 — Plans 1/1b/3/4 implemented, re-run results (2026-05-21)
+
+**JSONs analysed:** `sanity_v3.json` `exp2a_v3.json` `exp2c_v3.json` `exp2b_v3.json`
+
+## Headline
+
+| test | round 3 verdict | grade |
+| ---- | --------------- | :---: |
+| **2a v3** | both passes 36 snaps · pmemsave flat 0.78 s · no drift · no backpressure | ✅ |
+| **2b v3** | all 4 cells full data · pmemsave flat ~0.77 s · pause sweep matches R2 within 0.1 % · disk-free WARNING gone | ✅ |
+| **2c v3** | host_dt delta correct on first-10 (−0.515 s) but **integrity probe ran on 0 dumps** → verdict KEEP | ⚠️ partial |
+| **sanity v3** | 0 snapshots completed · 30 backpressure events | ❌ failed |
+
+**Plan 1 (producer self-clean) and Plan 4 (disk-check policy-aware) are verified working as designed.** Plan 3 (stable-subset comparison) computed the right number (delta −0.5153 s on first-10) but cannot make the verdict flip because the integrity gate failed for an unrelated reason.
+
+## Plan-by-plan verification
+
+| plan | how to know it worked | round 3 evidence |
+| ---- | --------------------- | ---------------- |
+| 1 (producer self-clean) | 2a pass 2 pmemsave std < 0.05 s | std = 0.042 s ✓ |
+| 1 (producer self-clean) | disk steady-state ≈ 2 dumps | `dumps_removed: 2` per 2b cell ✓ |
+| 1b (orchestrators set env) | grep `TIMING_SELF_CLEAN` in 2a/2b/2c | present ✓ |
+| 3 (stable-subset verdict) | both `mean_first_n` and `mean_all` in JSON | both present ✓ |
+| 3 (stable-subset verdict) | recommendation uses first-N when available | code path active; correct delta computed ✓ |
+| 4 (disk-check policy-aware) | no `disk free space may be insufficient` WARNING in notes | 2b notes empty; `peak_concurrent_dumps: 2` recorded ✓ |
+| 4 (disk-check policy-aware) | `needed_bytes` reflects 2 × ram, not snapshots × ram | 3 222 MiB needed vs 143 GiB free ✓ |
+
+All four plans landed cleanly. Mechanisms vi (in-pass drift) and Bug D (disk-check pessimism) are **closed**.
+
+## What changed numerically vs Round 2
+
+| metric | Run 2 | Round 2 | **Round 3** |
+| ------ | ----: | ------: | ----------: |
+| 2a suspend mean | 6.38 s | 0.066 s | **0.063 s** |
+| 2a host_dt mean | 9.25 s | 1.64 s | **1.65 s** |
+| 2a pmemsave drift across pass | 0.77 → 4.7 s | 0.77 → 1.66 s | **0.77 → 0.78 s** (essentially zero) |
+| 2a backpressure events | many | 25 (pass 2) | **0 both passes** |
+| 2b iv=100 pause | — | 92.2 % | **92.4 %** |
+| 2b iv=1000 pause | — | 59.2 % | **59.3 %** |
+| 2b pmemsave consistency across cells | — | spread 0.85–1.05 s | **flat 0.764–0.769 s** |
+| 2b backpressure events per cell | — | 8–26 | **0 in all 4 cells** |
+| 2b disk-free WARNING | — | fired | **absent** |
+| 2c host_dt delta (first-10) | n/a | n/a (means only) | **−0.515 s** ✓ matches manual round-2 read |
+
+Reproducibility across Round 2 → Round 3 is excellent. Where Round 2 showed slight drift inside a pass, Round 3 is flat. Where Round 2 had backpressure events, Round 3 has zero.
+
+## Two new bugs introduced by the Plan 1 / Plan 1b changes
+
+### Bug E · sanity script does not have self-clean
+
+`run_timing_instrumentation_experiment.py` was the original Experiment 1 driver and did **not** receive a Plan 1b update — only the three exp2 orchestrators did. As a result, the sanity script runs the producer without `TIMING_SELF_CLEAN=1` and without draining the pre-existing queue. On the capture host, where past sessions left ≥ 20 queue files, the producer hits the `maxPendingJobs=20` backpressure cap on the very first iteration and stays there for the entire 30 s duration. Zero snapshots produced.
+
+The data is correct ("the host's queue was saturated"), it's just useless for sanity-checking the bc fix.
+
+### Bug F · self-clean kills the 2c integrity probe
+
+2c works in two phases per pass:
+
+1. Producer runs for 60 s, writing dumps to `imageDir`.
+2. After the producer is stopped, the orchestrator parses the JSONL, takes the first N (`probes_per_pass`) records, and for each tries to read the dump file at `record.image_path` and check its size + content.
+
+When `TIMING_SELF_CLEAN=1` is set, the producer deletes every prev dump as soon as it has written curr. By the time the orchestrator gets to phase 2, only the very last dump in each pass still exists on disk — and even that one is deleted by the orchestrator's own end-of-pass `cleanup_run_dumps` call.
+
+Result: `probes_examined: 0` on both passes → `all_ok: false` → recommendation locked to "KEEP the flush — dumps without it failed integrity check" — regardless of how the host_dt comparison turned out.
+
+Plan 3 computed exactly the right number: `mean_host_snapshot_cycle_sec_first_n.delta = -0.5153 s` (off is 0.515 s faster than on). The verdict ladder would have correctly produced REMOVE — but it never got past the integrity gate.
+
+## Fix plan for Round 4
+
+Two small additions. Both expose existing behaviour as flags rather than introducing new logic.
+
+### Plan 1c · apply Plan 1b to the sanity script
+
+In `run_timing_instrumentation_experiment.py` `main()`:
+
+```python
+# Default on for producer-only timing sanity. Add --no-self-clean opt-out.
+if not args.no_self_clean:
+    os.environ["TIMING_SELF_CLEAN"] = "1"
+```
+
+Plus a `--drain-queue-on-start` flag that imports `e2a.drain_queue` (or duplicates the small helper) so a stale queue can't bork the run. Default this to ON for sanity (it's a sanity script, no state should leak in).
+
+Estimated: ~10 lines Python in one file.
+
+### Plan 5 · 2c keeps dumps until probe runs
+
+Two options, pick one:
+
+**Option A** (simpler): 2c overrides the Plan 1b default. In its `main()`, when self-clean is enabled, log a warning that integrity probe will not run, OR override to OFF for 2c specifically. The flush-comparison's Plan 3 stable-subset gives a clean verdict on host_dt even without self-clean — the first 10 snaps of each pass are stable regardless of what mechanism vi does to snaps 11+. So 2c can safely turn self-clean OFF and accumulate ~20 dumps per pass (fits in 50 GiB; well within budget).
+
+**Option B** (structural): producer keeps the last N dumps when self-clean is on. Add `TIMING_SELF_CLEAN_KEEP_LAST=N` env var; producer deletes only `prev_prev_prev...` beyond the last N. Cleaner long-term but more code change.
+
+Recommend **Option A** for Round 4. Estimated: ~5 lines Python in 2c.
+
+### Why these two together
+
+Plan 1c fixes the sanity script (small standalone fix). Plan 5 (Option A) lets 2c's integrity probe see real files. Together they unblock Round 4 → produces a clean 4-JSON set with no caveats.
+
+Estimated total: ~15 lines Python, one file each.
+
+## Round 4 expected predictions
+
+After Plan 1c + Plan 5 land:
+
+| test | expected |
+| ---- | -------- |
+| sanity v4 | ≥ 6 snapshots in 30 s, guest_dt 0.125 ± 0.01 s, host_dt ≈ 1.55 s |
+| 2a v4 | unchanged from v3 (already at A+) |
+| 2b v4 | unchanged from v3 (already at A+) |
+| 2c v4 | `integrity_on: true` AND `integrity_off: true` · `recommendation` = "REMOVE the flush..." |
+
+If those land, **all 8 mechanisms / bugs (i–vii + D + E + F) are closed**. Plan 02 (per-family `intervalMsec` profiles) is then unblocked with no caveats. The producer's `sleep 0.5` flush can be removed permanently for ~10 % wall-clock saving on every Phase 2 capture going forward.
