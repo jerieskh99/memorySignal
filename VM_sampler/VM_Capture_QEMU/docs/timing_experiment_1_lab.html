@@ -2407,6 +2407,242 @@ nearest "nice" round number       <em>250 ms</em>
     Pre-2026-05-20 confusion matrices from this host remain suspect. Round 2 confirms Δt_frame is correct end-to-end; in-pass drift fix is the last structural item before plan 02 is unblocked.
   </div>
 
+  <!-- ─────────────────────────────────────────────────────
+       NEW · expanded explanations for tests, plans, success
+       ───────────────────────────────────────────────────── -->
+
+  <!-- ───── what each test actually does ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">Plain language</span>What each test actually does</h3>
+    <p>The chain has three small tests (2a / 2b / 2c). Each isolates one specific question. None of them touches data, and none of them touches the existing capture pipeline when it is not running. They are diagnostic probes, not part of the capture chain.</p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Test 2a · the "kill the noisy roommate" test</div>
+        <p>Runs the producer twice for 60 s each. First with whatever the host state happens to be ("consumer on"). Second after pkill'ing the consumer ("consumer off"). Compares per-snapshot timing between the two passes. <strong>The question it answers: how much of the host-side variability is the consumer's fault?</strong></p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>A/B comparison of host snapshot cycle distribution under two states: (1) consumer subprocess running and consuming queue, (2) consumer killed + queue drained. Producer-only timing in both. Reports paired means / medians / std / pause-fraction. Mechanism iii diagnostic.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Test 2b · the "how slow can I sample" test</div>
+        <p>Runs the producer four times in a row, once for each of <code>intervalMsec</code> ∈ {100, 250, 500, 1000} ms. Each cell is 60 s of host wall-clock. <strong>The question it answers: how much does the VM spend paused as we slow down sampling — and where's the sweet spot?</strong></p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>One-factor parametric sweep over <code>intervalMsec</code>, RAM held constant. Each cell measures the pause fraction (Σ paused / Σ wall-clock). Output is a monotonic curve; the operator picks an <code>intervalMsec</code> per workload family using this curve plus that family's rhythm-of-interest. Mechanism iv diagnostic.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Test 2c · the "do we still need this brake?" test</div>
+        <p>The producer has a hard-coded <code>sleep 0.5</code> after every pmemsave — a safety brake from early development. 2c runs the producer twice (with the brake on, with the brake off) and checks if the dumps are still readable in both. <strong>The question it answers: is the 0.5 s safety brake actually doing anything, or is it just slowing us down?</strong></p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Toggles <code>TIMING_NO_FLUSH</code> env var that gates the post-pmemsave <code>sleep 0.5</code> in the producer. Compares host_dt distribution and dump integrity (file size + 3-point readability probe) between flush_on and flush_off. Reports a KEEP / REMOVE / NEUTRAL verdict. Cheap throughput win or "keep it for safety" decision.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── what success looks like, per test ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">Per-test success criteria</span>What "this test passed" actually means</h3>
+    <p>Concrete, numerical, no judgement calls. If the JSON shows these numbers, the test passed; if not, the test failed and we know what to look at.</p>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr>
+          <th>Test</th><th>Pass criteria (concrete)</th><th>Fail signal (what to look at)</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>2a</b></td>
+            <td class="mono">
+              consumer_off.suspend.mean &lt; 0.10 s<br>
+              consumer_off.host_dt.std / mean &lt; 0.20<br>
+              comparison shows consumer_on &gt;&gt; consumer_off on host_dt
+            </td>
+            <td>large host_dt std under consumer_off → something else is contending (host load, disk, neighbouring VM)</td>
+          </tr>
+          <tr>
+            <td><b>2b</b></td>
+            <td class="mono">
+              pause_fraction monotone decreasing with intervalMsec<br>
+              iv=100 &gt; 0.85 &nbsp;and&nbsp; iv=1000 &lt; 0.65<br>
+              all cells complete ≥ 20 snapshots
+            </td>
+            <td>non-monotone curve → host noise dominating; cell with &lt; 20 snaps → producer stalling at that interval</td>
+          </tr>
+          <tr>
+            <td><b>2c</b></td>
+            <td class="mono">
+              integrity_on = true AND integrity_off = true<br>
+              first 10 snaps of flush_off host_dt &lt; first 10 snaps of flush_on by ≥ 0.3 s<br>
+              recommendation = REMOVE
+            </td>
+            <td>integrity_off = false → keep the flush; delta &lt; 0.1 s → flush actually does something useful; NEUTRAL on means → check stable-subset (Plan 3)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Each criterion uses the JSON fields the orchestrator already emits. No post-hoc judgement; the same test results would yield the same pass/fail call regardless of who reads them.</p>
+  </div>
+
+  <!-- ───── what each plan does ───── -->
+  <div class="subsection">
+    <h3><span class="marker simple">Plain language</span>What each plan actually changes in the pipeline</h3>
+    <p>Four small code changes. None of them adds a feature; all of them close a previously-identified gap. None touches the analyzer; all four are in the capture / orchestrator side.</p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 1 · "let the producer take out its own trash"</div>
+        <p>When the consumer is killed for timing isolation, no one is left to delete old dump files. Plan 1 adds an opt-in toggle: when <code>TIMING_SELF_CLEAN=1</code> is set, the producer deletes the previous dump as soon as it has written the next one. Like the consumer's rolling-delete, but cooperative.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Patch to <code>capture_producer_qemu_pmemsave.sh</code>: when env var <code>TIMING_SELF_CLEAN</code> is set, replace the queue-enqueue branch with <code>sudo rm -f "$prevImage"</code>. Steady-state on-disk dump count stays at 2 (prev + curr). Eliminates mechanism vi (in-pass pmemsave drift). ~6 lines bash.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 1b · "tell the orchestrators to use it"</div>
+        <p>The producer change in Plan 1 is opt-in. Plan 1b makes 2a / 2b / 2c each set the env var when they launch the producer, so the new behaviour is automatic during timing experiments without affecting normal captures.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p><code>env["TIMING_SELF_CLEAN"] = "1"</code> in each orchestrator's producer-launch <code>subprocess.Popen</code> environment. Three files × ~3 lines.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 3 · "compare the clean part, not the drifty part"</div>
+        <p>2c's verdict was wrong because it averaged across 21 snapshots — including the last 10 which had drifted. Plan 3 makes the verdict use only the first 10 snapshots, where pmemsave is stable. Keeps both numbers in the JSON for transparency.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Add <code>stable_mean(records, key, n=10)</code> helper to <code>run_exp2c_flush_sensitivity.py</code>. Recommendation logic uses <code>mean_first_10</code> instead of <code>mean_all</code>. Both values reported in JSON. ~20 lines Python. Fixes mechanism vii.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 4 · "stop crying wolf on disk space"</div>
+        <p>The disk-free pre-check assumes every dump stays on disk for the whole run. After Plan 1 the producer cleans as it goes, so peak disk use is two dumps — tiny. Plan 4 makes the warning aware of that.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Add <code>peak_concurrent_dumps</code> parameter to <code>disk_free_check</code>. Orchestrators pass <code>2</code> when self-clean is on, the snapshot count when it's off. Stops a false-positive WARNING that was misleading and made operators question valid runs. ~10 lines Python.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── per-plan checklist (expanded) ───── -->
+  <div class="subsection">
+    <h3><span class="marker case">Per-plan checklist</span>How to verify each plan landed</h3>
+    <p>Same plans, viewed as a verifier rather than as a coder. Each row tells you the one thing to look at after the change is in and the experiment has re-run.</p>
+
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr>
+          <th>Plan</th>
+          <th>File touched</th>
+          <th>How to know it's in</th>
+          <th>How to know it works</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>1</b></td>
+            <td class="mono">capture_producer_qemu_pmemsave.sh</td>
+            <td>grep <code>TIMING_SELF_CLEAN</code> in producer script returns a hit</td>
+            <td class="mono ok">2a pass 2 pmemsave std &lt; 0.05 s across all 21 snaps (was drifting 0.77 → 4.7 s)</td>
+          </tr>
+          <tr>
+            <td><b>1b</b></td>
+            <td class="mono">run_exp2{a,b,c}*.py</td>
+            <td>grep <code>TIMING_SELF_CLEAN</code> in each orchestrator returns a hit</td>
+            <td class="mono ok">Disk usage during a run stays at ~2 GiB (prev + curr) instead of growing</td>
+          </tr>
+          <tr>
+            <td><b>3</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td>JSON has both <code>comparison.mean_first_10</code> and <code>comparison.mean_all</code></td>
+            <td class="mono ok">2c JSON's <code>recommendation</code> = "REMOVE the flush — ..."</td>
+          </tr>
+          <tr>
+            <td><b>4</b></td>
+            <td class="mono">run_timing_instrumentation_experiment.py</td>
+            <td><code>disk_free_check</code> signature has <code>peak_concurrent_dumps</code></td>
+            <td class="mono ok">2b JSON shows no <code>disk free space may be insufficient</code> WARNING in notes</td>
+          </tr>
+          <tr>
+            <td><b>re-run</b></td>
+            <td class="mono">(none)</td>
+            <td>4 new JSONs delivered: sanity_v3 / exp2a_v3 / exp2c_v3 / exp2b_v3</td>
+            <td class="mono ok">All four per-test acceptance criteria above pass in the new JSONs</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The verifier doesn't need to read code. They just need to grep one string in each touched file (to confirm the change is present) and inspect one field of one JSON (to confirm the change works). End-to-end auditable.</p>
+  </div>
+
+  <!-- ───── if a plan fails ───── -->
+  <div class="subsection">
+    <h3><span class="marker viz">Troubleshooting</span>If a plan's success criterion fails</h3>
+    <p>Each plan has one likely failure mode and a known-good way to triage it. Listed so the next operator doesn't have to re-derive these from scratch.</p>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr><th>Plan</th><th>What "failed" looks like</th><th>Most likely cause</th><th>Next move</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>1</b></td>
+            <td>pmemsave still drifts in 2a pass 2</td>
+            <td>sudo not passwordless for <code>rm</code>; self-clean silently skipping</td>
+            <td>add <code>jeries ALL=(ALL) NOPASSWD: /bin/rm</code> to <code>/etc/sudoers.d/timing-experiment</code> or pre-run a manual purge</td>
+          </tr>
+          <tr>
+            <td><b>3</b></td>
+            <td>recommendation stays <code>NEUTRAL</code></td>
+            <td>flush genuinely makes no measurable difference (host is faster than expected)</td>
+            <td>also test with <code>--probes-per-pass 20</code> and inspect the dump-content sha256 not just size; if integrity holds either way, REMOVE for free wall-clock saving</td>
+          </tr>
+          <tr>
+            <td><b>4</b></td>
+            <td>WARNING still fires</td>
+            <td>orchestrator forgot to pass the new <code>peak_concurrent_dumps</code> parameter</td>
+            <td>grep call sites of <code>disk_free_check</code> and confirm each one passes the right value</td>
+          </tr>
+          <tr>
+            <td><b>2a</b> re-run</td>
+            <td>consumer_off host_dt still &gt; 3 s</td>
+            <td>another process owns libvirtd / disk (a stuck consumer, a libvirt management daemon)</td>
+            <td><code>ps aux | grep -E "consumer_qemu|live_delta"</code> on capture host; kill orphans</td>
+          </tr>
+          <tr>
+            <td><b>2b</b> re-run</td>
+            <td>non-monotone pause_fraction curve</td>
+            <td>host noise (neighbour VM, NTP, daily disk cron)</td>
+            <td>schedule the run during quiet host hours; or extend per-cell duration to 5 min for better averaging</td>
+          </tr>
+          <tr>
+            <td><b>2c</b> re-run</td>
+            <td>integrity_off = false even after Plan 1</td>
+            <td>pmemsave write does not complete synchronously on this host — keep the flush</td>
+            <td>add a one-line comment to producer explaining the flush is host-dependent; do not remove on this host</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- ───── Subsection 1 · why this exact order ───── -->
   <div class="subsection">
     <h3><span class="marker simple">In one paragraph</span>Why this order, not a different one</h3>
