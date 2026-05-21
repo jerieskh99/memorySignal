@@ -2799,21 +2799,208 @@ pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7
     </div>
   </div>
 
+  <!-- ─────────────────────  CHRONOLOGICAL STEPS TABLE  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">When we did this · in steps</span>Full chronological timeline · runs · plans · bugs</h3>
+    <p>Every action taken on this pipeline, in order. Each row is a discrete event: a measurement round, a code change, or a finding. Use as the canonical reference for "what happened when, and what did it tell us."</p>
+
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr>
+          <th>#</th>
+          <th>Date</th>
+          <th>Event</th>
+          <th>What changed / what we measured</th>
+          <th>Result · numbers</th>
+          <th>Bugs / plans touched</th>
+        </tr></thead>
+        <tbody>
+
+          <tr>
+            <td><b>0</b></td>
+            <td class="mono">≤ 2026-05-19</td>
+            <td><b>Original Phase 2 captures</b></td>
+            <td>Pipeline running with <code>intervalMsec=100</code>, no instrumentation. Classifier confusion on workload pairs that should have been easy.</td>
+            <td class="mono">Δt_frame ≈ 6.6 ms (silently wrong)</td>
+            <td>opened the whole investigation</td>
+          </tr>
+
+          <tr>
+            <td><b>1</b></td>
+            <td class="mono">2026-05-19</td>
+            <td><b>Run 1 · first sanity</b></td>
+            <td>Instrumented producer w/ 6 timestamps (t0..t5). 30 s sanity run on idle Kali.</td>
+            <td class="mono">guest_dt = 0.0066 s (vs configured 0.100 s)</td>
+            <td>uncovered <b>bc missing</b> → mechanisms i, ii</td>
+          </tr>
+
+          <tr>
+            <td><b>2</b></td>
+            <td class="mono">2026-05-19</td>
+            <td><b>bc installed</b></td>
+            <td><code>apt install bc</code> on <code>pcrserral</code>.</td>
+            <td class="mono">sleep math now works</td>
+            <td>i, ii preliminarily fixed</td>
+          </tr>
+
+          <tr>
+            <td><b>3</b></td>
+            <td class="mono">2026-05-20</td>
+            <td><b>Run 2 · post-bc sanity</b></td>
+            <td>Re-ran 30 s sanity.</td>
+            <td class="mono">guest_dt = 0.125 s = intervalMsec + 25 ms ✓</td>
+            <td>i, ii FIXED empirically</td>
+          </tr>
+
+          <tr>
+            <td><b>4</b></td>
+            <td class="mono">2026-05-20</td>
+            <td><b>Round 1 · 2a + 2b + 2c</b></td>
+            <td>First three-test sweep. Consumer isolation, interval sweep, flush sensitivity.</td>
+            <td class="mono">dump cleanup silently failed; 2c probe wrong logic</td>
+            <td>v (perm bug), vii (probe logic), B (queue starvation)</td>
+          </tr>
+
+          <tr>
+            <td><b>5</b></td>
+            <td class="mono">2026-05-20</td>
+            <td><b>Fixes between R1 and R2</b></td>
+            <td>Added sudo fallback in <code>cleanup_run_dumps</code>; rewrote 2c probe to size+readability only (not non-zero content — idle Kali RAM IS zero); added <code>--purge-between-passes</code>.</td>
+            <td class="mono">~30 LOC</td>
+            <td>v structurally fixed</td>
+          </tr>
+
+          <tr>
+            <td><b>6</b></td>
+            <td class="mono">2026-05-20</td>
+            <td><b>Round 2 · re-run all three</b></td>
+            <td>Same suite, with R1 fixes.</td>
+            <td class="mono">suspend 6.4 s → 0.066 s · host_dt 9.25 s → 1.64 s · pause sweep 92/85/76/59 %</td>
+            <td>iii confirmed FIXED, iv parameterised, vi + vii surfaced</td>
+          </tr>
+
+          <tr>
+            <td><b>7</b></td>
+            <td class="mono">2026-05-20</td>
+            <td><b>Plans 1·1b·3·4 designed</b></td>
+            <td>Producer <code>TIMING_SELF_CLEAN</code> env-var; 3 orchestrators export it; 2c stable-subset verdict; disk_free_check policy-aware.</td>
+            <td class="mono">design only · no code yet</td>
+            <td>vi, vii, D</td>
+          </tr>
+
+          <tr>
+            <td><b>8</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Plans 1·1b·3·4 coded</b></td>
+            <td>4 files modified. Commit <code>9645df2</code>. ~40 LOC.</td>
+            <td class="mono ok">in tree, on branch</td>
+            <td>vi, vii, D</td>
+          </tr>
+
+          <tr>
+            <td><b>9</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Round 3 · re-run all three</b></td>
+            <td>First run on the patched pipeline.</td>
+            <td class="mono">2a A+ (drift gone, 36 snaps × 2) · 2b A+ (all 4 cells, peak_dumps=2) · 2c partial · sanity FAIL</td>
+            <td>vi FIXED · vii LOGIC FIXED · D FIXED · E + F surfaced</td>
+          </tr>
+
+          <tr>
+            <td><b>10</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Plans 1c + 5 designed</b></td>
+            <td>Sanity self-clean + queue drain (1c). 2c inverts self-clean default (5).</td>
+            <td class="mono">design only</td>
+            <td>E, F</td>
+          </tr>
+
+          <tr>
+            <td><b>11</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Plans 1c + 5 coded</b></td>
+            <td>2 files modified. Commit <code>c72f342</code>. ~55 LOC.</td>
+            <td class="mono ok">in tree, on branch</td>
+            <td>E, F</td>
+          </tr>
+
+          <tr>
+            <td><b>12</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Round 4 · sanity + 2c</b></td>
+            <td>Re-run only the two scripts the R3→R4 code changes touched.</td>
+            <td class="mono">sanity v4: 18 snaps, 0 backpressure, drained 15 stale files · 2c v4 probe: 5 dumps × 2 passes all_ok · 2c verdict flipped to NEUTRAL (+2.466 s)</td>
+            <td>E FIXED · F FIXED · <b>G surfaced</b></td>
+          </tr>
+
+          <tr>
+            <td><b>13</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Bug G diagnosed in-place</b></td>
+            <td>Same JSON, smaller window: first-5 host_dt delta = −0.481 s, matches Round 3's −0.515 s. Plan 5's self-clean OFF re-introduces dirty-page drift in flush_off only.</td>
+            <td class="mono">root cause: flush ↔ self-clean coupling</td>
+            <td>G</td>
+          </tr>
+
+          <tr>
+            <td><b>14</b></td>
+            <td class="mono">2026-05-21</td>
+            <td><b>Plan 6 coded</b></td>
+            <td><code>--stable-n</code> default 10 → 5 in 2c. Commit <code>868c6f4</code>. ~1 LOC.</td>
+            <td class="mono ok">in tree, on branch</td>
+            <td>G</td>
+          </tr>
+
+          <tr style="background: rgba(212,168,90,.06);">
+            <td><b>15</b></td>
+            <td class="mono">≤ 2026-05-22</td>
+            <td><b>Round 5 · 2c only · PENDING</b></td>
+            <td>One re-run on the capture host with the Plan 6 default applied. ~1 min wall-clock.</td>
+            <td class="mono acc">expected: <code>n_used=5</code>, delta ≈ −0.48 s, recommendation = "REMOVE"</td>
+            <td>G closes empirically</td>
+          </tr>
+
+          <tr style="background: rgba(124,185,110,.06);">
+            <td><b>16</b></td>
+            <td class="mono">after R5</td>
+            <td><b>Plan 02 unblocks</b></td>
+            <td>Per-family <code>intervalMsec</code> profile · the actual thesis-contribution experiment.</td>
+            <td class="mono">requires R5 verdict locked to REMOVE</td>
+            <td>iv becomes design knob</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:14px;">
+      <strong>How to read this table:</strong> rows 1–7 are the diagnostic chain that surfaced the bugs (Run 1 → Round 2). Rows 8–11 are the structural code fixes (Plans 1, 1b, 1c, 3, 4, 5). Rows 12–14 are the Round 4 measurement + the new finding it surfaced + its one-LOC fix. Row 15 is the only remaining empirical action; row 16 is what unblocks once it lands.
+    </p>
+  </div>
+
+  <!-- ─────────────────────  ORIGINAL STEPS BLOCK · NOW HISTORICAL  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker viz">Per-step deep-dive</span>What each step actually did (long-form)</h3>
+    <p>The chronological table above is the index. The cards below give the per-step narrative — what we expected, what we measured, what we learned. Useful when you need the <em>why</em> alongside the <em>what</em>.</p>
+  </div>
+
   <div class="remediation">
     <div class="step">
-      <div class="head"><div class="n">1</div><div class="when">Done · 2026-05-20</div></div>
-      <h3>bc fix + Round 2 confirmed</h3>
+      <div class="head"><div class="n">1·2·3</div><div class="when">Done · 2026-05-19 → 05-20 · bc</div></div>
+      <h3>bc install + Run 2 confirmed</h3>
       <ol>
         <li><code>apt install bc</code> on <code>pcrserral</code> ✓</li>
         <li>Run 2 + Round 2 measured <code>guest_dt = intervalMsec + 25 ms</code> across 100/250/500/1000 ms.</li>
         <li>Pause-fraction sweep: 92 % → 59 % from iv=100 → iv=1000.</li>
-        <li>Mechanisms iii, iv, v all FIXED or CONFIRMED FIXABLE.</li>
+        <li>Mechanisms i, ii FIXED empirically; iii, iv, v FIXED or CONFIRMED FIXABLE.</li>
         <li>Old data (pre-2026-05-20) has Δt_frame ≈ 6.6 ms — re-collect.</li>
       </ol>
     </div>
     <div class="step">
-      <div class="head"><div class="n">2a</div><div class="when">Done · Round 2 · mechanism iii</div></div>
-      <h3>Isolate consumer contention ✓</h3>
+      <div class="head"><div class="n">6</div><div class="when">Done · Round 2 · mechanism iii</div></div>
+      <h3>2a · isolate consumer contention ✓</h3>
       <p class="step-target">Was: non-stationary host Δt &middot; suspend spike to 80 s &middot; pmemsave 0.77 s → 3.9 s drift.</p>
       <ol>
         <li>Producer-only Round 2 measured suspend median <strong>0.066 s</strong> (was 6.38 s). 100× improvement.</li>
@@ -2825,8 +3012,8 @@ pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">2b</div><div class="when">Done · Round 2 · mechanism iv</div></div>
-      <h3>Pause-fraction sweep ✓</h3>
+      <div class="head"><div class="n">6</div><div class="when">Done · Round 2 · mechanism iv</div></div>
+      <h3>2b · pause-fraction sweep ✓</h3>
       <p class="step-target">Was: pause-fraction noise injection &middot; host-correlated noise leaking into all classes equally.</p>
       <ol>
         <li>Round 2 4-cell sweep over intervalMsec ∈ {100, 250, 500, 1000} ms, RAM = 1024 MiB.</li>
@@ -2838,44 +3025,63 @@ pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">2c</div><div class="when">Partial · Round 2 · verdict overdue</div></div>
-      <h3>Evaluate the 0.5 s flush sleep</h3>
+      <div class="head"><div class="n">6·12·14</div><div class="when">Done · R2 → R4 → R5 plan · mechanisms vi, vii, G</div></div>
+      <h3>2c · evaluate the 0.5 s flush sleep</h3>
       <p class="step-target">Was: ~0.5 s per snapshot of host wall-clock with no analytical benefit.</p>
       <ol>
-        <li>Both passes (flush_on, flush_off) completed 21 snapshots with <strong>integrity all_ok</strong> ✓.</li>
-        <li>Inspecting the first 9 stable snaps: flush_off host_dt <strong>0.52 s lower</strong> than flush_on. Exactly the removed <code>sleep 0.5</code>.</li>
-        <li>Orchestrator's reported recommendation was <code>NEUTRAL</code> — false negative because the comparison averaged over drift-contaminated tail.</li>
-        <li>Verdict (manual): <strong>REMOVE the flush.</strong> Dumps remain intact; ~10 % host_dt savings on clean disk.</li>
+        <li><b>R2:</b> both passes completed 21 snaps, integrity all_ok. First 9 stable snaps: flush_off host_dt 0.52 s lower than flush_on.</li>
+        <li><b>R3:</b> Plan 3 stable-subset (n=10) reported delta = −0.515 s ← matches R2 manual reading.</li>
+        <li><b>R4:</b> Plan 5 inverted self-clean default (so probe sees dumps). With dumps surviving, flush_off pass accumulates dirty pages → pmemsave drifts 0.78 s → 8.27 s at snap 6+. n=10 delta now reads +2.466 s (drift contaminated).</li>
+        <li><b>R4 in-place re-analysis:</b> first-5 delta = −0.481 s — same answer as R2 / R3, just on a smaller window.</li>
+        <li><b>Plan 6:</b> <code>--stable-n</code> default 10 → 5. ~1 LOC. Round 5 confirms.</li>
       </ol>
-      <p class="step-expect">After Plan 3 fix (stable-subset comparison) the orchestrator will report REMOVE automatically. Producer patch to apply: drop the <code>sleep 0.5</code> on line 142 of <code>capture_producer_qemu_pmemsave.sh</code>.</p>
-    </div>
-
-    <div class="step" style="border-color: var(--bad);">
-      <div class="head"><div class="n">3</div><div class="when">Next · code change · Plan 1+3+4</div></div>
-      <h3>Patch producer + 2c verdict logic</h3>
-      <p class="step-target">Targets: mechanism vi (in-pass drift) &middot; mechanism vii (2c false negative) &middot; Bug D (disk-free check).</p>
-      <ol>
-        <li><strong>Plan 1.</strong> Add <code>TIMING_SELF_CLEAN</code> env-var guard to <code>capture_producer_qemu_pmemsave.sh</code>. When set, producer deletes prev dump as soon as curr is written. Skip queueing for producer-only timing mode.</li>
-        <li><strong>Plan 1b.</strong> 2a / 2b / 2c each export <code>TIMING_SELF_CLEAN=1</code> when launching the producer.</li>
-        <li><strong>Plan 3.</strong> In <code>run_exp2c_flush_sensitivity.py</code>, base the recommendation on the first 10 snapshots' mean, not all 21. Keep both numbers in the JSON.</li>
-        <li><strong>Plan 4.</strong> Lower <code>disk_free_check</code> projected peak to 2–3 dumps when self-clean is on.</li>
-      </ol>
-      <p class="step-expect">Re-run 2a / 2c / 2b (~10 min). Expected: pmemsave flat ~0.77 s across all 21 snaps in every pass / cell. 2c verdict comes back REMOVE. Pause-fraction sweep stays within 1 % of round-2 values. Then plan 02 (per-family <code>intervalMsec</code> profiles) unblocks.</p>
+      <p class="step-expect">Production answer is REMOVE the flush (Round 3 + Round 4 first-5 agree). Round 5 just gets the orchestrator's JSON <code>recommendation</code> field to match the manual reading.</p>
     </div>
 
     <div class="step">
-      <div class="head"><div class="n">4</div><div class="when">Then · re-collect + classify</div></div>
-      <h3>Validate against the original confusion</h3>
+      <div class="head"><div class="n">8·11·14</div><div class="when">Done · 2026-05-21 · 6 plans landed</div></div>
+      <h3>Code changes: Plans 1 · 1b · 1c · 3 · 4 · 5 · 6</h3>
+      <p class="step-target">Targets: mechanisms vi, vii, D, E, F, G + sanity-script stale-queue starvation.</p>
       <ol>
-        <li>Re-collect one workload pair that confused before, on the fully-patched pipeline.</li>
-        <li>Re-run the classifier. If confusion <b>collapses</b> → bc + Δt_frame + drift fixes were load-bearing.</li>
-        <li>If confusion <b>persists</b> → window/hop tuning (plan 03) is next.</li>
+        <li><strong>Plan 1</strong> (commit <code>9645df2</code>). <code>TIMING_SELF_CLEAN</code> env-var guard in <code>capture_producer_qemu_pmemsave.sh</code>. Producer deletes prev dump in-process when set. Skips queueing. ~10 LOC.</li>
+        <li><strong>Plan 1b</strong> (same commit). 2a / 2b / 2c each export <code>TIMING_SELF_CLEAN=1</code> by default + <code>--no-self-clean</code> opt-out. ~10 LOC × 3 files.</li>
+        <li><strong>Plan 1c</strong> (commit <code>c72f342</code>). Same env-var + <code>--no-drain-queue-on-start</code> default-ON in <code>run_timing_instrumentation_experiment.py</code>. Lazy-imports <code>drain_queue</code> from 2a (back-reference avoided). Records <code>self_clean</code> / <code>drain_queue_on_start</code> / <code>queue_files_drained</code> in run JSON. ~34 LOC.</li>
+        <li><strong>Plan 3</strong> (commit <code>9645df2</code>). <code>stable_mean(records, key, n)</code> helper in 2c. Comparison uses first-N means. Verdict ladder decides REMOVE / KEEP / NEUTRAL on stable-subset, not all-N. ~20 LOC.</li>
+        <li><strong>Plan 4</strong> (commit <code>9645df2</code>). <code>disk_free_check</code> takes <code>peak_concurrent_dumps</code> arg; 2b passes 2 when self-clean is on. <code>needed_bytes</code> drops from ~980 GiB to ~3 GiB. ~5 LOC.</li>
+        <li><strong>Plan 5</strong> (commit <code>c72f342</code>). 2c inverts Plan 1b default — <code>TIMING_SELF_CLEAN</code> OFF for 2c. Adds <code>--force-self-clean</code> diagnostic flag. ~21 LOC.</li>
+        <li><strong>Plan 6</strong> (commit <code>868c6f4</code>). <code>--stable-n</code> default 10 → 5. ~1 LOC. Justified directly by Round 4 numbers.</li>
       </ol>
+      <p class="step-expect">All seven plans landed. Round 5 confirms Plan 6's effect; everything else already verified.</p>
+    </div>
+
+    <div class="step" style="border-color: var(--accent);">
+      <div class="head"><div class="n">15</div><div class="when">Next · ~1 min · 2c only</div></div>
+      <h3>Round 5 · confirm REMOVE verdict in JSON</h3>
+      <p class="step-target">Closes Bug G empirically. Same data we already inferred from R4's JSON, just produced by the orchestrator with new defaults applied.</p>
+      <ol>
+        <li><code>git pull</code> on <code>pcrserral</code> (picks up commit <code>868c6f4</code>).</li>
+        <li>Run <code>run_exp2c_flush_sensitivity.py --duration 60 --interval-ms 100 --ram-mb 1024 --output-json /project/homes/jeries/memorySignal/timing_runs/exp2c_v5.json</code>.</li>
+        <li>Check <code>recommendation</code> field reads "REMOVE the flush ..." and <code>comparison.mean_host_snapshot_cycle_sec_first_n.n_used = 5</code>.</li>
+        <li>If yes → mechanisms i–vii + D + E + F + G all closed.</li>
+      </ol>
+      <p class="step-expect">No fresh science. Just an artifact for the thesis chapter.</p>
+    </div>
+
+    <div class="step">
+      <div class="head"><div class="n">16</div><div class="when">After Round 5 · Plan 02</div></div>
+      <h3>Per-family <code>intervalMsec</code> profile · the actual thesis result</h3>
+      <ol>
+        <li>For each Phase-2 workload family (mem-bandwidth, CPU-bound, security-like, app-realistic …) pick the smallest <code>intervalMsec</code> such that the family's defining rhythm fits ≥ 4 periods in a 128-sample window.</li>
+        <li>Use the pause-fraction sweep to bound pause % per family.</li>
+        <li>Re-collect one workload pair that confused before. Run classifier.</li>
+        <li>If confusion collapses → bc + Δt_frame + drift + interval-profile fixes were load-bearing. If confusion persists → escalate to window/hop (Plan 03) or k-segmentation (Plan 04).</li>
+      </ol>
+      <p class="step-expect">Mechanism iv goes from "noise floor bug" to "design knob". Phase 2 captures get the right Δt per family for the first time.</p>
     </div>
   </div>
 
   <div class="warn-line">
-    Pre-2026-05-20 confusion matrices from this host remain suspect. Round 2 confirms Δt_frame is correct end-to-end; in-pass drift fix is the last structural item before plan 02 is unblocked.
+    Pre-2026-05-20 confusion matrices from this host remain suspect. R2 confirmed Δt_frame end-to-end; R3 verified Plans 1·1b·3·4 empirically; R4 verified Plans 1c·5 and surfaced Bug G; Plan 6 closes G by inspection of R4 data; R5 is the last empirical artifact before Plan 02 unblocks.
   </div>
 
   <!-- ─────────────────────────────────────────────────────
@@ -3053,10 +3259,40 @@ pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7
             <td class="mono ok">2b JSON shows no <code>disk free space may be insufficient</code> WARNING in notes</td>
           </tr>
           <tr>
-            <td><b>re-run</b></td>
+            <td><b>1c</b></td>
+            <td class="mono">run_timing_instrumentation_experiment.py</td>
+            <td>grep <code>TIMING_SELF_CLEAN</code> AND <code>drain_queue_on_start</code> in sanity script</td>
+            <td class="mono ok">sanity_v4 JSON: <code>config.self_clean=true</code>, <code>queue_files_drained ≥ 0</code>, <code>snapshots_completed ≥ 6</code></td>
+          </tr>
+          <tr>
+            <td><b>5</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td>grep <code>force_self_clean</code> in 2c</td>
+            <td class="mono ok">2c v4 JSON: <code>integrity_on.probes_examined &gt; 0</code> AND <code>integrity_off.probes_examined &gt; 0</code>, both <code>all_ok=true</code></td>
+          </tr>
+          <tr>
+            <td><b>6</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td><code>--stable-n</code> default is 5 (not 10) in <code>--help</code></td>
+            <td class="mono ok">2c v5 JSON: <code>n_used = 5</code>, <code>first_n.delta ≈ −0.48 s</code>, <code>recommendation</code> contains "REMOVE"</td>
+          </tr>
+          <tr>
+            <td><b>R3 re-run</b></td>
             <td class="mono">(none)</td>
-            <td>4 new JSONs delivered: sanity_v3 / exp2a_v3 / exp2c_v3 / exp2b_v3</td>
-            <td class="mono ok">All four per-test acceptance criteria above pass in the new JSONs</td>
+            <td>4 JSONs: sanity_v3 / exp2a_v3 / exp2b_v3 / exp2c_v3</td>
+            <td class="mono ok">2a + 2b pass A+; sanity surfaces Bug E, 2c surfaces Bug F</td>
+          </tr>
+          <tr>
+            <td><b>R4 re-run</b></td>
+            <td class="mono">(none)</td>
+            <td>2 JSONs: sanity_v4 / exp2c_v4</td>
+            <td class="mono ok">sanity 18 snaps clean; 2c probe all_ok × 2; verdict flips → Bug G found and fixed by Plan 6</td>
+          </tr>
+          <tr style="background: rgba(212,168,90,.06);">
+            <td><b>R5 re-run</b></td>
+            <td class="mono">(none)</td>
+            <td>1 JSON: exp2c_v5</td>
+            <td class="mono acc">PENDING · recommendation field = REMOVE confirms Plan 6 default landed on host</td>
           </tr>
         </tbody>
       </table>
@@ -3090,6 +3326,24 @@ pmemsave 0.81  0.78  0.81  0.79  0.78  1.95  <em>7.25</em>  <em>8.27</em>  <em>7
             <td>WARNING still fires</td>
             <td>orchestrator forgot to pass the new <code>peak_concurrent_dumps</code> parameter</td>
             <td>grep call sites of <code>disk_free_check</code> and confirm each one passes the right value</td>
+          </tr>
+          <tr>
+            <td><b>1c</b></td>
+            <td>sanity v4 has <code>snapshots_completed = 0</code> and <code>backpressure_events &gt; 0</code></td>
+            <td>queue dir didn't get drained (perm issue) OR sanity didn't pick up new defaults (need <code>git pull</code> on host)</td>
+            <td>check <code>config.drain_queue_on_start</code> in JSON; if false, <code>--no-drain-queue-on-start</code> was passed; if true but <code>queue_files_drained=0</code>, check <code>queueDir</code> perms</td>
+          </tr>
+          <tr>
+            <td><b>5</b></td>
+            <td>2c integrity <code>probes_examined = 0</code></td>
+            <td><code>--force-self-clean</code> was passed (overrides Plan 5 default) OR producer deleted dumps anyway</td>
+            <td>grep producer log for "self-clean"; if dumps gone, drop <code>--force-self-clean</code> flag</td>
+          </tr>
+          <tr>
+            <td><b>6</b></td>
+            <td>2c v5 recommendation still NEUTRAL</td>
+            <td>host doesn't have commit <code>868c6f4</code> yet (forgot <code>git pull</code>) OR explicitly passed <code>--stable-n 10</code></td>
+            <td>check <code>n_used</code> field in JSON; if 10, default wasn't applied; if 5 and still NEUTRAL, drift has crept earlier than snap 5 (very unlikely; inspect per-snap pmemsave)</td>
           </tr>
           <tr>
             <td><b>2a</b> re-run</td>
@@ -3198,12 +3452,52 @@ re-collect 1 confused workload pair → re-run classifier
             <td>warning silent on 2b normal run</td>
           </tr>
           <tr>
-            <td><b>re-run</b></td>
-            <td>2a (60 s) + 2c (60 s) + 2b (4×60 s)</td>
+            <td><b>1c</b></td>
+            <td>sanity script self-clean + queue drain</td>
+            <td class="mono">~34 lines Python</td>
+            <td class="ok">low</td>
+            <td class="mono">≈ 30 s</td>
+            <td>sanity v4: 18 snaps, drained ≥ 0 stale files <b>· verified</b></td>
+          </tr>
+          <tr>
+            <td><b>5</b></td>
+            <td>2c inverts self-clean (keeps dumps for probe)</td>
+            <td class="mono">~21 lines Python</td>
+            <td class="ok">low</td>
+            <td class="mono">≈ 2 min</td>
+            <td>probe sees ≥ 1 dump per pass, all_ok=true <b>· verified</b></td>
+          </tr>
+          <tr>
+            <td><b>6</b></td>
+            <td><code>--stable-n</code> default 10 → 5</td>
+            <td class="mono">1 line Python</td>
+            <td class="ok">trivial</td>
+            <td class="mono">≈ 1 min</td>
+            <td>2c v5: <code>n_used=5</code>, recommendation = REMOVE</td>
+          </tr>
+          <tr>
+            <td><b>R3 re-run</b></td>
+            <td>2a + 2b + 2c + sanity</td>
             <td class="mono">—</td>
             <td class="ok">none</td>
-            <td class="mono">≈ 10 min host wall-clock</td>
-            <td>all four JSONs ship; numbers match Round 2 predictions</td>
+            <td class="mono">≈ 10 min</td>
+            <td>4 JSONs · 2a + 2b A+ · sanity FAIL (Bug E), 2c partial (Bug F)</td>
+          </tr>
+          <tr>
+            <td><b>R4 re-run</b></td>
+            <td>sanity + 2c (after Plans 1c·5)</td>
+            <td class="mono">—</td>
+            <td class="ok">none</td>
+            <td class="mono">≈ 3 min</td>
+            <td>2 JSONs · sanity 18 snaps · probe all_ok × 2 · Bug G surfaced</td>
+          </tr>
+          <tr style="background: rgba(212,168,90,.06);">
+            <td><b>R5 re-run</b></td>
+            <td>2c only (after Plan 6)</td>
+            <td class="mono">—</td>
+            <td class="ok">none</td>
+            <td class="mono">≈ 1 min</td>
+            <td class="acc">PENDING · recommendation = REMOVE locks the verdict in JSON</td>
           </tr>
         </tbody>
       </table>
@@ -3212,12 +3506,13 @@ re-collect 1 confused workload pair → re-run classifier
 
   <!-- ───── Subsection 4 · what comes after ───── -->
   <div class="subsection">
-    <h3><span class="marker case">After Plan 1+3+4 lands</span>What unblocks</h3>
-    <p>Mechanisms i–vii are then closed end-to-end. The capture pipeline produces measurable, calibrated data. At that point three things become possible:</p>
+    <h3><span class="marker case">After Round 5 lands</span>What unblocks</h3>
+    <p>Mechanisms i–vii + D + E + F + G are then closed end-to-end. The capture pipeline produces measurable, calibrated data with a clean audit trail (7 plans landed across 4 commits). Three things become possible:</p>
     <ul style="font-size:15px;color:var(--text-dim);line-height:1.7;padding-left:22px;">
-      <li><strong>Plan 02 · per-family <code>intervalMsec</code> profile.</strong> Use the pause-fraction sweep + each workload's defining rhythm to pick the right Δt per Phase-2 family. Mechanism iv becomes a knob, not a bug.</li>
-      <li><strong>Plan 03 · window / hop tuning.</strong> With Δt now correct, the canonical (128, 64) can finally be validated against actual workload rhythms.</li>
-      <li><strong>Re-collection of confused workload pairs.</strong> The dataset gets the right calibration; the classifier sees properly-shaped features for the first time.</li>
+      <li><strong>Plan 02 · per-family <code>intervalMsec</code> profile.</strong> Use the pause-fraction sweep (R2: 92/85/76/59 % at iv=100/250/500/1000) plus each workload's defining rhythm to pick the right Δt per Phase-2 family. Mechanism iv becomes a knob, not a bug. <em>This is the actual thesis result.</em></li>
+      <li><strong>Plan 03 · window / hop tuning.</strong> With Δt now correct, the canonical (128, 64) can finally be validated against actual workload rhythms instead of against an artefact of <code>sleep 0</code>.</li>
+      <li><strong>Plan 04 · k-segmentation sweep.</strong> The final tunable in the chain. Defer until classifier behaviour on re-collected data is in.</li>
+      <li><strong>Re-collection of confused workload pairs.</strong> The dataset gets the right calibration; the classifier sees properly-shaped features for the first time. Drop the 0.5 s flush in production for ~10 % wall-clock saving on every Phase-2 capture.</li>
     </ul>
     <p>If after all that the classifier still confuses pairs that <em>should</em> separate, the next suspect is no longer the capture pipeline — it's feature definition, normalization, or the classifier itself. That is the clean diagnostic outcome this whole experiment chain was designed to produce.</p>
   </div>
