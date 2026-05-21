@@ -146,6 +146,111 @@ Read top-to-bottom: tests find bugs; bugs get plans; plans land; rounds verify; 
 
 ---
 
+## Appendix · what `n` is, and what Plan 6 actually tuned
+
+Plan 6 is the smallest plan in the entire investigation (1 line of code), and its parameter is the most subtle to explain in plain language. This appendix unpacks it.
+
+### What is `n`?
+
+In the 2c test (`run_exp2c_flush_sensitivity.py`), each pass produces 21 snapshots. Each snapshot has a measured `host_snapshot_cycle_sec` — the host wall-clock time between two consecutive resumes of the VM. To decide whether the 0.5 s flush sleep matters, the orchestrator computes the **mean** of these values for each pass (flush_on, flush_off) and reports the delta.
+
+> **`n` is the number of snapshots, counted from the start of each pass, that get averaged into that mean.**
+
+The CLI flag is `--stable-n`. The JSON field that records what `n` was used is `comparison.mean_host_snapshot_cycle_sec_first_n.n_used`.
+
+### The runner analogy
+
+Imagine timing a 21-lap runner who is fast at the start and tires later:
+
+- Laps 0–4: clean form, ~10 s each
+- Lap 5: form starts to slip
+- Laps 6–9: cramping, ~30 s each
+- Laps 10–20: walking, erratic
+
+If you want to know how fast the runner *can* run when conditions are right, do you average all 21 laps? Or just the first 5?
+
+- All 21 → mean is ~18 s — dominated by fatigue, not capability.
+- First 5 → mean is ~10 s — measures clean capability.
+
+`n=5` says "average the clean window before fatigue distorts the measurement". For our 2c test, "fatigue" is dirty-page pressure on the disk (see next subsection).
+
+### Why "fatigue" exists in 2c
+
+Plan 5 turned the producer's `TIMING_SELF_CLEAN` off for 2c, so that the integrity probe can find dumps to inspect after each pass. The side effect: each `pmemsave` leaves a 1 GiB dump on disk. The Linux kernel queues these dumps for asynchronous page-cache writeback.
+
+What happens over the course of a pass without the 0.5 s flush:
+
+| snap | dumps on disk | dirty pages queued | pmemsave time |
+| ---- | ------------- | ------------------ | ------------- |
+| 0–4 | 1–5 GiB | kernel keeping up | ≈ 0.78 s (flat) |
+| 5 | 6 GiB | starting to back up | 1.95 s (transition) |
+| 6 | 7 GiB | 5+ GiB dirty | **7.25 s** (drift) |
+| 7–10 | 8–11 GiB | saturated | 7–8 s |
+
+The 0.5 s flush in flush_on mode gives the kernel time to flush dirty pages between snaps, so it never accumulates the pressure. The drift only appears in the flush_off pass.
+
+So `host_snapshot_cycle_sec` in the late snaps of flush_off is **not** measuring "what does the flush cost"; it is measuring "what does dirty-page saturation cost". If we average over those late snaps, we contaminate the answer.
+
+### What averaging window does to the verdict
+
+Same JSON (Round 4 data), different `n`:
+
+| n | flush_on mean (s) | flush_off mean (s) | delta (s) | reads as |
+| - | ----------------- | ------------------ | --------- | -------- |
+| 3 | 1.525 | 1.041 | **−0.484** | REMOVE the flush (clean) |
+| **5** | **1.519** | **1.038** | **−0.481** | **REMOVE the flush (clean)** |
+| 6 | 1.523 | 1.232 | −0.291 | REMOVE the flush (noisier) |
+| 7 | 1.524 | 2.133 | +0.609 | KEEP the flush (drift wins) |
+| 10 | 1.522 | 4.004 | +2.466 | KEEP the flush (fully contaminated) |
+| 21 | 1.595 | 3.742 | +2.147 | KEEP the flush (fully contaminated) |
+
+There is a clean window (n ≤ 5) where the comparison correctly measures flush cost. Beyond n=5, the dirty-page drift bleeds into the mean and flips the sign. `n=5` is the largest window that stays clean for *this* test on *this* host with *this* RAM (1 GiB dump × idle Kali).
+
+### Plan 6 in one line of code
+
+```python
+# run_exp2c_flush_sensitivity.py
+p.add_argument("--stable-n", type=int, default=5, ...)
+```
+
+That is the entire plan. Old default was 10. New default is 5. Commit `868c6f4`.
+
+### What got tuned *after* Round 5?
+
+Nothing was tuned after Round 5. Round 5 is the verification round for Plan 6.
+
+The thing Plan 6 tuned was the **measurement procedure**, not the pipeline behaviour. The producer is identical between Round 4 and Round 5. The only change is how many snapshots the orchestrator averages into the flush-comparison verdict.
+
+This is an important distinction. Plans 1, 1b, 1c, 3, 4, 5 modified pipeline *behaviour* (the producer, the orchestrators). Plan 6 only modified how the orchestrator *reads* the data it already collected.
+
+In short:
+- **Before Plan 6:** orchestrator averaged the first 10 snaps → verdict contaminated by drift → reports "KEEP" wrongly.
+- **After Plan 6:** orchestrator averages the first 5 snaps → verdict reflects the clean window → reports "REMOVE" correctly.
+
+The reality of whether the flush helps is the same in both worlds. Plan 6 just stopped the orchestrator from looking at the wrong slice of the data.
+
+### Where this parameter lives in the JSON
+
+The verdict in `exp2c_v5.json`:
+
+```json
+"comparison": {
+  "mean_host_snapshot_cycle_sec_first_n": {
+    "on":    1.5201,
+    "off":   1.1400,
+    "delta": -0.3801,
+    "ratio_off_over_on": 0.75,
+    "n_used": 5
+  },
+  ...
+}
+"recommendation": "REMOVE the flush — dumps remain intact and host_dt drops by 0.380 s (25.0%) on the first-5 comparison."
+```
+
+`n_used: 5` is the audit trail. Anyone reading the JSON can confirm Plan 6 was the default in effect when the orchestrator computed the verdict.
+
+---
+
 ## How to use this when reading the rest of the docs
 
 When you encounter:

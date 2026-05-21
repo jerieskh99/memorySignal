@@ -2630,6 +2630,125 @@ nearest "nice" round number       <em>250 ms</em>
     </p>
   </div>
 
+  <!-- ─────────────────────  WHAT IS n? · PLAN 6 EXPLAINER  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">Zoom-in · what was tuned</span>What "<code>n</code>" is, and what Plan 6 actually changed</h3>
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">
+      Plan 6 is the smallest plan in the entire investigation — one line of code — and its parameter (<code>--stable-n</code>) is the most subtle to explain in plain language. Worth unpacking on its own because it answers the question "what got tuned around Round 5?"
+    </p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What <code>n</code> is</div>
+        <p>In the 2c test, each of the two passes (flush-on, flush-off) produces 21 snapshots. Each snapshot has a measured <em>host wall-clock cycle time</em>. To decide whether the 0.5 s flush sleep matters, the orchestrator averages these times for each pass and reports the delta.</p>
+        <p style="margin-top:8px;"><strong><code>n</code> is the number of snapshots, counted from the start of each pass, that get included in that average.</strong></p>
+        <p style="margin-top:8px;">In the JSON, it shows up as <code>comparison.mean_host_snapshot_cycle_sec_first_n.n_used</code>. CLI flag: <code>--stable-n</code>.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p><code>n</code> is the truncation length on the per-pass <code>records</code> list before the mean is computed. The 2c orchestrator computes both an all-snap mean and a first-<code>n</code> mean and writes both to the JSON. The verdict logic uses the first-<code>n</code> value; the all-snap mean is for audit only.</p>
+        <p>Implementation: <code>stable_mean(records, key, n)</code> in <code>run_exp2c_flush_sensitivity.py</code>. Plan 3 introduced the function; Plan 6 changed its default <code>n</code> from 10 to 5.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">The runner analogy</div>
+        <p>Imagine timing a 21-lap runner who is fast at the start and tires later:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li>Laps 0–4: clean form, ~10 s each</li>
+          <li>Lap 5: form starts to slip</li>
+          <li>Laps 6–9: cramping, ~30 s each</li>
+          <li>Laps 10–20: walking, erratic</li>
+        </ul>
+        <p style="margin-top:10px;">If the question is "how fast can the runner go when conditions are right?", you average <em>the first 5 laps</em>, not all 21. All-21 measures fatigue, not capability.</p>
+        <p style="margin-top:8px;">For 2c, "fatigue" is dirty-page pressure (next box). <code>n=5</code> averages the clean window before the pressure distorts the measurement.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>This is a classic stationarity argument. The full 21-snap distribution is mixed-regime: a clean steady-state regime (snaps 0–4) followed by an I/O-pressure transient (snap 5+). The first-moment estimator (mean) is biased when applied to a mixed regime; a truncated estimator on a stationary sub-interval is unbiased.</p>
+        <p><code>n</code> is effectively a regime-truncation hyperparameter. Choosing it correctly is choosing the right window of stationarity.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Why the late snaps drift</div>
+        <p>Plan 5 turned the producer's <code>TIMING_SELF_CLEAN</code> OFF for 2c, so that the integrity probe can find dumps to inspect. The side effect: each <code>pmemsave</code> leaves a 1 GiB file on disk. The Linux kernel queues these for asynchronous page-cache writeback.</p>
+        <p style="margin-top:8px;">By snap 6, the kernel has 5+ GiB of dirty pages waiting to flush. Every new <code>pmemsave</code> blocks on disk writeback, jumping from ~0.8 s to ~7–8 s. The 0.5 s sleep in flush-on mode gives the kernel time to flush between snaps, so flush-on never accumulates the pressure.</p>
+        <p style="margin-top:8px;">So <code>host_snapshot_cycle_sec</code> on snaps 6+ is <em>not</em> measuring "flush cost". It is measuring "dirty-page saturation cost". Averaging over those snaps contaminates the answer.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Dirty-page writeback is governed by <code>vm.dirty_ratio</code> / <code>vm.dirty_background_ratio</code>. On the capture host the defaults (20 % / 10 % of RAM) start synchronous writeback once dirty bytes exceed the ratio.</p>
+        <p>With 1 GiB per <code>pmemsave</code> and roughly 1 s between snaps in flush-off, the dirty-page count grows by ~1 GiB/s. On a host with 16 GiB RAM, the 10 % background-writeback threshold is hit by snap 1–2, and the 20 % synchronous threshold by snap 3–4. Snap 6+ stalls in <code>balance_dirty_pages()</code> until the writeback catches up.</p>
+        <p>Plan 5's accidental side-effect re-introduced mechanism vi in only the flush-off pass — the same drift the producer self-clean was designed to prevent.</p>
+      </div>
+    </div>
+
+    <div class="illustration">
+      <div class="cap">Same Round 4 JSON · different <code>n</code> · sign flips · the verdict is regime-dependent</div>
+      <div class="scene">  n         flush_on mean (s)     flush_off mean (s)     delta (s)         reads as
+  ────────  ───────────────────  ──────────────────────  ──────────────  ─────────────────────────────
+  3         1.525                1.041                   <em>−0.484</em>          REMOVE the flush (clean)
+  <strong>5</strong>         <strong>1.519</strong>                <strong>1.038</strong>                   <strong>−0.481</strong>          <strong>REMOVE the flush ← Plan 6 default</strong>
+  6         1.523                1.232                   −0.291          REMOVE (noisier)
+  7         1.524                2.133                   +0.609          KEEP (drift starts winning)
+  10        1.522                4.004                   +2.466          KEEP ← old default · CONTAMINATED
+  21 (all)  1.595                3.742                   +2.147          KEEP (fully contaminated)
+
+         └─ clean window ──┘└─── drift window ───────────────────────────────────────────┘
+         (first 5 snaps · before dirty-page pressure)  (snap 6+ · pmemsave blocks on writeback)
+</div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">Plan 6 in one line</div>
+        <p>The entire patch:</p>
+        <pre style="background:rgba(212,168,90,.05);border-left:2px solid var(--accent);padding:10px 14px;margin:8px 0;font-family:var(--font-mono);font-size:13px;color:var(--text);line-height:1.5;border-radius:4px;">p.add_argument("--stable-n", type=int, default=<strong>5</strong>, ...)</pre>
+        <p>Old default was 10. New default is 5. Commit <code>868c6f4</code>. One line. The producer is identical between Round 4 and Round 5. Only the orchestrator's averaging window changed.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Justified directly from Round 4 data — no separate calibration study needed. The transition from clean-regime to drift-regime falls at snap 5–6 in the Round 4 <code>flush_off</code> pmemsave series. <code>n=5</code> is the largest value that stays entirely within the clean regime. Smaller <code>n</code> (3, 4) work too but are noisier from sample-size considerations; <code>n=5</code> is the sweet spot.</p>
+        <p>This value is host-and-RAM-specific. If RAM doubles or the dirty-page thresholds change, the clean window will move; the parameter is exposed as a flag (<code>--stable-n</code>) for exactly that reason.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What was tuned <em>after</em> Round 5?</div>
+        <p>Nothing. Round 5 is the verification round for Plan 6 — the plan that tuned <code>n</code> from 10 to 5 was committed <em>before</em> Round 5 ran. Round 5 just measured what we already knew from Round 4's data: with <code>n=5</code> the orchestrator's automatic verdict comes back as REMOVE.</p>
+        <p style="margin-top:8px;">The reality of whether the flush helps the production pipeline was always the same. Plan 6 just stopped the orchestrator from looking at the wrong slice of the data.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Important distinction: Plans 1, 1b, 1c, 3, 4, 5 modified pipeline <em>behaviour</em> (producer shell script, orchestrator env-vars, output JSON schema). Plan 6 modified only how the orchestrator <em>reads</em> the data it already collected — a measurement-procedure change, not a system change.</p>
+        <p>Tuning a measurement procedure on the same data it analyses risks p-hacking. Defence here: <code>n=5</code> was chosen as the largest value whose first-moment estimate stays on the right side of a clearly visible regime boundary (the snap-5→6 pmemsave transition), not as the value that maximises the desired sign of the delta. Both the all-snap mean (which says +2.147) and the first-5 mean (which says −0.481) are written to the JSON; the audit trail shows both.</p>
+      </div>
+    </div>
+
+    <div class="worked">
+      <div class="who">Where <code>n</code> lives in the JSON · audit trail</div>
+      <div class="compute">"comparison": {
+  "mean_host_snapshot_cycle_sec_first_n": {
+    "on":               1.5201,
+    "off":              1.1400,
+    "delta":           -0.3801,
+    "ratio_off_over_on": 0.75,
+    <em>"n_used":            5    ← Plan 6 default applied</em>
+  },
+  ...
+}
+"recommendation": "REMOVE the flush — dumps remain intact and host_dt
+                   drops by 0.380 s (25.0%) on the first-5 comparison."
+</div>
+      <p><code>n_used: 5</code> is the audit trail. Anyone reading <code>exp2c_v5.json</code> can confirm the orchestrator used the Plan 6 default when computing the verdict.</p>
+    </div>
+  </div>
+
   <!-- ─────────────────────  STATUS BOARD  ───────────────────── -->
   <div class="status-board">
     <div class="board-title">
