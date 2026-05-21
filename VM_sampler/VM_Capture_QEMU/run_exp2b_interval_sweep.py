@@ -127,6 +127,9 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="Purge all dumps between every cell (NOT just the one "
                         "created by the previous cell). Use if disk pressure "
                         "is contaminating cells.")
+    p.add_argument("--no-self-clean", action="store_true",
+                   help="Disable the producer's TIMING_SELF_CLEAN behavior. "
+                        "Default is self-clean ON for producer-only timing runs.")
     p.add_argument("--virsh-uri", default="qemu:///system")
     p.add_argument("--no-vm-start", action="store_true")
     p.add_argument("--grace-stop-seconds", type=int, default=10)
@@ -142,6 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     producer    = Path(args.producer_script).expanduser().resolve()
     if not config_path.is_file(): log(f"ERROR: config not found: {config_path}"); return 2
     if not producer.is_file():    log(f"ERROR: producer not found: {producer}"); return 2
+
+    # Plan 1b: enable producer-side rolling-delete by default.
+    if not args.no_self_clean:
+        os.environ["TIMING_SELF_CLEAN"] = "1"
 
     intervals = parse_csv_ints(args.intervals)
     if not intervals:
@@ -226,7 +233,15 @@ def main(argv: list[str] | None = None) -> int:
     # Disk-free pre-check based on heaviest cell
     heaviest_snaps = max(args.duration // (iv / 1000) for iv in intervals) + 10
     heaviest_ram = max(rams_effective)
-    ok_disk, disk_info = e1.disk_free_check(image_dir, int(heaviest_snaps), heaviest_ram)
+    # Plan 4: peak concurrent dumps depends on cleanup policy. With self-clean
+    # ON (Plan 1b default) or per-cell purge, only ~2 dumps coexist at any time.
+    # With both disabled, the heaviest cell would peak at snapshots_expected.
+    self_clean_on = not args.no_self_clean
+    peak_dumps = 2 if (self_clean_on or args.per_cell_purge) else int(heaviest_snaps)
+    ok_disk, disk_info = e1.disk_free_check(
+        image_dir, int(heaviest_snaps), heaviest_ram,
+        peak_concurrent_dumps=peak_dumps,
+    )
     result["pre_sweep"]["disk_free_check"] = disk_info
     if not ok_disk:
         result["notes"].append(f"WARNING: disk free space {disk_info} may be insufficient")

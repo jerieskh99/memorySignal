@@ -188,6 +188,13 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--purge-between-passes", action="store_true",
                    help="Also purge dumps between pass A (flush_on) and "
                         "pass B (flush_off).")
+    p.add_argument("--no-self-clean", action="store_true",
+                   help="Disable the producer's TIMING_SELF_CLEAN behavior. "
+                        "Default is self-clean ON for producer-only timing runs.")
+    p.add_argument("--stable-n", type=int, default=10,
+                   help="Number of snapshots from the start of each pass to use "
+                        "for the stable-subset comparison (default 10). The "
+                        "all-snap means are also reported in the JSON.")
     p.add_argument("--virsh-uri", default="qemu:///system")
     p.add_argument("--no-vm-start", action="store_true")
     p.add_argument("--grace-stop-seconds", type=int, default=10)
@@ -196,12 +203,30 @@ def build_argparser() -> argparse.ArgumentParser:
     return p
 
 
+def stable_mean(records: list[dict], key: str, n: int = 10) -> float | None:
+    """Plan 3 · stable-subset mean.
+
+    Average a field across the first `n` records, skipping records where
+    the field is missing or non-numeric. Used by the 2c verdict logic to
+    avoid drift-contamination in the late snaps of each pass.
+    """
+    vals = [r[key] for r in records[:n]
+            if isinstance(r.get(key), (int, float))]
+    if not vals:
+        return None
+    return float(statistics.fmean(vals))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_argparser().parse_args(argv)
     config_path = Path(args.config).expanduser().resolve()
     producer    = Path(args.producer_script).expanduser().resolve()
     if not config_path.is_file(): log(f"ERROR: config not found: {config_path}"); return 2
     if not producer.is_file():    log(f"ERROR: producer not found: {producer}"); return 2
+
+    # Plan 1b: enable producer-side rolling-delete by default.
+    if not args.no_self_clean:
+        os.environ["TIMING_SELF_CLEAN"] = "1"
 
     workdir = Path(args.workdir).expanduser().resolve() if args.workdir else (
         Path.cwd() / "timing_runs" /
@@ -325,33 +350,55 @@ def main(argv: list[str] | None = None) -> int:
         return {"on": round(a, 4), "off": round(b, 4),
                 "delta": round(b - a, 4),
                 "ratio_off_over_on": round(b/a, 3) if a else None}
+    # Plan 3: also compute stable-subset means (first N snaps of each pass)
+    # so the verdict logic isn't poisoned by drift-contaminated tail.
+    n_stable = args.stable_n
+    on_first_n  = stable_mean(on["records"],  "host_snapshot_cycle_sec", n=n_stable)
+    off_first_n = stable_mean(off["records"], "host_snapshot_cycle_sec", n=n_stable)
+    if on_first_n is not None and off_first_n is not None:
+        stable_diff = {"on": round(on_first_n, 4), "off": round(off_first_n, 4),
+                       "delta": round(off_first_n - on_first_n, 4),
+                       "ratio_off_over_on": round(off_first_n / on_first_n, 3) if on_first_n else None,
+                       "n_used": n_stable}
+    else:
+        stable_diff = None
+
     result["comparison"] = {
-        "mean_host_snapshot_cycle_sec": diff("mean_host_snapshot_cycle_sec"),
-        "mean_pmemsave_sec":            diff("mean_pmemsave_sec"),
-        "mean_suspend_sec":             diff("mean_suspend_sec"),
-        "snapshots_completed":          diff("snapshots_completed"),
+        "mean_host_snapshot_cycle_sec":           diff("mean_host_snapshot_cycle_sec"),
+        "mean_host_snapshot_cycle_sec_first_n":   stable_diff,
+        "mean_pmemsave_sec":                      diff("mean_pmemsave_sec"),
+        "mean_suspend_sec":                       diff("mean_suspend_sec"),
+        "snapshots_completed":                    diff("snapshots_completed"),
         "integrity_on":  on["integrity"]["all_ok"],
         "integrity_off": off["integrity"]["all_ok"],
     }
 
-    # --- recommendation logic ---
-    delta = result["comparison"]["mean_host_snapshot_cycle_sec"]
+    # --- recommendation logic (Plan 3: uses stable-subset delta when available) ---
+    delta_all    = result["comparison"]["mean_host_snapshot_cycle_sec"]
+    delta_stable = result["comparison"]["mean_host_snapshot_cycle_sec_first_n"]
+    delta = delta_stable if delta_stable is not None else delta_all
+    delta_label = f"first-{n_stable}" if delta_stable is not None else "all-snap"
+
     if delta is None:
         result["recommendation"] = "inconclusive — could not compute host_dt mean"
     elif not off["integrity"]["all_ok"]:
         result["recommendation"] = ("KEEP the flush — dumps without it failed "
                                     "integrity check.")
-    elif delta["delta"] < -0.3:  # off is at least 0.3 s faster than on
+    elif delta["delta"] < -0.3:  # off is at least 0.3 s faster than on (stable subset)
+        on_ref = delta["on"]
         result["recommendation"] = (f"REMOVE the flush — dumps remain intact and "
                                     f"host_dt drops by {-delta['delta']:.3f} s "
-                                    f"({-delta['delta']/on['mean_host_snapshot_cycle_sec']*100:.1f}%).")
+                                    f"({-delta['delta']/on_ref*100:.1f}%) on the "
+                                    f"{delta_label} comparison.")
     elif abs(delta["delta"]) < 0.1:
-        result["recommendation"] = ("NEUTRAL — host_dt change is within noise; "
-                                    "removing the flush has no measurable benefit.")
+        result["recommendation"] = (f"NEUTRAL — host_dt change is within noise on the "
+                                    f"{delta_label} comparison; removing the flush "
+                                    "has no measurable benefit.")
     else:
         result["recommendation"] = (f"NEUTRAL/AMBIGUOUS — host_dt delta "
-                                    f"{delta['delta']:+.3f} s; check integrity carefully "
-                                    "before removing.")
+                                    f"{delta['delta']:+.3f} s on the {delta_label} "
+                                    "comparison; check integrity carefully before "
+                                    "removing.")
 
     with out_path.open("w") as f: json.dump(result, f, indent=2)
     log(f"wrote {out_path}")

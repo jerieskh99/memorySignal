@@ -518,16 +518,28 @@ def purge_all_dumps(image_dir: Path, use_sudo: bool = True) -> int:
 
 
 def disk_free_check(image_dir: Path, snapshots_expected: int, ram_mb: int,
-                    margin: float = 1.5) -> tuple[bool, dict]:
-    """Refuse to start if free space < snapshots × ram × margin."""
+                    margin: float = 1.5,
+                    peak_concurrent_dumps: int | None = None) -> tuple[bool, dict]:
+    """Refuse to start if free space < peak_concurrent_dumps × ram × margin.
+
+    Plan 4: when the producer's TIMING_SELF_CLEAN is on (or the consumer is
+    running normally), the steady-state dump count on disk is ~2 (prev +
+    curr), not `snapshots_expected`. Callers should pass the realistic
+    `peak_concurrent_dumps` matching their cleanup policy. When the
+    parameter is None (back-compat) the original snapshots_expected-based
+    check applies.
+    """
     try:
         st = os.statvfs(image_dir if image_dir.is_dir() else image_dir.parent)
     except (OSError, AttributeError):
         return True, {"free_bytes": None, "note": "statvfs unavailable"}
     free = st.f_bavail * st.f_frsize
-    need = int(snapshots_expected * ram_mb * 1024 * 1024 * margin)
+    peak = peak_concurrent_dumps if peak_concurrent_dumps is not None else snapshots_expected
+    need = int(peak * ram_mb * 1024 * 1024 * margin)
     return (free >= need), {"free_bytes": free, "needed_bytes": need,
-                             "margin": margin, "snapshots_expected": snapshots_expected}
+                             "margin": margin,
+                             "snapshots_expected": snapshots_expected,
+                             "peak_concurrent_dumps": peak}
 
 
 def resume_vm_if_paused(virsh_uri: str, domain: str) -> bool:

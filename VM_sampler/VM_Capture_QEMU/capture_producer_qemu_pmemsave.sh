@@ -168,16 +168,23 @@ while true; do
   echo "[PRODUCER-PMEM] RAW memory dump OK: $newImage"
 
   if [[ -n "$prevImage" && -f "$prevImage" ]]; then
-    jobId="$timestamp"
-    jobTmp="$qPending/${jobId}.json.tmp"
-    jobFile="$qPending/${jobId}.json"
-    jq -n \
-      --arg prev "$prevImage" \
-      --arg curr "$newImage" \
-      --arg output "$outputDir" \
-      '{ prev: $prev, curr: $curr, output: $output }' > "$jobTmp"
-    mv "$jobTmp" "$jobFile"
-    echo "[PRODUCER-PMEM] Enqueued job $jobId"
+    if [[ -n "${TIMING_SELF_CLEAN:-}" ]]; then
+      # Producer-only timing mode: no consumer is running to drain the queue
+      # and unlink prev dump. Delete prev ourselves to prevent disk pressure
+      # from accumulating across the pass (mechanism vi).
+      sudo rm -f "$prevImage" 2>/dev/null || rm -f "$prevImage" 2>/dev/null || true
+    else
+      jobId="$timestamp"
+      jobTmp="$qPending/${jobId}.json.tmp"
+      jobFile="$qPending/${jobId}.json"
+      jq -n \
+        --arg prev "$prevImage" \
+        --arg curr "$newImage" \
+        --arg output "$outputDir" \
+        '{ prev: $prev, curr: $curr, output: $output }' > "$jobTmp"
+      mv "$jobTmp" "$jobFile"
+      echo "[PRODUCER-PMEM] Enqueued job $jobId"
+    fi
   fi
 
   prevImage="$newImage"

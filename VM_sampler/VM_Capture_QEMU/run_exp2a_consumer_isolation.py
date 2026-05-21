@@ -172,6 +172,10 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="Before pass 1, aggressively `sudo rm` ALL "
                         "memory_dump-*.raw files in imageDir. Recovers from "
                         "stale dumps left by previous runs.")
+    p.add_argument("--no-self-clean", action="store_true",
+                   help="Disable the producer's TIMING_SELF_CLEAN behavior "
+                        "(producer-side rolling-delete of prev dumps). Default "
+                        "is self-clean ON for producer-only timing runs.")
     p.add_argument("--drain-before-pass1", action="store_true",
                    help="Drain the queue dir before pass 1 too (default: only before pass 2).")
     p.add_argument("--virsh-uri", default="qemu:///system")
@@ -189,6 +193,12 @@ def main(argv: list[str] | None = None) -> int:
     consumer    = Path(args.consumer_script).expanduser().resolve()
     if not config_path.is_file(): log(f"ERROR: config not found: {config_path}"); return 2
     if not producer.is_file():    log(f"ERROR: producer not found: {producer}"); return 2
+
+    # Plan 1b: enable producer-side rolling-delete (TIMING_SELF_CLEAN) by
+    # default in producer-only timing runs. Operator can opt out with
+    # --no-self-clean for a side-by-side comparison.
+    if not args.no_self_clean:
+        os.environ["TIMING_SELF_CLEAN"] = "1"
 
     workdir = Path(args.workdir).expanduser().resolve() if args.workdir else (
         Path.cwd() / "timing_runs" /
