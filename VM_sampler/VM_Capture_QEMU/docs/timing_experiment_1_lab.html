@@ -2448,10 +2448,186 @@ nearest "nice" round number       <em>250 ms</em>
 <section>
   <div class="section-head">
     <div>
-      <div class="section-eyebrow"><span class="num">VII</span> Recommended next moves · post Run 2</div>
-      <h2 class="section">One fix landed. <em>Two more to go.</em></h2>
+      <div class="section-eyebrow"><span class="num">VII</span> Where we landed · all 9 bugs closed</div>
+      <h2 class="section">Capture pipeline calibrated. <em>Plan 02 unblocked.</em></h2>
     </div>
-    <p class="section-lede">Δt_frame is now correct. The consumer + libvirtd contention story still gates plan 02. Old datasets remain mis-calibrated.</p>
+    <p class="section-lede">Five rounds, eight plans, four commits. Δt_frame is correct end-to-end; in-pass drift is gone; pause-fraction is parameterised; sanity script runs cleanly; 2c verdict locked to REMOVE. Plan 02 (per-family <code>intervalMsec</code> profile · the thesis contribution) starts now.</p>
+  </div>
+
+  <!-- ─────────────────────  ORIENTATION · TESTS vs PLANS vs ROUNDS vs BUGS  ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">Orientation · read this first</span>What the four moving parts actually are</h3>
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.65;">
+      This investigation has four kinds of moving parts. They look similar from outside and do completely different things. Conflate them and the timeline stops making sense. A <strong>test</strong> is not a <strong>plan</strong>; a <strong>plan</strong> is not a <strong>round</strong>; a <strong>bug</strong> is not any of those. Each has one job in the loop.
+    </p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">1 · Tests are <em>measurements</em></div>
+        <p>Tests observe the pipeline. They run the producer, collect timestamps, and write a JSON. <strong>They do not change the pipeline.</strong> Their job is to make defects visible — not to fix them. There are four of them in this investigation.</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:8px 0 0;">
+          <li><code>sanity</code> — one instrumented producer run. <em>"Does it tick at <code>intervalMsec</code>?"</em></li>
+          <li><code>2a</code> — A/B with consumer on vs off. <em>"How much variance is the consumer's fault?"</em></li>
+          <li><code>2b</code> — sweep <code>intervalMsec</code> across 4 cells. <em>"What's the pause-fraction at each interval?"</em></li>
+          <li><code>2c</code> — A/B with flush on vs off. <em>"Is the 0.5 s flush necessary?"</em></li>
+        </ul>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Each test is one Python orchestrator that drives the producer (and optionally a consumer) with controlled parameters and parses the JSONL stream into a summary JSON. The orchestrator does not modify the producer; it only sets env-vars and reads the resulting timestamps.</p>
+        <p>The JSON is the artifact of record. Per the audit chain, "no JSON, no claim". Each round's analysis cites JSON field names, not console output.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">2 · Bugs and mechanisms are <em>what tests find</em></div>
+        <p>Two letter classes, kept separate on purpose:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:8px 0 0;">
+          <li><strong>Mechanisms i–vii</strong> (lowercase Roman) — theoretical hypotheses for why the classifier confused workload pairs it should have separated. Each is "something the analysis chain could be doing wrong."</li>
+          <li><strong>Bugs D–H</strong> (uppercase Latin) — concrete engineering defects in the orchestration code. Not hypotheses; observed failures.</li>
+        </ul>
+        <p style="margin-top:10px;">Tests do not fix bugs. They make bugs <em>measurable</em>. Once measurable, a bug gets a plan.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Mechanism IDs are independent of plan IDs by design. Two reasons: (a) one plan may close several mechanisms; one mechanism may need several plans. (b) Mechanisms map to hypotheses in the original confusion-matrix analysis (pre-investigation), so they outlive any particular fix.</p>
+        <p>Bugs D–H were not in the original hypothesis space. They were discovered while fixing mechanisms. They got their own letter class so a reader of an old report knows D is not in the original 7.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">3 · Plans are <em>code patches</em></div>
+        <p>A plan is a code change that closes one or more bugs. Each plan is small (1–34 lines), ships as one commit, and is verifiable by re-running the relevant test.</p>
+        <p style="margin-top:8px;">Eight plans landed: 1, 1b, 1c, 3, 4, 5, 6, and the Bug-H mkdir fix. Plan 2 was superseded by Plan 1 before coding.</p>
+        <p style="margin-top:10px;"><strong>Important:</strong> "Plan 02" (with a leading zero) is a <em>different thing</em>. It is a future higher-level experiment — the per-family <code>intervalMsec</code> profile, which is the actual thesis contribution. The single-digit plans (1, 1b, 1c, 3, 4, 5, 6) fixed the capture pipeline so Plan 02 can run reliably.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Plan numbering is loosely sequential by discovery, not strictly. Plan 1b is "the orchestrator-side propagation of Plan 1" — not a separate fix conceptually, but a separate commit because it touches 3 files. Plan 1c is the same trick applied to the sanity script, discovered later. Plan 5 was a fix that created Bug G; Plan 6 fixed G in 1 LOC.</p>
+        <p>Each commit hash maps to one plan (or one bundle of related plans). The audit trail is: bug → plan → commit → JSON field that verifies it.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">4 · Rounds are <em>verification cycles</em></div>
+        <p>A round is a full re-run of the relevant tests after one or more plans land. Round N tests the pipeline as it stands <em>after</em> plans up through round N have committed.</p>
+        <p style="margin-top:8px;">Five rounds (R1 → R5) plus two pre-investigation single-test runs (Run 1, Run 2). Each round produced one JSON per test it ran. Each round either confirmed plans worked OR surfaced a new bug that needed its own plan.</p>
+        <p style="margin-top:10px;">A round is <em>not</em> a new investigation. It is a re-measurement under known conditions. The pipeline is the black box; the JSON is the evidence.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Round granularity: re-run only the tests touched by the plans that landed. R4 only ran sanity + 2c because Plans 1c·5 only touched those. R5 only ran 2c because Plan 6 was 1 LOC in 2c. This keeps verification cheap (~1–10 min per round vs ~30 min for a full sweep).</p>
+        <p>Round status is appended to the existing JSON archive; old rounds are not overwritten. <code>sanity_v3.json</code> + <code>sanity_v4.json</code> both exist; the analysis cites the most recent.</p>
+      </div>
+    </div>
+
+    <h4 style="margin:24px 0 6px;color:var(--text);font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-0.01em;">The cycle, in one sentence</h4>
+    <p style="font-size:16px;color:var(--text);line-height:1.6;font-style:italic;border-left:2px solid var(--accent);padding-left:14px;margin:8px 0 24px;">
+      Test exposes bug · bug gets a plan · plan is coded · round re-runs the test · either the bug is closed or a new one surfaces. When all bugs in the dependency cone are closed, the higher-level experiment that was waiting on the pipeline is <strong>unblocked</strong>.
+    </p>
+
+    <h4 style="margin:24px 0 6px;color:var(--text);font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-0.01em;">What "blocked" and "unblocked" actually mean</h4>
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">
+      Higher-level experiments depend on lower-level reliability. <strong>Plan 02</strong> — the per-family <code>intervalMsec</code> profile — was <strong>blocked</strong> because four lower-level things had to be true for its conclusions to be trustworthy:
+    </p>
+    <ol style="font-size:15px;color:var(--text-dim);line-height:1.75;padding-left:24px;">
+      <li><code>intervalMsec</code> must actually change something. <em>(Pre-bc-fix the producer slept 0 s regardless. Closed by bc install — mechanisms i, ii.)</em></li>
+      <li>Timing must be stationary across a pass. <em>(Drifting pmemsave makes "host Δt" undefined. Closed by Plan 1 — mechanism vi.)</em></li>
+      <li>The pause-fraction sweep must produce trustworthy per-interval numbers. <em>(Without 2b's clean output, per-family choices are unfounded. Closed by R2 — mechanism iv reframed as a design knob.)</em></li>
+      <li>The sanity script must run cleanly so the pipeline can be re-verified at any time. <em>(Closed by Plan 1c — Bug E.)</em></li>
+    </ol>
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.7;margin-top:14px;">
+      Without those four, Plan 02 would pick interval values based on noise. Its conclusions would be artifacts of the capture pipeline, not properties of the workloads. All four are now satisfied. <strong>Plan 02 is unblocked</strong> — the next experiment will measure what it claims to measure, not the pipeline's defects.
+    </p>
+
+    <div class="illustration">
+      <div class="cap">The loop · top-to-bottom · with rounds as the verification feedback edge</div>
+      <div class="scene">
+   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   ┌─────────────────────┐
+   │   <em>TESTS</em>      │    │    <em>BUGS &amp;</em>    │    │    <em>PLANS</em>     │   │  HIGHER-LEVEL       │
+   │  (measure)   │──► │  MECHANISMS  │──► │   (fix)      │──►│  EXPERIMENT         │
+   │              │    │  (revealed)  │    │              │   │  <em>(unblocked when</em>  │
+   ├──────────────┤    ├──────────────┤    ├──────────────┤   │   <em>plans land)</em>      │
+   │  sanity      │    │  i  bc         │  │  1   SELF_CLEAN│ ├─────────────────────┤
+   │  2a          │    │  ii bc         │  │  1b  orch env  │ │                     │
+   │  2b          │    │  iii consumer  │  │  1c  sanity    │ │   <strong>Plan 02</strong>          │
+   │  2c          │    │  iv  pause     │  │  3   stable-n  │ │   · per-family      │
+   │              │    │  v   cleanup   │  │  4   disk-free │ │     intervalMsec    │
+   │              │    │  vi  drift     │  │  5   2c inverts│ │   · the thesis      │
+   │              │    │  vii verdict   │  │  6   n=10→5    │ │     result          │
+   │              │    │  D   disk-pess │  │  Bug-H mkdir   │ │                     │
+   │              │    │  E   sanity    │  │                │ │                     │
+   │              │    │  F   probe     │  │                │ │                     │
+   │              │    │  G   coupling  │  │                │ │                     │
+   │              │    │  H   parent    │  │                │ │                     │
+   └──────┬───────┘    └──────────────┘    └──────────────┘   └─────────────────────┘
+          │                                                              ▲
+          │                                                              │
+          └─── <em>ROUNDS</em> = re-run all relevant tests · verify ────────────┘
+                 Run 1 → Run 2 → R1 → R2 → R3 → R4 → R5
+</div>
+    </div>
+
+    <h4 style="margin:24px 0 8px;color:var(--text);font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-0.01em;">Vocabulary cheat-sheet</h4>
+    <div class="cost-table">
+      <table style="width:100%">
+        <thead><tr>
+          <th>Word</th>
+          <th>What it is</th>
+          <th>Concrete example</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>test</b></td>
+            <td>measurement script that observes the pipeline</td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+          </tr>
+          <tr>
+            <td><b>pass</b></td>
+            <td>one run of a test (or one sub-run of an A/B test)</td>
+            <td>"2c pass A = flush_on"</td>
+          </tr>
+          <tr>
+            <td><b>bug</b> / <b>mechanism</b></td>
+            <td>defect the tests reveal</td>
+            <td>mechanism vi = in-pass drift</td>
+          </tr>
+          <tr>
+            <td><b>plan</b></td>
+            <td>code patch closing one or more bugs</td>
+            <td>Plan 1 = <code>TIMING_SELF_CLEAN</code> env-var</td>
+          </tr>
+          <tr>
+            <td><b>round</b></td>
+            <td>re-run of relevant tests after plans land</td>
+            <td>Round 3 = first run on Plan-1·1b·3·4 pipeline</td>
+          </tr>
+          <tr>
+            <td><b>blocked</b></td>
+            <td>higher-level experiment cannot trust its inputs yet</td>
+            <td>Plan 02 was blocked through Round 2</td>
+          </tr>
+          <tr>
+            <td><b>unblocked</b></td>
+            <td>prerequisites met; higher-level experiment can run</td>
+            <td>Plan 02 unblocked after Round 5</td>
+          </tr>
+          <tr style="background:rgba(212,168,90,.05);">
+            <td><b>Plan 02</b></td>
+            <td>future <em>higher-level experiment</em>, not a fix (note leading zero)</td>
+            <td>per-family <code>intervalMsec</code> profile</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:var(--muted);margin-top:18px;font-style:italic;">
+      Full pedagogical write-up: <span class="mono">docs/FRAMEWORK_OVERVIEW.md</span>. Recommended for anyone joining the project cold.
+    </p>
   </div>
 
   <!-- ─────────────────────  STATUS BOARD  ───────────────────── -->

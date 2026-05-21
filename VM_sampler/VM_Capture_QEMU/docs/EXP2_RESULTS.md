@@ -4,6 +4,8 @@
 **Host:** `pcrserral`
 **JSONs analysed:** `exp2a.json` `exp2b.json` `exp2c.json` (plus the dump archive)
 
+> **New here? Read [FRAMEWORK_OVERVIEW.md](FRAMEWORK_OVERVIEW.md) first.** It explains the four kinds of moving parts in this investigation — **tests** (measurement scripts), **bugs / mechanisms** (defects the tests reveal), **plans** (code patches that close bugs), and **rounds** (re-runs that verify the patches) — and what "blocked / unblocked" means. The rest of this document is a chronological record; the framework doc is the map.
+
 ## Headline
 
 1. **2a (consumer isolation) — partial win.** Killing the consumer cuts
