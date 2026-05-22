@@ -24,6 +24,9 @@ results/
 # VSCode
 .vscode/
 
+# Claude Code
+.claude/
+
 # Jupyter
 .ipynb_checkpoints/
 
