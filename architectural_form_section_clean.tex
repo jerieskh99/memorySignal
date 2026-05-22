@@ -1,0 +1,218 @@
+% =============================================================================
+% architectural_form_section_clean.tex
+%
+% Clean paste-ready version of §4 (The Architectural Form).
+% Polish-provenance comments, source-of-bullet provenance, working notes,
+% Q-resolution markers, and the Part A skeleton have all been stripped.
+%
+% Status:
+%   - §4.1 Experimental Control: fully polished (opener + §4.1.1 + §4.1.2).
+%   - §4.2 Temporal Observation: opener first-pass; §4.2.1 Acquisition
+%     partially polished — Purpose + all three Responsibilities bullets
+%     done; Invariant has a refined proposal pending acceptance (see TODO
+%     comment); Cross-reference still first-pass. §4.2.2 Coordination still
+%     first-pass.
+%   - §4.3 Representation and Artifact Lifecycle: first-pass content
+%     (opener + §4.3.1 + §4.3.2 + §4.3.3).
+%   - Mapping to Requirements: drafted at per-main-component level.
+%
+% Resume order: §4.2.1 Invariant → §4.2.1 Cross-reference → §4.2.2
+% Coordination → re-read §4.2 → polish §4.2 opener → §4.3.
+%
+% =============================================================================
+% Citations and cross-references
+% =============================================================================
+%
+% Cross-references between sections in this draft are written literally
+% (e.g., "\S3.1", "\S4.1.1") because the parent paper's numbering is not
+% yet locked. When ready:
+%   - Replace each literal "\S3.1" with "\S\ref{sec:requirements}" (or
+%     whatever label \S3 carries in your final paper).
+%   - Replace each "\S4.1.1" with "\S\ref{subsubsec:orchestration}", and
+%     similarly for the other sub-components — labels are added below.
+%   - The §3.X paragraph references inside polish-provenance working
+%     notes are kept loose; convert if needed.
+%
+% External citations:
+%   - This section does not currently cite external work. If you decide
+%     to cite prior architectural-form papers, FIMAR (mentioned in §2),
+%     or any other reference, add \cite{...} at the relevant points
+%     and a corresponding entry in your .bib file.
+%   - Suggested placeholder locations are marked with
+%     "% TODO(cite): ..." comments below.
+%
+% =============================================================================
+
+
+
+\section{The Architectural Form}\label{sec:form}
+
+The architectural form for repeated volatile-memory observation is specified as a set of essential roles, each defined by its responsibilities and by the invariants that any valid realization must preserve.
+
+By \emph{form} we mean a specification at the level of architectural roles and relations rather than at the level of mechanisms or implementations. The form does not prescribe how each role is realized; it identifies what roles must exist, how they decompose into sub-components, and what properties must remain invariant across realizations.
+
+The form decomposes into three main components: \emph{Experimental Control}, which produces the conditions under which observation is meaningful; \emph{Temporal Observation}, which samples and conveys system states without distorting their temporal relationships; and \emph{Representation and Artifact Lifecycle}, which transforms observed sequences into analysis-ready intermediate forms and governs their persistence. The remainder of this section develops each in turn, and concludes with a mapping from the form's invariants back to the requirements of \S3.
+
+% TODO(cite): if you want to cite prior architectural-form work in the
+% introduction to \S4 (e.g., reproducible-pipeline papers, prior memory-
+% analysis architectures), add \cite{...} here.
+
+
+
+\subsection{Experimental Control}\label{subsec:exp-control}
+
+Experimental Control establishes the controlled conditions under which observation becomes temporally and contextually meaningful. It decomposes into two sub-components, each providing a distinct structural artifact: \emph{Orchestration} provides the \emph{step boundaries} that mark the time intervals of the experiment, and \emph{Stimulus} provides the \emph{workload specifications} that describe what runs inside each step.
+
+  \subsubsection{Orchestration}\label{subsubsec:orchestration}
+  \textbf{Purpose.} The \emph{Orchestration} role imposes a stable ordering on experimental actions and preserves the boundaries between successive experimental phases. By keeping the ordering and boundaries of execution under explicit control rather than letting them emerge from downstream timing, this role ensures that each observed transition remains aligned with the phase under which it was observed. Consequently, later stages of the form can interpret a sequence of states as part of a defined progression rather than as an undifferentiated stream of execution.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item \textbf{Controlled experiment sequencing.} The order in which experimental workloads are executed and memory states are sampled is determined by the Orchestration role itself, not by downstream processing. As a result, each observed state transition can be located within the controlled execution timeline rather than appearing as an isolated change.
+    \item \textbf{Boundary preservation between steps.} The start and end of each experimental step are recorded and propagated through the form, so that any observed transition can be situated within a specific step rather than within an unlabelled segment of execution. Step markers are structural; they identify where in the schedule a transition occurred, not what activity produced it.
+    \item \textbf{Temporal alignment of actions.} Control decisions, workload activity, and memory-state sampling are scheduled so that their timing relationships remain fixed and known. Without that stability, the observation sequence could not be aligned with the control timeline, and the structural association between transitions and steps would be lost.
+  \end{itemize}
+
+  \textbf{Invariant.} The order in which experimental workloads run and the boundaries between successive steps are imposed by Orchestration, never by the timing of downstream stages such as transformation, analysis, or artifact handling. If downstream processing were allowed to shape this order, the temporal positions of transitions in the observation sequence would shift with downstream processing speed rather than tracking the controlled schedule. Two runs of the same experiment could then yield observation sequences that no longer align in time, breaking comparability between them. A realization satisfies this invariant when transformation latency, output generation, and artifact handling cannot change which memory state is sampled next, when the next experimental step begins, or where a step boundary is placed in time.
+
+  \textbf{Cross-reference.} The step boundaries established by Orchestration mark the time intervals within which Stimulus (\S4.1.2) places its workload definitions. To map this onto \S3.1's vocabulary: a phase is an experimental step (the time slice that Orchestration marks), and a condition is a workload definition (the activity that Stimulus places inside that slice). With that mapping in place, the two sub-components jointly satisfy three \S3.1 requirements.
+
+  \emph{Preservation of phase and condition for each sampled state.} \S3.1 requires that each sampled state be linked to the phase it belongs to and the condition active during it. Orchestration provides the phase link through its step boundaries; Stimulus provides the condition link through its workload definitions. Any state sampled within step $s$ is therefore associated with both, satisfying the requirement.
+
+  \emph{Distinguishability of conditions and units.} \S3.1 requires both distinguishable conditions (different workloads) and distinguishable units (different steps). Orchestration distinguishes units by emitting distinct step boundaries; Stimulus distinguishes conditions by attaching a distinct workload definition to each step. Both kinds of difference are preserved: differences between steps are marked by Orchestration, differences between workloads are marked by Stimulus.
+
+  \emph{Preservation of segments without semantic labels.} \S3.1 requires that distinguishable segments be preserved without attaching meaning to them. Orchestration's step markers are structural (a step number, not a description of what happens), and Stimulus's workload definitions are structural specifications rather than interpretations. The segments are therefore preserved using only structural markers, and no semantic label is introduced.
+
+  \subsubsection{Stimulus}\label{subsubsec:stimulus}
+  \textbf{Purpose.} The \emph{Stimulus} role introduces controlled, reproducible workload definitions into the system, where each workload runs within a step boundary supplied by Orchestration. By keeping the workload (the program, inputs, and parameters being run) separate from the schedule (the order and timing of when each workload runs), this role ensures the two remain independent: the workload can be changed without redesigning the schedule, and the schedule can be changed without redefining any workload. Consequently, a single schedule can host many different workloads, and a single workload can be reused across many schedules.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item \textbf{Controlled behavioral inputs.} The activity introduced into the system is bounded to a defined set of workloads that are fixed before any run begins. Because the workload set is known in advance of any memory state being sampled, the conditions under which states evolve can be compared across runs of the same experiment.
+    \item \textbf{Reproducible workload definition.} Each workload is described by an explicit specification (program, inputs, parameters, and any setup it requires), and that specification is preserved across runs. The form's reproducibility property covers the workload specification and its invocation at fixed step positions, so the same workload definition enters the system at the same step each time.
+    \item \textbf{Separation of stimulus from control.} The Stimulus role decides what runs in the system; the Orchestration role decides when each workload runs. Each role provides its own structural output (Stimulus the workload specifications, Orchestration the step boundaries), and neither role provides the other's output. As a result, changes to a workload do not require changes to the schedule, and changes to the schedule do not require changes to any workload.
+  \end{itemize}
+
+  \textbf{Invariant.} Every workload running in the system is defined by an explicit specification provided by Stimulus, never derived from or modified by the orchestration mechanism. If the orchestration mechanism were allowed to alter the workload definition mid-experiment (for example, in response to observed memory state or downstream feedback), the workload would cease to be a fixed input and would instead become a function of the schedule, breaking the separation between what runs and when it runs. A realization satisfies this invariant when the orchestration mechanism cannot read, modify, or replace any workload specification, and when no workload specification can read or alter the schedule of step boundaries.
+
+  \textbf{Cross-reference.} Stimulus's workload definitions are placed inside the step boundaries supplied by Orchestration (\S4.1.1). The joint satisfaction of \S3.1's requirements by Orchestration and Stimulus is shown at \S4.1.1; the following additionally satisfies the form-level separation requirement of \S3.3.
+
+  \emph{Preservation of the stimulus-versus-control separation.} \S3.3 requires that distinct architectural roles not be merged into one combined role, since each role protects different responsibilities. Stimulus and Orchestration each provide their own structural output: Stimulus provides workload specifications, Orchestration provides step boundaries. Neither role can substitute for the other, and the Invariant above forbids the orchestration mechanism from modifying any workload specification. The separation is therefore preserved at two levels: by the form's role decomposition (Stimulus and Orchestration are distinct sub-components), and by the Invariant above (no role may alter another's output).
+
+
+
+\subsection{Temporal Observation}\label{subsec:temp-obs}
+
+% TODO: opener still in first-pass form. Polish on resume — likely
+% target: replace "Component~2" subject (per user preference applied
+% to \S4.1) and add an artifacts gloss similar to \S4.1 opener
+% (the artifact here is the observation sequence emitted by Acquisition).
+Component~2 samples system states over time and conveys them through the form while preserving their temporal relationships and observational context. It decomposes into two sub-components: \emph{Acquisition}, which captures successive states under a defined sampling regime that preserves adjacency and remains neutral to downstream use; and \emph{Coordination}, which passes captured states between stages whose processing rates may differ, without losing their order or context.
+
+  \subsubsection{Acquisition}\label{subsubsec:acquisition}
+  \textbf{Purpose.} The \emph{Acquisition} role captures successive memory states over time and emits an \emph{observation sequence} in which the adjacency of consecutive states (their position next to each other in time) is preserved. By performing this capture under a sampling protocol that is fixed in advance of any downstream stage, this role keeps the temporal structure of the sequence determined entirely by the protocol, not by downstream processing. The sequence is therefore stable in shape regardless of which downstream methods consume it.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item \textbf{Repeated state sampling.} Memory states are sampled at successive points in time according to a sampling protocol that assigns each sample a known temporal position and an explicit relationship to its neighbours. The result is a structured sequence of samples, neither a single snapshot nor an unstructured collection of captures without explicit temporal relationships; subsequent stages of the form operate on the sequence rather than on individual samples.
+    \item \textbf{Preservation of state adjacency.} At Acquisition's output, the order of samples must match the order in which they were captured, with no interpolation, dropping, or reordering of samples. The result is an adjacency that subsequent stages of the form can rely on as a faithful record of the order and temporal placement of the captured states.
+    \item \textbf{Independence from downstream interpretation.} At Acquisition's output, captured samples must carry no commitment to any specific downstream method, with no interpretation, transformation, or labeling embedded during capture. The captured sequence is therefore an analytically neutral record of what was captured and when, with no commitments embedded by Acquisition.
+  \end{itemize}
+
+  % TODO: Invariant has a refined three-sentence proposal pending acceptance.
+  % Current text is first-pass. Refined proposal (in working file):
+  %   "At Acquisition's output, every sample in the observation sequence
+  %    carries its temporal position, its adjacency relationship to
+  %    neighbouring samples, and no commitment to any specific downstream
+  %    method. If a downstream-specific transformation were embedded during
+  %    capture (for example, structuring captured data into a particular
+  %    analysis format or attaching labels from a specific method), the
+  %    captured sequence would cease to be analytically neutral; what
+  %    Acquisition emits would be tied to one method by construction. A
+  %    realization satisfies this invariant when each emitted sample carries
+  %    an explicit temporal position, an explicit relationship to its
+  %    neighbouring samples, and no analytical commitment beyond the act of
+  %    capture itself."
+  \textbf{Invariant.} Each sampled state retains its position in the sequence and is collected without commitment to any specific downstream method.
+
+  % TODO: Cross-reference still first-pass. Polish in light-formal-proof
+  % style (structural handoff type: Acquisition's adjacency → Coordination's
+  % ordered handoff).
+  \textbf{Cross-reference.} The state adjacency preserved here is what Coordination (\S4.2.2) carries forward as ordered handoff between stages. Both responsibilities derive from the comparability and ordered-relationships requirements in \S3.1.
+
+  \subsubsection{Coordination}\label{subsubsec:coordination}
+  \textbf{Purpose.} Passes captured states between stages whose processing rates may differ, without losing their order or their link to the observational context in which they were acquired.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item Decoupling of acquisition and transformation.
+    \item Tolerance to variable processing latency.
+    \item Ordered handoff between stages.
+  \end{itemize}
+
+  \textbf{Invariant.} The order of observations passed between stages is preserved regardless of the relative speeds at which those stages operate.
+
+  \textbf{Cross-reference.} The ordered handoff preserved here continues the state adjacency established by Acquisition (\S4.2.1). The decoupling of acquisition from transformation also marks the boundary between Component~2 and Component~3, ensuring that downstream transformation cannot redefine the order in which states were observed.
+
+
+
+\subsection{Representation and Artifact Lifecycle}\label{subsec:rep-artifact}
+
+% TODO: opener still in first-pass form. Polish on resume.
+Component~3 transforms observed state sequences into analysis-ready intermediate forms whose identity, interpretation, and persistence remain under explicit architectural control. It decomposes into three sub-components: \emph{Representation}, which produces the intermediate forms; \emph{Analysis}, which consumes them through methods that may evolve independently of the upstream roles; and \emph{Retention}, which governs whether artifacts persist while keeping persistence policy distinct from artifact meaning.
+
+  \subsubsection{Representation}\label{subsubsec:representation}
+  \textbf{Purpose.} Produces intermediate forms that make explicit the temporal relationship between consecutive observed states and that remain linked to the experimental step from which they originated.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item Incremental representation of consecutive states.
+    \item Analysis-ready intermediate artifacts.
+    \item Step-scoped representation identity.
+  \end{itemize}
+
+  \textbf{Invariant.} Each intermediate form preserves the temporal relationship of the states from which it was derived and remains traceable to its originating experimental step. Representation may \emph{organize} the observation sequence (for example, by aggregation or windowing) but must not \emph{redefine} it; the temporal order and identity of the underlying observations remain unaltered.
+
+  \textbf{Cross-reference.} The step-scoped identity established here is the same identity that Retention (\S4.3.3) propagates through the artifact lifecycle. Both responsibilities derive from the artifact-identity requirement in \S3.2.
+
+  \subsubsection{Analysis}\label{subsubsec:analysis}
+  \textbf{Purpose.} Consumes the intermediate forms produced by Representation, through methods that may evolve or be deferred without forcing redesign of the upstream roles.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item Downstream metric consumption.
+    \item Deferred or modular evaluation.
+    \item Baseline-aware comparison support.
+  \end{itemize}
+
+  \textbf{Invariant.} Analytical methods operate on intermediate forms, never on raw acquired states, so that they can be replaced or extended without disturbing upstream roles.
+
+  \subsubsection{Retention}\label{subsubsec:retention}
+  \textbf{Purpose.} Governs whether artifacts persist, are compressed, or are discarded, while keeping that policy distinct from the artifact's meaning in the experiment.
+
+  \textbf{Responsibilities.}
+  \begin{itemize}
+    \item Configurable artifact persistence.
+    \item Separation of logical artifact value from storage policy.
+    \item Support for reproducible archival paths.
+  \end{itemize}
+
+  \textbf{Invariant.} The persistence policy applied to an artifact is decided independently of the artifact's role in the experimental logic.
+
+  \textbf{Cross-reference.} The reproducible archival paths preserved here continue the step-scoped identity established by Representation (\S4.3.1). Both responsibilities derive from the artifact-identity requirement in \S3.2.
+
+
+
+\subsection*{Mapping to Requirements (\S3)}\label{subsec:mapping}
+
+The Invariants of the architectural form satisfy the \S3 requirements as follows.
+
+\emph{Experimental Control} (\S4.1) addresses the requirements in \S3.1 that sampled states remain part of a distinguishable progression through the observed process and that the architecture support distinguishable observational conditions and units. Orchestration (\S4.1.1) preserves the step boundaries that make those conditions distinguishable without requiring semantic labels for what they represent; Stimulus (\S4.1.2) introduces the controlled, reproducible inputs that make changes in memory evolution relatable to changes in observed system activity. The explicit separation of Stimulus from Orchestration also satisfies the form-level requirement in \S3.3 that distinct architectural roles not collapse into one another.
+
+\emph{Temporal Observation} (\S4.2) addresses the requirements in \S3.1 that sampling preserve comparability across the observed sequence, that each sample occupy a known position in time, and that heterogeneous stage timing not redefine the top-level ordering of the observed sequence. Acquisition (\S4.2.1) captures successive states under a regime that preserves their adjacency and their positional identity, while remaining independent of downstream interpretation; Coordination (\S4.2.2) tolerates variable processing latency while preserving the order of states handed off between stages. The independence of Acquisition from downstream methods also satisfies the requirement in \S3.2 that observation remain independent of downstream analysis assumptions, and the form-level requirement in \S3.3 that observation and transformation remain distinct architectural roles.
+
+\emph{Representation} (\S4.3.1) addresses the requirement in \S3.2 that the observation sequence be transformed into an analysis-ready trace without altering the observational structure on which it depends, and the requirement that intermediate representations preserve their identity relative to the context from which they arise. It also indirectly supports the temporal-comparability requirement in \S3.1, by carrying the temporal relationships established upstream forward into the intermediate form rather than redefining them.
+
+\emph{Analysis} (\S4.3.2) addresses the requirement in \S3.2 that stable intermediate forms be the basis for downstream stages, and the form-level requirement in \S3.3 that observation, transformation, representation, analysis, and artifact management not collapse into a single undifferentiated process. By forbidding analytical methods from operating on raw acquired states, the Invariant enforces exactly the separation between transformation and analysis that \S3.3 requires.
+
+\emph{Retention} (\S4.3.3) addresses the requirement in \S3.2 that the architecture define a reproducible artifact lifecycle, specifying how artifacts are produced, transformed, preserved, reused, or discarded. By isolating persistence policy from the artifact's experimental meaning, the Invariant also satisfies the form-level requirement in \S3.3 that the form be characterized by the separations it preserves, including the separation between the form's meaning and engineering choices about how it is realized.
