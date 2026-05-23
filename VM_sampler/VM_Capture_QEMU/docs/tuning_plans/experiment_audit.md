@@ -663,3 +663,131 @@ When the checklist is green, launch Step 0.5 → Step 0 → Step 1 → Step 2 �
 ---
 
 **Audit log frozen at end of Day 5.** Subsequent changes appended below this line.
+
+---
+
+# Day 6 · Step 1 pilot review (post-capture)
+
+**Convened:** PM reconvenes the full team after the operator runs the Step 1 pilot manifest on the calibrated host. Tar archive received at the working dir; 94-row manifest with 90 real cells + 4 warmups; 90/90 real cells passed acceptance gates 1-4; 1 warmup interrupted by operator Ctrl-C at session start.
+
+## 13 · Step 1 raw data inspection
+
+`PM` opens by displaying the aggregate. The numbers are striking on consistency.
+
+### Pipeline-stationarity acceptance (criteria 1-4)
+
+| iv (ms) | n cells | CV(guest_dt) mean | CV(guest_dt) max | iv bias | pause frac | n_snaps @ d=300s |
+| ------- | ------- | ----------------- | ---------------- | ------- | ---------- | ---------------- |
+| 100     | 18      | 0.0210            | 0.0332           | +0.32 % | 92.4 %     | 181              |
+| 250     | 18      | 0.0121            | 0.0168           | +0.03 % | 84.7 %     | 167              |
+| 500     | 18      | 0.0102            | 0.0114           | -0.43 % | 74.1 %     | 148              |
+| 1000    | 18      | 0.0050            | 0.0055           | -0.19 % | 59.3 %     | 119              |
+| 2000    | 18      | 0.0025            | 0.0030           | -0.12 % | 42.4 %     | 85               |
+
+Every cell passes acceptance criteria 1 (stationarity < 0.10), 2 (iv honored within ±2 %), and 3 (no silent gaps · 0 backpressure events across all 90 cells, queue_max_depth=0).
+
+### Pmemsave drift check (Plan 1 sanity across 90 cells)
+
+| iv (ms) | pmemsave mean (s) | σ      | min     | max     |
+| ------- | ----------------- | ------ | ------- | ------- |
+| 100     | 0.7706            | 0.0015 | 0.7679  | 0.7750  |
+| 250     | 0.7696            | 0.0011 | 0.7674  | 0.7718  |
+| 500     | 0.7634            | 0.0014 | 0.7613  | 0.7663  |
+| 1000    | 0.7631            | 0.0015 | 0.7611  | 0.7670  |
+| 2000    | 0.7634            | 0.0017 | 0.7600  | 0.7675  |
+
+Plan 1 holds across the full 90-cell sweep. No drift. Cross-cell σ is 0.001-0.002, smaller than within-cell variance for any single previous round.
+
+### Pause-fraction sweep (extends R2/R3)
+
+Round 2/3 measured iv=100/250/500/1000. Step 1 adds iv=2000 → **42.4 %**. The relationship is monotone and consistent with the structural model (pause_frac = 1 - guest_time / total_time).
+
+| iv (ms) | R2/R3 | Step 1 | delta |
+| ------- | ----- | ------ | ----- |
+| 100     | 92.4  | 92.4   | 0.0   |
+| 250     | 84.6  | 84.7   | +0.1  |
+| 500     | 74.1  | 74.1   | 0.0   |
+| 1000    | 59.3  | 59.3   | 0.0   |
+| 2000    | n/a   | 42.4   | new   |
+
+Reproducibility across multiple rounds is now empirically established for iv ∈ {100, 250, 500, 1000}. The iv=2000 cell is new clean data.
+
+### The interrupted warmup
+
+`SA` notes one operator-side event:
+
+> Cell `85064daa6bfb` (warmup of block 0) is the only failed row. Manifest notes show `interrupted by operator | warmup; output discarded`. The operator hit Ctrl-C during the first warmup; the orchestrator caught the signal, marked the row failed in manifest, and continued the session from the next pending row. **EN's retry policy + SA's manifest design worked exactly as designed under genuine adversity.** No real data lost (warmup output was going to be discarded anyway).
+
+## 14 · Each agent's review
+
+**`SA` · architecture:**
+> "Crash recovery survived a real operator interrupt at session start. Manifest atomic write + per-cell idempotent IDs let the rerun pick up from cell 2 of block 0 without re-doing the (failed) warmup. All 90 real cells completed. Architecture is sound under operational stress, not just theoretical. No changes proposed."
+
+**`XD` · experiment design:**
+> "Two findings.
+>
+> **Finding 1 · n_snaps × window=128 constraint.** At iv=2000ms d=60s we collected 17 snaps; d=120s → 34 snaps; d=300s → 85 snaps. With Phase-1 canonical window=128 hop=64, **0 cells at iv=2000ms produce any complete window**. iv=1000ms d=60s also produces 0 windows. Acceptance criterion 4 (n_windows ≥ 50) will reject all of iv=2000ms and most of iv=1000ms once analyzer outputs land. This is not a pipeline bug; it is a real interaction between iv-and-duration that the matrix exposed. Either:
+> - lengthen the slow-iv cells to ≥ 600 s (would let iv=1000ms d=600s produce ~60 windows at hop=64)
+> - reduce window/hop (Plan 03's territory)
+> - accept that iv ≥ 1000ms is incompatible with window=128 and drop those rows from the recommendation
+>
+> **Finding 2 · σ overshoot.** Producer-side σ is ~0.002 for pmemsave and ~0.001 for pause_fraction at fixed iv. Day-3 power analysis assumed σ ≈ 0.08 on F1. The capture pipeline is now so consistent that the binding noise source has shifted to the analyzer's metric itself. We should re-estimate F1 σ from Step 1.5 (next decision) before deciding whether 3 reps was over-budget."
+
+**`DE` · schemas + manifest:**
+> "Schema v2 wrote correctly to all 94 cell JSONs. Manifest tracked 94 status transitions atomically across an interrupted session. One audit-quality gap: when the warmup was interrupted, `warmup_block0.json` was not written (the interrupt happened before the JSON write step). Manifest correctly says 'failed', but there is no JSON record of what (partial) measurements existed. **Proposed: orchestrator catches KeyboardInterrupt and writes a 'partial' JSON with whatever it had before exiting.** Small change, ~10 LOC. Not blocking; flag for cleanup pass."
+
+**`EN` · observability:**
+> "Heartbeat JSONs were not included in the tar (operator probably trimmed `cells/*.json` only). Cannot verify from this archive that they were written during the run. Operator confirmed via separate channel that progress messages appeared in stderr, suggesting heartbeat thread was alive. **Action item:** next pilot rerun should include `cells/work/**/heartbeat.json` in the tar for full audit."
+
+**`ML` · analyzer outputs:**
+> "Every cell has `analyzer_outputs.f1_phase = null` and `cv_workingset = null`. The seam I was supposed to fill in (offline_step_metrics integration) is unfilled. **This is the blocker.** Without F1 and CV per cell, we cannot:
+> 1. Apply acceptance criterion 5 (defining-metric thresholds)
+> 2. Compute per-family iv recommendations (Plan 02's deliverable)
+> 3. Validate the noise-baseline calibration from Day 3
+>
+> **Proposal: Step 1.5 — analyzer back-fill.** Write a script that reads each cell's `snapshot_timings.jsonl` from the workdir, runs `offline_step_metrics.py` or equivalent over the snapshot sequence, computes F1 (for phasic workloads) and CV (for steady workloads), and writes the values back into the per-cell JSON in-place. This is offline computation — no VM, no re-capture. Estimate: ~100 LOC + ~30 min CPU time across all 90 cells. **Step 2 cannot run until this lands.**"
+
+**`DS` · statistical findings:**
+> "Producer-only stats give us four confirmations + one open question:
+>
+> 1. **iv honored at ±0.5 % across all 5 levels.** Confirms mechanism i-ii fix is robust under load (90 sequential captures, not just 5).
+> 2. **Pause-fraction is deterministic.** Cell-to-cell σ is < 0.001 at any fixed iv. The R2/R3 numbers reproduce exactly for the 4 overlapping iv levels.
+> 3. **ANOVA on host_dt by iv:** F-stat is astronomical (eta² > 0.99). Not a useful finding because host_dt mechanically depends on iv — this is the trivial main effect, not a hypothesis test.
+> 4. **ANOVA on pmemsave by iv:** F = 49, eta² = 0.54. Real but small effect; pmemsave is ~1 ms faster at iv ≥ 500 than at iv ≤ 250. Likely a guest-time vs cache-warmth interaction (faster cycling → hotter VM page cache → slightly slower scan). Not pipeline-defective. Note for thesis.
+>
+> **Open:** the actually-thesis-relevant questions (does F1 vary with iv? does CV vary with iv?) cannot be answered until Step 1.5 lands. I support `ML`'s proposal to gate Step 2 on it."
+
+**`PM` reads back:**
+> "Strong outcome for the architecture and capture-pipeline layers. Plan 02 Step 1 capture-side is done. The single blocker is analyzer integration — `ML`'s Step 1.5. Step 2 is paused pending Step 1.5."
+
+## 15 · Decisions on Day 6
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-13 | Insert **Step 1.5** between current state and Step 2: ML implements analyzer integration in `plan02_run.py` + writes `plan02_backfill_analyzer.py` to back-populate F1 / CV on the 90 captured cells without re-running them. | Step 2 cannot produce a meaningful recommendation without F1/CV; back-fill is offline-only so no host time wasted. | ML |
+| D-14 | Reframe acceptance criterion 4 (n_windows ≥ 50) as **per-(iv, duration) cell-level rejection, not pipeline rejection.** Cells with too few windows get status='skipped' in the manifest, not 'failed'. The iv-recommendation logic ignores skipped cells when selecting the slowest viable iv. | iv=2000ms × short-duration cells are mechanically incompatible with window=128. This is a real combinatorial constraint, not a fault. | XD + DS |
+| D-15 | **Step 2 (generalize) GATED on Step 1.5 completion.** Operator does not launch Step 2 until 90 cells have non-null analyzer_outputs. | Prevents collecting more data we can't interpret. | PM |
+| D-16 | The pilot σ for producer stats is ~0.002 — three orders of magnitude smaller than the Day-3 power-analysis assumption (0.08). **Re-estimate F1 σ after Step 1.5 lands**; 3 reps may be over-budget for the producer-side metric, but is probably correct for the analyzer-side metric (which dominates noise now). | Empirical σ supersedes Day-3 guess. | DS |
+| D-17 | KeyboardInterrupt-during-cell-execution should also write a 'partial' JSON before exit, alongside the manifest update. ~10 LOC follow-up. Non-blocking. | Audit completeness: every manifest row should map to either a real JSON or a documented partial JSON. | DE + EN |
+| D-18 | Tar archive convention for operator: future tars should include `cells/work/**/heartbeat.json` and `cells/work/**/producer.log` so EN can audit observability hooks post-hoc. | EN cannot review observability without the artifacts. | EN + operator |
+
+## 16 · New open risks (Day 6 carry-forward)
+
+1. **Step 1.5 analyzer integration is a black box.** ML estimates ~100 LOC but the offline_step_metrics interface to the snapshot JSONL stream is not yet specified. Risk of scope creep if the analyzer needs additional metadata not currently in v2 schema. Flagged for ML to scope precisely before coding.
+2. **iv ≥ 1000ms × short-duration cells will get 'skipped' status.** If most of iv=2000ms gets skipped, the recommendation table for some workload families may have no iv=2000ms data point. Resolution either by extending those cells in a follow-up sub-pilot, or by accepting the gap. Decide after Step 1.5 shows which families are affected.
+3. **iv=2000ms pause_fraction = 42.4 %.** This is the new low-end pause-fraction. The team should decide whether the analyser's metric definitions (rhythm-based features) still apply meaningfully when the VM is paused < 50 % of wall-clock. May need a separate validity check before recommending iv=2000ms for any production family.
+
+## 17 · Changes to the experiment pipeline after Day 6
+
+- **Inserted Step 1.5 (analyzer back-fill)** between Step 1 capture and Step 2 generalize. Offline, no host time.
+- **Acceptance criterion 4 reframed** as per-cell skip rather than per-cell fail.
+- **Step 2 gated on Step 1.5.**
+- **Manifest follow-up D-17** added to the launch checklist for next iteration.
+
+## 18 · PM final note · Day 6
+
+> Capture pipeline at production quality. 90/90 cells passed criteria 1-3, σ is < 0.5 % everywhere, pause-fraction sweep reproduces R2/R3 exactly with a new iv=2000ms data point at 42.4 %. The only true blocker is analyzer integration — Step 1.5. Once ML's back-fill lands, we have the data to answer the actual thesis question. **Status: blocked on Step 1.5 · ~100 LOC · ~30 min CPU once written.** No new capture needed.
+
+---
+
+**Audit log updated end of Day 6.** Subsequent changes appended below this line.

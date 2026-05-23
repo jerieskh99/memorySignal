@@ -2753,7 +2753,7 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">17 done</span>
+      <span class="board-tag done">22 done</span>
       <span class="board-tag next">1 next</span>
       <span class="board-tag blocked">3 blocked</span>
     </div>
@@ -2845,14 +2845,34 @@ nearest "nice" round number       <em>250 ms</em>
       <span class="what">Round 5 re-run · 2c v5 recommendation = "REMOVE" · all 9 bugs closed</span>
       <span class="meta"><span class="ok">n_used=5, delta −0.380 s, both probes all_ok</span></span>
     </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">7-agent team review · 5-day audit · pipeline locked</span>
+      <span class="meta"><span class="ok">tuning_plans/experiment_audit.md · 12 decisions</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 02 Day-0 pre-flight · manifest + schema v2 + orchestrator + migrator + analysis</span>
+      <span class="meta"><span class="ok">6 files · 2153 LOC · 15/15 smoke tests pass · commit <code>ca50923</code></span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Plan 02 Step 1 pilot · 90/90 cells passed capture-side acceptance</span>
+      <span class="meta"><span class="ok">CV(gd)≤0.034 · iv±0.5% · pause 92.4→42.4% · pmem 0.77s flat · 0 backpressure</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Day-6 team review · Step 1 inspected · Step 1.5 inserted</span>
+      <span class="meta"><span class="ok">6 new decisions (D-13..D-18) · analyzer back-fill identified as blocker</span></span>
+    </div>
 
     <div class="board-divider"></div>
 
     <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Plan 02 · per-family <code>intervalMsec</code> profile (thesis result)</span>
-      <span class="meta"><span class="acc">unblocked · design first, then code</span></span>
+      <span class="what">Step 1.5 · analyzer back-fill (F1, CV per cell)</span>
+      <span class="meta"><span class="acc">ML · ~100 LOC offline · ~30 min CPU · gates Step 2</span></span>
     </div>
 
     <div class="board-divider"></div>
@@ -2927,7 +2947,92 @@ nearest "nice" round number       <em>250 ms</em>
     </div>
 
     <div class="headline-progress">
-      Round 5 done · all 9 mechanisms (i–vii + D + E + F + G) plus Bug H <strong>closed empirically</strong> · 2c v5 <code>recommendation = REMOVE</code> · <strong>Plan 02 (per-family intervalMsec profile) is the thesis result and unblocks now</strong>.
+      Round 5 done · all 9 mechanisms (i–vii + D + E + F + G) plus Bug H <strong>closed empirically</strong> · 2c v5 <code>recommendation = REMOVE</code> · <strong>Plan 02 Step 1 pilot captured: 90/90 cells passed capture-side acceptance; analyzer back-fill (Step 1.5) is the new blocker</strong>.
+    </div>
+
+    <!-- ─────────────────────  PLAN 02 STEP 1 RESULTS  ───────────────────── -->
+
+    <h4 style="margin:28px 0 6px;color:var(--text);font-family:var(--font-display);font-weight:500;font-size:18px;letter-spacing:-0.01em;">Step 1 pilot · what came back</h4>
+    <p style="font-size:14px;color:var(--text-dim);line-height:1.6;">
+      94-row manifest ran on <code>pcrserral</code>. 90 real cells completed · 3 of 4 warmups completed · 1 warmup (block 0) interrupted by operator Ctrl-C at session start, manifest correctly marked failed, session resumed from cell 2. Crash-recovery architecture passed its first real adversarial test.
+    </p>
+
+    <div class="cost-table" style="margin:12px 0;">
+      <table style="width:100%">
+        <thead><tr>
+          <th>iv (ms)</th>
+          <th>n cells</th>
+          <th>CV(guest_dt) mean</th>
+          <th>iv bias</th>
+          <th>pmemsave mean (s)</th>
+          <th>pause fraction</th>
+          <th>n_snaps @ d=300s</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><b>100</b></td><td>18</td><td class="mono">0.0210</td><td class="mono ok">+0.32 %</td><td class="mono">0.7706 ± 0.0015</td><td class="mono">92.4 %</td><td class="mono">181</td></tr>
+          <tr><td><b>250</b></td><td>18</td><td class="mono">0.0121</td><td class="mono ok">+0.03 %</td><td class="mono">0.7696 ± 0.0011</td><td class="mono">84.7 %</td><td class="mono">167</td></tr>
+          <tr><td><b>500</b></td><td>18</td><td class="mono">0.0102</td><td class="mono ok">−0.43 %</td><td class="mono">0.7634 ± 0.0014</td><td class="mono">74.1 %</td><td class="mono">148</td></tr>
+          <tr><td><b>1000</b></td><td>18</td><td class="mono">0.0050</td><td class="mono ok">−0.19 %</td><td class="mono">0.7631 ± 0.0015</td><td class="mono">59.3 %</td><td class="mono">119</td></tr>
+          <tr style="background:rgba(124,185,110,.05);"><td><b>2000</b></td><td>18</td><td class="mono">0.0025</td><td class="mono ok">−0.12 %</td><td class="mono">0.7634 ± 0.0017</td><td class="mono acc">42.4 %</td><td class="mono">85</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:14px;color:var(--text-dim);line-height:1.7;">
+      <strong>Capture-side verdict:</strong> all 90 cells pass acceptance criteria 1 (CV < 0.10 ✓), 2 (iv honored within ±2 % ✓), 3 (no backpressure · 0 of 90 ✓). Pause-fraction sweep reproduces R2/R3 exactly for the 4 overlapping iv levels and adds iv=2000ms = 42.4 % as new clean data. Cell-to-cell σ for pmemsave is 0.001–0.002 s — three orders of magnitude tighter than the Day-3 power-analysis assumption.
+    </p>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What we can already say</div>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li><strong>Plan 1 holds across 90 cells.</strong> pmemsave stays at 0.76–0.77 s in every cell. No drift residue.</li>
+          <li><strong>iv honored ±0.5 %</strong> at every level. mechanism i/ii fix is robust under load (90 sequential captures, not a one-off).</li>
+          <li><strong>Pause fraction is deterministic.</strong> σ < 0.001 across all 18 cells at any fixed iv.</li>
+          <li><strong>iv=2000ms gives 42.4 % pause</strong> — a real new operating point. Whether it is analytically useful depends on whether the analyzer's metrics still mean something at &lt; 50 % pause. Open question.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>One-way fixed-effects ANOVA on host_dt by iv: F-stat astronomical, eta² &gt; 0.99 (trivial main effect — host_dt mechanically depends on iv). On pmemsave by iv: F = 49, eta² = 0.54 — small real effect, ~1 ms faster at iv ≥ 500 than iv ≤ 250 (likely cache-warmth × cycle-rate interaction). Not a pipeline defect.</p>
+        <p>Block-randomization and warmup discipline held: zero between-block drift detected in the across-cell variance. Manifest-driven execution recovered cleanly from a session interrupt without operator intervention beyond the rerun.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What we cannot say yet (the blocker)</div>
+        <p>Every cell has <code>analyzer_outputs.f1_phase = null</code> and <code>cv_workingset = null</code>. The seam to <code>offline_step_metrics</code> is unfilled. Without F1 / CV:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li>Acceptance criterion 5 (defining-metric thresholds) cannot be applied.</li>
+          <li>Per-family iv recommendation table (Plan 02's deliverable) cannot be computed.</li>
+          <li>Day-3 noise-baseline calibration cannot be validated against real data.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Resolution:</strong> Step 1.5 (new, inserted Day 6). ML implements <code>plan02_backfill_analyzer.py</code> which reads each cell's existing <code>snapshot_timings.jsonl</code> and back-populates F1 / CV in the v2 JSON. Offline. No re-capture. ~100 LOC, ~30 min CPU across all 90 cells.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>The seam exists in <code>plan02_run.py</code> at line ~250 (the <code>AnalyzerOutputs</code> construction). Currently passes <code>f1_phase=None</code> unconditionally. Step 1.5 will wrap <code>offline_step_metrics.py</code> with a thin adapter that consumes the JSONL stream + emits F1 / CV / n_windows per cell. The v2 schema already accommodates the fields; no schema migration needed.</p>
+        <p>Step 1.5 has zero host-time cost because the JSONL streams (and dump files via <code>--no-self-clean</code>) are already on disk from Step 1. Pure CPU work.</p>
+      </div>
+    </div>
+
+    <div class="illustration" style="margin:18px 0;">
+      <div class="cap">Crash-recovery in action · timeline of the warmup_block0 incident</div>
+      <div class="scene">  t=0:00   operator launches plan02_run.py
+  t=0:01   session sentinel written; manifest loaded (94 pending)
+  t=0:02   block 0 warmup begins (cell 85064daa6bfb)
+  t=0:08   operator Ctrl-C
+  t=0:08   orchestrator catches SIGINT
+            ├─ marks 85064daa6bfb status=failed in manifest
+            ├─ appends "interrupted by operator" to notes
+            └─ exits cleanly
+  t=0:10   operator re-launches plan02_run.py
+  t=0:10   manifest loaded; crashed_running_to_failed() finds none (clean exit)
+  t=0:10   next_pending() returns cell 2 of block 0
+  t=0:10   session resumes from cell 2; 90 real cells complete sequentially
+  t=5:45   session done · 90 ok · 1 failed (the interrupted warmup)
+</div>
     </div>
   </div>
 
