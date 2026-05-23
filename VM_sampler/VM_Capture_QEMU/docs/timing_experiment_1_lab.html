@@ -1722,13 +1722,13 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
   <div class="crumbs">
     <span class="active">Capture Timing</span>
     <span>&middot;</span>
-    <span>Round 5 done · all 9 bugs closed · Plan 02 unblocked</span>
+    <span>Plan 02 Step 1.5a/b landed · 1.5c next on host (~3 h)</span>
     <span>&middot;</span>
     <span>pcrserral</span>
   </div>
   <div class="status" id="topbar-status">
     <span class="led"></span>
-    <span id="topbar-status-text">2c v5 recommendation = REMOVE · all green</span>
+    <span id="topbar-status-text">workload-launching wired · validation sub-pilot pending</span>
   </div>
 </nav>
 
@@ -1741,21 +1741,22 @@ code { color: var(--accent); font-family: var(--mono); font-size: 14px; backgrou
     <span class="sep">/</span>
     <span class="accent">PhD Thesis · Memory-Signal Pipeline</span>
   </div>
-  <h1 class="title">All 9 mechanisms closed.<br>Plan 02 <em>unblocked</em>.</h1>
+  <h1 class="title">Plan 02 Step 1 captured · Step 1.5 a + b <em>landed</em>.<br>One ~3 h validation sub-pilot from real workload runs.</h1>
   <p class="hero-deck">
-    Round 5 landed the final empirical artifact. 2c v5's
-    <code>recommendation</code> field reads <strong>"REMOVE the flush —
-    dumps remain intact and host_dt drops by 0.380 s (25.0%) on the
-    first-5 comparison"</strong>. <code>n_used = 5</code> proves Plan 6
-    default applied. <code>integrity_on / integrity_off</code> both
-    <code>all_ok=true</code>. Both passes completed 21 snapshots. Bug H
-    (missing <code>mkdir -p</code> for <code>--output-json</code> parent)
-    surfaced in the first attempt and was patched in 4 sites across 2b + 2c.
-    Five rounds + two sanity runs · 8 plans landed · 4 commits ·
-    <strong>capture pipeline calibrated, audit-trailed, ready</strong>.
-    The <code>sleep 0.5</code> flush in the production producer can be
-    dropped — ~10 % wall-clock saving per snap. Plan 02 (per-family
-    <code>intervalMsec</code> profile · the thesis result) starts next.
+    Rounds 1–5 closed 9 capture-pipeline bugs and locked the REMOVE
+    verdict on the 0.5 s flush. Plan 02's first 90-cell pilot then ran
+    cleanly — every cell passed capture-side acceptance, pause-fraction
+    sweep added iv=2000ms = 42.4 % as new data — but Day-7 review
+    surfaced two honest Day-0 oversights: <strong>workload was a label,
+    not a variable</strong> (the orchestrator never SSHed to launch
+    binaries), and the <strong>duration matrix was too short</strong>
+    for the canonical window=128 hop=64 to ever produce ≥ 50 windows.
+    Step 1.5a back-filled <code>n_windows</code> on the existing cells
+    (correctly flipping all 90 to 'skipped' under those defaults).
+    Step 1.5b wired workload-launching + <code>keep_dumps</code> into
+    the orchestrator + schema. <strong>Step 1.5c</strong> is a 16-cell
+    ~3 h validation sub-pilot that verifies the new code path before
+    re-doing the full Plan 02 with <code>{5, 15, 30}</code> min cells.
   </p>
 </header>
 
@@ -2753,7 +2754,7 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">22 done</span>
+      <span class="board-tag done">26 done</span>
       <span class="board-tag next">1 next</span>
       <span class="board-tag blocked">3 blocked</span>
     </div>
@@ -2865,14 +2866,29 @@ nearest "nice" round number       <em>250 ms</em>
       <span class="what">Day-6 team review · Step 1 inspected · Step 1.5 inserted</span>
       <span class="meta"><span class="ok">6 new decisions (D-13..D-18) · analyzer back-fill identified as blocker</span></span>
     </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Day-7 team review · 2 Day-0 oversights surfaced honestly</span>
+      <span class="meta"><span class="ok">9 new decisions (D-19..D-27) · workload was label, not variable; durations too short for window=128</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Step 1.5a · back-fill n_windows + 'ok'→'skipped' on existing 90 cells</span>
+      <span class="meta"><span class="ok">~180 LOC · all 90 cells correctly flipped to skipped (under canonical 128/64)</span></span>
+    </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Step 1.5b · workload-launching + keep_dumps in orchestrator</span>
+      <span class="meta"><span class="ok">~130 LOC · 3 files · schema v2 gains 5 fields · 23/23 tests green</span></span>
+    </div>
 
     <div class="board-divider"></div>
 
     <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Step 1.5 · analyzer back-fill (F1, CV per cell)</span>
-      <span class="meta"><span class="acc">ML · ~100 LOC offline · ~30 min CPU · gates Step 2</span></span>
+      <span class="what">Step 1.5c · validation sub-pilot · 16 cells with workloads + dumps</span>
+      <span class="meta"><span class="acc">~3 h host · gates full Plan 02 re-launch</span></span>
     </div>
 
     <div class="board-divider"></div>
@@ -2947,7 +2963,7 @@ nearest "nice" round number       <em>250 ms</em>
     </div>
 
     <div class="headline-progress">
-      Round 5 done · all 9 mechanisms (i–vii + D + E + F + G) plus Bug H <strong>closed empirically</strong> · 2c v5 <code>recommendation = REMOVE</code> · <strong>Plan 02 Step 1 pilot captured: 90/90 cells passed capture-side acceptance; analyzer back-fill (Step 1.5) is the new blocker</strong>.
+      Round 5 done · 9 capture-pipeline bugs closed · Plan 02 Step 1 captured (capture-pipeline characterization · 90/90 cells passed acceptance) · Day-7 review surfaced two honest Day-0 oversights · Step 1.5a + 1.5b <strong>LANDED</strong> in code · <strong>Step 1.5c validation sub-pilot is the next operator action (~3 h)</strong>.
     </div>
 
     <!-- ─────────────────────  PLAN 02 STEP 1 RESULTS  ───────────────────── -->
@@ -3033,6 +3049,264 @@ nearest "nice" round number       <em>250 ms</em>
   t=0:10   session resumes from cell 2; 90 real cells complete sequentially
   t=5:45   session done · 90 ok · 1 failed (the interrupted warmup)
 </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────  PLAN 02 STORY (Day 7) · STEP 1.5 ───────────────────── -->
+
+  <div class="subsection">
+    <h3><span class="marker simple">Plan 02 · the full story so far</span>Where we are in the iv-tuning experiment, in plain language</h3>
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">
+      Plan 02 is the experiment that picks the right <code>intervalMsec</code> per Phase-2 workload family. It is the thesis-contribution experiment. After all 9 capture-pipeline bugs were closed (Rounds 1–5), the team built a launch-ready orchestrator (Day-0), ran the first 90-cell pilot, reviewed the result, and discovered that the pilot answered a different question than intended. This section walks through what we did, what we found, and what comes next.
+    </p>
+
+    <div class="illustration" style="margin:18px 0;">
+      <div class="cap">Plan 02 timeline · where we are right now (Day 7)</div>
+      <div class="scene">  CAPTURE PIPELINE FIX CHAIN              PLAN 02 EXPERIMENT CHAIN
+  (Rounds 1-5 · 9 bugs closed)            (this section)
+  ────────────────────────────            ────────────────────────────
+                                          Day-0  · build orchestrator
+                                          ────────────────────────────
+                                          Step 1 · 90-cell pilot ✓ <em>(captured · but answers wrong question)</em>
+                                                   └─ workload was a LABEL, not a variable
+                                                   └─ no dumps kept (Plan 1 deleted them)
+                                                   └─ duration too short for window=128
+                                          ────────────────────────────
+                                          Step 1.5a · backfill what we can ✓ <em>(LANDED)</em>
+                                                     └─ populate n_windows from snap count
+                                                     └─ flip 'ok' -> 'skipped' below floor
+                                          Step 1.5b · code the missing pieces ✓ <em>(LANDED)</em>
+                                                     └─ SSH-launch workloads with --phase-markers
+                                                     └─ keep dumps per cell when needed
+                                                     └─ schema v2 + manifest gain 5 new fields
+                                          Step 1.5c · validation sub-pilot <em>(NEXT · ~3 h)</em>
+                                                     └─ 16 cells · workloads run · dumps kept
+                                                     └─ verify the new code path works
+                                          ────────────────────────────
+                                          Step 2  · full Plan 02 with workloads + longer cells
+                                                    (gated on Step 1.5c success)
+                                          Step 3  · classifier validation on confused pair
+                                          ────────────────────────────
+                                          Plan 02 deliverable: per-family iv table
+</div>
+    </div>
+
+    <p style="font-size:14px;color:var(--muted);font-style:italic;margin-top:10px;">
+      The 90-cell pilot wasn't a failure. It was a clean <em>capture-pipeline characterization</em> — the very thing it succeeded at being. It just couldn't answer the workload-iv interaction question because the workload never ran inside the VM during capture.
+    </p>
+  </div>
+
+  <!-- 1.5 · explanation -->
+
+  <div class="subsection">
+    <h3><span class="marker viz">Step 1 result · in two views</span>What the pilot captured vs what it could not</h3>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What the pilot DID measure (and measured well)</div>
+        <p>For 90 sequential captures across 5 <code>intervalMsec</code> values and 3 durations, on an idle Kali VM with no workload running, the producer's behavior was:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li><strong>Stationarity:</strong> CV of <code>guest_dt</code> ≤ 0.034 in every cell. Acceptance was &lt; 0.10. Pass with huge margin.</li>
+          <li><strong>iv honored:</strong> measured <code>guest_dt</code> within ±0.5 % of configured iv (+25 ms producer overhead) at every level.</li>
+          <li><strong>pmemsave flat:</strong> 0.76–0.77 s in every cell. Plan 1's <code>TIMING_SELF_CLEAN</code> holds at scale.</li>
+          <li><strong>0 backpressure</strong> across 90 cells. <code>queue_max_depth</code> always 0.</li>
+          <li><strong>Pause-fraction sweep:</strong> reproduced Round 2/3 exactly · added iv=2000ms = 42.4 % as a new clean data point.</li>
+        </ul>
+        <p style="margin-top:10px;">So: the <strong>capture pipeline</strong> is empirically production-quality across the iv range. That's a real win.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>One-way fixed-effects ANOVA on <code>mean_host_snapshot_cycle_sec</code> by iv: F-stat &gt; 10⁴, η² &gt; 0.99. Trivially true since host_dt mechanically depends on iv. On <code>mean_pmemsave_sec</code> by iv: F = 49, η² = 0.54 (small real effect, ~1 ms faster at iv ≥ 500). Real but second-order; likely cache-warmth × cycle-rate.</p>
+        <p>Within-iv σ for pmemsave is 0.0011–0.0017 s across 18 cells. Producer-side noise is three orders of magnitude smaller than the Day-3 power-analysis assumption (σ ≈ 0.08 on F1). The binding noise source has shifted to the analyzer-side metrics that haven't run yet.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">What the pilot did NOT measure (the two oversights)</div>
+        <p>Looking at what's <em>in</em> the per-cell JSONs, <code>analyzer_outputs.f1_phase</code> is <code>None</code> for every cell. Same for <code>cv_workingset</code>. Two reasons, both Day-0 design gaps:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li><strong>Oversight 1:</strong> the manifest had a <code>workload</code> column but it was just a <em>label</em>. The orchestrator never SSHed to the VM to launch the workload binary. So all 90 cells captured an <em>idle</em> VM. The label said "ransom_batched" but the VM was doing nothing.</li>
+          <li><strong>Oversight 2:</strong> Plan 1's <code>TIMING_SELF_CLEAN</code> deleted each dump as soon as the next one was written. So even if a workload <em>had</em> run, the dump content needed to compute active-page metrics was gone.</li>
+        </ul>
+        <p style="margin-top:10px;">Result: we have <em>timing</em> data without <em>workload behavior</em>. The pipeline is calibrated; the experiment that uses it to study workloads has not yet started.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>The Day-0 design treated workload as a categorical metadata column rather than a per-cell action variable. The orchestrator (<code>plan02_run.py</code>) inherited <code>start_workload</code> helpers from <code>run_timing_instrumentation_experiment.py</code> but never invoked them in the cell-execution path. Schema v2 already allowed null F1/CV — the absence is graceful, but the gap is real.</p>
+        <p>For dump preservation: TIMING_SELF_CLEAN=1 was unconditionally set in <code>execute_cell()</code> before producer launch. No per-cell opt-out existed. Page-content-based metrics (active_page_fraction, dump-diff cepstral) require dumps; with self-clean ON they cannot be reconstructed post-hoc.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.5 · what is step 1.5 -->
+
+  <div class="subsection">
+    <h3><span class="marker case">Step 1.5 · the three-part fix</span>Why we need it · what each sub-step does</h3>
+
+    <p style="font-size:15px;color:var(--text-dim);line-height:1.7;">
+      Step 1.5 is the bridge between the Step 1 capture-pipeline characterization and the Step 2 real-workload study. It is split into three sub-steps because they have different cost profiles:
+    </p>
+
+    <div class="cost-table" style="margin:14px 0;">
+      <table style="width:100%">
+        <thead><tr>
+          <th>Sub-step</th>
+          <th>What it does</th>
+          <th>Host cost</th>
+          <th>Code cost</th>
+          <th>Status</th>
+        </tr></thead>
+        <tbody>
+          <tr style="background:rgba(124,185,110,.05);">
+            <td><b>1.5a</b></td>
+            <td>Back-fill <code>n_windows</code> on existing 90 cells; flip 'ok' → 'skipped' for cells below window floor (per D-14)</td>
+            <td class="mono ok">0 · pure offline</td>
+            <td class="mono">~180 LOC</td>
+            <td class="mono ok">LANDED</td>
+          </tr>
+          <tr style="background:rgba(124,185,110,.05);">
+            <td><b>1.5b</b></td>
+            <td>Extend orchestrator + schema + manifest to support workload-launching via SSH and per-cell <code>keep_dumps</code></td>
+            <td class="mono ok">0 · code-only</td>
+            <td class="mono">~130 LOC across 3 files</td>
+            <td class="mono ok">LANDED</td>
+          </tr>
+          <tr style="background:rgba(212,168,90,.06);">
+            <td><b>1.5c</b></td>
+            <td>Validation sub-pilot: 16 cells with new code path active. Prove workloads launch, stderr captures phase markers, dumps preserved</td>
+            <td class="mono acc">~3 h on host</td>
+            <td class="mono">0 · uses 1.5a + 1.5b</td>
+            <td class="mono acc">PENDING (next operator action)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">1.5a · back-fill what we can</div>
+        <p>For every existing per-cell JSON, compute <code>n_windows = (snapshots − 128) ÷ 64 + 1</code> (Phase-1 canonical window / hop) and write it to <code>analyzer_outputs.n_windows</code>. If below 50, flip the manifest row from <code>ok</code> to <code>skipped</code>. Append an explanatory note so the audit trail explains why <code>f1_phase</code> and <code>cv_workingset</code> stay null.</p>
+        <p style="margin-top:8px;"><strong>What we found running it:</strong> <em>0/90 cells reach 50 windows under (128, 64).</em> All 90 rows flipped to 'skipped'. This is real data — it tells us the duration matrix {60, 120, 300} s was Day-0-too-short for the canonical window.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>To pass <code>n_windows ≥ 50</code> at window=128 hop=64 needs <code>snapshots ≥ 50 × 64 + 128 = 3328</code>. At iv=100ms that's <code>3328 × 0.125 s ≈ 7 min</code> per cell. At iv=2000ms it's <code>3328 × 2.025 s ≈ 1.87 h</code> per cell. The pilot's max was 300 s × iv=100ms = 181 snaps (1 window). The window-count threshold and the duration matrix were never reconciled in Day-0 design — that's Oversight #3 (logged Day 7 addendum).</p>
+        <p>D-25 resolves this for Step 2: lengthen durations to <code>{5, 15, 30}</code> min AND demote <code>n_windows ≥ 50</code> from a gate to a soft flag in the analysis layer.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">1.5b · code the missing pieces</div>
+        <p>Add the workload-launching code path that should have existed at Day-0:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li>Manifest gains 3 columns: <code>workload_command</code>, <code>ssh_target</code>, <code>keep_dumps</code> (back-compat: load() defaults missing columns).</li>
+          <li>Orchestrator SSHes to <code>ssh_target</code>, launches <code>workload_command --phase-markers</code> in parallel with the producer, captures stderr to <code>&lt;workdir&gt;/workload_stderr.log</code>.</li>
+          <li>When <code>keep_dumps=1</code>, the orchestrator turns <code>TIMING_SELF_CLEAN</code> OFF for that cell AND skips the tail-cleanup, preserving dumps for offline analyzer scoring.</li>
+          <li>Schema v2 gains 5 fields on <code>RunMeta</code> to record what was launched and where the artifacts landed.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Code is back-compat: old manifests (no new columns) still load. Old orchestrator invocations (no workload_command) still run producer-only as before. New manifests with non-empty <code>workload_command</code> + <code>ssh_target</code> trigger the SSH-launch path. <code>start_workload</code> and <code>stop_workload</code> helpers were already in <code>run_timing_instrumentation_experiment.py</code> from the original Experiment-1 work — they just needed to be invoked from <code>plan02_run.py</code>.</p>
+        <p>Stop ordering: workload is stopped <em>before</em> producer (so its stderr is flushed before the producer kills the JSONL stream). This matters for phase-marker capture.</p>
+      </div>
+    </div>
+
+    <div class="pair-block simple">
+      <div>
+        <div class="lbl simple">1.5c · validation sub-pilot (NEXT operator action)</div>
+        <p>Before running the full Plan 02 again with workloads (which costs ~6 h on the host), spend ~3 h verifying the new code path works end-to-end. Small focused matrix:</p>
+        <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+          <li>2 workloads (<code>sandbox_ransom_batched</code>, <code>mem_workingset_sweep_v2</code>)</li>
+          <li>2 iv values (<code>{500, 2000}</code> ms — fast + slow extremes)</li>
+          <li>2 durations (<code>{5, 15}</code> min — verifies 30-min cells aren't strictly required at iv=500ms)</li>
+          <li>2 replicates</li>
+          <li>= 16 cells with <code>--workload-command</code> + <code>--ssh-target</code> + <code>--keep-dumps</code> enabled</li>
+        </ul>
+        <p style="margin-top:10px;"><strong>Success criteria:</strong> all 16 cells produce non-null <code>workload_stderr_path</code>, the stderr file contains <code>[PHASE]</code> markers from the binary, dumps remain on disk for at least one cell of each workload, and at least the 15-min cells produce <code>n_windows ≥ 50</code>.</p>
+      </div>
+      <div>
+        <div class="lbl tech">technical</div>
+        <p>Sub-pilot is intentionally cheap. If it passes, we re-launch the full 90-cell pilot with new duration matrix <code>{5, 15, 30}</code> min × workload launching enabled. If it fails, the operator iterates on the workload-launching seam without burning a 6 h pilot. This is a classic insurance-step pattern.</p>
+        <p>Disk budget per cell at <code>--keep-dumps</code>: at iv=500ms d=15min → ~600 snaps × 1 GiB = 600 GiB per cell <em>if dumps were stored</em>, but the producer's TIMING_SELF_CLEAN normally keeps only the prev+curr pair. With <code>keep_dumps=1</code> ALL dumps stay. For the sub-pilot, the operator should clear <code>/var/lib/libvirt/qemu/dump/*.raw</code> between cells OR run a per-cell offline-analyzer-then-delete hook (planned post-1.5c).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.5c · runbook -->
+
+  <div class="subsection">
+    <h3><span class="marker case">Step 1.5c · how to run it</span>Operator runbook for the validation sub-pilot</h3>
+
+    <p style="font-size:14px;color:var(--text-dim);line-height:1.6;">
+      Two commands on the capture host. The first builds the 16-row manifest with workload-launching enabled. The second runs it.
+    </p>
+
+    <div class="illustration" style="margin:14px 0;">
+      <div class="cap">1. Build the Step 1.5c manifest</div>
+      <div class="scene">cd /project/homes/jeries/memorySignal/VM_sampler/VM_Capture_QEMU
+git pull
+
+python3 plan02_manifest.py build \
+    --workloads sandbox_ransom_batched mem_workingset_sweep_v2 \
+    --intervals-ms 500 2000 \
+    --durations-s 300 900 \
+    --replicates 2 \
+    --block-size 8 \
+    --output /tmp/plan02_1_5c/manifest.csv \
+    --cell-output-dir /tmp/plan02_1_5c/cells \
+    --workload-command "sandbox_ransom_batched=&lt;path&gt;/sandbox_ransom_batched --rounds 5" \
+    --workload-command "mem_workingset_sweep_v2=&lt;path&gt;/mem_workingset_sweep_v2 --working-set-mb 512" \
+    --ssh-target kali@&lt;vm-ip&gt; \
+    --keep-dumps
+</div>
+    </div>
+
+    <div class="illustration" style="margin:14px 0;">
+      <div class="cap">2. Run it</div>
+      <div class="scene">python3 plan02_run.py \
+    --manifest /tmp/plan02_1_5c/manifest.csv \
+    --output-dir /tmp/plan02_1_5c/cells
+
+# expect: ~3 hours wall-clock
+# expect: 16 cell JSONs + heartbeats + workload_stderr.log per cell
+</div>
+    </div>
+
+    <div class="illustration" style="margin:14px 0;">
+      <div class="cap">3. Verify success (after run completes)</div>
+      <div class="scene"># status summary
+python3 plan02_manifest.py summary /tmp/plan02_1_5c/manifest.csv
+# expect: ok=16  failed=0  skipped=0
+
+# spot-check workload stderr capture
+ls /tmp/plan02_1_5c/cells/&lt;some_cell_id&gt;/workload_stderr.log
+grep PHASE /tmp/plan02_1_5c/cells/&lt;some_cell_id&gt;/workload_stderr.log
+# expect: a handful of "[PHASE] test=... phase=..." lines
+
+# spot-check dumps survived
+ls /var/lib/libvirt/qemu/dump/memory_dump-*.raw | head
+# expect: non-empty list
+
+# back-fill n_windows to confirm 15-min cells clear the floor
+python3 plan02_backfill_nwindows.py \
+    --cells-dir /tmp/plan02_1_5c/cells \
+    --manifest  /tmp/plan02_1_5c/manifest.csv
+# expect: most 15-min cells get n_windows >= 50; 5-min cells may not
+</div>
+    </div>
+
+    <div class="worked">
+      <div class="who">Outcomes · what 1.5c determines</div>
+      <p>The validation produces one of three outcomes:</p>
+      <ul style="font-size:14px;color:var(--text-dim);line-height:1.7;padding-left:20px;margin:6px 0 0;">
+        <li><strong>All green</strong> (stderr markers present, dumps preserved, ≥50 windows on 15-min cells) → re-launch full Plan 02 with workload launching + <code>{5, 15, 30}</code> min durations. Estimated ~12 h capture for 60-cell matrix.</li>
+        <li><strong>Workload launches but no markers</strong> → the binary's stderr discipline needs auditing (different format, or markers go to stdout). Small fix in workload binary, re-run sub-pilot.</li>
+        <li><strong>Workload doesn't launch</strong> → SSH path needs debugging (auth, path, env). Fix in operator side or in <code>plan02_run.py</code>'s <code>start_workload</code> wrapper.</li>
+      </ul>
+      <p class="verdict good" style="margin-top:10px;">In any case, the cost is bounded at ~3 h. We learn whether the new orchestrator works before committing to the full 12 h pilot. That's the entire point of inserting Step 1.5c.</p>
     </div>
   </div>
 
