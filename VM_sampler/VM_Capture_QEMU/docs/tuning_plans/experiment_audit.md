@@ -791,3 +791,144 @@ Reproducibility across multiple rounds is now empirically established for iv ∈
 ---
 
 **Audit log updated end of Day 6.** Subsequent changes appended below this line.
+
+---
+
+# Day 7 · Step 1.5 scoping (the hard finding)
+
+**Convened:** PM reconvenes ML, SA, DE, XD, DS for a focused Step 1.5 design session. EN attends as observer.
+
+## 19 · ML's investigation report
+
+`ML` opens with the result of his back-fill scoping pass:
+
+> "I went to wire `offline_step_metrics.py` into the back-fill loop. Two blockers:
+>
+> **Blocker 1: no workload ran.** I read `plan02_run.py`'s `execute_cell()` end-to-end. The `cell.workload` field is metadata only — it labels the row in the manifest. The orchestrator never SSHes to the VM to launch the workload binary. So the 90 cells contain **idle Kali snapshots**, not phasic / steady workload memory behavior. The 'workload' label is currently vacuous.
+>
+> **Blocker 2: no dumps.** `TIMING_SELF_CLEAN=1` (Plan 1, enabled by default in `plan02_run.py:217`) deletes each dump in the producer process. The orchestrator's tail-cleanup also runs (`cleanup: removed 2 dump files`). After each cell, the only persistence is the JSONL timing stream. **Page-level metrics (active_page_fraction, dump-diff cepstral) cannot be reconstructed.**
+>
+> So the back-fill cannot compute either F1 (phase boundaries against a workload that didn't run) or CV (workingset content from dumps that no longer exist)."
+
+`DE`: "Schema v2 stayed honest — `f1_phase` and `cv_workingset` were nullable from the start. The audit trail is intact; we just can't populate the fields. **The v2 design proved robust to the failure mode.** No schema changes needed for the negative case."
+
+`XD`: "This is a Day-0 design oversight. The manifest should have carried `workload_command` from the start. We built the matrix correctly but forgot the workload was a *variable*, not just a label."
+
+`SA`: "Two fixes needed. (a) Manifest gains `workload_command`, `ssh_target`, `keep_dumps` columns. (b) `plan02_run.py` gains a workload-launching code path, off by default for back-compat. The orchestrator already imports `start_workload` / `stop_workload` helpers from `run_timing_instrumentation_experiment.py` — they were just never called."
+
+`DS`: "Until workloads run, the recommendation table cannot be built — criterion 5 (defining metric) is unmet for every cell. The pilot tells us about the *capture pipeline* (which is now production-quality), not about workload-iv interaction. We must re-capture with workloads running before Plan 02 produces a deliverable."
+
+## 20 · The honest split
+
+`PM` proposes:
+
+> "Split Step 1.5 into two sub-tasks. **Today: 1.5a (cheap, what we can do with existing data) + 1.5b (code-only extension, no re-capture yet).** Tomorrow: 1.5c (small validation pilot · workloads running · 12 cells · ~1 h host). Step 2 (generalize) remains gated until 1.5c demonstrates the new orchestrator works end-to-end."
+
+Path A (Step 1.5a) · **cheap honest fixes to the existing data**:
+- Compute `n_windows` from snapshot count for each cell using Phase-1 canonical window=128 hop=64
+- Apply D-14 status transitions: cells with `n_windows < 50` → status `skipped` in the manifest
+- Add explanatory notes to each cell explicitly stating "no workload was launched; analyzer metrics not computable from this capture"
+- `f1_phase` and `cv_workingset` stay None
+
+Path B (Step 1.5b) · **code extension for the next iteration**:
+- Manifest gets `workload_command`, `ssh_target`, `keep_dumps` columns
+- `plan02_run.py` gains workload-launching: SSH-launch the binary with `--phase-markers`, capture stderr to per-cell file, stop before producer stops
+- Optional `keep_dumps` per cell: tail-cleanup skipped, files preserved for analyzer
+- v2 schema gets two new fields: `workload_stderr_path`, `workload_exit_status`
+
+Path C (Step 1.5c, future) · **small validation sub-pilot**:
+- 2 workloads × 3 iv × 2 reps = 12 cells, ~1 h host
+- Verify workload launches cleanly · ground-truth markers captured · dumps preserved · analyzer runs
+- Only after C passes do we re-launch the full 90-cell Plan 02 pilot with the workload-launching orchestrator
+
+## 21 · Decisions on Day 7
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-19 | Manifest schema gains `workload_command`, `ssh_target`, `keep_dumps` columns (CSV-additive; back-compat with existing manifests). | Workload was variable from the start; manifest needs to carry it. | SA + DE |
+| D-20 | `plan02_run.py` gains workload-launching code path. When `cell.workload_command` is non-empty, the orchestrator SSHes to `cell.ssh_target` (or env-var fallback), launches the command with `--phase-markers` appended, captures stderr to `<workdir>/workload_stderr.log`, stops the workload before the producer. Off by default for back-compat. | Fixes the Day-0 oversight without breaking the existing 1.5a back-fill on old data. | SA + ML |
+| D-21 | New script `plan02_backfill_nwindows.py`: for every cell JSON, compute `n_windows = max(0, (n_snaps - 128) // 64 + 1)` and write it to `analyzer_outputs.n_windows`. Apply D-14 to flip manifest status `ok` → `skipped` when `n_windows < 50`. Add an explanatory note. ~80 LOC. | Populates what's measurable from existing data; honest about what isn't. | ML + DS |
+| D-22 | New schema v2 fields: `workload_stderr_path` and `workload_exit_status` on `RunMeta`. Default None. Used by 1.5b when workload-launching is enabled. | Future-proofs the schema for the workload-launching pipeline. | DE |
+| D-23 | Step 1.5c (validation sub-pilot) is required before re-launching the full 90-cell Plan 02 with workloads running. ~1 h host. | Don't burn a 6 h pilot on an unproven workload-launching orchestrator. | PM |
+| D-24 | The existing 90-cell pilot is preserved as a **capture-pipeline characterization** artifact (which it succeeded at being). Numbers reproduced R2/R3 and added iv=2000ms as new data. Cite it in the thesis as the capture-side validation; do not pretend it is the workload-iv interaction study. | Honest framing of what the data actually shows. | PM + thesis owner |
+
+## 22 · Open risks (Day 7 carry-forward)
+
+1. **Workload-launching orchestrator is untested.** D-23's validation sub-pilot mitigates, but the SSH path + stderr capture has not been exercised by `plan02_run.py` before.
+2. **`--keep-dumps` disk budget.** 90 cells × 1 GiB = 90 GiB. Pilot host has ~145 GiB free. We can keep dumps for the full pilot if we run analyzer-then-delete cell-by-cell (which `plan02_run.py` can do via a post-cell hook), or operator must clear old dumps between pilot phases.
+3. **Workload's own stderr noise.** If the workload binary emits PHASE markers to stderr but also writes other content, the parser in `mp_phase_boundary_inference.py:PHASE_RE` is anchored to the exact marker format. Fragility flagged.
+
+## 23 · PM final note · Day 7
+
+> Step 1.5 cannot be a single offline back-fill. It is two coordinated pieces: an honest cleanup of what we have (1.5a), and a code extension that fixes the Day-0 oversight (1.5b). Both land today. The validation sub-pilot (1.5c) is the operator's next host-time action. Step 2 remains gated.
+>
+> **The capture pipeline is production-quality.** The data we collected validates that. What we collected is just not the data the thesis needs for its main result.
+
+---
+
+**Audit log updated end of Day 7.** Subsequent changes appended below this line.
+
+---
+
+# Day 7 · post-back-fill addendum
+
+After D-21 lands, `plan02_backfill_nwindows.py` is executed on the 90-cell pilot. The results expose a second Day-0 oversight that no one caught in design:
+
+## 24 · The window-floor exposes the duration matrix
+
+At canonical Phase-1 window=128 hop=64, **0/90 cells produce ≥ 50 windows**. The full breakdown:
+
+| (iv, dur) | n_snaps | n_windows | pass crit-4? |
+| --------- | ------- | --------- | ------------ |
+| 100, 60   | 36      | 0         | no |
+| 100, 120  | 72      | 0         | no |
+| 100, 300  | 181     | 1         | no |
+| 250, 60   | 33      | 0         | no |
+| 250, 120  | 66      | 0         | no |
+| 250, 300  | 167     | 1         | no |
+| 500, 60   | 29      | 0         | no |
+| 500, 120  | 59      | 0         | no |
+| 500, 300  | 148     | 1         | no |
+| 1000, 60  | 24      | 0         | no |
+| 1000, 120 | 48      | 0         | no |
+| 1000, 300 | 119     | 0         | no |
+| 2000, 60  | 17      | 0         | no |
+| 2000, 120 | 34      | 0         | no |
+| 2000, 300 | 85      | 0         | no |
+
+Result: `plan02_backfill_nwindows.py` correctly flipped all 90 cells `ok` → `skipped` per D-14. The script behaved exactly as designed; the issue is that the **duration matrix was too short for Phase-1's canonical (window=128, hop=64) to ever produce ≥ 50 windows at any iv** in the pilot's range.
+
+To get 50 windows at window=128 hop=64 we need ≥ `50 * 64 + 128 = 3328` snaps. At iv=100ms that's `3328 * 0.125 s = 416 s ≈ 7 min`. At iv=2000ms that's `3328 * 2.025 s ≈ 1.87 h` per cell. Total pilot cost at the high end would be prohibitive (~25× current).
+
+## 25 · The team's response
+
+`XD`: "Day-0 power analysis assumed `n_windows ≥ 50` was binding via stationarity. It is also binding via **sample count for FFT resolution**. We didn't connect those two constraints. The pilot's duration matrix was inherited from the original Plan 02 doc (`{1, 2, 5, 10} min`, then we dropped 10), but those numbers predated the n_windows threshold. **They were never reconciled.**"
+
+`DS`: "Three legitimate paths:
+1. **Lengthen the duration matrix.** New matrix `{5, 15, 30} min` would give iv=100ms d=30min ≈ 14400 snaps ≈ 224 windows. Cost: ~3-4× the current pilot wall-clock (~16-20 h).
+2. **Reduce window/hop.** If window=64, hop=32, threshold becomes attainable with current durations. But that's Plan 03's territory; you'd be tuning two parameters jointly without isolating either.
+3. **Drop the n_windows ≥ 50 hard floor** for Plan 02 specifically; use it as a soft signal-quality flag in analysis. Plan 02 measures iv; window adequacy is Plan 03's question."
+
+`SA`: "I lean (3) for Plan 02's scope. The pilot measured what it was supposed to measure: capture-pipeline stationarity by iv. That's done. Step 2 should run at longer durations to genuinely answer the workload-iv interaction question, with window adequacy explicit per-cell rather than as a gate."
+
+`PM`: "Decision next session. For now, the back-fill script accurately reflects the truth: under canonical (128, 64), this pilot has no analyzable cells. That is itself an honest data point about the Phase-1 canonical defaults — they assume long traces."
+
+## 26 · Decisions appended on Day 7
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-25 | Step 2 pilot uses **lengthened duration matrix `{5, 15, 30} min`** AND records `n_windows` but does NOT gate on it. Cells with `n_windows < 50` get a `low_window` flag in notes, not a status flip. | Plan 02's question is iv selection; window adequacy is Plan 03. Don't double-count constraints. | XD + DS |
+| D-26 | The 90-cell pilot stays in archive as a capture-pipeline characterization (D-24 reaffirmed). Manifest status: all 90 marked `skipped` is *honest data* about the duration × window interaction, not a failure of capture. | Document the design oversight, don't pretend the cells succeeded at a question they couldn't answer. | PM |
+| D-27 | Step 1.5c validation sub-pilot uses `{5, 15}` min durations × 2 iv (`{500, 2000}`) × 2 workloads × 2 reps = 16 cells, ~3 h host, with workload-launching enabled. If `n_windows` clears 50 with 30-min cells we know the new matrix works before re-doing the full pilot. | Verify the duration revision and workload-launching together, cheaply. | PM + operator |
+
+## 27 · PM final note · Day 7 addendum
+
+> The Step 1 pilot revealed *two* Day-0 design oversights, not one:
+> 1. Workload was a label, not a variable (Day-7 morning finding).
+> 2. Duration matrix could not produce ≥ 50 windows at the canonical (128, 64) (Day-7 afternoon finding).
+>
+> Both are fixed in code (D-19 through D-22) and design (D-25 through D-27). The 90-cell pilot remains valuable as a capture-pipeline characterization — the very thing it succeeded at. Step 2 redesigns the matrix; Step 1.5c validates before committing to the full re-run. **Honest framing throughout: we measured what we measured; nothing more, nothing less.**
+
+---
+
+**Audit log updated end of Day 7 addendum.** Subsequent changes appended below this line.

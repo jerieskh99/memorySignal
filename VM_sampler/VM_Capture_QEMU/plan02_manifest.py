@@ -75,10 +75,16 @@ class ManifestRow:
     expected_path: str = ""
     retry_count: int = 0
     notes: str = ""
+    # Day-7 additions (D-19): workload-launching variables. Empty means
+    # "do not launch a workload" (back-compat with the Step 1 pilot).
+    workload_command: str = ""
+    ssh_target: str = ""
+    keep_dumps: bool = False
 
     def to_csv(self) -> dict[str, str]:
         d = asdict(self)
         d["is_warmup"] = "1" if self.is_warmup else "0"
+        d["keep_dumps"] = "1" if self.keep_dumps else "0"
         for k, v in list(d.items()):
             d[k] = "" if v is None else str(v)
         return d
@@ -98,6 +104,9 @@ class ManifestRow:
             expected_path=row.get("expected_path", ""),
             retry_count=int(row.get("retry_count", "0") or 0),
             notes=row.get("notes", ""),
+            workload_command=row.get("workload_command", ""),
+            ssh_target=row.get("ssh_target", ""),
+            keep_dumps=(row.get("keep_dumps", "0") == "1"),
         )
 
 
@@ -105,6 +114,7 @@ CSV_HEADER = [
     "cell_id", "manifest_id", "block_id", "workload", "interval_ms",
     "duration_s", "replicate", "is_warmup", "status",
     "expected_path", "retry_count", "notes",
+    "workload_command", "ssh_target", "keep_dumps",
 ]
 
 
@@ -121,6 +131,9 @@ def build_manifest(
     seed: int = 0,
     block_size: int = 24,
     add_warmup_per_block: bool = True,
+    workload_commands: dict[str, str] | None = None,
+    ssh_target: str = "",
+    keep_dumps: bool = False,
 ) -> list[ManifestRow]:
     """Generate the cell list, assign block_ids, randomize within blocks.
 
@@ -143,6 +156,7 @@ def build_manifest(
 
     manifest_id = uuid.uuid4().hex[:12]
     rng = random.Random(seed)
+    wcmds = workload_commands or {}
 
     cells: list[ManifestRow] = []
     for workload in workloads:
@@ -162,6 +176,9 @@ def build_manifest(
                         is_warmup=False,
                         status="pending",
                         expected_path=expected,
+                        workload_command=wcmds.get(workload, ""),
+                        ssh_target=ssh_target,
+                        keep_dumps=keep_dumps,
                     ))
 
     # Randomize the cell list, then chunk into blocks.
@@ -311,6 +328,19 @@ def _main(argv: list[str] | None = None) -> int:
     pb.add_argument("--output", required=True, help="manifest CSV path")
     pb.add_argument("--cell-output-dir", required=True,
                     help="directory where per-cell JSONs will land")
+    pb.add_argument("--workload-command", action="append", default=[],
+                    help="workload=command pairs, repeated per workload. "
+                         "Example: --workload-command "
+                         "'sandbox_ransom_batched=/path/to/binary --rounds 5' "
+                         "When non-empty, plan02_run.py SSHes to ssh_target "
+                         "and launches the command with --phase-markers.")
+    pb.add_argument("--ssh-target", default="",
+                    help="ssh target for workload launch (e.g. kali@192.168.122.10)")
+    pb.add_argument("--keep-dumps", action="store_true",
+                    help="Mark every cell with keep_dumps=1 so the producer's "
+                         "tail-cleanup does not delete dumps. Required for "
+                         "post-cell analyzer integration. Disk impact: "
+                         "ram_mb * snaps_per_cell per cell.")
 
     ps = sub.add_parser("summary", help="print manifest status summary")
     ps.add_argument("manifest")
@@ -328,6 +358,16 @@ def _main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     if args.cmd == "build":
+        # Parse --workload-command pairs into a dict
+        wcmds: dict[str, str] = {}
+        for spec in args.workload_command:
+            if "=" not in spec:
+                print(f"ERROR: --workload-command requires workload=command "
+                      f"(got: {spec!r})", file=sys.stderr)
+                return 2
+            key, _, val = spec.partition("=")
+            wcmds[key.strip()] = val.strip()
+
         rows = build_manifest(
             workloads=args.workloads,
             intervals_ms=args.intervals_ms,
@@ -337,6 +377,9 @@ def _main(argv: list[str] | None = None) -> int:
             seed=args.seed,
             block_size=args.block_size,
             add_warmup_per_block=not args.no_warmup,
+            workload_commands=wcmds,
+            ssh_target=args.ssh_target,
+            keep_dumps=args.keep_dumps,
         )
         save(Path(args.output), rows)
         print(f"wrote {len(rows)} rows to {args.output}", file=sys.stderr)

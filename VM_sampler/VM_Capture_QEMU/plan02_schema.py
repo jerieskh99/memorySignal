@@ -135,6 +135,12 @@ class RunMeta:
     run_ended_at: str
     exit_status: str  # ok | failed | retried | skipped
     retry_count: int = 0
+    # Day-7 additions (D-22): workload-launching artifacts
+    workload_command: str | None = None
+    ssh_target: str | None = None
+    workload_stderr_path: str | None = None
+    workload_exit_status: int | None = None
+    keep_dumps: bool = False
 
 
 @dataclass

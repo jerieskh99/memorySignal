@@ -29,6 +29,7 @@ import plan02_schema as sc       # noqa: E402
 import plan02_manifest as mf     # noqa: E402
 import plan02_analysis as an     # noqa: E402
 import migrate_schema_v1_to_v2 as mig  # noqa: E402
+import plan02_backfill_nwindows as bf  # noqa: E402
 
 
 class SchemaTests(unittest.TestCase):
@@ -257,6 +258,115 @@ class AnalysisTests(unittest.TestCase):
         self.assertIsNotNone(wl_rec)
         self.assertEqual(wl_rec["recommended_iv"], 500,
                          f"expected slowest passing iv=500, got {wl_rec}")
+
+
+class BackfillTests(unittest.TestCase):
+
+    def test_compute_n_windows_below_threshold(self):
+        # 100 snaps, window=128, hop=64 -> 0 (no complete window)
+        self.assertEqual(bf.compute_n_windows(100, 128, 64), 0)
+
+    def test_compute_n_windows_exact_threshold(self):
+        # 128 snaps, window=128, hop=64 -> 1 window
+        self.assertEqual(bf.compute_n_windows(128, 128, 64), 1)
+        # 192 snaps -> floor((192-128)/64)+1 = 2
+        self.assertEqual(bf.compute_n_windows(192, 128, 64), 2)
+        # 256 -> 3
+        self.assertEqual(bf.compute_n_windows(256, 128, 64), 3)
+
+    def test_backfill_one_populates_n_windows(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            rec = _minimal_v2_record()
+            # 256 snaps -> 3 windows at window=128, hop=64.
+            # That's below min_windows=50 -> skipped=True.
+            rec.producer_stats.snapshots_completed = 256
+            cell_path = tdpath / "cell_x.json"
+            sc.write_json_atomic(cell_path, rec)
+            result = bf.backfill_one(cell_path, 128, 64, 50, dry_run=False)
+            self.assertEqual(result["n_windows"], 3)
+            self.assertTrue(result["skipped"])  # 3 < min_windows=50
+            with cell_path.open() as f:
+                got = json.load(f)
+            self.assertEqual(got["analyzer_outputs"]["n_windows"], 3)
+            self.assertTrue(any("step-1.5a" in n for n in got["notes"]))
+
+    def test_backfill_one_above_threshold(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            rec = _minimal_v2_record()
+            # To pass 50 windows: (n - 128) // 64 + 1 >= 50
+            # -> n >= 50 * 64 + 128 = 3328
+            rec.producer_stats.snapshots_completed = 3500
+            cell_path = tdpath / "cell_z.json"
+            sc.write_json_atomic(cell_path, rec)
+            result = bf.backfill_one(cell_path, 128, 64, 50, dry_run=False)
+            self.assertGreaterEqual(result["n_windows"], 50)
+            self.assertFalse(result["skipped"])
+
+    def test_backfill_marks_below_threshold_as_skipped(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            rec = _minimal_v2_record()
+            rec.producer_stats.snapshots_completed = 50  # < window=128
+            cell_path = tdpath / "cell_y.json"
+            sc.write_json_atomic(cell_path, rec)
+            result = bf.backfill_one(cell_path, 128, 64, 50, dry_run=False)
+            self.assertEqual(result["n_windows"], 0)
+            self.assertTrue(result["skipped"])
+
+    def test_apply_skip_to_manifest_flips_ok_to_skipped(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "m.csv"
+            rows = mf.build_manifest(
+                workloads=["w1"], intervals_ms=[100], durations_s=[60],
+                replicates=2, output_dir=Path(td), seed=0, block_size=4,
+                add_warmup_per_block=False,
+            )
+            for r in rows:
+                r.status = "ok"
+            mf.save(path, rows)
+            target = rows[0].cell_id
+            flipped = bf.apply_skip_to_manifest(path, {target}, dry_run=False)
+            self.assertEqual(flipped, 1)
+            again = mf.load(path)
+            self.assertEqual(again[0].status, "skipped")
+            self.assertEqual(again[1].status, "ok")
+
+
+class ManifestWorkloadColumnTests(unittest.TestCase):
+
+    def test_build_manifest_populates_workload_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            rows = mf.build_manifest(
+                workloads=["sandbox_ransom_batched"],
+                intervals_ms=[100], durations_s=[60], replicates=1,
+                output_dir=Path(td), seed=0, block_size=4,
+                add_warmup_per_block=False,
+                workload_commands={"sandbox_ransom_batched": "/bin/foo --rounds 5"},
+                ssh_target="kali@1.2.3.4",
+                keep_dumps=True,
+            )
+            self.assertEqual(rows[0].workload_command, "/bin/foo --rounds 5")
+            self.assertEqual(rows[0].ssh_target, "kali@1.2.3.4")
+            self.assertTrue(rows[0].keep_dumps)
+
+    def test_csv_roundtrip_preserves_workload_columns(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "m.csv"
+            rows = mf.build_manifest(
+                workloads=["w1"], intervals_ms=[100], durations_s=[60],
+                replicates=1, output_dir=Path(td), seed=0, block_size=4,
+                add_warmup_per_block=False,
+                workload_commands={"w1": "echo hi"},
+                ssh_target="user@host",
+                keep_dumps=True,
+            )
+            mf.save(path, rows)
+            loaded = mf.load(path)
+            self.assertEqual(loaded[0].workload_command, "echo hi")
+            self.assertEqual(loaded[0].ssh_target, "user@host")
+            self.assertTrue(loaded[0].keep_dumps)
 
 
 # ---------------------------------------------------------------------------

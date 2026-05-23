@@ -185,7 +185,14 @@ def execute_cell(
 
     # Pre-flight: drain stale queue + enable producer self-clean
     # (Plans 1c + 1b proven necessary in R3/R4).
-    os.environ["TIMING_SELF_CLEAN"] = "1"
+    # D-20: if the cell requests keep_dumps (because an offline analyzer
+    # needs dump content), force TIMING_SELF_CLEAN OFF so the producer
+    # leaves the dumps on disk. The tail cleanup below also honors keep_dumps.
+    if cell.keep_dumps:
+        os.environ.pop("TIMING_SELF_CLEAN", None)
+        notes.append("keep_dumps=1; TIMING_SELF_CLEAN disabled for this cell")
+    else:
+        os.environ["TIMING_SELF_CLEAN"] = "1"
     queue_dir = Path(eff_cfg.get("queueDir", "/tmp/queue_dir"))
     try:
         from run_exp2a_consumer_isolation import drain_queue as _drain_queue
@@ -208,6 +215,41 @@ def execute_cell(
                                 total_cells, cell_index)
     heartbeat.start()
 
+    # Workload (D-20): if cell carries a workload_command, SSH-launch it
+    # in parallel with the producer. Stderr captured to per-cell file.
+    # Stopped before producer (D-20 sequencing).
+    workload_proc = None
+    workload_stderr_path = cell_workdir / "workload_stderr.log"
+    workload_log = cell_workdir / "workload.log"
+    workload_exit: int | None = None
+    if cell.workload_command and cell.ssh_target:
+        ssh_target = cell.ssh_target
+        ssh_key = os.environ.get("SSH_KEY", "")
+        ssh_opts = os.environ.get("SSH_OPTS", "")
+        # Append --phase-markers if not already present (so mp_phase_boundary_
+        # inference style detectors can pick up ground-truth events).
+        wcmd = cell.workload_command
+        if "--phase-markers" not in wcmd:
+            wcmd = wcmd + " --phase-markers"
+        # SSH timeout configured to outlive the cell duration
+        ok = e1.wait_for_ssh(ssh_target, ssh_key, ssh_opts,
+                             timeout_s=min(30, cell.duration_s))
+        if not ok:
+            notes.append(f"SSH not reachable at {ssh_target}; "
+                         "workload not launched; producer-only this cell")
+        else:
+            try:
+                workload_proc = e1.start_workload(
+                    ssh_target, ssh_key, ssh_opts, wcmd, workload_log,
+                )
+                notes.append(f"launched workload via SSH: {wcmd!r}")
+            except Exception as exc:  # noqa: BLE001
+                notes.append(f"workload launch failed: {exc}")
+                workload_proc = None
+    elif cell.workload_command and not cell.ssh_target:
+        notes.append("workload_command set but ssh_target empty; "
+                     "treating as producer-only (label-only workload)")
+
     # Producer
     producer_proc = None
     try:
@@ -220,11 +262,28 @@ def execute_cell(
             notes.append("interrupted by user during measurement window")
             raise
     finally:
+        # Stop workload first (so its stderr is flushed before we kill
+        # the producer; matters for phase-marker capture).
+        if workload_proc is not None:
+            e1.stop_workload(workload_proc)
+            try:
+                workload_exit = workload_proc.returncode
+            except Exception:  # noqa: BLE001
+                workload_exit = None
         if producer_proc is not None:
             e1.stop_producer(producer_proc, grace_stop_seconds)
         e1.resume_vm_if_paused(virsh_uri, vm_domain)
         heartbeat.stop()
         heartbeat.join(timeout=5)
+
+    # Move workload.log to workload_stderr.log so the per-cell artifact
+    # is unambiguously named (start_workload writes a single combined log;
+    # for now we treat it as stderr-equivalent).
+    if workload_proc is not None and workload_log.exists():
+        try:
+            workload_log.replace(workload_stderr_path)
+        except OSError:
+            workload_stderr_path = workload_log
 
     run_ended_at = datetime.now(timezone.utc).isoformat()
 
@@ -260,12 +319,17 @@ def execute_cell(
         n_snapshots=producer_stats.snapshots_completed,
     )
 
-    # Clean up dump files this cell produced (TIMING_SELF_CLEAN already
-    # removes them in-process, but tail-cleanup catches the final one).
+    # Clean up dump files this cell produced. If cell.keep_dumps is True
+    # (D-20), skip the tail cleanup so the dumps stick around for an
+    # offline analyzer. The producer's TIMING_SELF_CLEAN was also turned
+    # OFF earlier in this function when keep_dumps is set.
     try:
         image_dir = Path(eff_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump"))
-        removed = e1.cleanup_run_dumps(image_dir, run_start_epoch, False)
-        notes.append(f"cleanup: removed {removed} dump files")
+        if cell.keep_dumps:
+            notes.append("keep_dumps=1; tail-cleanup skipped; dumps preserved")
+        else:
+            removed = e1.cleanup_run_dumps(image_dir, run_start_epoch, False)
+            notes.append(f"cleanup: removed {removed} dump files")
     except Exception as exc:  # noqa: BLE001
         notes.append(f"cleanup warning: {exc}")
 
@@ -299,6 +363,15 @@ def execute_cell(
         run_ended_at=run_ended_at,
         exit_status=status,
         retry_count=cell.retry_count,
+        workload_command=cell.workload_command or None,
+        ssh_target=cell.ssh_target or None,
+        workload_stderr_path=(
+            str(workload_stderr_path)
+            if (workload_proc is not None and workload_stderr_path.exists())
+            else None
+        ),
+        workload_exit_status=workload_exit,
+        keep_dumps=cell.keep_dumps,
     )
 
     record = sc.PerCellRecord(
