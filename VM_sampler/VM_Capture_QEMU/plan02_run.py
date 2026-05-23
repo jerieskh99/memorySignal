@@ -39,6 +39,7 @@ import argparse
 import json
 import os
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -55,6 +56,45 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = SCRIPT_DIR / "config_qemu_upc.json"
 DEFAULT_PRODUCER = SCRIPT_DIR / "capture_producer_qemu_pmemsave.sh"
 HEARTBEAT_INTERVAL_SEC = 30
+
+# Pause-fraction estimates from the Step-1 pilot. Used by Bug-M check
+# (D-32) to compute the expected snapshot count for a cell, which becomes
+# the denominator of snapshot_completion_ratio. Conservative defaults
+# (interp at intermediate iv values).
+PAUSE_FRACTION_BY_IV = {
+    100:  0.924,
+    250:  0.847,
+    500:  0.741,
+    1000: 0.593,
+    2000: 0.424,
+}
+
+
+def estimated_pause_fraction(iv_ms: int) -> float:
+    """Linear interp between known iv values; clamp at the endpoints."""
+    known = sorted(PAUSE_FRACTION_BY_IV)
+    if iv_ms <= known[0]:
+        return PAUSE_FRACTION_BY_IV[known[0]]
+    if iv_ms >= known[-1]:
+        return PAUSE_FRACTION_BY_IV[known[-1]]
+    for lo, hi in zip(known, known[1:]):
+        if lo <= iv_ms <= hi:
+            t = (iv_ms - lo) / (hi - lo)
+            return PAUSE_FRACTION_BY_IV[lo] * (1 - t) + PAUSE_FRACTION_BY_IV[hi] * t
+    return 0.7  # fallback
+
+
+def expected_snapshots(duration_s: int, iv_ms: int) -> int:
+    """How many snaps a cell *should* produce, given duration and iv,
+    using the Step-1 pause-fraction sweep as a prior. Used only for
+    quality flagging, never for acceptance gating per se.
+    """
+    if iv_ms <= 0:
+        return 0
+    pf = estimated_pause_fraction(iv_ms)
+    guest_time_s = duration_s * (1 - pf)
+    iv_s = iv_ms / 1000.0 + 0.025  # +25 ms producer overhead from Step 1
+    return max(1, int(guest_time_s / iv_s))
 
 
 def log(msg: str) -> None:
@@ -222,6 +262,7 @@ def execute_cell(
     workload_stderr_path = cell_workdir / "workload_stderr.log"
     workload_log = cell_workdir / "workload.log"
     workload_exit: int | None = None
+    workload_skipped_reason: str | None = None
     if cell.workload_command and cell.ssh_target:
         ssh_target = cell.ssh_target
         ssh_key = os.environ.get("SSH_KEY", "")
@@ -237,7 +278,61 @@ def execute_cell(
         if not ok:
             notes.append(f"SSH not reachable at {ssh_target}; "
                          "workload not launched; producer-only this cell")
+            workload_skipped_reason = "ssh_unreachable"
         else:
+            # Bug-J runtime probe (D-29): verify the binary exists on the VM
+            # before launching, so placeholder paths or typos fail fast at
+            # cell granularity rather than producing fake-ok cells.
+            binary_path = wcmd.split()[0]
+            probe_cmd = e1.build_ssh_cmd(ssh_target, ssh_key, ssh_opts,
+                                         f"test -x {binary_path}")
+            try:
+                probe = subprocess.run(
+                    probe_cmd, capture_output=True, text=True,
+                    timeout=15, check=False,
+                )
+                binary_ok = (probe.returncode == 0)
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                binary_ok = False
+            if not binary_ok:
+                notes.append(
+                    f"workload binary not executable on VM: {binary_path!r}. "
+                    f"Verify path + permissions on remote. "
+                    f"Cell marked failed; producer skipped."
+                )
+                workload_skipped_reason = "binary_not_executable"
+                # Skip the cell entirely: stop heartbeat + return failed.
+                heartbeat.stop()
+                heartbeat.join(timeout=5)
+                run_ended_at_early = datetime.now(timezone.utc).isoformat()
+                run_meta_early = sc.RunMeta(
+                    cell_id=cell.cell_id, manifest_id=cell.manifest_id,
+                    block_id=cell.block_id, workload=cell.workload,
+                    interval_ms=cell.interval_ms, duration_s=cell.duration_s,
+                    replicate=cell.replicate,
+                    git_sha=host_meta.get("git_sha", "unknown"),
+                    host_uname=host_meta.get("host_uname", "unknown"),
+                    host_kernel=host_meta.get("host_kernel", "unknown"),
+                    qemu_version=host_meta.get("qemu_version", "unknown"),
+                    vm_image_sha256=host_meta.get("vm_image_sha256", "unknown"),
+                    run_started_at=run_started_at,
+                    run_ended_at=run_ended_at_early,
+                    exit_status="failed",
+                    retry_count=cell.retry_count,
+                    workload_command=cell.workload_command or None,
+                    ssh_target=cell.ssh_target or None,
+                    workload_stderr_path=None,
+                    workload_exit_status=None,
+                    keep_dumps=cell.keep_dumps,
+                )
+                record_early = sc.PerCellRecord(
+                    schema_version=sc.SCHEMA_VERSION,
+                    run_meta=run_meta_early,
+                    producer_stats=sc.ProducerStats(),
+                    analyzer_outputs=sc.AnalyzerOutputs(),
+                    notes=notes,
+                )
+                return "failed", record_early, notes
             try:
                 workload_proc = e1.start_workload(
                     ssh_target, ssh_key, ssh_opts, wcmd, workload_log,
@@ -246,9 +341,11 @@ def execute_cell(
             except Exception as exc:  # noqa: BLE001
                 notes.append(f"workload launch failed: {exc}")
                 workload_proc = None
+                workload_skipped_reason = "start_workload_exception"
     elif cell.workload_command and not cell.ssh_target:
         notes.append("workload_command set but ssh_target empty; "
                      "treating as producer-only (label-only workload)")
+        workload_skipped_reason = "no_ssh_target"
 
     # Producer
     producer_proc = None
@@ -273,6 +370,29 @@ def execute_cell(
         if producer_proc is not None:
             e1.stop_producer(producer_proc, grace_stop_seconds)
         e1.resume_vm_if_paused(virsh_uri, vm_domain)
+        # Bug-L settle (D-31): wait for libvirt's QEMU monitor lock to
+        # release before the next cell tries to acquire it. Poll
+        # virsh domstate up to 5 s; stop when two consecutive polls
+        # return the same state. This avoids the "cannot acquire state
+        # change lock" error observed in Day-8 sub-pilot cells 8-9.
+        try:
+            settle_deadline = time.monotonic() + 5.0
+            prev_state = None
+            stable_count = 0
+            while time.monotonic() < settle_deadline:
+                state = e1.virsh_domstate(virsh_uri, vm_domain)
+                if state and state == prev_state:
+                    stable_count += 1
+                    if stable_count >= 2:
+                        break
+                else:
+                    stable_count = 0
+                prev_state = state
+                time.sleep(0.2)
+            notes.append(f"vm settle: final_state={prev_state!r} "
+                         f"stable_polls={stable_count}")
+        except Exception as exc:  # noqa: BLE001
+            notes.append(f"vm settle warning: {exc}")
         heartbeat.stop()
         heartbeat.join(timeout=5)
 
@@ -333,17 +453,40 @@ def execute_cell(
     except Exception as exc:  # noqa: BLE001
         notes.append(f"cleanup warning: {exc}")
 
-    # Status decision
+    # Status decision (Bug-M fix, D-32: quantitative quality check)
+    #
+    # ok criterion now requires BOTH:
+    #   - snapshots_completed > 0
+    #   - backpressure ratio < 1%
+    #   - snapshot_completion_ratio >= 0.30 (snaps vs expected from iv+duration)
+    #
+    # Previously cells with snap << expected were falsely labeled 'ok'.
+    expected = expected_snapshots(cell.duration_s, cell.interval_ms)
+    actual = int(producer_stats.snapshots_completed)
+    ratio = (actual / expected) if expected > 0 else 0.0
+    # Persist ratio in producer_stats notes for the analysis layer
+    notes.append(
+        f"snap completion: actual={actual} expected={expected} ratio={ratio:.2f}"
+    )
+
     status = "ok"
-    if producer_stats.snapshots_completed == 0:
+    if actual == 0:
         status = "failed"
         notes.append("FAIL: 0 snapshots completed; producer likely crashed")
     elif producer_stats.backpressure_events > max(
         1, int(0.01 * producer_stats.snapshots_attempted)
     ):
+        # not auto-failing but flagging
         notes.append(
             f"WARN: high backpressure ({producer_stats.backpressure_events} "
             f"of {producer_stats.snapshots_attempted} attempts)"
+        )
+    if status == "ok" and ratio < 0.30:
+        status = "failed"
+        notes.append(
+            f"FAIL: snapshot_completion_ratio={ratio:.2f} < 0.30 "
+            f"({actual} of expected {expected}). "
+            f"Most likely cause: VM lock contention or workload absence."
         )
 
     run_meta = sc.RunMeta(
@@ -414,6 +557,29 @@ def run_session(
     if fixed:
         log(f"WARNING: {fixed} 'running' rows auto-marked 'failed' on restart")
         mf.save(manifest_path, rows)
+
+    # Bug-K preflight (D-30): if ANY pending row has a workload_command set,
+    # require SSH_KEY or SSH_PASS env-var. Otherwise the operator will get
+    # interactive password prompts mid-run, which is unsafe for unattended
+    # pilots and tends to silently fail.
+    needs_ssh = any(
+        r.status == "pending" and r.workload_command for r in rows
+    )
+    if needs_ssh:
+        ssh_key = os.environ.get("SSH_KEY", "")
+        ssh_pass = os.environ.get("SSH_PASS", "")
+        allow_interactive = os.environ.get(
+            "PLAN02_ALLOW_INTERACTIVE_SSH", ""
+        ).strip()
+        if not ssh_key and not ssh_pass and not allow_interactive:
+            log("ERROR: pending cells have workload_command set, but neither "
+                "SSH_KEY nor SSH_PASS is exported.")
+            log("  Set one of:")
+            log("    export SSH_KEY=/path/to/private_key")
+            log("    export SSH_PASS=<vm-password>   # requires sshpass installed")
+            log("  Or to ignore (debugging only):")
+            log("    export PLAN02_ALLOW_INTERACTIVE_SSH=1")
+            return 3
 
     # Session sentinel: write host state once per session
     host_meta = sc.collect_host_meta(repo_root=SCRIPT_DIR.parent)

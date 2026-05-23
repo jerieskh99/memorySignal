@@ -932,3 +932,90 @@ To get 50 windows at window=128 hop=64 we need ≥ `50 * 64 + 128 = 3328` snaps.
 ---
 
 **Audit log updated end of Day 7 addendum.** Subsequent changes appended below this line.
+
+---
+
+# Day 8 · Step 1.5c sub-pilot mid-run analysis
+
+**Convened:** PM reconvenes the full team after the operator launches Step 1.5c on `pcrserral`. Live console snippets from cells 3-9 reveal multiple coupled bugs that the previous `ok` status check could not surface. Team treats this as **honest evidence of incomplete acceptance logic + bad SSH defaults**, not as orchestrator failure.
+
+## 28 · Evidence from the live console
+
+Key facts from operator's paste:
+
+| line | observation |
+|------|-------------|
+| `[timing-exp] starting workload over SSH: ssh kali@192.168.222.63 '<path>/sandbox_ransom_batched ...'` | **`<path>` is LITERAL.** Operator passed the runbook's placeholder verbatim. SSH connects, executes a non-existent binary, exits with 127. Workload never ran. |
+| `kali@192.168.222.63's password:` (multiple cells) | **Interactive SSH password prompt.** No `SSH_KEY`, no `sshpass` configured. Operator must have typed by hand or has an agent loaded; the orchestrator does not enforce it. |
+| `[plan02] [4/18] ac9f6225772e -> ok (snapshots=21)` | Cell duration was 300 s. iv=2000 ms. Expected ~85 snaps at pause=42 %. Got 21. **status='ok' is false positive.** |
+| `[plan02] [6/18] 3e9fefff31ae -> ok (snapshots=11)` | iv=500 ms, d=300 s. Expected ~148 snaps. Got 11. Off by 13×. |
+| `[plan02] [7/18] 80c9beeb3d1b -> ok (snapshots=8)` | iv=500 ms, d=900 s. Expected ~444 snaps. Got 8. Off by 55×. |
+| `error: Failed to resume domain ... cannot acquire state change lock (held by monitor=qemuDispatchDomainMonitorCommand)` (cells 8, 9) | **libvirt monitor lock not released between cells.** Previous cell's stop_producer race-conditioned with next cell's resume_vm_if_paused. |
+| `[plan02] [8/18] 2a66620d08e8 -> ok (snapshots=3)` | After the lock error, only 3 snaps captured over d=900 s. Still labeled `ok`. |
+
+`ML` opens: "Multiple bugs, all hidden by the orchestrator's pass-everything `ok` rule. Status='ok' currently means only `snapshots_completed > 0 AND backpressure < 1%`. Both true when the cell collected almost nothing."
+
+## 29 · Per-agent diagnosis
+
+**`SA` · contention:**
+> "Cells 8 and 9 show libvirt's QEMU monitor lock held when our next cell's `virsh resume` arrives. Producer's `stop_producer` SIGTERM → bash exits → but the kernel-side libvirt RPC may still be in-flight against the same QEMU process. The next cell's first action (`resume_vm_if_paused`) hits the lock window. **Need a settle delay between cells**: 2-3 s of `virsh domstate` polling until libvirt returns a stable answer."
+
+**`ML` · workload command:**
+> "The runbook had `<RANSOM_PATH>`/`<WORKINGSET_PATH>` placeholders for the operator to fill in. Operator pasted unedited. The orchestrator's SSH command became `'<path>/sandbox_ransom_batched ...'` which the remote shell tried to execute and got `No such file or directory`. **Build-time validation should refuse manifests with `<` or `>` in `workload_command`.** Run-time validation should probe the binary exists before launching."
+
+**`EN` · SSH credentials:**
+> "Interactive password prompts in an unattended pilot are wrong. `start_workload` in `run_timing_instrumentation_experiment.py` supports `--ssh-key`. Either we require `SSH_KEY` (or `SSH_PASS` via sshpass) env-var before any workload-launching cell runs, or we fail loud. Silently inheriting the TTY is the wrong default."
+
+**`XD` · ok-criterion:**
+> "Cell with iv=500 d=900 s producing 8 snaps is statistically meaningless. The current `ok` check is structural-only (snaps > 0, no backpressure). It must also be quantitative: `snaps_completed >= 0.3 × snaps_expected`. Compute expected from `(duration × (1 − pause_frac_at_iv)) / iv_s`. Below 30 % → status='failed' with note."
+
+**`DE` · schema:**
+> "Schema v2 already supports `notes`. We just don't *use* it as a quality signal. Add a derived field `snapshot_completion_ratio = snaps_completed / snaps_expected` to `producer_stats`. Then the analysis pipeline can filter on it explicitly."
+
+**`DS` · statistical impact:**
+> "Any cell below 30 % of expected snap count contributes no useful information to the per-family iv recommendation. Treat them as missing data, not as data points. Filter in `plan02_analysis.py` recommendation logic."
+
+**`PM` closes:**
+> "Four bugs, all caught before they polluted the recommendation table. The orchestrator works; the acceptance logic was incomplete. Code fixes today. Operator re-runs the sub-pilot after."
+
+## 30 · Bugs found (Day 8)
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| **Bug J** | high | `workload_command` accepts `<...>` placeholder literals; build-time validation missing |
+| **Bug K** | high | No SSH credential enforcement; orchestrator silently inherits TTY for password prompts |
+| **Bug L** | high | libvirt QEMU monitor lock contention between cells; no settle delay after `stop_producer` |
+| **Bug M** | high | `ok` status decision too lax; cells with `snaps << expected` falsely labeled `ok` |
+
+## 31 · Did cell 8 work?
+
+**No.** Cell 8 (`2a66620d08e8`):
+- duration_s = 900
+- interval_ms = 500
+- expected ≈ 900 × (1 − 0.74) / 0.525 ≈ **445 snaps**
+- actual: **3 snaps**
+- ratio: 0.7 %
+- status labeled `ok` only because `snaps > 0` and the cell didn't crash
+
+The cell measured nothing useful. The `virsh resume` failure that preceded it means the VM was stuck paused during most of the 900 s window. The 3 snaps captured are artifacts of partial recovery, not legitimate measurement. **Bug M would have flipped this to `failed`. Day 8 fixes it.**
+
+## 32 · Decisions on Day 8
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-28 | **Build-time validation:** `plan02_manifest.py build` refuses any `--workload-command` value containing `<` or `>`. Fails loud. | Bug J: operator placeholder pasting must not produce a runnable manifest. | DE |
+| D-29 | **Pre-cell SSH probe:** before launching workload, run `ssh <target> "test -x <binary_path>"`. If non-zero, mark cell `failed` with note "workload binary not executable on VM" and skip producer launch. | Bug J runtime: catch placeholder + bad path + missing binary at cell granularity. | SA + ML |
+| D-30 | **SSH credential enforcement:** if any pending manifest row has non-empty `workload_command`, `plan02_run.py` requires `SSH_KEY` or `SSH_PASS` env-var (or `--allow-interactive-ssh` opt-in for debugging). | Bug K: unattended pilots cannot use interactive password prompts. | EN |
+| D-31 | **VM settle between cells:** after `stop_producer`, orchestrator polls `virsh domstate` up to 5 s OR until two consecutive 200 ms polls return identical state. Then proceed. | Bug L: avoids libvirt monitor lock contention. Bounded delay. | SA |
+| D-32 | **Quantitative ok check:** `producer_stats.snapshot_completion_ratio = snaps_completed / snaps_expected` (computed from iv, duration, and the iv=X pause_fraction estimate from Step-1 data). If ratio < 0.30 → status `failed`, note "low completion ratio". | Bug M: status='ok' must reflect data quality, not just non-crash. | XD + DS |
+| D-33 | **Re-launch Step 1.5c after fixes land.** Operator wipes `/tmp/plan02_1_5c`, re-builds manifest with real binary paths and correct SSH credentials env-vars, re-runs. | Don't try to salvage the current run; the previous cells are contaminated by Bug L. | PM + operator |
+
+## 33 · PM final note · Day 8
+
+> Four bugs, none in the capture pipeline. All in the *orchestration glue* that Step 1.5b added in a hurry. None of them would have fired during the 90-cell idle pilot because no workload launched, no SSH ran, no VM lock contended. Step 1.5c surfaced them precisely because it exercises the full new code path under real load.
+>
+> This is what 1.5c was for. **The validation sub-pilot is doing its job by failing visibly before we burn 12 h on the full pilot.**
+
+---
+
+**Audit log updated end of Day 8.** Subsequent changes appended below this line.

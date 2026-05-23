@@ -2754,7 +2754,7 @@ nearest "nice" round number       <em>250 ms</em>
   <div class="status-board">
     <div class="board-title">
       Where we are right now
-      <span class="board-tag done">26 done</span>
+      <span class="board-tag done">27 done</span>
       <span class="board-tag next">1 next</span>
       <span class="board-tag blocked">3 blocked</span>
     </div>
@@ -2881,14 +2881,19 @@ nearest "nice" round number       <em>250 ms</em>
       <span class="what">Step 1.5b · workload-launching + keep_dumps in orchestrator</span>
       <span class="meta"><span class="ok">~130 LOC · 3 files · schema v2 gains 5 fields · 23/23 tests green</span></span>
     </div>
+    <div class="status-line">
+      <span class="badge done">done</span>
+      <span class="what">Day-8 team review · Step 1.5c mid-run · 4 bugs (J/K/L/M) surfaced + fixed</span>
+      <span class="meta"><span class="ok">6 new decisions (D-28..D-33) · 28/28 tests green</span></span>
+    </div>
 
     <div class="board-divider"></div>
 
     <!-- NEXT block -->
     <div class="status-line">
       <span class="badge next">next</span>
-      <span class="what">Step 1.5c · validation sub-pilot · 16 cells with workloads + dumps</span>
-      <span class="meta"><span class="acc">~3 h host · gates full Plan 02 re-launch</span></span>
+      <span class="what">Re-launch Step 1.5c · 16 cells · real paths + SSH_KEY/SSH_PASS</span>
+      <span class="meta"><span class="acc">~3 h host · Bugs J/K/L/M now refuse to silently pass</span></span>
     </div>
 
     <div class="board-divider"></div>
@@ -2960,10 +2965,26 @@ nearest "nice" round number       <em>250 ms</em>
         <div class="id">H</div><div class="name">2b/2c missing <code>mkdir -p</code> for output JSON parent</div>
         <div class="verdict fixed">FIXED · 4 LOC · commit <code>6047ebe</code></div>
       </div>
+      <div class="mech-pill fixed">
+        <div class="id">J</div><div class="name">Day-8 · placeholder <code>&lt;path&gt;</code> in workload command</div>
+        <div class="verdict fixed">FIXED · D-28 build-validate + D-29 SSH probe</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">K</div><div class="name">Day-8 · interactive SSH password prompt mid-pilot</div>
+        <div class="verdict fixed">FIXED · D-30 require SSH_KEY / SSH_PASS env-var</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">L</div><div class="name">Day-8 · libvirt monitor lock contention between cells</div>
+        <div class="verdict fixed">FIXED · D-31 settle poll up to 5 s</div>
+      </div>
+      <div class="mech-pill fixed">
+        <div class="id">M</div><div class="name">Day-8 · false-ok cells when snaps ≪ expected</div>
+        <div class="verdict fixed">FIXED · D-32 snap_completion_ratio ≥ 0.30 gate</div>
+      </div>
     </div>
 
     <div class="headline-progress">
-      Round 5 done · 9 capture-pipeline bugs closed · Plan 02 Step 1 captured (capture-pipeline characterization · 90/90 cells passed acceptance) · Day-7 review surfaced two honest Day-0 oversights · Step 1.5a + 1.5b <strong>LANDED</strong> in code · <strong>Step 1.5c validation sub-pilot is the next operator action (~3 h)</strong>.
+      Plan 02 Step 1.5c mid-run · operator pasted runbook with literal placeholders + no SSH credentials · 4 new bugs (J/K/L/M) surfaced + fixed before they polluted the recommendation table · <strong>Re-launch Step 1.5c with real paths + SSH_KEY/SSH_PASS · this is exactly what the validation sub-pilot is for</strong>.
     </div>
 
     <!-- ─────────────────────  PLAN 02 STEP 1 RESULTS  ───────────────────── -->

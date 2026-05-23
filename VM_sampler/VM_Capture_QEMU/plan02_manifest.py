@@ -367,6 +367,22 @@ def _main(argv: list[str] | None = None) -> int:
                 return 2
             key, _, val = spec.partition("=")
             wcmds[key.strip()] = val.strip()
+        # Bug-J fix (D-28): refuse placeholder literals. Operator copies
+        # runbook with <RANSOM_PATH> / <VM_IP> etc. should fail loud here,
+        # not silently produce an unrunnable manifest.
+        for key, val in wcmds.items():
+            if "<" in val or ">" in val:
+                print(f"ERROR: --workload-command for {key!r} contains "
+                      f"placeholder characters '<' or '>': {val!r}. "
+                      f"Replace with the real binary path (e.g. "
+                      f"/usr/local/bin/sandbox_ransom_batched --rounds 5).",
+                      file=sys.stderr)
+                return 2
+        if args.ssh_target and ("<" in args.ssh_target or ">" in args.ssh_target):
+            print(f"ERROR: --ssh-target contains placeholder characters: "
+                  f"{args.ssh_target!r}. Replace with the real target "
+                  f"(e.g. kali@192.168.122.42).", file=sys.stderr)
+            return 2
 
         rows = build_manifest(
             workloads=args.workloads,

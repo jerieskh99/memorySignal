@@ -30,6 +30,7 @@ import plan02_manifest as mf     # noqa: E402
 import plan02_analysis as an     # noqa: E402
 import migrate_schema_v1_to_v2 as mig  # noqa: E402
 import plan02_backfill_nwindows as bf  # noqa: E402
+import plan02_run as pr  # noqa: E402
 
 
 class SchemaTests(unittest.TestCase):
@@ -367,6 +368,31 @@ class ManifestWorkloadColumnTests(unittest.TestCase):
             self.assertEqual(loaded[0].workload_command, "echo hi")
             self.assertEqual(loaded[0].ssh_target, "user@host")
             self.assertTrue(loaded[0].keep_dumps)
+
+
+class Day8QualityChecksTests(unittest.TestCase):
+    """Tests for Day-8 quantitative ok and pause-fraction estimator."""
+
+    def test_pause_fraction_at_known_iv(self):
+        self.assertAlmostEqual(pr.estimated_pause_fraction(100), 0.924)
+        self.assertAlmostEqual(pr.estimated_pause_fraction(2000), 0.424)
+
+    def test_pause_fraction_interpolates(self):
+        # iv=750 is between 500 (0.741) and 1000 (0.593). Linear interp.
+        pf = pr.estimated_pause_fraction(750)
+        self.assertTrue(0.593 < pf < 0.741, f"got {pf}")
+
+    def test_pause_fraction_clamps(self):
+        self.assertAlmostEqual(pr.estimated_pause_fraction(10), 0.924)
+        self.assertAlmostEqual(pr.estimated_pause_fraction(99999), 0.424)
+
+    def test_expected_snapshots_reasonable(self):
+        # iv=500 ms, d=300 s, pause=0.741 -> guest=78 s, snaps ~ 78/0.525 = 148
+        n = pr.expected_snapshots(300, 500)
+        self.assertTrue(140 <= n <= 160, f"got {n}")
+
+    def test_expected_snapshots_iv_zero_safe(self):
+        self.assertEqual(pr.expected_snapshots(60, 0), 0)
 
 
 # ---------------------------------------------------------------------------
