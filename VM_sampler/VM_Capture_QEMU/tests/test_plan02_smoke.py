@@ -31,6 +31,7 @@ import plan02_analysis as an     # noqa: E402
 import migrate_schema_v1_to_v2 as mig  # noqa: E402
 import plan02_backfill_nwindows as bf  # noqa: E402
 import plan02_run as pr  # noqa: E402
+import plan02_validate_session as pv  # noqa: E402
 
 
 class SchemaTests(unittest.TestCase):
@@ -440,6 +441,88 @@ class Day9DiskGuardrailTests(unittest.TestCase):
 
     def test_scan_producer_log_missing_file_safe(self):
         self.assertEqual(pr.scan_producer_log(Path("/nope/does/not/exist")), [])
+
+
+class Day10ValidatorTests(unittest.TestCase):
+
+    def test_phase_marker_count_zero_when_no_file(self):
+        self.assertEqual(pv._phase_marker_count(Path("/no/such/file")), 0)
+
+    def test_phase_marker_count_extracts(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "workload_stderr.log"
+            log.write_text(
+                "starting\n"
+                "[2026-05-24T00:00:01Z] [PHASE] test=ransom phase=scan\n"
+                "[2026-05-24T00:00:02Z] [PHASE] test=ransom phase=encrypt\n"
+                "done\n"
+            )
+            self.assertEqual(pv._phase_marker_count(log), 2)
+
+    def test_compute_n_windows(self):
+        self.assertEqual(pv._compute_n_windows(100, 128, 64), 0)
+        self.assertEqual(pv._compute_n_windows(192, 128, 64), 2)
+        self.assertEqual(pv._compute_n_windows(3328, 128, 64), 51)
+
+    def test_ratio_from_notes(self):
+        cell = {"notes": ["foo", "snap completion: actual=148 expected=148 ratio=1.00"]}
+        self.assertAlmostEqual(pv._ratio_from_notes(cell), 1.00)
+
+    def test_settle_retries_from_notes(self):
+        cell = {"notes": ["vm settle: state='running' lock_retries=3 other_errors=0"]}
+        self.assertEqual(pv._settle_retries_from_notes(cell), 3)
+
+    def test_producer_errors_from_notes(self):
+        cell = {"notes": ["foo", "producer.log errors (2): err1 | err2"]}
+        self.assertEqual(pv._producer_errors_from_notes(cell), 2)
+        cell2 = {"notes": ["no errors"]}
+        self.assertEqual(pv._producer_errors_from_notes(cell2), 0)
+
+    def test_evaluate_cell_warmup_passes_c1(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            cells_dir = tdpath / "cells"
+            workdir = cells_dir / "work"
+            workdir.mkdir(parents=True)
+            rec = _minimal_v2_record()
+            rec.notes = [
+                "WARMUP CELL -- discarded by analysis",
+                "snap completion: actual=85 expected=85 ratio=1.00",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 3500  # > 50 windows
+            cell_path = cells_dir / "warmup_block0.json"
+            cells_dir.mkdir(exist_ok=True)
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C1_workload_ran"]["pass"])
+            self.assertTrue(r["claims"]["C2_ratio_healthy"]["pass"])
+            self.assertTrue(r["claims"]["C3_enough_windows"]["pass"])
+            self.assertTrue(r["claims"]["C4_no_settle_retries"]["pass"])
+            self.assertTrue(r["claims"]["C5_producer_log_clean"]["pass"])
+            self.assertTrue(r["ok"])
+
+    def test_evaluate_cell_real_workload_needs_phase_markers(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            cells_dir = tdpath / "cells"
+            workdir = cells_dir / "work"
+            cells_dir.mkdir()
+            cid = "abc123"
+            (workdir / cid).mkdir(parents=True)
+            # No stderr file -> C1 should fail for non-warmup
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.notes = [
+                "snap completion: actual=148 expected=148 ratio=1.00",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 3500
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C1_workload_ran"]["pass"])
+            self.assertFalse(r["ok"])
 
 
 # ---------------------------------------------------------------------------

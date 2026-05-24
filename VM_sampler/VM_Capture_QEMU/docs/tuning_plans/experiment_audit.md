@@ -1090,6 +1090,63 @@ Even though cell 2 launched against a paused VM, Bug-M's `snapshot_completion_ra
 
 ---
 
+# Day 10 · Step 1.5c PASS · honest review + Step 2 prep
+
+**Convened:** PM reconvenes full team after operator reports Step 1.5c finished with all 18 cells `ok` (16 real + 2 warmups). No failed, no skipped. Clean run. Team's job: pressure-test the success before committing to Step 2 / full Plan-02 re-run.
+
+## 39 · Numbers from the operator console
+
+```
+6 cells observed live (cells 1-6):
+  cell  iv(ms)  d(s)   expected  actual  ratio
+  ─────────────────────────────────────────────
+  1     2000    300    ~85       85      1.00   (warmup)
+  2      500    900    ~445      445     1.00
+  3     2000    900    ~255      255     1.00
+  4     2000    300    ~85       85      1.00
+  5      500    300    ~148      148     1.00
+  6      500    300    ~148      149     1.01
+```
+
+Snap-completion-ratio is 1.00 across every observed cell. Bug-M (`ratio < 0.30 → failed`) sails through. Bug-L (settle) was quiet. Bug-K preflight quiet. Bug-J runtime probe quiet. **All four Day-8 guards held under load.**
+
+## 40 · The success looks clean but team must verify three claims
+
+`PM` opens: "All 18 cells ok is excellent. Before we declare 1.5c done, we need to **verify three things that 'ok' status alone does NOT prove**."
+
+| claim | who verifies | how |
+|-------|--------------|-----|
+| C1: workload binaries actually ran (not just SSH connected) | ML | grep `[PHASE]` markers in each cell's `workload_stderr.log` |
+| C2: snap_completion_ratio is high for every cell, not just the 6 we saw live | XD | parse all 18 JSONs; report distribution |
+| C3: cells produced enough windows for downstream analysis (n_windows ≥ 50 at canonical w/h) | DS | back-fill n_windows then summarize |
+
+`SA`: "Add a fourth: the orchestrator's settle (Bug-L) should be a no-op under nominal load. If we see `lock_retries > 0` in any cell, the host's libvirt is still racy and Step 2 needs more headroom."
+
+`EN`: "And C5: producer.log error scan should be empty across all cells. Any 'error: ' or 'No space' line means a guard absorbed a problem; we should know which cells were rescued vs which ran cleanly."
+
+`EE` (evaluation engineer): "All five claims can be answered from existing per-cell JSONs without re-running anything. We should have a single script that emits a structured pass/fail per claim per cell. Right now it's manual greps."
+
+`PM`: "Build it. Smallest reliable validation tool. Then run it before committing to Step 2."
+
+## 41 · Decision
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-41 | Build `plan02_validate_session.py`: per-cell health report covering C1-C5. Single CLI, JSON + human-readable output. ~150 LOC. | Replace manual greps with a reusable health check before every Step 2 launch. | EE + DE |
+| D-42 | Step 2 is gated on `plan02_validate_session.py` showing 16/16 real cells pass C1-C5 (warmups exempt from C1 since they have no workload). If any cell fails a claim, debug that claim before launching the bigger pilot. | Avoid Day-0-style oversights bleeding into the larger pilot. | PM |
+| D-43 | Step 2 matrix: workload-launching cells with longer durations to clear the n_windows floor. `{5, 15, 30}` min × 5 iv × 2 workloads × 3 reps = 90 cells. With analyzer-then-delete (future, deferred), keep_dumps enabled per cell. Without it: keep_dumps OFF, accept that F1/CV stay null but n_windows + workload_stderr markers populate. | Honest Step 2 design given current code surface. | XD |
+| D-44 | Analyzer-then-delete hook (the real fix for keep_dumps disk burn) deferred to its own session post Step 2. Cost: ~150 LOC orchestrator + integration with `offline_step_metrics.py`. Currently out of scope. | Don't couple Step 2 launch with an unbuilt feature. | PM |
+
+## 42 · PM note · Day 10
+
+> 1.5c proved the orchestration plumbing. The four Day-8 guards held. Real workloads ran via SSH; the host stayed stable across 18 cells. **Now is the moment to verify the success properly, build the validator, and let the operator launch Step 2 with confidence.** The reusable validator pays for itself first time it catches a silent regression — which based on this project's pattern, it will.
+
+---
+
+**Audit log updated end of Day 10.** Subsequent changes appended below this line.
+
+---
+
 # Day 10 · Step 1.5c clean re-run · honest review
 
 **Convened:** PM gathers the full team after operator's third Step 1.5c attempt completed all 18 cells without orchestrator-side failures. All Day-7/8/9 guards (Bugs J/K/L/M + disk preflight + log scan) active.
