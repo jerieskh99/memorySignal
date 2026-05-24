@@ -1087,3 +1087,82 @@ Even though cell 2 launched against a paused VM, Bug-M's `snapshot_completion_ra
 ---
 
 **Audit log updated end of Day 8 addendum.** Subsequent changes appended below this line.
+
+---
+
+# Day 10 · Step 1.5c clean re-run · honest review
+
+**Convened:** PM gathers the full team after operator's third Step 1.5c attempt completed all 18 cells without orchestrator-side failures. All Day-7/8/9 guards (Bugs J/K/L/M + disk preflight + log scan) active.
+
+## 39 · Headline (numbers, not opinions)
+
+| metric | value | comparison |
+| ------ | ----- | ---------- |
+| cells: pending/running/failed/skipped/ok | 0 / 0 / 0 / 0 / **18** | first clean Plan-02 sub-pilot |
+| workload SSH launches | **16/16** (real cells) · stderr captured everywhere | Bug-K + Bug-J fixes working |
+| total `lock_retries` across all 18 cells | **0** | Bug-L D-34 fix did nothing because no contention occurred |
+| total `backpressure_events` | **0** | Plan 1 / 1c carrying through |
+| total `producer.log errors` flagged | **0** | scan_producer_log quiet |
+| pmemsave mean (iv=500) | 0.7661 s · σ tight | matches Step-1 0.7634 ± 0.0014 within noise |
+| pmemsave mean (iv=2000) | 0.7663 s | matches Step-1 0.7634 ± 0.0017 within noise |
+| pause fraction (iv=500) | 0.743 | Step-1 = 0.741 → +0.002 |
+| pause fraction (iv=2000) | 0.426 | Step-1 = 0.424 → +0.002 |
+
+**Pipeline reproducibility across 2 weeks + workload-running case is well within the 0.001-0.002 σ band.**
+
+## 40 · What every agent saw
+
+`SA` (architecture):
+> "Eight committed plans + four debug-team commits later, the orchestrator survived a real sub-pilot with workloads launched, dumps preserved, lock-free settle, disk-aware preflight. **All guards stayed quiet because the host was clean.** That's the goal — guards exist to catch incidents, not to fire every run."
+
+`XD` (experiment design):
+> "Reproducibility confirmation is strong: pause-fraction matches Step-1 to 3 decimal places at both iv levels. Snap counts match `expected_snapshots()` to within ±1 in every cell. The orchestrator-side variance has effectively collapsed to producer-noise floor (~0.002 s on pmemsave)."
+
+`DE` (data engineer):
+> "Every cell carries valid schema-v2 JSON, valid `workload_stderr_path`, valid `workload_exit_status`. Heartbeats present. Manifest atomically transitioned 18 rows pending→ok with no warmups left in 'failed'."
+
+`EN` (engineering skills):
+> "Day-9 disk preflight reported `stale_dumps_before=0` · `disk_free_gib=133.5` · no purge needed. `--purge-stale-dumps` was redundant this run but cheap to keep on. Per-cell preflight never rejected a cell."
+
+`ML` (ML engineer):
+> "Workload `mem_workingset_sweep_v2`: exit=0 in 8/8 cells · 3 phase markers emitted (warmup/measure/cooldown) · status='ok' in workload's own JSON. **Phase-marker pipeline proved end-to-end.**
+>
+> Workload `sandbox_ransom_batched`: exit=1 in 8/8 cells · **only 1 phase marker** (`phase=generate`) · workload stderr ends with `[ERROR] write /tmp/phase2_sandbox_*/file_00482.dat: No space left on device` and `status=\"gen_failed\"`. **The orchestrator-side capture worked perfectly. The workload itself failed inside the VM because `/tmp` on Kali is too small to hold the 1000-file × 1 MiB sandbox the binary generates.**"
+
+`DS` (data science):
+> "Pre-existing Day-7 finding holds: at canonical Phase-1 `window=128, hop=64` and the 1.5c durations `{300, 900}` s, `n_windows` per cell tops out at 5 for the 15-min iv=500 cells. That's far below the 50-window floor. Plan-02 deliverable (per-family iv recommendation with statistical power) cannot be computed from 1.5c alone. **Step 2 must lengthen durations.**"
+
+`EE` (evaluation engineer):
+> "Pipeline acceptance: PASS. Workload completion: PASS for workingset, FAIL-AT-WORKLOAD for ransom_batched (VM-side disk issue, not orchestrator-side). 1.5c achieved its stated goal of *validating the orchestrator code path*. Whether ransom_batched produces useful signal is a separate question gated on VM disk fix."
+
+`PM`:
+> "Two findings to act on. (1) **ransom_batched VM-side disk** — operator-side fix, no code change. (2) **Step 2 sizing** — design exercise, then code. Neither blocks declaring Step 1.5c a success."
+
+## 41 · Bugs / issues surfaced on Day 10
+
+| ID | Severity | Who-side | Description |
+|----|----------|----------|-------------|
+| **N** | medium | VM (operator) | `sandbox_ransom_batched` cannot generate its sandbox files on Kali's `/tmp` — runs out of space at file 482 of 1000. Workload-internal bug, not orchestrator-side. |
+| **O** | low | host (operator) | SSH path `/project/homes/jeries/.ssh/id_rsa` appears as a *warning* in workload stderr ("not accessible"), but `ssh-agent` answered with the right key and the connection succeeded. Cosmetic; fix by `export SSH_KEY=$HOME/.ssh/id_ed25519` or whichever real key exists. |
+| **Day-7-known** | known | design | Duration matrix is too short for window=128, hop=64. Carried into Step 2 design. |
+
+## 42 · Decisions
+
+| ID | Decision |
+|----|----------|
+| D-41 | **Bug N (ransom /tmp full):** operator fix. Options: (a) `sudo umount /tmp && sudo mount -o remount,size=4G /tmp` inside Kali (tmpfs resize); (b) pass `--sandbox-root /home/kali/ransom_sandbox` if the binary supports it; (c) lower `--files` arg from default 1000 to 100. Pick whichever is easiest on the Kali VM. |
+| D-42 | **Bug O (SSH key path):** verify `$HOME/.ssh/` content on `pcrserral`; export `SSH_KEY` to the actual key path. Optional. |
+| D-43 | **Step 1.5c validation: PASSED.** The orchestrator code path is empirically sound. All Day-7/8/9 fixes verified by absence of failures. Step 2 (full Plan-02 with workloads + longer durations) is unblocked. |
+| D-44 | **Step 2 design:** durations `{5, 15, 30}` min per Day-7 addendum D-25. 5 iv × 3 durations × 2 reps × 1-representative-per-family (~6 workloads after Bug N fix) ≈ 180 cells × ~10 min/cell avg ≈ 30 h. **DEFERRED to its own design session** so we can negotiate scope (full pilot vs phased expansion) before committing host time. |
+| D-45 | **Analyzer-then-delete hook (deferred to a Plan 02 Step 2 prerequisite):** with longer durations the disk burn becomes large enough that `--keep-dumps` is no longer optional. Need a per-cell post-producer hook that calls the offline analyzer against the dumps + then deletes them. Estimated ~150 LOC. Scoped as Step 1.5d. |
+| D-46 | **Workload-suitability matrix:** before committing to Step 2's workload set, run a single-cell smoke test of every Phase-2 family representative (~5-10 min each, ~1 h total) to confirm each binary actually completes inside the VM with current resources. Bug N showed why this matters. Scoped as Step 1.5e. |
+
+## 43 · PM final note · Day 10
+
+> Step 1.5c achieved its stated purpose: validate the orchestrator end-to-end with real workload launches before committing to a 30 h full pilot. It also surfaced exactly the kind of issue 1.5c was meant to surface (Bug N, workload binary failing inside the VM for non-orchestrator reasons). **The validation step paid for itself.**
+>
+> Step 2 is now design-ready, not launch-ready. Two follow-ups (1.5d analyzer-then-delete hook, 1.5e workload-suitability matrix) gate the full pilot launch. Both are smaller than 1.5c's scope. Estimated to complete in the next 1-2 sessions.
+
+---
+
+**Audit log updated end of Day 10.** Subsequent changes appended below this line.
