@@ -369,28 +369,52 @@ def execute_cell(
                 workload_exit = None
         if producer_proc is not None:
             e1.stop_producer(producer_proc, grace_stop_seconds)
-        e1.resume_vm_if_paused(virsh_uri, vm_domain)
-        # Bug-L settle (D-31): wait for libvirt's QEMU monitor lock to
-        # release before the next cell tries to acquire it. Poll
-        # virsh domstate up to 5 s; stop when two consecutive polls
-        # return the same state. This avoids the "cannot acquire state
-        # change lock" error observed in Day-8 sub-pilot cells 8-9.
+        # Bug-L settle (D-31, revised on Day 8 addendum):
+        # the prior implementation polled `virsh domstate` (read-only,
+        # doesn't acquire the state-change lock) which reported "stable"
+        # while libvirt's remote dispatcher was still processing an
+        # in-flight Domain.suspend RPC from the producer's last cycle.
+        # The NEXT cell's `virsh resume` then hit "cannot acquire state
+        # change lock (held by monitor=remoteDispatchDomainSuspend)".
+        #
+        # Real settle = retry `virsh resume` with backoff until it
+        # actually succeeds (rc==0) or libvirt says "already active /
+        # not paused". That is the only signal the state-change lock
+        # has been released.
         try:
-            settle_deadline = time.monotonic() + 5.0
-            prev_state = None
-            stable_count = 0
+            settle_deadline = time.monotonic() + 15.0
+            backoff = 0.3
+            lock_attempts = 0
+            other_errors: list[str] = []
+            settled_state = None
             while time.monotonic() < settle_deadline:
-                state = e1.virsh_domstate(virsh_uri, vm_domain)
-                if state and state == prev_state:
-                    stable_count += 1
-                    if stable_count >= 2:
-                        break
-                else:
-                    stable_count = 0
-                prev_state = state
-                time.sleep(0.2)
-            notes.append(f"vm settle: final_state={prev_state!r} "
-                         f"stable_polls={stable_count}")
+                r = subprocess.run(
+                    ["virsh", "-c", virsh_uri, "resume", vm_domain],
+                    capture_output=True, text=True, timeout=5, check=False,
+                )
+                combined = ((r.stderr or "") + (r.stdout or "")).strip()
+                lower = combined.lower()
+                if r.returncode == 0:
+                    settled_state = "running"
+                    break
+                if "cannot acquire state change lock" in lower:
+                    lock_attempts += 1
+                    time.sleep(backoff)
+                    backoff = min(backoff * 1.5, 1.5)
+                    continue
+                if ("domain is already active" in lower
+                        or "is not paused" in lower):
+                    settled_state = "running"
+                    break
+                other_errors.append(combined[:200])
+                time.sleep(backoff)
+            notes.append(
+                f"vm settle: state={settled_state!r} "
+                f"lock_retries={lock_attempts} "
+                f"other_errors={len(other_errors)}"
+            )
+            if other_errors:
+                notes.append(f"vm settle stderr sample: {other_errors[0]!r}")
         except Exception as exc:  # noqa: BLE001
             notes.append(f"vm settle warning: {exc}")
         heartbeat.stop()

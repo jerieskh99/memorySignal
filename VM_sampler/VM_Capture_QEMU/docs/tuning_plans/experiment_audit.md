@@ -1019,3 +1019,71 @@ The cell measured nothing useful. The `virsh resume` failure that preceded it me
 ---
 
 **Audit log updated end of Day 8.** Subsequent changes appended below this line.
+
+---
+
+# Day 8 addendum · Bug L recurrence
+
+Operator re-launched Step 1.5c after pulling Day-8 fixes. Cell 1 completed clean (`95b72428b010 -> ok (snapshots=63)`). Cell 2 hit:
+
+```
+[timing-exp] virsh resume "Kali Jeries"
+error: Failed to resume domain 'Kali Jeries'
+error: Timed out during operation: cannot acquire state change lock
+       (held by monitor=remoteDispatchDomainSuspend)
+```
+
+**Bug L is back.** Different lock holder this time (`remoteDispatchDomainSuspend` vs Day-8's `qemuDispatchDomainMonitorCommand`), but same failure mode.
+
+## 34 · Root cause
+
+`SA` diagnoses the regression:
+
+> "My settle (D-31) polls `virsh domstate`. That call is **read-only and does not acquire the state-change lock**. So `domstate` returns 'paused' or 'running' even while a separate `Domain.suspend` RPC is mid-flight on libvirt's remote dispatcher.
+>
+> The producer's bash got SIGTERM'd via `killpg` while it was in the middle of `virsh -c qemu:///system suspend "Kali Jeries"`. The client died, but the *server-side* RPC kept running because libvirt remote dispatch does not abort on client disconnect — it completes the in-flight call before releasing the state-change lock.
+>
+> My settle saw 'paused' twice in a row (stable!) and exited. The next cell's `virsh resume` arrived while the lock was still held. **Settle was checking the wrong signal.**"
+
+## 35 · The fix · settle = retry `virsh resume`
+
+Only one signal proves the state-change lock has been released: a successful `virsh resume` (rc==0). Settle now retries it with exponential backoff up to 15 s:
+
+```python
+deadline = time.monotonic() + 15.0
+backoff = 0.3
+while time.monotonic() < deadline:
+    r = subprocess.run(["virsh","-c",uri,"resume",dom], ...)
+    if r.returncode == 0:                        # lock free, VM running
+        break
+    if "cannot acquire state change lock" in stderr:
+        lock_retries += 1
+        time.sleep(backoff)
+        backoff = min(backoff * 1.5, 1.5)
+        continue
+    if "domain is already active" in stderr:      # also running
+        break
+    ...
+```
+
+Records `lock_retries` count in per-cell `notes` so post-pilot analysis can tell which cells had contention. Empirically expected: 0-3 retries per cell, well under the 15 s deadline.
+
+## 36 · Why Bug M still caught it
+
+Even though cell 2 launched against a paused VM, Bug-M's `snapshot_completion_ratio < 0.30 → failed` check would have flipped it to `failed` if the operator had let it complete. So the pipeline degraded gracefully even with the regressed Bug-L: bad cells get flagged, recommendation table stays clean.
+
+`PM`: "Defense in depth worked. Bug-L bug let contamination in; Bug-M caught it on the way out. Both checks are needed."
+
+## 37 · Decision
+
+| ID | Decision | Why | Owner |
+|----|----------|-----|-------|
+| D-34 | Settle is `virsh resume` retry-with-backoff, NOT `virsh domstate` poll. Only a successful resume proves the state-change lock is free. | Day-8 original D-31 watched the wrong signal. | SA |
+
+## 38 · PM note
+
+> The previous Bug-L fix tested the *wrong thing*. New fix tests the *only thing* that matters: can we acquire the state-change lock right now? Yes → proceed. Adversarial trust: don't trust read-only probes when the question is about write availability.
+
+---
+
+**Audit log updated end of Day 8 addendum.** Subsequent changes appended below this line.
