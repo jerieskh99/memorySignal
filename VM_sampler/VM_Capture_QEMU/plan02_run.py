@@ -97,6 +97,109 @@ def expected_snapshots(duration_s: int, iv_ms: int) -> int:
     return max(1, int(guest_time_s / iv_s))
 
 
+# ---------------------------------------------------------------------------
+# Disk-space guardrails (Day-9 debug-team fixes)
+# ---------------------------------------------------------------------------
+
+def _disk_free_gib(path: Path) -> float:
+    """Return free GiB on the filesystem holding ``path`` (or its parent
+    if path doesn't exist). Returns -1.0 on failure."""
+    target = path if path.exists() else path.parent
+    try:
+        st = os.statvfs(target)
+        return st.f_bavail * st.f_frsize / (1 << 30)
+    except OSError:
+        return -1.0
+
+
+def _count_stale_dumps(image_dir: Path) -> int:
+    if not image_dir.is_dir():
+        return 0
+    try:
+        return sum(1 for _ in image_dir.glob("memory_dump-*.raw"))
+    except OSError:
+        return 0
+
+
+def session_preflight_disk(image_dir: Path, ram_mb: int,
+                            min_headroom_dumps: int = 5,
+                            purge_stale: bool = False) -> dict:
+    """Run-session-scope dump-dir health check.
+
+    Returns dict with disk_free_gib, stale_dumps, purged_count, ok (bool),
+    reason (str | None). Designed to be a no-op when everything is fine.
+    """
+    info: dict = {
+        "image_dir": str(image_dir),
+        "disk_free_gib_before": _disk_free_gib(image_dir),
+        "stale_dumps_before": _count_stale_dumps(image_dir),
+        "purged_count": 0,
+        "disk_free_gib_after": None,
+        "stale_dumps_after": None,
+        "ok": True,
+        "reason": None,
+    }
+    if purge_stale and info["stale_dumps_before"] > 0:
+        try:
+            info["purged_count"] = e1.purge_all_dumps(image_dir, use_sudo=True)
+        except Exception as exc:  # noqa: BLE001
+            info["reason"] = f"purge_stale failed: {exc}"
+            info["ok"] = False
+            return info
+    info["disk_free_gib_after"] = _disk_free_gib(image_dir)
+    info["stale_dumps_after"] = _count_stale_dumps(image_dir)
+    needed_gib = (min_headroom_dumps * ram_mb) / 1024.0
+    if info["disk_free_gib_after"] >= 0 and info["disk_free_gib_after"] < needed_gib:
+        info["ok"] = False
+        info["reason"] = (
+            f"insufficient disk: {info['disk_free_gib_after']:.1f} GiB free "
+            f"< {needed_gib:.1f} GiB required for {min_headroom_dumps} dumps "
+            f"at ram_mb={ram_mb}"
+        )
+    return info
+
+
+def pre_cell_disk_check(image_dir: Path, ram_mb: int,
+                        min_headroom_dumps: int = 5) -> tuple[bool, dict]:
+    """Per-cell preflight: require at least min_headroom_dumps × ram_mb GiB
+    free OR fail the cell loud (avoid generating 1-snap garbage cells)."""
+    free = _disk_free_gib(image_dir)
+    stale = _count_stale_dumps(image_dir)
+    needed_gib = (min_headroom_dumps * ram_mb) / 1024.0
+    info = {
+        "disk_free_gib": free,
+        "stale_dumps": stale,
+        "needed_gib_for_headroom": needed_gib,
+    }
+    if free < 0:
+        return True, info  # statvfs unavailable; don't block
+    return (free >= needed_gib), info
+
+
+def scan_producer_log(producer_log: Path, max_errors: int = 5) -> list[str]:
+    """Read producer.log tail and return up to `max_errors` distinct
+    error-ish lines. Used post-cell to surface pmemsave / virsh failures
+    that the orchestrator otherwise misses.
+    """
+    if not producer_log.is_file():
+        return []
+    keywords = ("error", "fail", "denied", "no space", "cannot", "refused")
+    seen: list[str] = []
+    try:
+        text = producer_log.read_text(errors="replace")
+    except OSError:
+        return []
+    for line in text.splitlines()[-500:]:  # tail only
+        lower = line.lower()
+        if any(k in lower for k in keywords):
+            stripped = line.strip()
+            if stripped and stripped not in seen:
+                seen.append(stripped)
+                if len(seen) >= max_errors:
+                    break
+    return seen
+
+
 def log(msg: str) -> None:
     print(f"[plan02] {msg}", file=sys.stderr, flush=True)
 
@@ -222,6 +325,52 @@ def execute_cell(
         ram_mb=None,  # use config's default
     )
     vm_domain = eff_cfg.get("domain", "")
+
+    # Day-9 debug-team per-cell disk preflight: refuse to launch the cell
+    # when free disk cannot hold a small headroom of dumps. This is the
+    # cheap guard against the "1-snap-then-fail" pattern caused by disk
+    # filling mid-run.
+    image_dir_for_cell = Path(eff_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump"))
+    ram_mb_for_cell = int(eff_cfg.get("ramSizeMb", 1024))
+    ok_disk, disk_info = pre_cell_disk_check(image_dir_for_cell,
+                                              ram_mb_for_cell, 5)
+    notes.append(f"pre-cell disk: free={disk_info['disk_free_gib']:.1f} GiB "
+                 f"stale_dumps={disk_info['stale_dumps']}")
+    if not ok_disk:
+        notes.append(
+            f"FAIL preflight: disk_free={disk_info['disk_free_gib']:.1f} GiB "
+            f"< headroom={disk_info['needed_gib_for_headroom']:.1f} GiB. "
+            f"Cell skipped before any VM operation. Free disk and retry."
+        )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        run_meta_early = sc.RunMeta(
+            cell_id=cell.cell_id, manifest_id=cell.manifest_id,
+            block_id=cell.block_id, workload=cell.workload,
+            interval_ms=cell.interval_ms, duration_s=cell.duration_s,
+            replicate=cell.replicate,
+            git_sha=host_meta.get("git_sha", "unknown"),
+            host_uname=host_meta.get("host_uname", "unknown"),
+            host_kernel=host_meta.get("host_kernel", "unknown"),
+            qemu_version=host_meta.get("qemu_version", "unknown"),
+            vm_image_sha256=host_meta.get("vm_image_sha256", "unknown"),
+            run_started_at=now_iso,
+            run_ended_at=now_iso,
+            exit_status="failed",
+            retry_count=cell.retry_count,
+            workload_command=cell.workload_command or None,
+            ssh_target=cell.ssh_target or None,
+            workload_stderr_path=None,
+            workload_exit_status=None,
+            keep_dumps=cell.keep_dumps,
+        )
+        record_early = sc.PerCellRecord(
+            schema_version=sc.SCHEMA_VERSION,
+            run_meta=run_meta_early,
+            producer_stats=sc.ProducerStats(),
+            analyzer_outputs=sc.AnalyzerOutputs(),
+            notes=notes,
+        )
+        return "failed", record_early, notes
 
     # Pre-flight: drain stale queue + enable producer self-clean
     # (Plans 1c + 1b proven necessary in R3/R4).
@@ -431,6 +580,16 @@ def execute_cell(
 
     run_ended_at = datetime.now(timezone.utc).isoformat()
 
+    # Day-9 debug-team: scan producer.log for error-ish lines so the
+    # post-cell record carries human-readable failure signals (pmemsave
+    # I/O errors, virsh permission denials, "No space left on device",
+    # etc.). Keeps per-cell notes self-describing instead of forcing
+    # the reader to grep producer.log themselves.
+    producer_errors = scan_producer_log(producer_log)
+    if producer_errors:
+        notes.append(f"producer.log errors ({len(producer_errors)}): "
+                     + " | ".join(producer_errors[:3]))
+
     # Parse JSONL into producer_stats
     snaps, bps = e1.parse_jsonl(jsonl_path)
     records = []
@@ -566,6 +725,8 @@ def run_session(
     grace_stop_seconds: int = 10,
     max_cells: int | None = None,
     dry_run: bool = False,
+    purge_stale_dumps: bool = False,
+    min_dumps_headroom: int = 5,
 ) -> int:
     """Execute pending cells from the manifest until done or max_cells hit.
 
@@ -607,12 +768,39 @@ def run_session(
 
     # Session sentinel: write host state once per session
     host_meta = sc.collect_host_meta(repo_root=SCRIPT_DIR.parent)
+
+    # Day-9 debug-team preflight: dump-dir health + disk-free assertion.
+    # Pull ram_mb from config so we can size disk requirements accurately.
+    try:
+        base_cfg = e1.load_config(config_path)
+        ram_mb = int(base_cfg.get("ramSizeMb", 1024))
+        image_dir = Path(base_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump"))
+    except (OSError, ValueError):
+        ram_mb = 1024
+        image_dir = Path("/var/lib/libvirt/qemu/dump")
+    preflight_info = session_preflight_disk(
+        image_dir, ram_mb,
+        min_headroom_dumps=min_dumps_headroom,
+        purge_stale=purge_stale_dumps,
+    )
+    log(f"preflight: stale_dumps_before={preflight_info['stale_dumps_before']} "
+        f"disk_free_gib={preflight_info['disk_free_gib_before']:.1f} "
+        f"purged={preflight_info['purged_count']} "
+        f"stale_dumps_after={preflight_info['stale_dumps_after']} "
+        f"disk_free_gib_after={preflight_info['disk_free_gib_after']:.1f}")
+    if not preflight_info["ok"]:
+        log(f"ERROR preflight: {preflight_info['reason']}")
+        log("  Fix: free disk space OR run with --purge-stale-dumps "
+            "OR lower --min-dumps-headroom.")
+        return 4
+
     sentinel_path = output_dir / "session_sentinel.json"
     sc.write_json_atomic(sentinel_path, {
         "session_id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         "manifest_path": str(manifest_path),
         "host_meta": host_meta,
         "summary_at_start": mf.summarize(rows),
+        "preflight": preflight_info,
     })
     log(f"session sentinel: {sentinel_path}")
 
@@ -726,6 +914,16 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="stop after this many cells (default: run all pending)")
     p.add_argument("--dry-run", action="store_true",
                    help="validate manifest + write session sentinel; no capture")
+    p.add_argument("--purge-stale-dumps", action="store_true",
+                   help="Before the session starts, sudo-rm any "
+                        "memory_dump-*.raw files in imageDir. Use this when "
+                        "previous failed runs left dumps behind that the "
+                        "current user cannot delete directly.")
+    p.add_argument("--min-dumps-headroom", type=int, default=5,
+                   help="Per-cell preflight refuses to launch unless free "
+                        "disk >= this many full-size dumps (RAM-sized). "
+                        "Default 5. Lower to be more permissive; raise for "
+                        "safety. Day-9 debug team default.")
     return p
 
 
@@ -761,6 +959,8 @@ def _main(argv: list[str] | None = None) -> int:
         grace_stop_seconds=args.grace_stop_seconds,
         max_cells=args.max_cells,
         dry_run=args.dry_run,
+        purge_stale_dumps=args.purge_stale_dumps,
+        min_dumps_headroom=args.min_dumps_headroom,
     )
 
 

@@ -395,6 +395,53 @@ class Day8QualityChecksTests(unittest.TestCase):
         self.assertEqual(pr.expected_snapshots(60, 0), 0)
 
 
+class Day9DiskGuardrailTests(unittest.TestCase):
+
+    def test_disk_free_gib_returns_positive(self):
+        with tempfile.TemporaryDirectory() as td:
+            free = pr._disk_free_gib(Path(td))
+            self.assertGreater(free, 0.0)
+
+    def test_count_stale_dumps_zero_in_empty_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(pr._count_stale_dumps(Path(td)), 0)
+
+    def test_count_stale_dumps_counts_files(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            (tdp / "memory_dump-20260524000001.raw").write_text("x")
+            (tdp / "memory_dump-20260524000002.raw").write_text("x")
+            (tdp / "other.txt").write_text("x")  # not counted
+            self.assertEqual(pr._count_stale_dumps(tdp), 2)
+
+    def test_pre_cell_disk_check_passes_on_empty_tmp(self):
+        with tempfile.TemporaryDirectory() as td:
+            ok, info = pr.pre_cell_disk_check(Path(td), ram_mb=1, min_headroom_dumps=1)
+            self.assertTrue(ok, info)
+
+    def test_pre_cell_disk_check_unrealistic_ram_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            # Pretend we need 10 PiB of headroom (1024 * 10^10 MiB).
+            ok, info = pr.pre_cell_disk_check(Path(td), ram_mb=10**10, min_headroom_dumps=1)
+            self.assertFalse(ok, info)
+
+    def test_scan_producer_log_extracts_errors(self):
+        with tempfile.TemporaryDirectory() as td:
+            log_path = Path(td) / "producer.log"
+            log_path.write_text(
+                "[2026] starting cycle\n"
+                "[2026] error: pmemsave failed: No space left on device\n"
+                "[2026] cycle done\n"
+                "[2026] error: virsh resume denied\n"
+            )
+            lines = pr.scan_producer_log(log_path)
+            self.assertEqual(len(lines), 2)
+            self.assertTrue(any("No space" in l for l in lines))
+
+    def test_scan_producer_log_missing_file_safe(self):
+        self.assertEqual(pr.scan_producer_log(Path("/nope/does/not/exist")), [])
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
