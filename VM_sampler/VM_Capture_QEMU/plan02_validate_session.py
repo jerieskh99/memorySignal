@@ -4,13 +4,20 @@
 Owner: EE (Evaluation Engineer) + DE (Senior Data Engineer).
 Reference: docs/tuning_plans/experiment_audit.md Decisions D-41 / D-42.
 
-Verifies five claims that 'ok' status alone does NOT prove:
+Verifies five claims that 'ok' status alone does NOT prove.
 
+Operational claims (must pass · gate Step 2 launch):
   C1: workload binary actually ran (PHASE markers in workload_stderr.log)
   C2: snap_completion_ratio is healthy across the whole session
-  C3: n_windows >= --min-windows (after back-fill) for analysis-ready cells
   C4: Bug-L settle was a no-op (lock_retries == 0) under nominal load
   C5: producer.log had no error-ish lines for any cell
+
+Informational claim (reported, does NOT gate Step 2 per D-25):
+  C3: n_windows >= --min-windows under canonical Phase-1 (128, 64).
+      Failure here means the duration matrix is too short for the
+      canonical analyzer window, which is Plan 03's question, not
+      Plan 02's. Step 2 lengthens durations but does not promise
+      to clear this threshold at every iv.
 
 Reads:
   --cells-dir   directory containing per-cell schema-v2 JSONs
@@ -172,7 +179,11 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
     c5_reason = (f"producer.log errors={perrs}" if perrs > 0
                  else "producer.log clean")
 
-    ok = c1 and c2 and c3 and c4 and c5
+    # Operational ok = the gates that actually block Step 2 launch.
+    # C3 is informational (D-25): low n_windows is a duration-matrix
+    # issue, not an orchestration regression. Plan 03 owns window/hop
+    # tuning. Reported per-cell + per-summary but does not flip ok=False.
+    ok = c1 and c2 and c4 and c5
     return {
         "cell_id": cid,
         "workload": workload,
@@ -187,40 +198,46 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
         "producer_log_errors": perrs,
         "phase_markers": n_markers,
         "claims": {
-            "C1_workload_ran": {"pass": c1, "why": c1_reason},
-            "C2_ratio_healthy": {"pass": c2, "why": c2_reason},
-            "C3_enough_windows": {"pass": c3, "why": c3_reason},
-            "C4_no_settle_retries": {"pass": c4, "why": c4_reason},
-            "C5_producer_log_clean": {"pass": c5, "why": c5_reason},
+            "C1_workload_ran": {"pass": c1, "why": c1_reason, "operational": True},
+            "C2_ratio_healthy": {"pass": c2, "why": c2_reason, "operational": True},
+            "C3_enough_windows": {"pass": c3, "why": c3_reason, "operational": False},
+            "C4_no_settle_retries": {"pass": c4, "why": c4_reason, "operational": True},
+            "C5_producer_log_clean": {"pass": c5, "why": c5_reason, "operational": True},
         },
         "ok": ok,
+        "analysis_ready": ok and c3,
     }
 
 
 def _print_table(records: list[dict]) -> None:
     print(f"\n{'cell':<14} {'workload':<28} {'iv':>5} {'d':>5} "
-          f"{'snaps':>6} {'win':>4} {'ratio':>5} {'C1':>3} {'C2':>3} "
-          f"{'C3':>3} {'C4':>3} {'C5':>3} OK")
-    print("─" * 110)
+          f"{'snaps':>6} {'win':>4} {'ratio':>5} "
+          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} "
+          f"{'[C3]':>4} OPERATIONAL  ANALYSIS-READY")
+    print("─" * 130)
     for r in records:
         if "claims" not in r:
             print(f"{r.get('cell_id', '?'):<14} ERROR: {r.get('error')}")
             continue
         c = r["claims"]
-        marks = " ".join(
+        # Operational claims first (these gate Step 2 launch)
+        op_marks = " ".join(
             "✓" if c[k]["pass"] else "✗"
             for k in ("C1_workload_ran", "C2_ratio_healthy",
-                      "C3_enough_windows", "C4_no_settle_retries",
-                      "C5_producer_log_clean")
+                      "C4_no_settle_retries", "C5_producer_log_clean")
         )
+        # Informational claim in brackets (Plan-03 territory)
+        info_mark = "[✓]" if c["C3_enough_windows"]["pass"] else "[✗]"
         flag = " " if not r["is_warmup"] else "W"
         ratio_str = (f"{r['snap_completion_ratio']:.2f}"
                      if r['snap_completion_ratio'] is not None else "  -- ")
+        op_status = "OK" if r["ok"] else "FAIL"
+        analysis_status = "ready" if r.get("analysis_ready") else "low_window"
         print(f"{r['cell_id']:<14} {r['workload']:<28} "
               f"{r['interval_ms']!s:>5} {r['duration_s']!s:>5} "
               f"{r['n_snaps']:>6} {r['n_windows_computed']:>4} "
-              f"{ratio_str:>5}  {marks}  "
-              f"{'OK' if r['ok'] else 'FAIL'}{flag}")
+              f"{ratio_str:>5}  {op_marks}  {info_mark}  "
+              f"{op_status:<11}  {analysis_status}{flag}")
 
 
 def _summarize(records: list[dict]) -> dict:
@@ -233,6 +250,7 @@ def _summarize(records: list[dict]) -> dict:
         "real_cells": len(real),
         "unreadable_cells": len(bad),
         "passing_real_cells": sum(1 for r in real if r["ok"]),
+        "analysis_ready_real_cells": sum(1 for r in real if r.get("analysis_ready")),
         "claim_pass_counts": {
             "C1_workload_ran": sum(1 for r in real if r["claims"]["C1_workload_ran"]["pass"]),
             "C2_ratio_healthy": sum(1 for r in real if r["claims"]["C2_ratio_healthy"]["pass"]),
@@ -240,6 +258,7 @@ def _summarize(records: list[dict]) -> dict:
             "C4_no_settle_retries": sum(1 for r in real if r["claims"]["C4_no_settle_retries"]["pass"]),
             "C5_producer_log_clean": sum(1 for r in real if r["claims"]["C5_producer_log_clean"]["pass"]),
         },
+        "all_real_cells_operational": all(r["ok"] for r in real) and not bad,
         "all_real_cells_pass": all(r["ok"] for r in real) and not bad,
     }
     return out
@@ -290,18 +309,25 @@ def _main(argv: list[str] | None = None) -> int:
 
     _print_table(records)
     print("\nSUMMARY")
-    print(f"  cells:              {summary['total_cells']} total · "
+    print(f"  cells:                {summary['total_cells']} total · "
           f"{summary['real_cells']} real · "
           f"{summary['warmup_cells']} warmup · "
           f"{summary['unreadable_cells']} unreadable")
-    print(f"  passing real cells: {summary['passing_real_cells']} / "
-          f"{summary['real_cells']}")
+    print(f"  operational pass:     {summary['passing_real_cells']} / "
+          f"{summary['real_cells']}   (gates Step 2 launch)")
+    print(f"  analysis-ready:       {summary['analysis_ready_real_cells']} / "
+          f"{summary['real_cells']}   (operational + C3 cleared)")
     print(f"  per-claim pass counts (out of {summary['real_cells']} real cells):")
     for claim, n in summary["claim_pass_counts"].items():
-        print(f"    {claim:<28}  {n}")
+        op = "operational" if claim != "C3_enough_windows" else "informational (D-25)"
+        print(f"    {claim:<28}  {n:>2}   [{op}]")
     print(f"\n  report written to: {out_path}")
-    print(f"  overall: {'PASS' if summary['all_real_cells_pass'] else 'FAIL'}")
-    return 0 if summary["all_real_cells_pass"] else 1
+    op_status = "PASS" if summary["all_real_cells_operational"] else "FAIL"
+    print(f"  operational status:   {op_status}")
+    if op_status == "PASS" and summary["analysis_ready_real_cells"] < summary["real_cells"]:
+        print(f"  note: some cells have low n_windows (Plan 03 territory · D-25). "
+              f"Step 2 launch is NOT blocked by C3.")
+    return 0 if summary["all_real_cells_operational"] else 1
 
 
 if __name__ == "__main__":

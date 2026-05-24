@@ -524,6 +524,38 @@ class Day10ValidatorTests(unittest.TestCase):
             self.assertFalse(r["claims"]["C1_workload_ran"]["pass"])
             self.assertFalse(r["ok"])
 
+    def test_evaluate_cell_low_windows_still_operational(self):
+        """C3 failure (low n_windows) must NOT flip ok=False (D-25)."""
+        with tempfile.TemporaryDirectory() as td:
+            tdpath = Path(td)
+            cells_dir = tdpath / "cells"
+            workdir = cells_dir / "work"
+            cells_dir.mkdir()
+            cid = "low_win_cell"
+            (workdir / cid).mkdir(parents=True)
+            # add PHASE markers so C1 passes
+            (workdir / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.notes = [
+                "snap completion: actual=148 expected=148 ratio=1.00",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 148  # < window=128 + 50*64
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C1_workload_ran"]["pass"])
+            self.assertTrue(r["claims"]["C2_ratio_healthy"]["pass"])
+            self.assertFalse(r["claims"]["C3_enough_windows"]["pass"])
+            self.assertTrue(r["claims"]["C4_no_settle_retries"]["pass"])
+            self.assertTrue(r["claims"]["C5_producer_log_clean"]["pass"])
+            self.assertTrue(r["ok"], "operational ok must not depend on C3")
+            self.assertFalse(r["analysis_ready"],
+                             "analysis_ready must reflect C3 status")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
