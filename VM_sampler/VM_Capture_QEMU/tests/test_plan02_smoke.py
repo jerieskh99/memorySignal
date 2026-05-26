@@ -924,6 +924,59 @@ class Day13ValidatorC6Tests(unittest.TestCase):
             self.assertFalse(r["claims"]["C2_ratio_healthy"]["pass"])
             self.assertIn("v1", r["claims"]["C2_ratio_healthy"]["why"])
 
+    def test_c4_na_when_no_settle_note(self):
+        """D-76: cells without a `vm settle: ... lock_retries=N` note must
+        NOT fail C4. Backward compat with v1-era + crash recovery."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "no_settle_line"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = False
+            rec.notes = [
+                "snap completion: actual=148 expected=148 ratio=1.00",
+                # NO 'vm settle:' line · only a warning (matches the D-76 bug)
+                "vm settle warning: Command timed out after 5 seconds",
+            ]
+            rec.producer_stats.snapshots_completed = 4000
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C4_no_settle_retries"]["pass"],
+                            "C4 must pass when no settle note exists (NA)")
+            self.assertIn("NA", r["claims"]["C4_no_settle_retries"]["why"])
+
+    def test_c4_fails_when_lock_retries_positive(self):
+        """C4 still flags genuine contention (lock_retries > 0)."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "had_lock_retries"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = False
+            rec.notes = [
+                "snap completion: actual=148 expected=148 ratio=1.00",
+                "vm settle: state='running' lock_retries=3 timeout_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 4000
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C4_no_settle_retries"]["pass"])
+            self.assertIn("lock_retries=3", r["claims"]["C4_no_settle_retries"]["why"])
+
     def test_c6_na_when_no_trajectory_file(self):
         """v1-era cells without keep_dumps must not be penalized."""
         with tempfile.TemporaryDirectory() as td:

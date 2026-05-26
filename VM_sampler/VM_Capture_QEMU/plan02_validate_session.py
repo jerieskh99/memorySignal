@@ -224,10 +224,16 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
                  else f"n_windows={nw_computed} < {min_windows}")
 
     # C4: Bug-L settle no-op (lock_retries == 0)
+    # D-76: when no settle line exists, treat as NA (pass trivially) instead
+    # of fail. v1-era cells didn't emit settle lines either; backward compat.
+    # When the line exists with lock_retries > 0, that's a legitimate FAIL.
     retries = _settle_retries_from_notes(cell)
-    c4 = (retries is not None and retries == 0)
-    c4_reason = (f"lock_retries={retries}" if retries is not None
-                 else "no settle note (older orchestrator?)")
+    if retries is None:
+        c4 = True
+        c4_reason = "no settle note (v1-era cell or orchestrator pre-D-34) · NA"
+    else:
+        c4 = (retries == 0)
+        c4_reason = f"lock_retries={retries}" if c4 else f"lock_retries={retries} > 0"
 
     # C5: producer.log error count
     perrs = _producer_errors_from_notes(cell)

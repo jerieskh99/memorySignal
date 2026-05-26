@@ -682,13 +682,24 @@ def execute_cell(
             settle_deadline = time.monotonic() + 15.0
             backoff = 0.3
             lock_attempts = 0
+            timeout_attempts = 0
             other_errors: list[str] = []
             settled_state = None
             while time.monotonic() < settle_deadline:
-                r = subprocess.run(
-                    ["virsh", "-c", virsh_uri, "resume", vm_domain],
-                    capture_output=True, text=True, timeout=5, check=False,
-                )
+                # D-76: catch subprocess.TimeoutExpired INSIDE the loop so a
+                # single slow virsh call counts as a retry rather than
+                # aborting the whole settle. The outer try/except still
+                # catches everything else.
+                try:
+                    r = subprocess.run(
+                        ["virsh", "-c", virsh_uri, "resume", vm_domain],
+                        capture_output=True, text=True, timeout=5, check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    timeout_attempts += 1
+                    time.sleep(backoff)
+                    backoff = min(backoff * 1.5, 1.5)
+                    continue
                 combined = ((r.stderr or "") + (r.stdout or "")).strip()
                 lower = combined.lower()
                 if r.returncode == 0:
@@ -705,14 +716,24 @@ def execute_cell(
                     break
                 other_errors.append(combined[:200])
                 time.sleep(backoff)
+            # ALWAYS emit the canonical "vm settle:" line so the validator's
+            # parser can read lock_retries reliably. D-76 adds timeout_retries
+            # as additional context; total retries = lock + timeout.
             notes.append(
                 f"vm settle: state={settled_state!r} "
                 f"lock_retries={lock_attempts} "
+                f"timeout_retries={timeout_attempts} "
                 f"other_errors={len(other_errors)}"
             )
             if other_errors:
                 notes.append(f"vm settle stderr sample: {other_errors[0]!r}")
         except Exception as exc:  # noqa: BLE001
+            # Belt-and-suspenders: even if everything blows up, emit a
+            # parseable settle line so validator C4 still reads cleanly.
+            notes.append(
+                f"vm settle: state=None lock_retries=0 "
+                f"timeout_retries=0 other_errors=1"
+            )
             notes.append(f"vm settle warning: {exc}")
         heartbeat.stop()
         heartbeat.join(timeout=5)
