@@ -56,6 +56,18 @@ echo "running" > "$VM_STATE_FILE"
 imageFilePrefix="memory_dump"
 prevImage=""
 
+# Resolve our own script directory so we can launch the B+3.1 APF helper
+# regardless of how the producer was invoked.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# B+3.1 streaming APF helper: per-pair sequence counter and env-var-gated.
+# When TIMING_APF_STREAM is set, after each pmemsave (with a valid prev),
+# launch plan02_apf_helper.py in the background. The helper computes
+# active-page-fraction between prev+curr, appends to the shared JSONL,
+# writes an ack file, and deletes prev. The orchestrator's cell-end
+# barrier waits for all ack files before computing F1 / CV.
+APF_PAIR_SEQ=0
+
 # Optional timing instrumentation. When TIMING_JSONL_PATH is set, the producer
 # emits one JSON line per snapshot with t0..t5 host-side timestamps. See
 # VM_sampler/VM_Capture_QEMU/docs/tuning_plans/01_instrumentation_logging_plan.md.
@@ -168,7 +180,19 @@ while true; do
   echo "[PRODUCER-PMEM] RAW memory dump OK: $newImage"
 
   if [[ -n "$prevImage" && -f "$prevImage" ]]; then
-    if [[ -n "${TIMING_SELF_CLEAN:-}" ]]; then
+    if [[ -n "${TIMING_APF_STREAM:-}" ]]; then
+      # B+3.1 (Δ-1): spawn async APF helper. Helper writes one line to
+      # ${TIMING_APF_JSONL}, an ack file to ${TIMING_APF_ACK_DIR}/seq_NNN.apf_done,
+      # and deletes $prevImage. Producer continues immediately.
+      python3 "${SCRIPT_DIR}/plan02_apf_helper.py" \
+        --prev "$prevImage" \
+        --curr "$newImage" \
+        --apf-jsonl "${TIMING_APF_JSONL}" \
+        --ack-dir "${TIMING_APF_ACK_DIR}" \
+        --seq "$APF_PAIR_SEQ" \
+        >> "${TIMING_APF_HELPER_LOG:-/dev/null}" 2>&1 &
+      APF_PAIR_SEQ=$((APF_PAIR_SEQ + 1))
+    elif [[ -n "${TIMING_SELF_CLEAN:-}" ]]; then
       # Producer-only timing mode: no consumer is running to drain the queue
       # and unlink prev dump. Delete prev ourselves to prevent disk pressure
       # from accumulating across the pass (mechanism vi).

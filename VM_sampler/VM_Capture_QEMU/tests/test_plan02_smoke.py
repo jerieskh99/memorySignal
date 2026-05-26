@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,6 +34,7 @@ import plan02_backfill_nwindows as bf  # noqa: E402
 import plan02_run as pr  # noqa: E402
 import plan02_validate_session as pv  # noqa: E402
 import plan02_metrics_per_cell as pmc  # noqa: E402
+import plan02_apf_helper as apf  # noqa: E402
 
 
 class SchemaTests(unittest.TestCase):
@@ -653,6 +655,288 @@ class Day12MetricsTests(unittest.TestCase):
             self.assertIsNone(m.f1_phase)
             self.assertIsNone(m.cv_workingset)
             self.assertTrue(any("no dumps" in n for n in m.notes))
+
+
+class Day13ApfHelperTests(unittest.TestCase):
+    """B+3.1 · plan02_apf_helper end-to-end tests."""
+
+    def _make_dump(self, path: Path, n_pages: int, marker: int) -> None:
+        # n_pages × 4096 bytes, all bytes set to `marker`
+        path.write_bytes(bytes([marker]) * (n_pages * 4096))
+
+    def test_helper_success_writes_ack_jsonl_and_deletes_prev(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            prev = tdp / "memory_dump-prev.raw"
+            curr = tdp / "memory_dump-curr.raw"
+            self._make_dump(prev, n_pages=4, marker=0x00)
+            self._make_dump(curr, n_pages=4, marker=0xFF)
+            apf_jsonl = tdp / "apf_trajectory.jsonl"
+            ack_dir = tdp / "acks"
+            rc = apf.main([
+                "--prev", str(prev), "--curr", str(curr),
+                "--apf-jsonl", str(apf_jsonl), "--ack-dir", str(ack_dir),
+                "--seq", "0",
+            ])
+            self.assertEqual(rc, apf.EXIT_OK)
+            self.assertFalse(prev.exists(), "prev should be deleted")
+            self.assertTrue(curr.exists(), "curr must remain")
+            self.assertTrue(apf_jsonl.exists())
+            ack = ack_dir / "seq_0000000.apf_done"
+            self.assertTrue(ack.exists())
+            ack_data = json.loads(ack.read_text())
+            self.assertEqual(ack_data["exit_code"], apf.EXIT_OK)
+            self.assertAlmostEqual(ack_data["apf"], 1.0)
+
+    def test_helper_corrupt_curr_exits_code_4(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            prev = tdp / "p.raw"
+            curr = tdp / "c.raw"
+            self._make_dump(prev, n_pages=4, marker=0x00)
+            curr.write_bytes(b"")  # zero-byte = corrupt
+            rc = apf.main([
+                "--prev", str(prev), "--curr", str(curr),
+                "--apf-jsonl", str(tdp / "j.jsonl"),
+                "--ack-dir", str(tdp / "acks"),
+                "--seq", "0",
+            ])
+            self.assertEqual(rc, apf.EXIT_CORRUPT_DUMP)
+            # ack file should still exist with the exit code captured
+            ack = tdp / "acks" / "seq_0000000.apf_done"
+            self.assertTrue(ack.exists())
+            self.assertEqual(json.loads(ack.read_text())["exit_code"],
+                             apf.EXIT_CORRUPT_DUMP)
+
+    def test_helper_concurrent_append_no_interleave(self):
+        """Multiple helpers writing to the same JSONL must not corrupt lines.
+
+        Production note: producer spawns helpers iv-paced (one per snap
+        interval, typically 100-2000 ms apart), so each helper's prev has
+        time to be memmapped before the next helper might delete what
+        was THIS helper's curr (and that helper's prev). We model the
+        same with a small spawn stagger.
+        """
+        import subprocess
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            apf_jsonl = tdp / "t.jsonl"
+            ack_dir = tdp / "acks"
+            ack_dir.mkdir()
+            # Make 6 dump files, then spawn 5 helpers in parallel for pairs.
+            for i in range(6):
+                p = tdp / f"d{i}.raw"
+                self._make_dump(p, n_pages=2, marker=i)
+            procs = []
+            for seq in range(5):
+                prev = tdp / f"d{seq}.raw"
+                curr = tdp / f"d{seq+1}.raw"
+                procs.append(subprocess.Popen([
+                    sys.executable,
+                    str(Path(__file__).resolve().parent.parent / "plan02_apf_helper.py"),
+                    "--prev", str(prev), "--curr", str(curr),
+                    "--apf-jsonl", str(apf_jsonl), "--ack-dir", str(ack_dir),
+                    "--seq", str(seq),
+                ]))
+                # Mimic production: helpers staggered by the iv-pacing,
+                # not all fired at once. 100 ms is enough for each helper
+                # to open its memmaps before the next one launches.
+                time.sleep(0.1)
+            for p in procs:
+                rc = p.wait(timeout=30)
+                self.assertEqual(rc, 0)
+            # All 5 lines must parse cleanly
+            lines = apf_jsonl.read_text().splitlines()
+            self.assertEqual(len(lines), 5)
+            seqs = sorted(json.loads(l)["seq"] for l in lines)
+            self.assertEqual(seqs, [0, 1, 2, 3, 4])
+
+    def test_load_streaming_trajectory_with_sentinel(self):
+        with tempfile.TemporaryDirectory() as td:
+            apf_jsonl = Path(td) / "t.jsonl"
+            apf_jsonl.write_text(
+                json.dumps({"seq": 2, "apf": 0.30}) + "\n" +
+                json.dumps({"seq": 0, "apf": 0.10}) + "\n" +
+                json.dumps({"seq": 1, "apf": 0.20}) + "\n" +
+                json.dumps({"final": True, "n_pairs_expected": 3,
+                            "n_ok": 3, "n_failed": 0, "gap_seqs": []}) + "\n"
+            )
+            traj, sentinel = pmc.load_streaming_trajectory(apf_jsonl)
+            self.assertEqual(traj, [0.10, 0.20, 0.30])
+            self.assertIsNotNone(sentinel)
+            self.assertEqual(sentinel["n_ok"], 3)
+
+    def test_compute_metrics_for_cell_streaming_path(self):
+        """compute_metrics_for_cell prefers streaming trajectory when present."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            image_dir = tdp / "img"
+            image_dir.mkdir()  # empty · would have caused dump-scan fail
+            jsonl = tdp / "snap.jsonl"
+            jsonl.write_text(
+                json.dumps({"t0_before_suspend": 100.0}) + "\n" +
+                json.dumps({"t0_before_suspend": 101.0}) + "\n" +
+                json.dumps({"t0_before_suspend": 102.0}) + "\n"
+            )
+            apf_jsonl = tdp / "apf.jsonl"
+            apf_jsonl.write_text(
+                json.dumps({"seq": 0, "apf": 0.10}) + "\n" +
+                json.dumps({"seq": 1, "apf": 0.12}) + "\n" +
+                json.dumps({"final": True, "n_pairs_expected": 2,
+                            "n_ok": 2, "n_failed": 0, "gap_seqs": []}) + "\n"
+            )
+            m = pmc.compute_metrics_for_cell(
+                cell_id="stream-1", image_dir=image_dir,
+                run_start_epoch=0.0, jsonl_path=jsonl,
+                workload_stderr_path=None, workload_type="steady",
+                streaming_apf_jsonl=apf_jsonl,
+            )
+            self.assertEqual(m.n_pairs_examined, 2)
+            self.assertAlmostEqual(m.apf_mean, 0.11)
+            self.assertIsNotNone(m.cv_workingset)
+
+
+class Day13ValidatorC6Tests(unittest.TestCase):
+
+    def _build_cell_with_trajectory(self, td: Path, with_sentinel: bool,
+                                     n_ok: int = 3, n_expected: int = 3) -> Path:
+        """Set up a cell directory with workdir/apf_trajectory.jsonl.
+        Returns the cell JSON path that plan02_validate_session expects."""
+        cells_dir = td / "cells"
+        workdir_root = cells_dir / "work"
+        cid = "test_cell_cid"
+        cell_workdir = workdir_root / cid
+        cell_workdir.mkdir(parents=True)
+        apf_jsonl = cell_workdir / "apf_trajectory.jsonl"
+        lines = []
+        for i in range(n_ok):
+            lines.append(json.dumps({"seq": i, "apf": 0.1 * (i + 1)}))
+        if with_sentinel:
+            lines.append(json.dumps({
+                "final": True,
+                "n_pairs_expected": n_expected,
+                "n_ok": n_ok,
+                "n_failed": n_expected - n_ok,
+                "gap_seqs": [],
+            }))
+        apf_jsonl.write_text("\n".join(lines) + "\n")
+
+        # Build a passing cell JSON
+        rec = _minimal_v2_record()
+        rec.run_meta.cell_id = cid
+        rec.notes = [
+            "snap completion: actual=148 expected=148 ratio=1.00",
+            "vm settle: state='running' lock_retries=0 other_errors=0",
+        ]
+        rec.producer_stats.snapshots_completed = 4000  # > 50 windows
+        (workdir_root / cid / "workload_stderr.log").write_text(
+            "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+        )
+        cell_path = cells_dir / f"cell_{cid}.json"
+        sc.write_json_atomic(cell_path, rec)
+        return cell_path, workdir_root
+
+    def test_c6_passes_when_complete_trajectory(self):
+        with tempfile.TemporaryDirectory() as td:
+            cell_path, workdir = self._build_cell_with_trajectory(
+                Path(td), with_sentinel=True, n_ok=3, n_expected=3
+            )
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C6_apf_complete"]["pass"])
+            self.assertTrue(r["ok"])
+
+    def test_c6_fails_when_no_sentinel(self):
+        with tempfile.TemporaryDirectory() as td:
+            cell_path, workdir = self._build_cell_with_trajectory(
+                Path(td), with_sentinel=False
+            )
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C6_apf_complete"]["pass"])
+            self.assertFalse(r["ok"], "operational ok must reflect C6 fail")
+
+    def test_c6_fails_when_too_many_gaps(self):
+        with tempfile.TemporaryDirectory() as td:
+            # Only 2 of 10 expected pairs OK
+            cell_path, workdir = self._build_cell_with_trajectory(
+                Path(td), with_sentinel=True, n_ok=2, n_expected=10
+            )
+            r = pv.evaluate_cell(cell_path, workdir, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C6_apf_complete"]["pass"])
+            self.assertFalse(r["ok"])
+
+    def test_c6_na_when_no_trajectory_file(self):
+        """v1-era cells without keep_dumps must not be penalized."""
+        with tempfile.TemporaryDirectory() as td:
+            cells_dir = Path(td) / "cells"
+            workdir_root = cells_dir / "work"
+            workdir_root.mkdir(parents=True)
+            cid = "v1cell"
+            (workdir_root / cid).mkdir()
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.notes = [
+                "snap completion: actual=148 expected=148 ratio=1.00",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 4000
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C6_apf_complete"]["pass"],
+                            "NA C6 must pass trivially for v1 cells")
+            self.assertFalse(r["claims"]["C6_apf_complete"]["operational"])
+            self.assertTrue(r["ok"])
+
+
+class Day13BarrierTests(unittest.TestCase):
+    """B+3.1 cell-end barrier in plan02_run."""
+
+    def test_barrier_zero_pairs_returns_clean(self):
+        with tempfile.TemporaryDirectory() as td:
+            info = pr.wait_for_apf_helpers(Path(td), n_pairs_expected=0,
+                                            timeout_s=1.0)
+            self.assertEqual(info["n_pairs_expected"], 0)
+            self.assertEqual(info["n_ok"], 0)
+
+    def test_barrier_collects_existing_acks(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            for s in range(3):
+                ack = tdp / f"seq_{s:07d}.apf_done"
+                ack.write_text(json.dumps({"seq": s, "exit_code": 0}))
+            info = pr.wait_for_apf_helpers(tdp, n_pairs_expected=3,
+                                            timeout_s=1.0)
+            self.assertEqual(info["n_ok"], 3)
+            self.assertEqual(info["gap_seqs"], [])
+            self.assertFalse(info["timed_out"])
+
+    def test_barrier_detects_gap(self):
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            for s in (0, 1, 3, 4):  # seq=2 missing
+                ack = tdp / f"seq_{s:07d}.apf_done"
+                ack.write_text(json.dumps({"seq": s, "exit_code": 0}))
+            info = pr.wait_for_apf_helpers(tdp, n_pairs_expected=5,
+                                            timeout_s=0.5)
+            self.assertEqual(info["gap_seqs"], [2])
+            self.assertTrue(info["timed_out"])
+
+    def test_sentinel_writer(self):
+        with tempfile.TemporaryDirectory() as td:
+            apf_jsonl = Path(td) / "t.jsonl"
+            apf_jsonl.write_text(json.dumps({"seq": 0, "apf": 0.1}) + "\n")
+            pr.write_apf_final_sentinel(apf_jsonl, {
+                "n_pairs_expected": 5, "n_ok": 4, "n_failed": 1,
+                "gap_seqs": [3], "timed_out": False,
+            })
+            lines = apf_jsonl.read_text().splitlines()
+            self.assertEqual(len(lines), 2)
+            sentinel = json.loads(lines[-1])
+            self.assertTrue(sentinel["final"])
+            self.assertEqual(sentinel["n_ok"], 4)
 
 
 # ---------------------------------------------------------------------------

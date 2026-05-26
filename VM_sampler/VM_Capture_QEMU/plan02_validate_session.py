@@ -122,10 +122,57 @@ def _compute_n_windows(n_snaps: int, window: int, hop: int) -> int:
     return max(0, (n_snaps - window) // hop + 1)
 
 
+def _evaluate_apf_completeness(cell_workdir: Path,
+                                min_ok_ratio: float = 0.95) -> tuple[bool, str, dict]:
+    """B+3.1 Δ-4: C6 trajectory-completeness check.
+
+    Returns (pass, reason, sentinel_dict). pass=True iff:
+      - <cell_workdir>/apf_trajectory.jsonl exists
+      - file contains a sentinel line ({"final": true, ...})
+      - sentinel.n_ok / n_pairs_expected >= min_ok_ratio
+    """
+    apf_jsonl = cell_workdir / "apf_trajectory.jsonl"
+    if not apf_jsonl.is_file():
+        return False, "apf_trajectory.jsonl missing", {}
+    sentinel: dict = {}
+    try:
+        for raw in apf_jsonl.read_text(errors="replace").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("final") is True:
+                sentinel = obj
+                break
+    except OSError as exc:
+        return False, f"read error: {exc}", {}
+    if not sentinel:
+        return False, "final sentinel missing in apf_trajectory.jsonl", {}
+    n_expected = int(sentinel.get("n_pairs_expected") or 0)
+    n_ok = int(sentinel.get("n_ok") or 0)
+    if n_expected <= 0:
+        # No pairs to validate. Cell ran but produced 0 snap pairs (e.g.
+        # 1 snap total). Treat as pass: there is no integrity to check.
+        return True, "no pairs to validate (n_pairs_expected=0)", sentinel
+    ratio = n_ok / n_expected
+    if ratio < min_ok_ratio:
+        return False, (f"completeness {ratio:.2%} < {min_ok_ratio:.0%} "
+                       f"(n_ok={n_ok} expected={n_expected})"), sentinel
+    return True, (f"complete · n_ok={n_ok}/{n_expected} ratio={ratio:.2%}"), sentinel
+
+
 def evaluate_cell(cell_path: Path, workdir_root: Path,
                   min_ratio: float, min_windows: int,
                   window: int, hop: int) -> dict:
-    """Return one health record for a cell. Five booleans + diagnostic ctx."""
+    """Return one health record for a cell. Six booleans + diagnostic ctx.
+
+    B+3.1 Δ-4: adds C6 (apf trajectory completeness · operational gate
+    when the cell has a trajectory file, NA otherwise so v1-era cells
+    are not penalized).
+    """
     cell = _load_cell(cell_path)
     if cell is None:
         return {"cell_path": str(cell_path), "ok": False,
@@ -179,11 +226,22 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
     c5_reason = (f"producer.log errors={perrs}" if perrs > 0
                  else "producer.log clean")
 
+    # C6 · B+3.1 Δ-4 · trajectory completeness (operational when applicable).
+    # NA when the cell's workdir has no apf_trajectory.jsonl (i.e. cell ran
+    # without --keep-dumps · v1-era). NA cells don't fail C6.
+    cell_workdir = workdir_root / cid
+    c6_applicable = (cell_workdir / "apf_trajectory.jsonl").is_file()
+    if c6_applicable:
+        c6, c6_reason, c6_sentinel = _evaluate_apf_completeness(cell_workdir)
+    else:
+        c6, c6_reason, c6_sentinel = True, "NA (no apf trajectory file)", {}
+
     # Operational ok = the gates that actually block Step 2 launch.
     # C3 is informational (D-25): low n_windows is a duration-matrix
     # issue, not an orchestration regression. Plan 03 owns window/hop
     # tuning. Reported per-cell + per-summary but does not flip ok=False.
-    ok = c1 and c2 and c4 and c5
+    # C6 (B+3.1) is operational when applicable; NA cells pass trivially.
+    ok = c1 and c2 and c4 and c5 and c6
     return {
         "cell_id": cid,
         "workload": workload,
@@ -197,12 +255,15 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
         "settle_lock_retries": retries,
         "producer_log_errors": perrs,
         "phase_markers": n_markers,
+        "apf_sentinel": c6_sentinel,
         "claims": {
             "C1_workload_ran": {"pass": c1, "why": c1_reason, "operational": True},
             "C2_ratio_healthy": {"pass": c2, "why": c2_reason, "operational": True},
             "C3_enough_windows": {"pass": c3, "why": c3_reason, "operational": False},
             "C4_no_settle_retries": {"pass": c4, "why": c4_reason, "operational": True},
             "C5_producer_log_clean": {"pass": c5, "why": c5_reason, "operational": True},
+            "C6_apf_complete": {"pass": c6, "why": c6_reason,
+                                 "operational": c6_applicable},
         },
         "ok": ok,
         "analysis_ready": ok and c3,
@@ -212,19 +273,26 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
 def _print_table(records: list[dict]) -> None:
     print(f"\n{'cell':<14} {'workload':<28} {'iv':>5} {'d':>5} "
           f"{'snaps':>6} {'win':>4} {'ratio':>5} "
-          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} "
+          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} {'C6':>3} "
           f"{'[C3]':>4} OPERATIONAL  ANALYSIS-READY")
-    print("─" * 130)
+    print("─" * 140)
     for r in records:
         if "claims" not in r:
             print(f"{r.get('cell_id', '?'):<14} ERROR: {r.get('error')}")
             continue
         c = r["claims"]
         # Operational claims first (these gate Step 2 launch)
+        # C6 may be NA when no trajectory file exists
+        def mark(k: str) -> str:
+            if k not in c:
+                return " "
+            if k == "C6_apf_complete" and not c[k].get("operational"):
+                return "·"  # NA · trivially passes
+            return "✓" if c[k]["pass"] else "✗"
         op_marks = " ".join(
-            "✓" if c[k]["pass"] else "✗"
-            for k in ("C1_workload_ran", "C2_ratio_healthy",
-                      "C4_no_settle_retries", "C5_producer_log_clean")
+            mark(k) for k in ("C1_workload_ran", "C2_ratio_healthy",
+                              "C4_no_settle_retries", "C5_producer_log_clean",
+                              "C6_apf_complete")
         )
         # Informational claim in brackets (Plan-03 territory)
         info_mark = "[✓]" if c["C3_enough_windows"]["pass"] else "[✗]"
@@ -257,6 +325,8 @@ def _summarize(records: list[dict]) -> dict:
             "C3_enough_windows": sum(1 for r in real if r["claims"]["C3_enough_windows"]["pass"]),
             "C4_no_settle_retries": sum(1 for r in real if r["claims"]["C4_no_settle_retries"]["pass"]),
             "C5_producer_log_clean": sum(1 for r in real if r["claims"]["C5_producer_log_clean"]["pass"]),
+            "C6_apf_complete": sum(1 for r in real
+                                    if r["claims"].get("C6_apf_complete", {}).get("pass")),
         },
         "all_real_cells_operational": all(r["ok"] for r in real) and not bad,
         "all_real_cells_pass": all(r["ok"] for r in real) and not bad,
@@ -319,7 +389,12 @@ def _main(argv: list[str] | None = None) -> int:
           f"{summary['real_cells']}   (operational + C3 cleared)")
     print(f"  per-claim pass counts (out of {summary['real_cells']} real cells):")
     for claim, n in summary["claim_pass_counts"].items():
-        op = "operational" if claim != "C3_enough_windows" else "informational (D-25)"
+        if claim == "C3_enough_windows":
+            op = "informational (D-25)"
+        elif claim == "C6_apf_complete":
+            op = "operational when applicable (B+3.1 Δ-4)"
+        else:
+            op = "operational"
         print(f"    {claim:<28}  {n:>2}   [{op}]")
     print(f"\n  report written to: {out_path}")
     op_status = "PASS" if summary["all_real_cells_operational"] else "FAIL"

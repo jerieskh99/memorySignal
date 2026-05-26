@@ -286,6 +286,39 @@ class PerCellMetrics:
 # Main per-cell entry point
 # ---------------------------------------------------------------------------
 
+def load_streaming_trajectory(apf_jsonl: Path) -> tuple[list[float], dict | None]:
+    """B+3.1 Δ-3: read the streaming apf_trajectory.jsonl.
+
+    Returns (trajectory, sentinel) where:
+      - trajectory: APF values sorted by seq (skips gaps)
+      - sentinel: the final-sentinel dict (None if missing)
+    """
+    if not apf_jsonl.is_file():
+        return [], None
+    pairs: list[tuple[int, float]] = []
+    sentinel: dict | None = None
+    try:
+        for raw in apf_jsonl.read_text(errors="replace").splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if obj.get("final") is True:
+                sentinel = obj
+                continue
+            seq = obj.get("seq")
+            apf = obj.get("apf")
+            if isinstance(seq, int) and isinstance(apf, (int, float)):
+                pairs.append((seq, float(apf)))
+    except OSError:
+        return [], None
+    pairs.sort(key=lambda t: t[0])
+    return [v for _, v in pairs], sentinel
+
+
 def compute_metrics_for_cell(
     cell_id: str,
     image_dir: Path,
@@ -297,6 +330,7 @@ def compute_metrics_for_cell(
     hop: int = HOP_DEFAULT,
     page_size: int = PAGE_SIZE_DEFAULT,
     apf_trajectory_max_len: int = 4096,
+    streaming_apf_jsonl: Path | None = None,
 ) -> PerCellMetrics:
     """Compute analyzer_outputs metrics for one cell.
 
@@ -311,40 +345,54 @@ def compute_metrics_for_cell(
     snap_timestamps = load_snap_timestamps(jsonl_path)
     n_snapshots_total = len(snap_timestamps)
 
-    # Find dump files newer than run_start_epoch (this cell's dumps only)
-    dumps: list[Path] = []
-    if image_dir.is_dir():
-        for p in image_dir.glob("memory_dump-*.raw"):
-            try:
-                if p.stat().st_mtime >= run_start_epoch - 1.0:
-                    dumps.append(p)
-            except FileNotFoundError:
-                continue
-    dumps.sort()
-
-    if not dumps:
-        notes.append("no dumps found in image_dir matching run window; "
-                     "metrics empty (cell likely had keep_dumps=False)")
-        return PerCellMetrics(
-            cell_id=cell_id, n_dumps_examined=0, n_pairs_examined=0,
-            n_snapshots_total=n_snapshots_total,
-            n_windows=compute_n_windows(n_snapshots_total, window, hop),
-            workload_type=workload_type, notes=notes,
-        )
-
-    if not _HAS_NUMPY:
-        notes.append("numpy unavailable; trajectory not computed")
-        return PerCellMetrics(
-            cell_id=cell_id, n_dumps_examined=len(dumps), n_pairs_examined=0,
-            n_snapshots_total=n_snapshots_total,
-            n_windows=compute_n_windows(n_snapshots_total, window, hop),
-            workload_type=workload_type, notes=notes,
-        )
-
-    # Trajectory
-    traj = compute_trajectory(dumps, page_size=page_size)
-    notes.append(f"computed {len(traj)} active_page_fraction values "
-                 f"from {len(dumps)} dumps")
+    # B+3.1: prefer streaming trajectory when available (dumps already
+    # deleted by async helpers). Fall back to dump-scan otherwise.
+    traj: list[float] = []
+    n_dumps_examined = 0
+    if streaming_apf_jsonl is not None and streaming_apf_jsonl.is_file():
+        traj, sentinel = load_streaming_trajectory(streaming_apf_jsonl)
+        n_dumps_examined = len(traj) + 1 if traj else 0  # implied dump count
+        if sentinel is not None:
+            notes.append(
+                f"streaming APF: {len(traj)} pairs · sentinel n_ok="
+                f"{sentinel.get('n_ok')} expected="
+                f"{sentinel.get('n_pairs_expected')} "
+                f"gaps={sentinel.get('gap_seqs') or []}"
+            )
+        else:
+            notes.append(f"streaming APF: {len(traj)} pairs · NO sentinel found")
+    else:
+        # Find dump files newer than run_start_epoch (this cell's dumps only)
+        dumps: list[Path] = []
+        if image_dir.is_dir():
+            for p in image_dir.glob("memory_dump-*.raw"):
+                try:
+                    if p.stat().st_mtime >= run_start_epoch - 1.0:
+                        dumps.append(p)
+                except FileNotFoundError:
+                    continue
+        dumps.sort()
+        if not dumps:
+            notes.append("no dumps found in image_dir matching run window; "
+                         "metrics empty (cell likely had keep_dumps=False)")
+            return PerCellMetrics(
+                cell_id=cell_id, n_dumps_examined=0, n_pairs_examined=0,
+                n_snapshots_total=n_snapshots_total,
+                n_windows=compute_n_windows(n_snapshots_total, window, hop),
+                workload_type=workload_type, notes=notes,
+            )
+        if not _HAS_NUMPY:
+            notes.append("numpy unavailable; trajectory not computed")
+            return PerCellMetrics(
+                cell_id=cell_id, n_dumps_examined=len(dumps), n_pairs_examined=0,
+                n_snapshots_total=n_snapshots_total,
+                n_windows=compute_n_windows(n_snapshots_total, window, hop),
+                workload_type=workload_type, notes=notes,
+            )
+        traj = compute_trajectory(dumps, page_size=page_size)
+        n_dumps_examined = len(dumps)
+        notes.append(f"dump-scan APF: {len(traj)} pairs "
+                     f"from {len(dumps)} dumps")
 
     summary_apf = {
         "min": min(traj) if traj else None,
@@ -394,7 +442,7 @@ def compute_metrics_for_cell(
 
     return PerCellMetrics(
         cell_id=cell_id,
-        n_dumps_examined=len(dumps),
+        n_dumps_examined=n_dumps_examined,
         n_pairs_examined=len(traj),
         n_snapshots_total=n_snapshots_total,
         n_windows=compute_n_windows(n_snapshots_total, window, hop),

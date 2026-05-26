@@ -213,6 +213,88 @@ def pre_cell_disk_check(image_dir: Path, ram_mb: int,
     return (free >= needed_gib), info
 
 
+def wait_for_apf_helpers(ack_dir: Path, n_pairs_expected: int,
+                          timeout_s: float = 30.0,
+                          poll_interval_s: float = 0.2) -> dict:
+    """B+3.1 Δ-1 cell-end barrier.
+
+    Poll `ack_dir` until n_pairs_expected ack files exist, OR timeout.
+    Returns dict with: n_ok, n_failed, n_observed, gap_seqs, timed_out.
+    Caller writes the final sentinel based on this result.
+    """
+    deadline = time.monotonic() + timeout_s
+    info = {
+        "n_pairs_expected": int(max(0, n_pairs_expected)),
+        "n_ok": 0,
+        "n_failed": 0,
+        "n_observed": 0,
+        "gap_seqs": [],
+        "timed_out": False,
+    }
+    if n_pairs_expected <= 0:
+        return info
+    last_observed = -1
+    while time.monotonic() < deadline:
+        try:
+            ack_files = list(ack_dir.glob("seq_*.apf_done"))
+        except OSError:
+            ack_files = []
+        if len(ack_files) != last_observed:
+            last_observed = len(ack_files)
+        if len(ack_files) >= n_pairs_expected:
+            break
+        time.sleep(poll_interval_s)
+    # Tally
+    seen: set[int] = set()
+    n_ok = 0
+    n_failed = 0
+    try:
+        for path in ack_dir.glob("seq_*.apf_done"):
+            try:
+                with path.open() as f:
+                    rec = json.load(f)
+                seq = int(rec.get("seq", -1))
+                ec = int(rec.get("exit_code", -1))
+                if seq >= 0:
+                    seen.add(seq)
+                if ec == 0:
+                    n_ok += 1
+                else:
+                    n_failed += 1
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+    except OSError:
+        pass
+    expected_seqs = set(range(n_pairs_expected))
+    info["n_observed"] = len(seen)
+    info["n_ok"] = n_ok
+    info["n_failed"] = n_failed
+    info["gap_seqs"] = sorted(expected_seqs - seen)
+    info["timed_out"] = (len(seen) < n_pairs_expected)
+    return info
+
+
+def write_apf_final_sentinel(apf_jsonl: Path, barrier_info: dict) -> None:
+    """B+3.1 Δ-3: append the final sentinel line so a downstream reader
+    can prove the trajectory file is complete.
+    """
+    sentinel = {
+        "final": True,
+        "n_pairs_expected": int(barrier_info["n_pairs_expected"]),
+        "n_ok": int(barrier_info["n_ok"]),
+        "n_failed": int(barrier_info["n_failed"]),
+        "gap_seqs": list(barrier_info["gap_seqs"]),
+        "timed_out": bool(barrier_info.get("timed_out", False)),
+    }
+    line = json.dumps(sentinel, separators=(",", ":")) + "\n"
+    flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+    fd = os.open(str(apf_jsonl), flags, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
 def scan_producer_log(producer_log: Path, max_errors: int = 5) -> list[str]:
     """Read producer.log tail and return up to `max_errors` distinct
     error-ish lines. Used post-cell to surface pmemsave / virsh failures
@@ -414,11 +496,40 @@ def execute_cell(
     # D-20: if the cell requests keep_dumps (because an offline analyzer
     # needs dump content), force TIMING_SELF_CLEAN OFF so the producer
     # leaves the dumps on disk. The tail cleanup below also honors keep_dumps.
+    # B+3.1 (Δ-1): when keep_dumps is set, enable the streaming APF helper
+    # so the producer launches plan02_apf_helper.py per pair. Disk peak
+    # stays at ~2-3 GiB regardless of cell length.
+    apf_jsonl: Path | None = None
+    apf_ack_dir: Path | None = None
+    apf_helper_log: Path | None = None
     if cell.keep_dumps:
         os.environ.pop("TIMING_SELF_CLEAN", None)
-        notes.append("keep_dumps=1; TIMING_SELF_CLEAN disabled for this cell")
+        apf_jsonl = cell_workdir / "apf_trajectory.jsonl"
+        apf_ack_dir = cell_workdir / "apf_acks"
+        apf_helper_log = cell_workdir / "apf_helper.log"
+        apf_jsonl.parent.mkdir(parents=True, exist_ok=True)
+        apf_ack_dir.mkdir(parents=True, exist_ok=True)
+        # Truncate any prior trajectory / acks for idempotent re-runs.
+        try:
+            apf_jsonl.unlink()
+        except FileNotFoundError:
+            pass
+        for stale_ack in apf_ack_dir.glob("seq_*.apf_done"):
+            try:
+                stale_ack.unlink()
+            except FileNotFoundError:
+                pass
+        os.environ["TIMING_APF_STREAM"] = "1"
+        os.environ["TIMING_APF_JSONL"] = str(apf_jsonl)
+        os.environ["TIMING_APF_ACK_DIR"] = str(apf_ack_dir)
+        os.environ["TIMING_APF_HELPER_LOG"] = str(apf_helper_log)
+        notes.append("B+3.1: TIMING_APF_STREAM enabled · streaming APF helper active")
     else:
         os.environ["TIMING_SELF_CLEAN"] = "1"
+        os.environ.pop("TIMING_APF_STREAM", None)
+        os.environ.pop("TIMING_APF_JSONL", None)
+        os.environ.pop("TIMING_APF_ACK_DIR", None)
+        os.environ.pop("TIMING_APF_HELPER_LOG", None)
     queue_dir = Path(eff_cfg.get("queueDir", "/tmp/queue_dir"))
     try:
         from run_exp2a_consumer_isolation import drain_queue as _drain_queue
@@ -650,6 +761,26 @@ def execute_cell(
         estimated_vm_pause_fraction=summary.get("estimated_vm_pause_fraction"),
     )
 
+    # B+3.1 (Δ-1 cell-end barrier): wait for async APF helpers to drain
+    # before D-51 hook reads the trajectory. Then write the final sentinel
+    # so the validator can prove completeness (Δ-3).
+    apf_barrier_info: dict | None = None
+    if cell.keep_dumps and apf_jsonl is not None and apf_ack_dir is not None:
+        n_pairs_expected = max(0, int(producer_stats.snapshots_completed) - 1)
+        apf_barrier_info = wait_for_apf_helpers(
+            apf_ack_dir, n_pairs_expected, timeout_s=30.0,
+        )
+        try:
+            write_apf_final_sentinel(apf_jsonl, apf_barrier_info)
+        except OSError as exc:
+            notes.append(f"B+3.1 sentinel write failed: {exc}")
+        notes.append(
+            f"B+3.1 barrier: expected={apf_barrier_info['n_pairs_expected']} "
+            f"ok={apf_barrier_info['n_ok']} "
+            f"failed={apf_barrier_info['n_failed']} "
+            f"timed_out={apf_barrier_info['timed_out']}"
+        )
+
     # D-51 · analyzer-then-delete hook
     # ────────────────────────────────────────────────────────────────────
     # If the cell was run with keep_dumps=True (manifest --keep-dumps),
@@ -662,7 +793,13 @@ def execute_cell(
     pcm = None
     if cell.keep_dumps and _HAS_PMC and not cell.is_warmup:
         workload_type = _classify_workload(cell.workload)
-        notes.append(f"D-51: running per-cell metrics (workload_type={workload_type})")
+        # B+3.1: if streaming APF trajectory exists from helpers, prefer it
+        # (dumps already deleted by helpers). Otherwise fall back to dump-scan.
+        use_streaming = apf_jsonl is not None and apf_jsonl.is_file()
+        notes.append(
+            f"D-51: running per-cell metrics "
+            f"(workload_type={workload_type}, streaming={use_streaming})"
+        )
         try:
             pcm = pmc.compute_metrics_for_cell(
                 cell_id=cell.cell_id,
@@ -673,6 +810,7 @@ def execute_cell(
                     if (workload_proc is not None and workload_stderr_path.exists())
                     else None,
                 workload_type=workload_type,
+                streaming_apf_jsonl=apf_jsonl if use_streaming else None,
             )
             # Persist full metrics.json (trajectory + summary + F1 breakdown)
             sc.write_json_atomic(metrics_path, asdict_safe(pcm))

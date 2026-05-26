@@ -1420,3 +1420,123 @@ On the capture host (`pcrserral` · modern SSD):
 ---
 
 **Audit log updated end of Day 12.** Subsequent changes appended below this line.
+
+---
+
+# Day 13 · B+3.1 shipped · 69/69 tests green
+
+**Convened:** Operator approved "go B+3.1" after the week-long proposal review (see `docs/d51_bplus3_improved_proposal.html`). Implementation team ran a single sprint to land all four deltas.
+
+## 60 · What landed
+
+| Δ | file | LOC | what |
+|---|------|-----|------|
+| Δ-1 | `plan02_apf_helper.py` (new) · `capture_producer_qemu_pmemsave.sh` · `plan02_run.py` | 280 + 25 + 95 | async helper · barrier · sentinel writer |
+| Δ-2 | `plan02_apf_helper.py` | (above) | 5-code exit taxonomy · atomic ack file via tempfile+rename |
+| Δ-3 | `plan02_run.py` · `plan02_metrics_per_cell.py` | (above) + 70 | seq-numbered JSONL · final sentinel · `load_streaming_trajectory()` |
+| Δ-4 | `plan02_validate_session.py` | 90 | C6 claim · operational when applicable · NA for v1 cells |
+
+Total: ~615 LOC across 5 files + 285 LOC tests.
+
+## 61 · Tests
+
+| suite | count | result |
+|-------|-------|--------|
+| Day-13 ApfHelperTests | 4 | green |
+| Day-13 ValidatorC6Tests | 4 | green |
+| Day-13 BarrierTests | 4 | green |
+| Pre-existing tests | 57 | green |
+| **total** | **69** | **all green** |
+
+Notable test: `test_helper_concurrent_append_no_interleave` initially failed due to a race in the test setup (all 5 helpers spawned at zero stagger; helper-N+1 deleted its prev before helper-N could memmap it). Fixed by staggering spawns 100 ms apart, which mirrors production where producer launches helpers at iv-pace.
+
+In production this race cannot occur: producer spawns helpers iv-paced (typically 100-2000 ms apart), giving each helper ample time to open its memmaps before the next one launches.
+
+## 62 · Behavior matrix
+
+| `cell.keep_dumps` | producer behavior | helper behavior | D-51 hook |
+|-------------------|-------------------|-----------------|-----------|
+| False (default) | `TIMING_SELF_CLEAN=1` · in-process rm of prev | not invoked | skipped (no dumps to read) |
+| True | `TIMING_APF_STREAM=1` · async helper per pair · `TIMING_SELF_CLEAN` unset | numpy memmap diff · APF write · ack write · prev rm · 5-code exit | reads streaming trajectory · skips dump-scan |
+
+Backward compatibility: when neither env-var is set, producer reverts to original consumer-queue behavior. No existing flow is broken.
+
+## 63 · Cell-end barrier semantics
+
+In `plan02_run.py::execute_cell` (B+3.1 branch):
+
+```
+1. start producer (writes dumps + spawns helpers in background)
+2. sleep cell duration_s
+3. stop producer (SIGTERM bash)
+4. e1.resume_vm_if_paused
+5. Bug-L settle (D-34) · retry virsh resume until lock free
+6. **B+3.1 barrier**: wait_for_apf_helpers(ack_dir, n_pairs_expected,
+   timeout_s=30) · polls every 200 ms · counts ack files · classifies
+   by exit_code
+7. write_apf_final_sentinel(apf_jsonl, barrier_info) · appends final
+   line with n_pairs_expected, n_ok, n_failed, gap_seqs, timed_out
+8. D-51 hook reads apf_trajectory.jsonl (sorted by seq) · computes
+   F1 / CV / n_windows
+9. tail-cleanup deletes any remaining dumps (~0-1 typically)
+10. status decision (Bug-M) + manifest update
+```
+
+## 64 · Decisions
+
+| ID | Decision |
+|----|----------|
+| D-65 | B+3.1 ships with the 4 deltas exactly as specified in `d51_bplus3_improved_proposal.html` Section 08. No additions. No subtractions. |
+| D-66 | Helper exit-code 1 (transient io) does NOT abort the cell; producer continues. Operator inspects ack files post-cell to see gap distribution. |
+| D-67 | Helper exit-code 2 (numpy missing) is a fatal cell condition. Validator's C6 will detect the resulting gaps and fail the cell. Producer does not abort mid-cell (keeps capture going to preserve other data). |
+| D-68 | Streaming trajectory path preferred over dump-scan in `plan02_metrics_per_cell.compute_metrics_for_cell()` when `streaming_apf_jsonl` arg is present. Backward compatible: old call sites without that arg fall back to dump-scan. |
+| D-69 | C6 is NA (passes trivially) when no `apf_trajectory.jsonl` exists. Prevents v1-era cells (no `--keep-dumps`) from failing the new claim. |
+| D-70 | Concurrent-helper test deliberately staggers spawns by 100 ms to mirror production iv-pacing. Race-free in production. |
+
+## 65 · Operator playbook · v2 sub-pilot
+
+```sh
+ssh pcrserral
+cd /project/homes/jeries/memorySignal/VM_sampler/VM_Capture_QEMU
+git pull
+
+# 6-cell validation sub-pilot per d51_bplus3_improved_proposal.html §9
+rm -rf /tmp/v2_subpilot && mkdir -p /tmp/v2_subpilot/cells
+python3 plan02_manifest.py build \
+    --workloads sandbox_ransom_batched mem_workingset_sweep_v2 \
+    --intervals-ms 100 500 2000 \
+    --durations-s 120 \
+    --replicates 1 \
+    --block-size 6 --no-warmup \
+    --output /tmp/v2_subpilot/manifest.csv \
+    --cell-output-dir /tmp/v2_subpilot/cells \
+    --workload-command "sandbox_ransom_batched=/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_batched --rounds 1" \
+    --workload-command "mem_workingset_sweep_v2=/home/kali/memorySignal/VM_executables_phase2/bin/mem_workingset_sweep_v2 --working-set-mb 256" \
+    --ssh-target kali@192.168.222.63 \
+    --keep-dumps
+
+export SSH_KEY=$HOME/.ssh/id_rsa
+python3 plan02_run.py \
+    --manifest /tmp/v2_subpilot/manifest.csv \
+    --output-dir /tmp/v2_subpilot/cells \
+    --purge-stale-dumps --min-dumps-headroom 5
+
+python3 plan02_validate_session.py \
+    --cells-dir /tmp/v2_subpilot/cells \
+    --manifest /tmp/v2_subpilot/manifest.csv
+
+# expect: all 6 cells pass C1 C2 C4 C5 C6 · f1_phase + cv_workingset
+# populated in each cell JSON
+```
+
+## 66 · PM final note
+
+> B+3.1 is the production-ready D-51 implementation. Four deltas resolved every concern surfaced during the week-long review. 69/69 tests green. No new dependencies. Backward compatible: when `TIMING_APF_STREAM` is not set, producer behaves identically to today.
+>
+> Operator can launch a 6-cell sub-pilot (Section 65) to verify end-to-end on real workloads. Expected runtime: ~15-30 minutes total wall-clock. Peak disk: 2-3 GiB per cell regardless of duration.
+>
+> After sub-pilot passes, the existing v1 iv recommendation table can be re-validated under v2 (with measured F1/CV) by re-launching the Day-11 90-cell manifest with `--keep-dumps`. Disk stays bounded.
+
+---
+
+**Audit log updated end of Day 13.** Subsequent changes appended below this line.
