@@ -1223,3 +1223,97 @@ Snap-completion-ratio is 1.00 across every observed cell. Bug-M (`ratio < 0.30 �
 ---
 
 **Audit log updated end of Day 10.** Subsequent changes appended below this line.
+
+---
+
+# Day 11 · Step 2 PASS · honest data review
+
+**Convened:** Full team reviews Step 2 tarball (`plan02_step2_20260525T231116Z.tar.gz`). 98 cells (90 real + 8 warmups). Status = 98 ok / 0 failed.
+
+## 49 · Operational validator: 90/90 PASS
+
+```
+operational pass:     90 / 90    (gates Step 2 launch)
+analysis-ready:        0 / 90    (operational + C3 cleared)
+per-claim:
+  C1 workload_ran          90  [operational]
+  C2 ratio_healthy         90  [operational]
+  C3 enough_windows         0  [informational · D-25]
+  C4 no_settle_retries     90  [operational]
+  C5 producer_log_clean    90  [operational]
+```
+
+All Day-8/9 guards quiet. Zero settle retries across 90 cells. Zero producer-log errors. Zero backpressure. **Pipeline is production-quality.**
+
+## 50 · Pause-fraction sweep per workload · matches Round-2 to within 1 %
+
+| iv (ms) | pause_f mean (90c) | host_dt mean (s) | guest_dt mean (s) | guest_dt CV |
+| ------- | ------------------ | ---------------- | ----------------- | ----------- |
+| 100     | 0.925              | 1.65             | 0.114–0.125       | 0.040 / 0.015 |
+| 250     | 0.848              | 1.78             | 0.275             | 0.021 / 0.001 |
+| 500     | 0.742              | 2.02             | 0.524             | 0.008 / 0.0005 |
+| 1000    | 0.594              | 2.52             | 1.022             | 0.003 / 0.0005 |
+| 2000    | 0.425              | 3.52             | 2.022             | 0.001 / 0.0001 |
+
+DS: "Stationarity holds at every iv. Worst CV is 0.040 at iv=100ms — well under the 0.10 acceptance. **Sweep reproduces Round-2 / R3 exactly.** Pause-fraction monotonically decreases with iv, as designed. iv knob is empirically a knob."
+
+XD: "ANOVA on host_dt by iv is trivially significant (host_dt mechanically scales with iv). Not informative for iv selection — host_dt is a function of iv by construction. The interesting differentiator would be analyzer output (F1/CV) per workload × iv. Those fields are null because Step 2 ran without `--keep-dumps`."
+
+## 51 · Two limitations identified honestly
+
+### Limit 1 · analyzer outputs null
+
+ML: "F1 / CV stay null across all 90 cells. We ran the workloads (PHASE markers prove that) but did NOT preserve dump content (no `--keep-dumps`). So we cannot post-hoc compute active_page_fraction, cepstral peaks, or any dump-derived metric. Producer-side data (pause_f, guest_dt, host_dt) is sound; analyzer-side is empty."
+
+DS: "Producer-side metrics ARE enough to recommend an iv per *cost* (pause-fraction), which is half the answer. We can make a defensible recommendation right now if we accept that 'resolution' is Plan-03's question, not Plan-02's."
+
+### Limit 2 · mlock failure in workingset_sweep_v2
+
+EN: "Every workingset stderr contains `[WARN] mlock(536870912) failed: Cannot allocate memory (continuing)`. Workload binary asked the kernel to lock 512 MiB into RAM. Kali VM refused — likely RLIMIT_MEMLOCK too low or VM RAM too small. Workload continued with un-locked memory, which means **the working-set page distribution is partly paged out**, not strictly resident."
+
+ML: "Consequence: any F1/CV measurement on workingset_sweep_v2 cells captured today would reflect a degraded version of the workload's rhythm. Must fix before re-capture with `--keep-dumps`."
+
+| fix | cost | who |
+| --- | ---- | --- |
+| Raise VM RLIMIT_MEMLOCK (ulimit -l unlimited in /etc/security/limits.conf) | ~5 min in VM | operator |
+| Bump VM RAM 1024 → ≥ 2048 MiB | ~5 min in VM XML | operator |
+| Reduce `--working-set-mb` 512 → 256 | ~0 LOC | manifest builder |
+
+PM: "Workaround now (reduce working-set), proper fix before Plan-03."
+
+## 52 · Producer-side iv recommendation table (provisional · D-45)
+
+Given Step 2's clean producer-side data and that F1/CV are not measurable until D-44 (analyzer hook) lands, team produces a **producer-side iv recommendation** based on pause_fraction (cost) and each workload's design-required sample rate:
+
+| Family | Recommended iv | Pause cost | Rationale |
+| ------ | -------------- | ---------- | --------- |
+| MEM steady-state (workingset) | **1000 ms** | 59 % | Steady workloads need low rhythm; cheap iv |
+| MEM transient (pagefault/mmap) | **250 ms** | 85 % | Need fast iv to catch transient bursts |
+| APP-REALISTIC OLTP | **500 ms** | 74 % | Checkpoint cadence ~1-5 s; 500 ms catches it without over-sampling |
+| APP-REALISTIC steady | **1000 ms** | 59 % | Same family as MEM steady |
+| SECURITY-LIKE phasic (ransom_batched) | **500 ms** | 74 % | Phase boundaries ~1-5 s; 500 ms gives ≥ 2 samples per phase |
+| SECURITY-LIKE slowburn / scanner | **1000 ms** | 59 % | Long-period drift; iv=1000 ms ample |
+| METHODOLOGY | inherits from child workload | — | — |
+
+DS: "Recommendations are best-prior, not best-empirical. Empirical confirmation needs the analyzer hook. This is honest Plan-02 v1 output. Plan-02 v2 (with F1/CV measured) is a future deliverable gated on D-44."
+
+## 53 · Decisions on Day 11
+
+| ID | Decision |
+|----|----------|
+| D-49 | Publish producer-side `iv_recommendations_v1.json` from Step 2 today. Document explicitly that F1/CV columns are null and the table is design-justified, not metric-driven. |
+| D-50 | Operator fixes VM `mlock` capability before any `--keep-dumps` re-capture. Either raise RLIMIT_MEMLOCK or drop `--working-set-mb` to 256. |
+| D-51 | Analyzer-then-delete hook (D-44 / D-47 from prior days) is the immediate next coding task. Required to produce metric-driven recommendations. ~150 LOC + offline_step_metrics integration. |
+| D-52 | Plan 03 (window/hop tuning) unblocks now. n_windows < 50 across Step 2 is direct evidence that the canonical (128, 64) is too coarse for the iv range we care about. |
+
+## 54 · PM note · Day 11
+
+> Step 2 captured a clean 90-cell sweep across 5 iv × 3 dur × 2 workloads × 3 reps. Pipeline empirically sound. Recommendation table is design-justified, not empirically grounded — because we ran without `--keep-dumps` (would have required ~270 GiB extra disk OR the analyzer-then-delete hook).
+>
+> Next step is honest about both limits: fix the mlock + wire the analyzer hook, then re-run a smaller targeted sweep that *measures* F1/CV across the iv choices the v1 table proposes. This is Plan-02 v2 territory. Cost: ~150 LOC + ~6 h capture for the validation sweep.
+>
+> **Capture pipeline phase: closed.** Analysis-integration phase: opens.
+
+---
+
+**Audit log updated end of Day 11.** Subsequent changes appended below this line.

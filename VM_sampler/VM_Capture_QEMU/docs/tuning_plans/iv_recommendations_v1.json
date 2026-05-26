@@ -1,0 +1,46 @@
+{
+  "schema": "plan02.iv_recommendations.v1",
+  "source": "Step 2 sub-pilot · 90 cells · 5 iv × 3 dur × 2 workloads × 3 reps",
+  "captured_at": "2026-05-25T23:11:16Z",
+  "host": "pcrserral",
+  "tarball": "plan02_step2_20260525T231116Z.tar.gz",
+  "operational_validator": {
+    "real_cells": 90,
+    "operational_pass": 90,
+    "claims_pass": {
+      "C1_workload_ran": 90,
+      "C2_ratio_healthy": 90,
+      "C3_enough_windows": 0,
+      "C4_no_settle_retries": 90,
+      "C5_producer_log_clean": 90
+    },
+    "analysis_ready": 0
+  },
+  "pause_fraction_sweep": [
+    {"interval_ms": 100,  "pause_fraction_mean": 0.925, "host_dt_mean_s": 1.65, "guest_dt_mean_s_min": 0.114, "guest_dt_mean_s_max": 0.125, "guest_dt_cv_max": 0.040, "n_cells": 18},
+    {"interval_ms": 250,  "pause_fraction_mean": 0.848, "host_dt_mean_s": 1.78, "guest_dt_mean_s_min": 0.275, "guest_dt_mean_s_max": 0.275, "guest_dt_cv_max": 0.021, "n_cells": 18},
+    {"interval_ms": 500,  "pause_fraction_mean": 0.742, "host_dt_mean_s": 2.02, "guest_dt_mean_s_min": 0.518, "guest_dt_mean_s_max": 0.523, "guest_dt_cv_max": 0.008, "n_cells": 18},
+    {"interval_ms": 1000, "pause_fraction_mean": 0.594, "host_dt_mean_s": 2.52, "guest_dt_mean_s_min": 1.019, "guest_dt_mean_s_max": 1.023, "guest_dt_cv_max": 0.003, "n_cells": 18},
+    {"interval_ms": 2000, "pause_fraction_mean": 0.425, "host_dt_mean_s": 3.52, "guest_dt_mean_s_min": 2.021, "guest_dt_mean_s_max": 2.023, "guest_dt_cv_max": 0.001, "n_cells": 18}
+  ],
+  "recommendations": [
+    {"family": "MEM steady-state",          "workload_example": "mem_workingset_sweep_v2",  "recommended_interval_ms": 1000, "pause_fraction_cost": 0.59, "rationale": "low-rhythm steady workload; cheap iv preserves coverage"},
+    {"family": "MEM transient",             "workload_example": "mem_pagefault_density_v2", "recommended_interval_ms": 250,  "pause_fraction_cost": 0.85, "rationale": "transient bursts need fast iv to catch ~100-500 ms events"},
+    {"family": "APP-REALISTIC OLTP",        "workload_example": "app_sqlite_oltp_v2",        "recommended_interval_ms": 500,  "pause_fraction_cost": 0.74, "rationale": "checkpoint cadence ~1-5 s; 500 ms gives sufficient temporal coverage"},
+    {"family": "APP-REALISTIC steady",      "workload_example": "app_compress_streaming_v2", "recommended_interval_ms": 1000, "pause_fraction_cost": 0.59, "rationale": "steady throughput workloads tolerate slow iv"},
+    {"family": "SECURITY-LIKE phasic",      "workload_example": "sandbox_ransom_batched",    "recommended_interval_ms": 500,  "pause_fraction_cost": 0.74, "rationale": "phase boundaries at ~1-5 s; 500 ms gives ≥ 2 samples per phase"},
+    {"family": "SECURITY-LIKE slowburn",    "workload_example": "sandbox_ransom_slowburn",   "recommended_interval_ms": 1000, "pause_fraction_cost": 0.59, "rationale": "long-period drift; iv=1000 ms ample"},
+    {"family": "METHODOLOGY",               "workload_example": "mp_phase_boundary_inference","recommended_interval_ms": null, "pause_fraction_cost": null, "rationale": "inherits from child workload it drives"}
+  ],
+  "caveats": [
+    "F1/CV columns are NULL across all 90 cells because Step 2 ran without --keep-dumps. Recommendations are design-justified, not empirically grounded by analyzer output.",
+    "workingset_sweep_v2 cells logged mlock(512 MiB) failure: working-set page distribution was partly paged out. Fix VM RLIMIT_MEMLOCK or reduce --working-set-mb to 256 before re-capture.",
+    "C3 (n_windows >= 50 at canonical 128/64) fails for every cell. Plan 03 (window/hop tuning) is the proper response, not lengthening Step 2 durations further."
+  ],
+  "next_steps": [
+    "D-50: operator fixes VM mlock capability or reduces --working-set-mb",
+    "D-51: analyzer-then-delete hook (D-44) wired into plan02_run.py; ~150 LOC",
+    "Plan-02 v2 capture: smaller targeted sweep that measures F1/CV at each recommended iv to confirm or revise the table",
+    "D-52: Plan 03 (window/hop tuning) unblocks; n_windows < 50 directly motivates the smaller window/hop choice"
+  ]
+}
