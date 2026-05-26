@@ -309,3 +309,71 @@ If results show poor compression (ratio > 60 %) on representative dumps, **scrap
 ---
 
 **Audit closed.** No code changes shipped. Operator action: run Section 4 compression test. Drop the output back for the team to interpret + decide between mode 1 / mode 2 / neither.
+
+---
+
+## 10 · Empirical result · ratio measured on `pcrserral`
+
+Operator ran `keep_dumps_compression_test.sh` against a 1.07 GB dump of the live Kali VM. Real numbers below; refines every estimate above.
+
+```
+method        bytes       ratio    comp(s)  decomp(s)  notes
+raw         1073741824    100.00 %    0.000      0.000  identity
+zstd-3       162311758     15.12 %    3.079      0.949  round-trip OK
+zstd-9       152643446     14.22 %   13.025      0.914  round-trip OK
+zstd-19      132416951     12.33 %  318.848      1.166  round-trip OK
+gzip-3       178199639     16.60 %   10.881         —   not round-trip tested
+```
+
+### Interpretation
+
+| algorithm | conclusion |
+|-----------|-----------|
+| **zstd-3** | **chosen.** 15.12 % ratio · 3.1 s compress · 0.95 s decompress. Sweet spot. |
+| zstd-9 | 4× slower for 0.9 pp better ratio. Not worth. |
+| zstd-19 | 100× slower for 2.8 pp better ratio. Wasteful. |
+| gzip-3 | Strictly worse than zstd-3 on both ratio and time. Reject. |
+| lz4 | Not installed on host. Skip; zstd-3 strictly dominates lz4's typical ratio anyway. |
+
+### Disk budget at the measured 15.12 % ratio
+
+| scenario | raw | zstd-3 | host fits? |
+|----------|-----|--------|-----------|
+| single failed cell (~150 dumps avg) | 150 GiB | ~23 GiB | yes · trivially |
+| 90-cell pilot full archive | ~40 TB | ~6 TB | NO · still 40× over |
+| 50 GiB archive cap | — | ~330 dumps | yes · 3-5 cells worth |
+| 100 GiB archive cap | — | ~660 dumps | yes · 6-10 cells |
+
+### Revised verdict · what the team would build now
+
+`DE`: "15 % is **way better than my 30 % prior**. Mode 1 storage cost is negligible at expected failure rates."
+
+`EN`: "3 s zstd-3 per dump · post-cell batch only · never inline. Doubling cell wall-clock for compression is unacceptable."
+
+`ML`: "Decompression is < 1 s. Archived cell is cheap to re-open. Mode 2 (ring-buffered archive · 3-10 cells) is now a real option, not aspirational."
+
+`XD`: "Mode 1 (failed-only) is the obvious build. Mode 2 stays operator-driven · only when an actual archive need arises."
+
+`DS`: "Trajectory + workload stderr stay the analytical sufficient statistic. Mode 1 is debug support, not analysis-required data."
+
+`SA`: "Mode 1 hooks into the existing failure path. Mode 2 would reuse cell_workdir + a ring-buffer pruner. ~25 + ~40 LOC respectively."
+
+`EE`: "'Failed cells preserved compressed' is a defensible thesis footnote when describing artifact retention policy."
+
+`PM`: "Default OFF stays. **Mode 1 is now worth implementing.** Mode 2 stays optional · operator-triggered when archive need actually arises."
+
+### Updated decisions
+
+| ID | Decision (updated) |
+|----|-------------------|
+| D-58 | UNCHANGED · default retention OFF. |
+| D-59 | CLOSED · compression test ran · zstd-3 ratio measured at 15.12 % on `pcrserral`. |
+| D-60 | **PROMOTED to GO-WHEN-OPERATOR-APPROVES** · mode 1 (`--keep-dumps-on-fail`) is worth building. ~25 LOC. |
+| D-61 | UNCHANGED · mode 2 (`--archive-compressed`) deferred · operator-triggered. |
+| D-62 | UNCHANGED · thesis reproducibility does not require raw retention. |
+| D-63 | UNCHANGED · reviewer-request scenario uses one-off `--keep-dumps`. |
+| D-64 (new) | If mode 1 ships, the compression algorithm is fixed to `zstd -3` based on the empirical measurement. No tunable level flag · keep the code simple. |
+
+### Pending operator approval
+
+Mode 1 code (~25 LOC) is queued. Will land if operator approves with "go". Otherwise this audit closes with the empirical result captured and no behavior change.
