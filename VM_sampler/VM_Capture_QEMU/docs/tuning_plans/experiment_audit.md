@@ -1317,3 +1317,106 @@ DS: "Recommendations are best-prior, not best-empirical. Empirical confirmation 
 ---
 
 **Audit log updated end of Day 11.** Subsequent changes appended below this line.
+
+---
+
+# Day 12 · D-51 implemented · analyzer-then-delete hook lands
+
+**Convened:** PM directs implementation team (ML + DS + SA + EN + DE). D-51 was the gate for Plan-02 v2 and was deferred at Day-11 close as the next coding task.
+
+## 55 · Design choice · leaner analyzer, not full offline_step_metrics
+
+`ML` opens with the integration audit:
+
+> "The existing `offline_step_metrics.py` runs on `run_matrix.npy` files produced by the consumer. To call it per-cell we'd need to spin up the consumer pipeline + the MSC / Cepstrum / PLV stack between every cell. That's ~1-3 minutes of analyzer time per cell on top of the capture time, plus loading the full `plv_calcolator` + `coherence_temp_spec_stability` modules.
+>
+> For D-51's stated job — populate `analyzer_outputs.{f1_phase, cv_workingset, n_windows}` from kept dumps — we don't need the full stack. We need exactly two things:
+> 1. The active-page-fraction trajectory (which is what the consumer is *also* computing under the hood, via page-level XOR of consecutive dumps).
+> 2. A stub change-point detector + F1 score against workload stderr PHASE markers (logic already in `mp_phase_boundary_inference.py`).
+>
+> Both can be implemented in ~300 LOC of standalone numpy + stdlib code. The full MSC/Cepstrum pipeline can be wired in later (Plan 03 territory) by reading the same trajectory we'd already saved."
+
+`DS` agrees:
+
+> "active_page_fraction trajectory is the unit observable for cv_workingset (just std/mean over the trajectory) AND it's the input to the boundary detector for f1_phase. One trajectory = both metrics. Leaner is correct here."
+
+`SA` flags:
+
+> "Make sure the leaner module is *interface-compatible* with a future drop-in of offline_step_metrics. Specifically: write the trajectory to disk in a stable shape that the consumer/full-analyzer can read back. That way 'leaner now, full later' doesn't require schema changes."
+
+## 56 · Decisions
+
+| ID | Decision |
+|----|----------|
+| D-53 | Build `plan02_metrics_per_cell.py` as a standalone module · numpy + stdlib only · no plv_calcolator dependency. ~300 LOC. |
+| D-54 | Per-cell metrics path: when `cell.keep_dumps=True` AND cell is not a warmup, after producer stops but BEFORE tail-cleanup, compute the trajectory + F1/CV, write `<workdir>/metrics.json`, then let tail-cleanup delete dumps. |
+| D-55 | Workload classification helper in `plan02_run.py`: maps workload name → `phasic` / `steady` / `unknown` based on substring match. Used to drive whether F1 or CV is the primary metric. |
+| D-56 | Trajectory downsampling: if more than 4096 active_page_fraction values, save every Nth in the per-cell JSON; keep full trajectory in `metrics.json` side-artifact. Avoids bloating the cell JSON when 30-min cells produce ~1700 values. |
+| D-57 | When D-51 ran successfully (`pcm.n_dumps_examined > 0`), tail-cleanup deletes the dumps to free disk. When it didn't (numpy missing, warmup, no dumps), preserve dumps so operator can debug. |
+
+## 57 · Implementation summary
+
+New file: `plan02_metrics_per_cell.py` (~440 LOC)
+- `active_page_fraction(a_path, b_path)`: numpy.memmap XOR per page → fraction of pages that differ
+- `compute_trajectory(dumps)`: N-1 APF values from N sorted dumps
+- `parse_phase_markers(stderr_path)`: regex extraction of `[PHASE]` markers from workload stderr
+- `phase_markers_to_snap_indices(...)`: maps marker epoch times to nearest snap index
+- `detect_boundaries_diff(traj)`: stub change-point detector (median + 1.5σ threshold on |Δ traj|)
+- `f1_score(predicted, truth, tolerance)`: precision/recall/F1 with index-tolerance window
+- `cv_workingset(traj)`: std/mean of trajectory
+- `compute_n_windows(n_snaps, w, h)`: sliding-window count (canonical 128/64 default)
+- `compute_metrics_for_cell(...)`: top-level entry · returns `PerCellMetrics` dataclass
+- CLI for standalone invocation + smoke testing
+
+Modified: `plan02_run.py`
+- Top-level import of `plan02_metrics_per_cell` (lazy fallback if numpy missing)
+- New helper `_classify_workload(name) → phasic|steady|unknown` (~20 LOC)
+- New helper `asdict_safe(obj) → dict` for dataclass JSON serialization
+- `execute_cell()`: D-51 hook block between producer-end and tail-cleanup
+  - Skip if `cell.keep_dumps=False` (no dumps to analyze)
+  - Skip if warmup cell (output discarded anyway)
+  - Skip + log if numpy/pmc unavailable
+  - Otherwise: compute metrics, write `metrics.json`, populate `analyzer_outputs`
+- Tail-cleanup ordering: D-51 metrics complete first, THEN dumps deleted
+
+Updated: `tests/test_plan02_smoke.py`
+- 12 new tests for D-51 logic:
+  - phase marker regex extraction
+  - n_windows math (3 cases)
+  - cv_workingset (simple / zero-mean / singleton)
+  - detect_boundaries_diff (spike detection)
+  - f1_score (perfect / no-overlap / tolerance window)
+  - active_page_fraction (identical / one-page-differs)
+  - compute_metrics_for_cell (no-dumps graceful path)
+- 56/56 tests green
+
+Verified end-to-end with synthetic 5-dump cell + 2 PHASE markers:
+```
+n_dumps: 5 · n_pairs: 4 · apf trajectory: [0.25, 0.50, 0.75, 0.75]
+apf mean: 0.5625 · cv: 0.426 · n_windows: 1 (at small window=4)
+phase_markers: 2 · truth_idx: [0] · predicted_idx: []
+f1: 0.0 (synthetic monotonic trajectory; stub detector found nothing)
+```
+
+Stub detector behavior verified: it requires a sharp |Δ APF| spike to fire. Monotonic synthetic data correctly does not trigger false-positive boundaries. Real phasic workloads (ransom_batched) produce step-shaped APF trajectories where the detector should fire.
+
+## 58 · Cost estimate · per-cell analyzer overhead
+
+On the capture host (`pcrserral` · modern SSD):
+
+| dump size | n_pairs | analyzer time |
+|-----------|---------|---------------|
+| 1 GiB | 10 | ~5 s |
+| 1 GiB | 100 | ~50 s |
+| 1 GiB | 500 | ~4 min |
+| 1 GiB | 1000 | ~8 min |
+
+90-cell Step-2-style pilot with `--keep-dumps`: analyzer adds ~1.5-2.5 h on top of ~14 h capture. Acceptable. Smaller v2 sub-pilot (~30 cells × 5-min durations): ~10 min total analyzer overhead.
+
+## 59 · PM final note
+
+> D-51 lands as a standalone leaner module rather than as an offline_step_metrics integration. Same trajectory output; future full-analyzer wiring can read the saved trajectory or recompute from preserved dumps. v2 capture is now structurally enabled. Operator needs to: (a) fix VM mlock per D-50, (b) re-build manifest with `--keep-dumps`, (c) launch as before. F1/CV will populate per-cell.
+
+---
+
+**Audit log updated end of Day 12.** Subsequent changes appended below this line.

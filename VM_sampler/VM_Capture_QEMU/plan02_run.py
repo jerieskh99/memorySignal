@@ -50,6 +50,11 @@ from pathlib import Path
 import plan02_manifest as mf
 import plan02_schema as sc
 import run_timing_instrumentation_experiment as e1
+try:
+    import plan02_metrics_per_cell as pmc
+    _HAS_PMC = True
+except ImportError:  # pragma: no cover
+    _HAS_PMC = False
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -82,6 +87,38 @@ def estimated_pause_fraction(iv_ms: int) -> float:
             t = (iv_ms - lo) / (hi - lo)
             return PAUSE_FRACTION_BY_IV[lo] * (1 - t) + PAUSE_FRACTION_BY_IV[hi] * t
     return 0.7  # fallback
+
+
+def _classify_workload(workload: str) -> str:
+    """Map workload name to phasic / steady / unknown for D-51 metric
+    selection. Phasic workloads expect phase-boundary detection (F1);
+    steady workloads expect active-page-fraction CV across windows.
+    """
+    w = (workload or "").lower()
+    phasic_keys = ("ransom_batched", "ransom_seq", "ransom_selective",
+                   "ransom_slowburn", "scanner_metadata",
+                   "phase_boundary", "phasic")
+    steady_keys = ("workingset_sweep", "writemag_sweep",
+                   "rmw_intensity", "pagefault_density",
+                   "mmap_traversal", "hashtable_intensive",
+                   "compress_streaming", "compress_gzip",
+                   "decompress_gzip", "json_parse", "sqlite_oltp",
+                   "sqlite_analytical", "steady")
+    if any(k in w for k in phasic_keys):
+        return "phasic"
+    if any(k in w for k in steady_keys):
+        return "steady"
+    return "unknown"
+
+
+def asdict_safe(obj: object) -> dict:
+    """Like dataclasses.asdict but degrades to repr() for non-serializable
+    fields. Used to persist plan02_metrics_per_cell.PerCellMetrics as JSON.
+    """
+    from dataclasses import asdict, is_dataclass
+    if is_dataclass(obj):
+        return asdict(obj)
+    return {"value": repr(obj)}
 
 
 def expected_snapshots(duration_s: int, iv_ms: int) -> int:
@@ -613,23 +650,75 @@ def execute_cell(
         estimated_vm_pause_fraction=summary.get("estimated_vm_pause_fraction"),
     )
 
-    # Analyzer outputs: placeholder; ML/DS owners plug in
-    # offline_step_metrics integration in follow-up.
-    analyzer = sc.AnalyzerOutputs(
-        f1_phase=None,
-        cv_workingset=None,
-        n_windows=0,
-        n_snapshots=producer_stats.snapshots_completed,
-    )
+    # D-51 · analyzer-then-delete hook
+    # ────────────────────────────────────────────────────────────────────
+    # If the cell was run with keep_dumps=True (manifest --keep-dumps),
+    # the dumps are still on disk. Run the per-cell metrics computation
+    # NOW (before tail-cleanup), populate analyzer_outputs, write a
+    # metrics.json side-artifact, then let the cleanup step delete the
+    # dumps to free disk for the next cell.
+    image_dir = Path(eff_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump"))
+    metrics_path = cell_workdir / "metrics.json"
+    pcm = None
+    if cell.keep_dumps and _HAS_PMC and not cell.is_warmup:
+        workload_type = _classify_workload(cell.workload)
+        notes.append(f"D-51: running per-cell metrics (workload_type={workload_type})")
+        try:
+            pcm = pmc.compute_metrics_for_cell(
+                cell_id=cell.cell_id,
+                image_dir=image_dir,
+                run_start_epoch=run_start_epoch,
+                jsonl_path=jsonl_path,
+                workload_stderr_path=workload_stderr_path
+                    if (workload_proc is not None and workload_stderr_path.exists())
+                    else None,
+                workload_type=workload_type,
+            )
+            # Persist full metrics.json (trajectory + summary + F1 breakdown)
+            sc.write_json_atomic(metrics_path, asdict_safe(pcm))
+            notes.append(
+                f"D-51 metrics: n_dumps={pcm.n_dumps_examined} "
+                f"n_pairs={pcm.n_pairs_examined} "
+                f"apf_mean={pcm.apf_mean!r} "
+                f"f1={pcm.f1_phase!r} cv={pcm.cv_workingset!r}"
+            )
+        except Exception as exc:  # noqa: BLE001
+            notes.append(f"D-51 metrics failed: {exc}")
+            pcm = None
+    elif cell.keep_dumps and not _HAS_PMC:
+        notes.append("D-51 metrics skipped: plan02_metrics_per_cell not importable")
+    elif cell.keep_dumps and cell.is_warmup:
+        notes.append("D-51 metrics skipped: warmup cell")
 
-    # Clean up dump files this cell produced. If cell.keep_dumps is True
-    # (D-20), skip the tail cleanup so the dumps stick around for an
-    # offline analyzer. The producer's TIMING_SELF_CLEAN was also turned
-    # OFF earlier in this function when keep_dumps is set.
+    # Build analyzer_outputs from D-51 result (or zeros if no metrics ran)
+    if pcm is not None:
+        analyzer = sc.AnalyzerOutputs(
+            f1_phase=pcm.f1_phase,
+            cv_workingset=pcm.cv_workingset,
+            n_windows=pcm.n_windows,
+            n_snapshots=producer_stats.snapshots_completed,
+        )
+    else:
+        analyzer = sc.AnalyzerOutputs(
+            f1_phase=None,
+            cv_workingset=None,
+            n_windows=pmc.compute_n_windows(producer_stats.snapshots_completed)
+                if _HAS_PMC else 0,
+            n_snapshots=producer_stats.snapshots_completed,
+        )
+
+    # Clean up dump files this cell produced (now safe — metrics already
+    # computed above if D-51 ran). For keep_dumps=False cells, the
+    # producer's TIMING_SELF_CLEAN already removed dumps in-process; this
+    # tail-cleanup catches the last one. For keep_dumps=True cells with
+    # successful D-51 metrics, sweep the dumps now so the next cell has
+    # disk headroom.
     try:
-        image_dir = Path(eff_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump"))
-        if cell.keep_dumps:
-            notes.append("keep_dumps=1; tail-cleanup skipped; dumps preserved")
+        if cell.keep_dumps and pcm is not None and pcm.n_dumps_examined > 0:
+            removed = e1.cleanup_run_dumps(image_dir, run_start_epoch, False)
+            notes.append(f"D-51 post-metrics cleanup: removed {removed} dumps")
+        elif cell.keep_dumps:
+            notes.append("keep_dumps=1 but D-51 did not run; dumps preserved")
         else:
             removed = e1.cleanup_run_dumps(image_dir, run_start_epoch, False)
             notes.append(f"cleanup: removed {removed} dump files")

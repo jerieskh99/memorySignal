@@ -32,6 +32,7 @@ import migrate_schema_v1_to_v2 as mig  # noqa: E402
 import plan02_backfill_nwindows as bf  # noqa: E402
 import plan02_run as pr  # noqa: E402
 import plan02_validate_session as pv  # noqa: E402
+import plan02_metrics_per_cell as pmc  # noqa: E402
 
 
 class SchemaTests(unittest.TestCase):
@@ -555,6 +556,103 @@ class Day10ValidatorTests(unittest.TestCase):
             self.assertTrue(r["ok"], "operational ok must not depend on C3")
             self.assertFalse(r["analysis_ready"],
                              "analysis_ready must reflect C3 status")
+
+
+class Day12MetricsTests(unittest.TestCase):
+    """D-51 · plan02_metrics_per_cell tests."""
+
+    def test_phase_marker_regex_extracts(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "ws.log"
+            log.write_text(
+                "[2026-05-23T12:11:23Z] [INFO] starting\n"
+                "[2026-05-23T12:11:24Z] [PHASE] test=ransom phase=generate\n"
+                "[2026-05-23T12:11:30Z] [PHASE] test=ransom phase=encrypt\n"
+                "[2026-05-23T12:11:35Z] [PHASE] test=ransom phase=cleanup\n"
+            )
+            markers = pmc.parse_phase_markers(log)
+            self.assertEqual(len(markers), 3)
+            self.assertEqual(markers[0][1], "generate")
+            self.assertEqual(markers[-1][1], "cleanup")
+
+    def test_n_windows_math(self):
+        self.assertEqual(pmc.compute_n_windows(100, 128, 64), 0)
+        self.assertEqual(pmc.compute_n_windows(128, 128, 64), 1)
+        self.assertEqual(pmc.compute_n_windows(3328, 128, 64), 51)
+
+    def test_cv_workingset_simple(self):
+        v = pmc.cv_workingset([0.10, 0.11, 0.09, 0.10])
+        self.assertIsNotNone(v)
+        self.assertLess(v, 0.15)
+
+    def test_cv_workingset_zero_mean_returns_none(self):
+        self.assertIsNone(pmc.cv_workingset([0.0, 0.0, 0.0]))
+
+    def test_cv_workingset_singleton_returns_none(self):
+        self.assertIsNone(pmc.cv_workingset([0.5]))
+
+    def test_detect_boundaries_diff_finds_spikes(self):
+        # Flat then spike then flat
+        traj = [0.10] * 5 + [0.95] + [0.10] * 5
+        bnds = pmc.detect_boundaries_diff(traj)
+        # Spike at index 5 (the high value); detector should find boundary
+        self.assertTrue(any(abs(b - 5) <= 1 for b in bnds),
+                        f"expected boundary near 5, got {bnds}")
+
+    def test_f1_score_perfect_match(self):
+        r = pmc.f1_score([3, 7, 12], [3, 7, 12], tolerance=0)
+        self.assertEqual(r["f1"], 1.0)
+        self.assertEqual(r["tp"], 3)
+
+    def test_f1_score_no_overlap(self):
+        r = pmc.f1_score([1, 2, 3], [10, 20, 30], tolerance=1)
+        self.assertEqual(r["f1"], 0.0)
+
+    def test_f1_score_tolerance_window(self):
+        r = pmc.f1_score([5], [6], tolerance=1)
+        self.assertEqual(r["tp"], 1)
+        self.assertEqual(r["f1"], 1.0)
+
+    def test_active_page_fraction_identical_dumps(self):
+        with tempfile.TemporaryDirectory() as td:
+            a = Path(td) / "a.raw"
+            b = Path(td) / "b.raw"
+            data = bytes(range(256)) * 32  # 8 KiB
+            a.write_bytes(data)
+            b.write_bytes(data)
+            apf = pmc.active_page_fraction(a, b, page_size=4096)
+            self.assertEqual(apf, 0.0)
+
+    def test_active_page_fraction_one_page_differs(self):
+        with tempfile.TemporaryDirectory() as td:
+            a = Path(td) / "a.raw"
+            b = Path(td) / "b.raw"
+            page = bytes(4096)
+            # 2 pages: identical first, differ second
+            a.write_bytes(page + page)
+            b.write_bytes(page + bytes(b"\xff" * 4096))
+            apf = pmc.active_page_fraction(a, b, page_size=4096)
+            self.assertAlmostEqual(apf, 0.5)
+
+    def test_compute_metrics_for_cell_no_dumps(self):
+        """Cell with no dumps in image_dir gracefully returns empty metrics."""
+        with tempfile.TemporaryDirectory() as td:
+            image_dir = Path(td) / "image_dir"
+            image_dir.mkdir()
+            jsonl = Path(td) / "snap.jsonl"
+            jsonl.write_text("")
+            m = pmc.compute_metrics_for_cell(
+                cell_id="empty",
+                image_dir=image_dir,
+                run_start_epoch=0.0,
+                jsonl_path=jsonl,
+                workload_stderr_path=None,
+                workload_type="phasic",
+            )
+            self.assertEqual(m.n_dumps_examined, 0)
+            self.assertIsNone(m.f1_phase)
+            self.assertIsNone(m.cv_workingset)
+            self.assertTrue(any("no dumps" in n for n in m.notes))
 
 
 # ---------------------------------------------------------------------------
