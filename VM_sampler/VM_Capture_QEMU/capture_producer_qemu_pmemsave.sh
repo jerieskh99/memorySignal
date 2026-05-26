@@ -184,7 +184,18 @@ while true; do
       # B+3.1 (Δ-1): spawn async APF helper. Helper writes one line to
       # ${TIMING_APF_JSONL}, an ack file to ${TIMING_APF_ACK_DIR}/seq_NNN.apf_done,
       # and deletes $prevImage. Producer continues immediately.
-      python3 "${SCRIPT_DIR}/plan02_apf_helper.py" \
+      #
+      # Day-14 fix · lower I/O + CPU priority so the helper does not
+      # compete with the next pmemsave for disk bandwidth. ionice -c 3
+      # = idle class (only runs when nothing else needs the disk).
+      # nice -n 19 = lowest CPU priority. ionice may be absent on some
+      # hosts · fall back to nice alone.
+      if command -v ionice >/dev/null 2>&1; then
+        APF_PRIO="ionice -c 3 nice -n 19"
+      else
+        APF_PRIO="nice -n 19"
+      fi
+      $APF_PRIO python3 "${SCRIPT_DIR}/plan02_apf_helper.py" \
         --prev "$prevImage" \
         --curr "$newImage" \
         --apf-jsonl "${TIMING_APF_JSONL}" \

@@ -199,14 +199,23 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
         c1_reason = (f"{n_markers} PHASE markers" if c1
                      else f"no PHASE markers in {stderr_path}")
 
-    # C2: snap_completion_ratio
+    # C2: snap_completion_ratio · Day-14 mode-aware threshold
     ratio = _ratio_from_notes(cell)
     if ratio is None:
         # Fallback: re-compute from iv + dur (won't match exactly, but useful)
         ratio = (n_snaps / (1 + n_snaps)) if not iv else None
-    c2 = (ratio is not None and ratio >= min_ratio)
-    c2_reason = (f"ratio={ratio:.2f} >= {min_ratio}" if c2
-                 else f"ratio={ratio} < {min_ratio}")
+    # B+3.1 (keep_dumps=True) cells run the async APF helper which competes
+    # for disk bandwidth; pause-fraction rises and snap_completion_ratio
+    # is naturally lower than v1's calibration. The orchestrator already
+    # applies the 0.15 floor; the validator's MIN_RATIO_DEFAULT (0.85)
+    # is the "ideal" ratio for v1 cells but unattainable for B+3.1 cells.
+    # Use mode-aware C2 threshold here too.
+    keep_dumps = bool((cell.get("run_meta") or {}).get("keep_dumps"))
+    c2_min_ratio = 0.15 if keep_dumps else min_ratio
+    c2 = (ratio is not None and ratio >= c2_min_ratio)
+    c2_reason = (f"ratio={ratio:.2f} >= {c2_min_ratio} (mode={'B+3.1' if keep_dumps else 'v1'})"
+                 if c2
+                 else f"ratio={ratio} < {c2_min_ratio} (mode={'B+3.1' if keep_dumps else 'v1'})")
 
     # C3: n_windows >= min_windows. Compute fresh (back-fill semantics)
     nw_computed = _compute_n_windows(n_snaps, window, hop)

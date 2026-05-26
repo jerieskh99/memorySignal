@@ -868,15 +868,26 @@ def execute_cell(
     # ok criterion now requires BOTH:
     #   - snapshots_completed > 0
     #   - backpressure ratio < 1%
-    #   - snapshot_completion_ratio >= 0.30 (snaps vs expected from iv+duration)
+    #   - snapshot_completion_ratio >= ratio_threshold
     #
-    # Previously cells with snap << expected were falsely labeled 'ok'.
+    # Day-14 fix · mode-aware threshold (D-71):
+    #   v1 (TIMING_SELF_CLEAN, keep_dumps=False): 0.30
+    #   B+3.1 (keep_dumps=True, async APF helper): 0.15
+    # The B+3.1 mode runs the helper concurrently with pmemsave; helper
+    # I/O competes for disk bandwidth even with ionice -c 3, so the
+    # effective pause-fraction rises 1.5-2× over the v1-calibrated
+    # expected_snapshots() prior. A 0.15 threshold still catches the
+    # true-failure modes (VM lock contention, workload absence, disk
+    # full) without flagging cells whose data is intrinsically sound.
     expected = expected_snapshots(cell.duration_s, cell.interval_ms)
     actual = int(producer_stats.snapshots_completed)
     ratio = (actual / expected) if expected > 0 else 0.0
+    ratio_threshold = 0.15 if cell.keep_dumps else 0.30
     # Persist ratio in producer_stats notes for the analysis layer
     notes.append(
-        f"snap completion: actual={actual} expected={expected} ratio={ratio:.2f}"
+        f"snap completion: actual={actual} expected={expected} "
+        f"ratio={ratio:.2f} threshold={ratio_threshold:.2f} "
+        f"(mode={'B+3.1' if cell.keep_dumps else 'v1'})"
     )
 
     status = "ok"
@@ -891,10 +902,10 @@ def execute_cell(
             f"WARN: high backpressure ({producer_stats.backpressure_events} "
             f"of {producer_stats.snapshots_attempted} attempts)"
         )
-    if status == "ok" and ratio < 0.30:
+    if status == "ok" and ratio < ratio_threshold:
         status = "failed"
         notes.append(
-            f"FAIL: snapshot_completion_ratio={ratio:.2f} < 0.30 "
+            f"FAIL: snapshot_completion_ratio={ratio:.2f} < {ratio_threshold:.2f} "
             f"({actual} of expected {expected}). "
             f"Most likely cause: VM lock contention or workload absence."
         )

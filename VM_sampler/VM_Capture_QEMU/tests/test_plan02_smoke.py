@@ -864,6 +864,66 @@ class Day13ValidatorC6Tests(unittest.TestCase):
             self.assertFalse(r["claims"]["C6_apf_complete"]["pass"])
             self.assertFalse(r["ok"])
 
+    def test_c2_lower_threshold_for_keep_dumps_cell(self):
+        """Day-14 D-71: B+3.1 cells (keep_dumps=True) accept ratio >= 0.15
+        while v1 cells require >= 0.85."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "bplus31_low_ratio"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            # Build apf trajectory file so C6 applies + passes
+            (workdir_root / cid / "apf_trajectory.jsonl").write_text(
+                json.dumps({"seq": 0, "apf": 0.1}) + "\n" +
+                json.dumps({"final": True, "n_pairs_expected": 1,
+                            "n_ok": 1, "n_failed": 0, "gap_seqs": []}) + "\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = True
+            rec.notes = [
+                # Ratio 0.24 · would FAIL v1 (need >= 0.85)
+                # BUT must PASS B+3.1 (need >= 0.15)
+                "snap completion: actual=8 expected=34 ratio=0.24 threshold=0.15 (mode=B+3.1)",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 4000
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C2_ratio_healthy"]["pass"],
+                            f"C2 should pass for B+3.1 at ratio=0.24, got {r}")
+            self.assertIn("B+3.1", r["claims"]["C2_ratio_healthy"]["why"])
+
+    def test_c2_strict_threshold_for_v1_cell(self):
+        """v1 cells (keep_dumps=False) still require ratio >= 0.85."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "v1_low_ratio"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-24T00:00:00Z] [PHASE] test=ransom phase=scan\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = False
+            rec.notes = [
+                "snap completion: actual=20 expected=100 ratio=0.20 threshold=0.30 (mode=v1)",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 4000
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C2_ratio_healthy"]["pass"])
+            self.assertIn("v1", r["claims"]["C2_ratio_healthy"]["why"])
+
     def test_c6_na_when_no_trajectory_file(self):
         """v1-era cells without keep_dumps must not be penalized."""
         with tempfile.TemporaryDirectory() as td:
