@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D-51 Improvement Proposal · B+3 Review + Improved Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:8px 0; color: var(--text-dim); }
+
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(124,185,110,.08); border:1px solid rgba(124,185,110,.20);
+    color: var(--good); }
+
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:9px 12px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:12px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+
+  .agent { display:grid; grid-template-columns:90px 1fr 90px;
+            gap:14px; align-items:flex-start;
+            background: var(--panel-2); border:1px solid var(--line);
+            border-radius: var(--r); padding:12px 16px; margin:10px 0; }
+  @media (max-width:700px) { .agent { grid-template-columns:1fr; } }
+  .agent .agent-id { font-family: var(--f-mono); font-weight:600;
+                      color: var(--accent); font-size:13px;
+                      text-transform:uppercase; letter-spacing:.06em; }
+  .agent .agent-take { font-size:14px; color: var(--text-dim); line-height:1.5; }
+  .agent .agent-vote { align-self:center; font-size:11px; font-weight:600;
+                        letter-spacing:.04em; text-transform:uppercase;
+                        padding:4px 10px; border-radius:11px; text-align:center; }
+  .agent .agent-vote.go      { background:rgba(124,185,110,.14); color:var(--good); }
+  .agent .agent-vote.partial { background:rgba(212,168,90,.14); color:var(--accent); }
+  .agent .agent-vote.stop    { background:rgba(232,85,58,.12);  color:var(--bad-2); }
+
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+
+  /* daily audit accordion-style */
+  .day { background: var(--panel-2); border:1px solid var(--line);
+          border-radius: var(--r); padding:16px 18px; margin:10px 0; }
+  .day .day-head { display:flex; gap:12px; align-items:baseline;
+                    margin-bottom:8px; }
+  .day .day-tag { font-family: var(--f-mono); font-size:11px;
+                   font-weight:600; color: var(--accent);
+                   letter-spacing:.08em; text-transform:uppercase; }
+  .day .day-title { font-family: var(--f-display); font-size:16px;
+                     font-weight:500; color: var(--text); }
+  .day .day-meta { margin-left:auto; font-size:11px; color: var(--muted);
+                    font-family: var(--f-mono); }
+  .day ul { padding-left:20px; margin:6px 0; font-size:14px; color: var(--text-dim); }
+
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">D-51 Improvement</div>
+    <div class="sub">B+3 review + B+3.1 plan</div>
+    <ol>
+      <li><a href="#summary">Executive summary</a></li>
+      <li><a href="#team">Team roles</a></li>
+      <li><a href="#baseline">Baseline B+3 review</a></li>
+      <li><a href="#topdown">Top-down analysis</a></li>
+      <li><a href="#bottomup">Bottom-up analysis</a></li>
+      <li><a href="#week">Week-long audit</a></li>
+      <li><a href="#disputes">Key disagreements + decisions</a></li>
+      <li><a href="#improved">Improved plan · B+3.1</a></li>
+      <li><a href="#validation">Validation strategy</a></li>
+      <li><a href="#risks">Risks + mitigations</a></li>
+      <li><a href="#pm">PM final recommendation</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Converged.</strong><br>
+      B+3.1 ships in 4 small deltas to B+3.
+      No new daemons. No new deps.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">D-51 · analyzer-then-delete · improvement proposal</div>
+      <h1>B+3 is the right shape.<br>Four <em>small</em> deltas make it ship-ready.</h1>
+      <p class="deck">
+        Team spent a simulated week pressure-testing B+3 against the
+        100 GiB disk budget and the iv=100/500/2000 sweep. Top-down it
+        is structurally sound. Bottom-up four weaknesses surfaced:
+        synchronous +1s/snap, silent helper crash, no per-cell ack
+        format, no completeness validator. B+3.1 fixes all four in
+        ~135 LOC across three files. No new daemons, no new dependencies,
+        backward compatible with the current Plan-02 orchestrator.
+      </p>
+    </header>
+
+    <!-- 1 · summary -->
+    <section class="card" id="summary">
+      <div class="num">SECTION 01</div>
+      <h2>Executive summary</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What B+3 was</span>
+          <p>Producer writes 1 GiB dump per snap. After each pmemsave, a small Python helper reads the previous dump + current dump, computes how many memory pages changed (active page fraction), writes one line to a trajectory file, deletes the previous dump. Two dumps maximum live on disk at any moment. Cap on disk: ~2 GiB regardless of cell length.</p>
+        </div>
+        <div>
+          <span class="label tech">What changes in B+3.1</span>
+          <ul>
+            <li>Δ-1 · helper runs <strong>asynchronously</strong> (background per-pair worker) instead of blocking the producer cycle for +1 s</li>
+            <li>Δ-2 · explicit <strong>per-pair ack file</strong> (<code>.apf_done</code>) closes the silent-crash detection gap</li>
+            <li>Δ-3 · trajectory written as <strong>checksummed JSONL</strong>; consumer validates lineage</li>
+            <li>Δ-4 · post-cell <strong>completeness validator</strong> (C6) added to <code>plan02_validate_session.py</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Net effect.</strong> Same disk budget (~2-3 GiB peak). ~50 % less wall-clock cost per cell. Helper failures surface within seconds rather than at cell-end. Trajectory integrity provable on disk.
+      </div>
+    </section>
+
+    <!-- 2 · team roles -->
+    <section class="card" id="team">
+      <div class="num">SECTION 02</div>
+      <h2>Team roles · simulated week</h2>
+      <table>
+        <thead><tr><th>agent</th><th>code</th><th>focus during this review</th></tr></thead>
+        <tbody>
+          <tr><td>Project Manager</td><td>PM</td><td>daily meetings, decision logging, scope control, force convergence by Day 5</td></tr>
+          <tr><td>Senior Architect</td><td>SA</td><td>process model, sync vs async, signal handling, cell-end barrier semantics</td></tr>
+          <tr><td>Engineering Skills</td><td>EN</td><td>helper reliability, exit-code taxonomy, retry policy, ack file format</td></tr>
+          <tr><td>Senior ML Engineer</td><td>ML</td><td>trajectory completeness, gap detection, F1 stability under missing pairs</td></tr>
+          <tr><td>Experiment Designer</td><td>XD</td><td>cell-level confound, host_dt comparability with v1 measurements</td></tr>
+          <tr><td>Senior Data Engineer</td><td>DE</td><td>trajectory file format, schema versioning, checksum strategy</td></tr>
+          <tr><td>Senior Data Scientist</td><td>DS</td><td>statistical impact of out-of-order pair completion, gap interpolation</td></tr>
+          <tr><td>Evaluation Engineer</td><td>EE</td><td>new C6 claim definition, acceptance criteria, validator wiring</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3 · baseline review -->
+    <section class="card" id="baseline">
+      <div class="num">SECTION 03</div>
+      <h2>Baseline B+3 review · what we started from</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Intent</span>
+          <p>Enable D-51 (analyzer-then-delete metrics) for cells of any duration on a 100 GiB-free host. Original D-51 keeps all dumps until cell-end; that breaks for cells with more than ~150 GiB worth of dumps. B+3 caps disk at 2 GiB by computing APF inline as soon as the next dump lands.</p>
+        </div>
+        <div>
+          <span class="label tech">Concrete spec</span>
+          <ul>
+            <li><code>plan02_apf_helper.py</code> · standalone Python · 75 LOC</li>
+            <li>Producer bash hook · 10 LOC · gated by <code>TIMING_APF_STREAM=1</code></li>
+            <li><code>plan02_run.py</code> wiring · 15 LOC · sets env-vars + reads trajectory file post-cell</li>
+            <li>APF computed via numpy memmap XOR; result appended to <code>apf_trajectory.jsonl</code>; previous dump deleted</li>
+            <li>Disk peak: 2 GiB (prev + curr)</li>
+            <li>Producer cycle latency: <strong>+1 s per snap</strong> (synchronous helper call)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="diagram">  PRODUCER CYCLE · B+3 BASELINE                       DISK STATE
+  ─────────────────────────────────────             ──────────────────
+  virsh suspend                                       prev.raw         (1 GiB)
+   ↓
+  pmemsave → curr.raw                                 prev.raw + curr.raw (2 GiB)
+   ↓
+  apf_helper(prev, curr) <span class="hl-bad">[BLOCKING +1s]</span>             prev.raw + curr.raw (2 GiB)
+   ↓
+  helper writes apf line · deletes prev               curr.raw         (1 GiB)
+   ↓
+  virsh resume
+   ↓
+  sleep intervalMsec
+   ↓                                                  next pmemsave makes prev=curr; curr=new
+  next cycle
+</div>
+    </section>
+
+    <!-- 4 · top-down analysis -->
+    <section class="card" id="topdown">
+      <div class="num">SECTION 04</div>
+      <h2>Top-down analysis</h2>
+      <p>Objective, dependencies, success criteria, and structural risks viewed at the pipeline level.</p>
+
+      <h3>Objective alignment</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What we're trying to achieve</span>
+          <p>Populate <code>analyzer_outputs.{f1_phase, cv_workingset, n_windows}</code> on every cell of a v2 sub-pilot while staying under 100 GiB disk usage and keeping the operator's per-cell wall-clock within a 2× factor of v1's measured baseline (~1.5 s host_dt).</p>
+        </div>
+        <div>
+          <span class="label tech">Does B+3 meet it?</span>
+          <p>Disk: yes (2 GiB peak). Wall-clock: <strong>not within 2× target</strong>. At iv=500 ms the +1 s helper adds ~67 % per cycle. At iv=100 ms it adds 800 % per cycle, pushing pause-fraction past 99 %. The latency penalty scales inversely with iv, hurting exactly the regime (fast iv) where F1 / CV resolution matters most.</p>
+        </div>
+      </div>
+
+      <h3>System flow + dependencies</h3>
+      <table>
+        <thead><tr><th>component</th><th>state under B+3</th><th>risk</th></tr></thead>
+        <tbody>
+          <tr><td>producer bash</td><td>blocks on helper for +1 s</td><td>per-cycle latency · already flagged</td></tr>
+          <tr><td>apf helper</td><td>fresh python process per call</td><td>~50-100 ms python startup × N snaps overhead in addition to compute</td></tr>
+          <tr><td>numpy memmap</td><td>1 GiB read into kernel page cache</td><td>second helper invocation might warm-hit cache; first is cold</td></tr>
+          <tr><td>apf_trajectory.jsonl</td><td>append-only · O_APPEND</td><td>partial write on crash leaves trailing garbage line · no checksum</td></tr>
+          <tr><td>prev dump deletion</td><td>helper's rm</td><td>if helper crashes between APF compute and delete · disk leak</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Success criteria · what 'done' looks like</h3>
+      <table>
+        <thead><tr><th>criterion</th><th>B+3 satisfies?</th></tr></thead>
+        <tbody>
+          <tr><td>peak disk &lt; 5 GiB per cell</td><td><span style="color:var(--good)">yes</span></td></tr>
+          <tr><td>cell wall-clock within 2× of v1 baseline</td><td><span style="color:var(--bad-2)">no · 1.6-9× at fast iv</span></td></tr>
+          <tr><td>trajectory completeness provable</td><td><span style="color:var(--bad-2)">no · silent truncation possible</span></td></tr>
+          <tr><td>v2 F1/CV populated</td><td><span style="color:var(--good)">yes if helper does not crash</span></td></tr>
+          <tr><td>operator-runnable on `pcrserral`</td><td><span style="color:var(--good)">yes</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Structural risks</h3>
+      <ul>
+        <li><strong>R1 · latency scaling</strong> · per-cycle +1 s caps the usable iv range. Fast iv (≤ 250 ms) becomes prohibitively slow; pause-fraction rises past 95 %.</li>
+        <li><strong>R2 · silent partial failure</strong> · if helper dies mid-cell, dumps stop being analyzed but producer continues writing them; disk fills silently within ~50 snaps.</li>
+        <li><strong>R3 · trajectory integrity</strong> · no sequence-number check; if pairs complete out of order (cannot under sync B+3, but will under async) the trajectory becomes ambiguous.</li>
+        <li><strong>R4 · debuggability</strong> · helper failures don't surface to <code>plan02_validate_session.py</code>'s C-claims; pilot might report "all green" while half the cells have null analyzer_outputs.</li>
+      </ul>
+    </section>
+
+    <!-- 5 · bottom-up -->
+    <section class="card" id="bottomup">
+      <div class="num">SECTION 05</div>
+      <h2>Bottom-up analysis</h2>
+      <p>Component-by-component review with implementation details and failure modes.</p>
+
+      <h3>5.1 · plan02_apf_helper.py</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What this file does</span>
+          <p>Reads two dump files, counts differing 4 KiB pages, writes one JSON line, deletes the older dump.</p>
+        </div>
+        <div>
+          <span class="label tech">Weaknesses found</span>
+          <ul>
+            <li>Python startup ~50-100 ms · fresh subprocess per snap is wasteful</li>
+            <li>No structured exit code · producer cannot distinguish numpy-missing from io-error</li>
+            <li>Delete-before-flush race window · if rm succeeds but JSONL flush fails, trajectory has a gap pointing at a dump that no longer exists</li>
+            <li>No checksum on the dump-pair before delete · silent corruption not caught</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.2 · Producer bash hook</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What the hook does</span>
+          <p>After each pmemsave, invokes <code>python3 plan02_apf_helper.py --prev ... --curr ...</code>. Producer's main loop blocks until helper returns.</p>
+        </div>
+        <div>
+          <span class="label tech">Weaknesses</span>
+          <ul>
+            <li>Synchronous blocking is the dominant latency cost</li>
+            <li>Helper exit code not interpreted · any non-zero just logs</li>
+            <li>No mechanism to drain a backlog if helper is slow under host contention</li>
+            <li>If helper is killed by OOM, producer never knows · continues writing dumps that pile up</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.3 · plan02_run.py wiring</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What wiring does</span>
+          <p>When <code>cell.keep_dumps=True</code>, exports <code>TIMING_APF_STREAM=1</code> + <code>TIMING_APF_JSONL=&lt;path&gt;</code> before launching producer. After producer ends, the D-51 hook reads the trajectory file instead of scanning dumps.</p>
+        </div>
+        <div>
+          <span class="label tech">Weaknesses</span>
+          <ul>
+            <li>No completeness check · D-51 reads whatever happens to be in the JSONL · gaps not surfaced</li>
+            <li>If only K out of N snaps got APF, F1/CV are computed on a biased subsample · DS flagged this as significant</li>
+            <li>No cell-end barrier · if helper is still running when producer exits, race window between "producer stopped" and "all APF lines flushed"</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.4 · apf_trajectory.jsonl format</h3>
+      <table>
+        <thead><tr><th>field</th><th>type</th><th>strength</th><th>weakness</th></tr></thead>
+        <tbody>
+          <tr><td><code>seq</code></td><td>int</td><td>orderable</td><td>not validated against gaps</td></tr>
+          <tr><td><code>apf</code></td><td>float [0,1]</td><td>compact</td><td>no provenance · which prev/curr was diffed?</td></tr>
+          <tr><td><code>t0_pair_start</code> / <code>t1_pair_end</code></td><td>epoch s</td><td>maps to snap timestamps</td><td>no monotonic check</td></tr>
+          <tr><td><code>prev_dump</code> / <code>curr_dump</code></td><td>str</td><td>traceable</td><td>files often deleted before reader inspects line</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 6 · week-long audit -->
+    <section class="card" id="week">
+      <div class="num">SECTION 06</div>
+      <h2>Week-long team audit · daily meetings</h2>
+      <p>Five working days. PM ran a standing meeting each morning. Decisions logged inline.</p>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 1</span>
+          <span class="day-title">Kickoff · stake out the scope</span>
+          <span class="day-meta">PM · 60 min</span>
+        </div>
+        <ul>
+          <li>PM defined scope: review B+3 against 100 GiB free disk + reasonable wall-clock + thesis-grade reproducibility.</li>
+          <li>SA: structurally B+3 is correct; latency is the headline risk.</li>
+          <li>ML: trajectory completeness is the unspoken assumption · need a guard.</li>
+          <li>EN: helper exit codes are too coarse.</li>
+          <li>XD: cell-level wall-clock changes vs v1 must be recorded or future analysis confounds.</li>
+          <li>DE: trajectory needs a checksum or sequence-validation layer.</li>
+          <li>DS: out-of-order pair completion (under any async variant) needs explicit handling.</li>
+          <li>EE: validator does not yet check this; new C6 claim needed.</li>
+          <li><strong>Decision D-1:</strong> proceed with B+3 as the structural baseline. Each agent owns one improvement vector by Day 2.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 2</span>
+          <span class="day-title">Latency model · async or stay sync?</span>
+          <span class="day-meta">SA + EN · 90 min</span>
+        </div>
+        <ul>
+          <li>SA proposed: fork helper as background subprocess immediately after pmemsave returns; producer continues to next cycle without waiting. Cell-end barrier joins all helpers.</li>
+          <li>EN concern: async invites two dumps + one in-flight = 3 GiB peak; still under budget. Acceptable.</li>
+          <li>EN concern #2: how do we know all helpers finished before D-51 reads the trajectory? Need explicit join.</li>
+          <li>ML: out-of-order completion now possible. Need seq-numbered JSONL lines + post-cell sort.</li>
+          <li>DS: out-of-order has no statistical impact <em>after sort</em> because APF is order-independent per pair. F1 detector reads sorted trajectory.</li>
+          <li><strong>Decision D-2:</strong> adopt async helper. Cell-end barrier required. Trajectory sorted by seq before D-51 reads.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 3</span>
+          <span class="day-title">Resilience · ack files + structured exit codes</span>
+          <span class="day-meta">EN + DE · 75 min</span>
+        </div>
+        <ul>
+          <li>EN proposed exit-code taxonomy: 0=ok, 1=transient-io, 2=numpy-missing, 3=disk-full, 4=corrupt-dump.</li>
+          <li>Producer reaction: 0=continue; 1=log+continue; 2=abort cell; 3=enter backpressure; 4=mark pair as gap.</li>
+          <li>DE proposed: each helper writes <code>&lt;curr_dump&gt;.apf_done</code> ack file before deleting prev. Producer counts ack files; if backlog grows past N, pause new pmemsave (backpressure).</li>
+          <li>SA agrees but caps backpressure at simple "wait up to 5 s for helpers to drain" before forcing the next cycle (avoids hang).</li>
+          <li>EN: ack file content = JSON with seq, prev path, curr path, exit_code, helper_duration_ms. Doubles as audit trail.</li>
+          <li><strong>Decision D-3:</strong> ack file per pair · exit-code taxonomy fixed · producer reads acks at cell-end and reports ack_count, expected_count, gap_seq[] in the producer.log.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 4</span>
+          <span class="day-title">Trajectory integrity · checksum + completeness validator</span>
+          <span class="day-meta">DE + ML + EE · 90 min</span>
+        </div>
+        <ul>
+          <li>DE proposed: helper computes a 32-bit fnv1a hash of <code>(prev_dump_sha1, curr_dump_sha1, apf_float64_bytes)</code> per line. JSONL gets a "chk" field. Reader can verify nothing was edited or truncated mid-line.</li>
+          <li>ML: hash is overkill if exit-code + ack-file already cover the failure modes. Push back.</li>
+          <li>EE compromise: keep the hash only on the LAST line of the JSONL as a checkpoint, plus seq-number gap detection. Full per-line hashing not needed.</li>
+          <li>DE accepts. JSONL ends with a final <code>{"final": true, "n_pairs": N, "chk": "..."}</code> sentinel.</li>
+          <li>EE drafted new C6 claim: <code>apf_trajectory.jsonl exists AND has 'final' sentinel AND n_pairs equals (n_snaps - 1)</code>. Add to <code>plan02_validate_session.py</code>.</li>
+          <li><strong>Decision D-4:</strong> seq-numbered JSONL + final sentinel + C6 validator claim · no per-line hashing.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 5</span>
+          <span class="day-title">Convergence · final spec frozen</span>
+          <span class="day-meta">PM · 60 min</span>
+        </div>
+        <ul>
+          <li>PM read back four agreed deltas:</li>
+          <li>&nbsp;&nbsp;Δ-1 · async helper + cell-end barrier (SA + EN)</li>
+          <li>&nbsp;&nbsp;Δ-2 · ack-file per pair + structured exit codes (EN + DE)</li>
+          <li>&nbsp;&nbsp;Δ-3 · seq-numbered JSONL + final sentinel (DE + ML)</li>
+          <li>&nbsp;&nbsp;Δ-4 · C6 completeness claim in validator (EE)</li>
+          <li>XD reviewed: cell-level host_dt expected to change vs v1 by ~10-20 % (async overhead is much lower than sync). Need to record async-mode flag in cell metadata so future analyses know.</li>
+          <li>DS reviewed: with sort-by-seq + sentinel check, statistical interpretation matches the sync model. No mathematical compromise.</li>
+          <li><strong>Decision D-5:</strong> B+3.1 frozen. Implementation cost estimate: ~135 LOC across 3 files + ~30 LOC tests. No new dependencies. Backward compatible.</li>
+          <li>PM: ship after operator approves.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7 · disagreements -->
+    <section class="card" id="disputes">
+      <div class="num">SECTION 07</div>
+      <h2>Key disagreements + how they resolved</h2>
+
+      <h3>Dispute 1 · per-line hashing (Day 4)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">DE position</span>
+          <p>Every JSONL line should carry a 32-bit hash for integrity. Cheap, auditable, lets a reviewer prove nothing was edited.</p>
+        </div>
+        <div>
+          <span class="label tech">ML pushback · adopted</span>
+          <p>Hash duplicates work that exit-code + ack file already do. Hashing every line adds ~2 µs of CPU and ~16 chars of JSONL bloat per snap × thousands of snaps = wasted bytes for a problem we already solved upstream. Compromise: hash only the final sentinel.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 2 · sync vs async helper (Day 2)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">EN initial</span>
+          <p>Stay sync. Easier to reason about. Disk peak guaranteed 2 GiB. No race conditions to debug.</p>
+        </div>
+        <div>
+          <span class="label tech">SA pushback · adopted</span>
+          <p>+1 s/snap kills the iv=100 ms regime. We collapse the very regime where F1 detection matters most. Async raises disk peak from 2 GiB to ~3 GiB (still trivial). Race conditions resolved by ack-file + cell-end barrier. Adopted.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 3 · scope creep (Day 3-4)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">XD proposal</span>
+          <p>While we are touching the producer, also add proper huge-page-aware diff (instead of 4 KiB diff) for ~10× speedup on x86_64.</p>
+        </div>
+        <div>
+          <span class="label tech">PM pushback · rejected</span>
+          <p>Out of scope. The 4 KiB diff is already fast enough under async. Huge-page diff requires kernel cooperation and changes the metric definition. Park for a future "v3" if needed.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 4 · sentinel format (Day 4)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">DE proposed JSON</span>
+          <p><code>{"final": true, "n_pairs": N, "chk": "fnv1a-of-all-apf-values"}</code></p>
+        </div>
+        <div>
+          <span class="label tech">EE simplified · adopted</span>
+          <p>Drop the chk hash (already debated in Dispute 1). Sentinel becomes just <code>{"final": true, "n_pairs": N, "n_ok": K, "n_failed": M}</code>. Validator reads three integers, checks <code>K + M = N - 1</code>, fails C6 if not.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · improved plan -->
+    <section class="card" id="improved">
+      <div class="num">SECTION 08</div>
+      <h2>Improved plan · B+3.1 specification</h2>
+      <p>Four deltas over B+3. Backward compatible: when <code>TIMING_APF_STREAM</code> is absent, producer behaves identically to today.</p>
+
+      <h3>Δ-1 · async helper + cell-end barrier</h3>
+      <div class="diagram">  PRODUCER CYCLE · B+3.1                                DISK STATE
+  ───────────────────────                              ──────────────
+  pmemsave → curr.raw                                   prev + curr  (2 GiB)
+   ↓
+  spawn apf_helper(prev, curr) <span class="hl-good">[NON-BLOCKING]</span>            prev + curr + helper-in-flight
+   ↓                                                   (3 GiB transient)
+  virsh resume + sleep intervalMsec
+   ↓
+  next cycle: pmemsave overlaps with prior helper       (cleared to 2 GiB
+                                                         once helper rm-s prev)
+   ↓
+  ... cell continues ...
+   ↓
+  producer ends · BARRIER: wait until all ack files     2 GiB → 1 GiB → 0
+  written OR 30 s timeout
+   ↓
+  producer emits final sentinel with n_ok, n_failed
+   ↓
+  D-51 reads trajectory · computes F1/CV
+</div>
+
+      <h3>Δ-2 · ack file + structured exit codes</h3>
+      <p>Each helper invocation writes <code>&lt;curr_dump_basename&gt;.apf_done</code> in the same directory before exiting.</p>
+      <pre style="background:var(--panel-2); padding:14px; border-radius:6px; font-family:var(--f-mono); font-size:12px; color:var(--text-dim); overflow-x:auto;">{
+  "seq": 12,
+  "prev": "memory_dump-20260524000012.raw",
+  "curr": "memory_dump-20260524000013.raw",
+  "exit_code": 0,
+  "helper_duration_ms": 743,
+  "apf": 0.1342
+}</pre>
+      <p>Exit codes:</p>
+      <table>
+        <thead><tr><th>code</th><th>meaning</th><th>producer reaction</th></tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td>ok · APF written · prev deleted</td><td>continue</td></tr>
+          <tr><td><code>1</code></td><td>transient io error</td><td>log · continue · gap recorded</td></tr>
+          <tr><td><code>2</code></td><td>numpy missing / import failure</td><td>abort cell after 3 consecutive code-2s</td></tr>
+          <tr><td><code>3</code></td><td>disk full</td><td>trigger Day-9 disk-preflight equivalent · fail cell</td></tr>
+          <tr><td><code>4</code></td><td>dump file corrupt or zero-byte</td><td>mark pair as gap · continue</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Δ-3 · seq-numbered JSONL + final sentinel</h3>
+      <p>Each apf line carries an explicit <code>seq</code>. After producer ends and barrier completes, producer appends:</p>
+      <pre style="background:var(--panel-2); padding:14px; border-radius:6px; font-family:var(--f-mono); font-size:12px; color:var(--text-dim); overflow-x:auto;">{"final": true, "n_pairs_expected": 147, "n_ok": 145, "n_failed": 2, "gap_seqs": [73, 91]}</pre>
+      <p>Reader (D-51 + validator) sorts by seq, checks for gaps, refuses to compute F1/CV if more than 5 % gaps.</p>
+
+      <h3>Δ-4 · new validator claim C6</h3>
+      <p>Add to <code>plan02_validate_session.py</code>:</p>
+      <ul>
+        <li>C6 · apf_trajectory completeness · file exists · contains final sentinel · n_ok / n_pairs_expected ≥ 0.95</li>
+        <li>Per-cell: <code>cell_workdir/apf_trajectory.jsonl</code> · sentinel parsed · pass/fail recorded</li>
+        <li>C6 is operational · failures gate the cell from contributing to v2 recommendation</li>
+      </ul>
+
+      <h3>Implementation surface</h3>
+      <table>
+        <thead><tr><th>file</th><th>change</th><th>LOC</th></tr></thead>
+        <tbody>
+          <tr><td><code>plan02_apf_helper.py</code> (new)</td><td>numpy diff · writes ack file · structured exit codes</td><td>~90</td></tr>
+          <tr><td><code>capture_producer_qemu_pmemsave.sh</code></td><td>async helper spawn · cell-end barrier · final sentinel · all gated by <code>TIMING_APF_STREAM</code></td><td>~25</td></tr>
+          <tr><td><code>plan02_run.py</code></td><td>env-var setup · sort-by-seq before D-51 reads · pass to validator</td><td>~20</td></tr>
+          <tr><td><code>plan02_validate_session.py</code></td><td>add C6 evaluation</td><td>~25</td></tr>
+          <tr><td>tests · synthetic ack/gap cases</td><td>extend smoke test</td><td>~30</td></tr>
+          <tr><td><strong>total</strong></td><td></td><td><strong>~190 LOC</strong></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 9 · validation -->
+    <section class="card" id="validation">
+      <div class="num">SECTION 09</div>
+      <h2>Validation strategy</h2>
+
+      <h3>Pre-launch · synthetic smoke tests</h3>
+      <ul>
+        <li>helper · 5 synthetic dump pairs · verify APF computation + ack file + exit code 0</li>
+        <li>helper · corrupt curr dump · verify exit code 4</li>
+        <li>helper · numpy import disabled · verify exit code 2</li>
+        <li>helper · target dir unwritable · verify exit code 3</li>
+        <li>plan02_run · 16-cell synthetic manifest with one forced helper failure · verify gap_seqs reflects it</li>
+        <li>validator · synthetic apf_trajectory.jsonl with 100 lines and a deliberate gap at seq=50 · verify C6 fails</li>
+      </ul>
+
+      <h3>On-host validation · 6-cell sub-pilot</h3>
+      <table>
+        <thead><tr><th>cell</th><th>workload</th><th>iv (ms)</th><th>duration (s)</th><th>expected</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>workingset_sweep_v2</td><td>500</td><td>120</td><td>~38 pairs · low APF (steady) · CV &lt; 0.2 expected</td></tr>
+          <tr><td>2</td><td>workingset_sweep_v2</td><td>2000</td><td>120</td><td>~10 pairs · low APF · CV &lt; 0.3</td></tr>
+          <tr><td>3</td><td>ransom_batched</td><td>500</td><td>120</td><td>~38 pairs · spiky APF · F1 fires on phase boundaries</td></tr>
+          <tr><td>4</td><td>ransom_batched</td><td>2000</td><td>120</td><td>~10 pairs · spiky APF · F1 lower (under-sampled)</td></tr>
+          <tr><td>5</td><td>workingset_sweep_v2</td><td>100</td><td>300</td><td>~430 pairs · stress async barrier · helper backlog tests</td></tr>
+          <tr><td>6</td><td>ransom_batched</td><td>100</td><td>300</td><td>~430 pairs · phase-boundary density check at fast iv</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Acceptance gates</h3>
+      <ul>
+        <li>All 6 cells pass C1-C5 (operational gates from Day-10 validator)</li>
+        <li>All 6 cells pass C6 (new completeness gate)</li>
+        <li>Per-cell <code>n_pairs_expected − n_ok</code> ≤ 5 % across all 6 cells</li>
+        <li>Per-cell wall-clock within 1.3× of v1's measured baseline at the same iv (async overhead should be tiny)</li>
+        <li>Peak disk during any cell &lt; 5 GiB (observed via heartbeat)</li>
+      </ul>
+    </section>
+
+    <!-- 10 · risks -->
+    <section class="card" id="risks">
+      <div class="num">SECTION 10</div>
+      <h2>Risks + mitigations</h2>
+      <table>
+        <thead><tr><th>risk</th><th>severity</th><th>mitigation</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>async helper backlog under host contention</td>
+            <td><span style="color:var(--accent)">medium</span></td>
+            <td>cell-end barrier with 30 s timeout · counts surfacing helpers · backpressure if > N pending</td>
+          </tr>
+          <tr>
+            <td>silent helper crash (OOM, segfault)</td>
+            <td><span style="color:var(--accent)">medium</span></td>
+            <td>missing ack file = recorded gap · C6 fires before D-51 reads</td>
+          </tr>
+          <tr>
+            <td>disk fill from delayed prev-rm</td>
+            <td><span style="color:var(--accent)">medium</span></td>
+            <td>peak transient 3 GiB · Day-9 disk preflight already catches; per-cell limit raised from 5 to 6 dumps headroom under B+3.1</td>
+          </tr>
+          <tr>
+            <td>trajectory corruption (partial JSONL line on crash)</td>
+            <td><span style="color:var(--good)">low</span></td>
+            <td>reader skips unparseable lines; sentinel-based C6 catches incomplete file</td>
+          </tr>
+          <tr>
+            <td>helper python subprocess startup overhead dominates</td>
+            <td><span style="color:var(--good)">low</span></td>
+            <td>under async this is hidden behind producer's next cycle; ~80 ms startup × N is bounded</td>
+          </tr>
+          <tr>
+            <td>numpy dependency missing on a future host</td>
+            <td><span style="color:var(--good)">low</span></td>
+            <td>helper exit code 2 detected by producer; cell aborts cleanly</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 11 · pm verdict -->
+    <section class="card" id="pm">
+      <div class="num">SECTION 11</div>
+      <h2>PM final recommendation</h2>
+
+      <dl class="kv">
+        <dt>verdict</dt> <dd><span class="chip done">go · B+3.1 frozen</span></dd>
+        <dt>scope</dt> <dd>~190 LOC across 4 files · 0 new dependencies · backward compatible</dd>
+        <dt>schedule</dt> <dd>1 dev-day to implement · 0.5 dev-day to test · 1 h on-host smoke · 2 h v2 sub-pilot</dd>
+        <dt>blocker</dt> <dd>operator says "go B+3.1"</dd>
+        <dt>fallback</dt> <dd>if v2 sub-pilot reveals async race not handled, fall back to B+3 sync · single commit revert</dd>
+      </dl>
+
+      <h3>Per-agent vote</h3>
+      <div class="agent">
+        <div class="agent-id">SA</div>
+        <div class="agent-take">Async + cell-end barrier is the right shape. Backward-compatible env-var gate keeps existing flows untouched. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EN</div>
+        <div class="agent-take">Exit-code taxonomy + ack files raise this from "hope it works" to "auditable". Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">ML</div>
+        <div class="agent-take">Seq-sorted trajectory + completeness gate means F1/CV computed on intact data only. Statistical interpretability preserved. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">XD</div>
+        <div class="agent-take">Wall-clock budget restored to v1-comparable range. Recorded as separate cell-meta field so analyses can see the mode. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DE</div>
+        <div class="agent-take">Final sentinel + n_pairs_expected gives the audit pass-by-construction. JSONL stays human-readable. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DS</div>
+        <div class="agent-take">Out-of-order async completion is sort-stable. No mathematical issue. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EE</div>
+        <div class="agent-take">C6 claim wires cleanly into plan02_validate_session. ~25 LOC. Defines acceptance for v2 sub-pilot. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">PM</div>
+        <div class="agent-take">7/7 go. Ship after explicit operator approval.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+
+      <div class="callout good" style="margin-top: 20px;">
+        <strong>Final recommendation.</strong> Ship B+3.1 as the implementation of D-51 for v2 sub-pilot. The four deltas resolve every weakness surfaced this week. No restructuring. No new dependencies. No new daemons.
+      </div>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="multi_vm_proposal.html">
+        <span class="label">previous proposal</span>
+        <span class="title">Multi-VM topology · team verdict</span>
+      </a>
+      <a href="plan02_overview.html">
+        <span class="label">background</span>
+        <span class="title">Plan 02 overview · v1 done · v2 next</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
