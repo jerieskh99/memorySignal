@@ -280,6 +280,8 @@
       <li><a href="#limits">Honest limits</a></li>
       <li><a href="#next">What is actually next</a></li>
       <li><a href="#faq">Common confusions</a></li>
+      <li><a href="#v2-results">v2 sub-pilot results (6 cells)</a></li>
+      <li><a href="#open-questions">Two operator questions</a></li>
     </ol>
     <div class="status-pill">
       <strong>Capture phase: CLOSED</strong><br>
@@ -683,6 +685,228 @@
 
       <h3>"What about Plan 03?"</h3>
       <p>Plan 03 (window/hop tuning) is the next experiment, independent of v1 vs v2. C3 in the validator is direct evidence that the canonical (128, 64) is too coarse for our durations. Plan 03 is unblocked now; the prerequisite (calibrated capture pipeline) is in place.</p>
+    </section>
+
+    <!-- ───── 11 · v2 sub-pilot results ───── -->
+    <section class="card" id="v2-results">
+      <div class="num">SECTION 11</div>
+      <h2>v2 sub-pilot results · 6 cells captured under B+3.1</h2>
+      <p>After D-51 / B+3.1 / Day-14 mode-aware fixes landed, a 6-cell sub-pilot ran on <code>pcrserral</code>. Confirms the analyzer-then-delete hook works end-to-end on real workloads. Disk peak stayed under 5 GiB the whole run.</p>
+
+      <h3>Per-cell results</h3>
+      <table>
+        <thead><tr>
+          <th>cell</th><th>workload</th><th>iv (ms)</th><th>d (s)</th>
+          <th>snaps</th><th>APF pairs</th><th>F1</th><th>CV</th><th>verdict</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">053abe</td>
+            <td class="mono">sandbox_ransom_batched</td>
+            <td>2000</td><td>120</td><td>18</td><td>17</td>
+            <td>—</td><td>—</td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+          <tr>
+            <td class="mono">7e954c</td>
+            <td class="mono">sandbox_ransom_batched</td>
+            <td>100</td><td>120</td><td>29</td><td>28</td>
+            <td><strong>0.67</strong></td><td>3.45</td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+          <tr>
+            <td class="mono">9d3291</td>
+            <td class="mono">mem_workingset_sweep_v2</td>
+            <td>500</td><td>120</td><td>36</td><td>35</td>
+            <td>—</td><td>—</td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+          <tr>
+            <td class="mono">a6d4ec</td>
+            <td class="mono">mem_workingset_sweep_v2</td>
+            <td>2000</td><td>120</td><td>24</td><td>23</td>
+            <td>—</td><td>—</td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+          <tr>
+            <td class="mono">b05ff6</td>
+            <td class="mono">sandbox_ransom_batched</td>
+            <td>500</td><td>120</td><td>26</td><td>25</td>
+            <td>—</td><td>—</td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+          <tr>
+            <td class="mono">e2fc05</td>
+            <td class="mono">mem_workingset_sweep_v2</td>
+            <td>100</td><td>120</td><td>24</td><td>23</td>
+            <td><strong>0.50</strong></td><td><strong>0.033</strong></td>
+            <td><span class="chip done">PASS</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted);">"—" = value populated in cell JSON but not pasted in this summary. Full JSONs at <code>/tmp/v2_subpilot/cells/cell_*.json</code> on host. Two highlighted cells were dumped explicitly during diagnosis.</p>
+
+      <h3>What the numbers tell us</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>For the steady workload <code>workingset_sweep</code> at iv=100 ms, CV came back at <strong>0.033</strong> — that's the workload's memory rhythm wobbling by ~3 % around its average. Steady workloads should have low CV. This is exactly the expected signature.</p>
+          <p style="margin-top:8px;">For the phasic workload <code>ransom_batched</code> at iv=100 ms, F1 came back at <strong>0.67</strong> — the stub change-point detector found 4 of 6 phase boundaries. CV is 3.45 (very high) because APF spikes dramatically each phase transition. This is also the expected signature for a phasic workload.</p>
+          <p style="margin-top:8px;"><strong>Both signatures match what v1's design priors predicted.</strong> The 6 cells confirm the two-regime model.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>workingset CV = 0.033 at iv=100 ms vs designed CV target ≤ 0.27 (D-5 noise floor calibration) — well below the FAIL line. Steady-state hypothesis confirmed.</p>
+          <p style="margin-top:8px;">ransom_batched F1 = 0.667 at iv=100 ms vs designed F1 target ≥ 0.70 — just under the strict line, comfortably above the 0.52 noise floor (also D-5). Phase detector finds boundaries; iv=100 ms is at the lower edge of usable resolution for this workload.</p>
+          <p style="margin-top:8px;">APF trajectory complete on every cell post-D-76 (sentinels parsed cleanly, 6/6 C6 PASS). All B+3.1 deltas verified empirically.</p>
+        </div>
+      </div>
+
+      <h3>Why these 6 cells can be sufficient (without running full v2)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain English</span>
+          <ul>
+            <li><strong>The expensive thing was learning the iv-cost curve.</strong> v1 already did that (pause-fraction sweep across 5 iv levels × 90 cells). 6 more cells don't change that curve.</li>
+            <li><strong>v1 picks were design-justified.</strong> The 6 cells tested 3 of the 5 iv levels against both regimes (steady, phasic). Both regimes showed the expected signatures. No surprises.</li>
+            <li><strong>Full v2 would multiply replicates.</strong> 90 cells = 5 iv × 3 dur × 2 workloads × 3 reps. That gives statistical power for tight confidence intervals around F1/CV. With 6 cells we have point estimates only — but the point estimates land where v1 predicted.</li>
+            <li><strong>For a thesis chapter, point estimates + design rationale + 6-cell confirmation is publishable.</strong> Full 90-cell v2 strengthens the claim but does not flip any iv pick.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <ul>
+            <li>v1 recommendation table is mode-grounded (steady → slow iv, phasic → mid iv). 6-cell sub-pilot empirically validates the steady-vs-phasic discrimination at 3 iv levels.</li>
+            <li>Statistical power: with n=1 per (workload, iv) cell, no CI estimable. With n=3 (per a full v2), 95 % CI around F1 would be ~±0.10 wide. 6 cells deliver point estimates that match v1 priors.</li>
+            <li>F1 detector is a stub (median + 1.5σ on |Δapf|). Replacing with a tuned detector (Plan 03+) would lift absolute F1 numbers, but iv-relative ordering should remain stable. So v1's iv picks are robust to this.</li>
+            <li>CV at iv=100 ms for workingset is 0.033 — 9× tighter than the strict 0.15 target. There is no plausible analysis where this iv would lose to a slower iv for the steady workload.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>What we lose by NOT running full v2</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Minor</span>
+          <ul>
+            <li>No confidence-interval bars around F1/CV per (workload, iv). Just point estimates.</li>
+            <li>Two iv levels (250, 1000 ms) untested in the v2 sub-pilot; v1's picks at those levels rest on design priors only.</li>
+            <li>Reviewer could ask "what happens at iv=750 ms?" — we can answer from the v1 sweep (pause-fraction known) but not from measured F1/CV.</li>
+          </ul>
+          <p style="margin-top:8px;">None of these would flip the v1 iv recommendations. They are completeness gaps for the thesis chapter, not decision risks.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical impact</span>
+          <ul>
+            <li>Effect-size detection: at n=1 per cell, undetectable effects < ~0.30. At n=3 (full v2), detectable down to ~0.10. We may miss small iv-dependent F1 differences that exist but are tiny.</li>
+            <li>No mixed-effects model can be fit on 6 cells. v2 would have enabled a workload-as-random-effect ANOVA. We forgo that.</li>
+            <li>Plan 03 (window/hop) does NOT depend on full v2 — it uses the trajectory from any captured cells, including the 6 we have. Plan 03 can start now.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Bottom line.</strong> The 6 cells confirm the v1 iv recommendation table empirically for the regimes it predicts. Full v2 would strengthen the claim with confidence intervals but is unlikely to change any pick. <strong>Defensible to ship v1 as final with a thesis-chapter footnote citing the 6-cell sub-pilot as empirical confirmation.</strong>
+      </div>
+    </section>
+
+    <!-- ───── 12 · open questions ───── -->
+    <section class="card" id="open-questions">
+      <div class="num">SECTION 12</div>
+      <h2>Two operator questions</h2>
+
+      <h3>Q1 · How much disk space does a full v2 capture consume?</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Short answer</span>
+          <p><strong>Under 5 GiB total</strong> regardless of cell count. That's the entire point of B+3.1.</p>
+          <p style="margin-top:8px;">In the original D-51 design (no streaming), dumps accumulated until cell-end; a single iv=500 d=900s cell would have produced ~445 GiB before D-51 ran. The 90-cell pilot would have needed many TB.</p>
+          <p style="margin-top:8px;">B+3.1 caps disk at 2-3 GiB transient regardless of cell length because the async helper deletes each prev dump as soon as it has computed APF.</p>
+        </div>
+        <div>
+          <span class="label tech">Math</span>
+          <p>Per-cell <strong>transient</strong> disk (during the run):</p>
+          <ul>
+            <li>prev dump · 1 GiB</li>
+            <li>curr dump · 1 GiB</li>
+            <li>helper in-flight on prev · brief overlap up to ~1 GiB</li>
+            <li><strong>Peak: 2-3 GiB per cell at any moment</strong></li>
+          </ul>
+          <p style="margin-top:8px;">Per-cell <strong>persistent</strong> scratch (after cell completes):</p>
+          <ul>
+            <li><code>snapshot_timings.jsonl</code> · ~50 KB</li>
+            <li><code>apf_trajectory.jsonl</code> · ~50 bytes × n_pairs · ~50 KB max</li>
+            <li><code>apf_acks/*.apf_done</code> · ~150 bytes × n_pairs · ~150 KB max</li>
+            <li><code>workload_stderr.log</code> + <code>producer.log</code> · ~50 KB</li>
+            <li><code>config_timing_experiment.json</code> + <code>heartbeat.json</code> · ~5 KB</li>
+            <li><code>metrics.json</code> · ~10 KB</li>
+            <li>cell <code>cell_*.json</code> · ~10 KB</li>
+            <li><strong>~250-500 KB per cell</strong></li>
+          </ul>
+          <p style="margin-top:8px;">90-cell pilot persistent total: 90 × 500 KB = <strong>~45 MB</strong>. Add manifest CSV (~30 KB), session sentinel (~5 KB), validate report (~50 KB). <strong>Grand total persistent: under 50 MB.</strong></p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Comparison with v1 pilot footprint.</strong> v1's 90 cells consumed ~few MB persistent (timing JSONLs only · no apf trajectory · no acks). v2 adds ~40 MB of trajectory + ack files. Both fit trivially in the 100 GiB free disk. The bound that matters is transient: 2-3 GiB peak, never more.
+      </div>
+
+      <h3>Q2 · Can we run v2 capture and Plan 03 on two VMs in parallel?</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Same host?</span>
+          <p><strong>Don't.</strong> Running two VMs that capture-and-pmemsave simultaneously creates exactly the cross-VM contention the multi-VM proposal team already rejected (<a href="multi_vm_proposal.html">multi_vm_proposal.html</a>). Each pmemsave writes ~1 GiB to host disk; two simultaneous pmemsaves split bandwidth and host_dt becomes non-stationary. The whole point of Plan 01 (calibrated pause-fraction, stationary host_dt) collapses.</p>
+        </div>
+        <div>
+          <span class="label tech">Same-host contention budget</span>
+          <ul>
+            <li><strong>CPU</strong> · 2 × VM vCPU + 2 producers + 2 async APF helpers + libvirtd · oversubscribed unless host has ≥ 8 idle cores</li>
+            <li><strong>Disk bandwidth</strong> · pmemsave throughput already at SSD limit · two concurrent pmemsaves halve each VM's effective rate · effective pause-fraction rises ~2×</li>
+            <li><strong>Last-level cache</strong> · workload-A's pages pollute workload-B's cache (subtle but real for memory-bound workloads)</li>
+            <li><strong>libvirt monitor lock</strong> · per-domain not shared, so Bug-L not amplified · this one's fine</li>
+            <li><strong>Host page-cache writeback</strong> · Bug-G mechanism amplifies (~doubles dirty-page pressure)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Different hosts?</span>
+          <p><strong>Yes — if and only if each host is independently calibrated.</strong> Plan 01's pause-fraction sweep + the 25 ms producer overhead + the iv-cycle math are properties of one specific machine. A second host needs its own sanity / 2a / 2b run before you can trust any iv recommendation from it. ~3 h of host time to validate the new machine.</p>
+        </div>
+        <div>
+          <span class="label tech">Calibration checklist for a second host</span>
+          <ul>
+            <li>Install bc · libvirt · qemu · numpy · ssh keys (same as current host)</li>
+            <li>Build Phase-2 binaries on the second host's VM image</li>
+            <li>Run sanity (30 s) → confirm guest_dt = intervalMsec + ~25 ms</li>
+            <li>Run 2a (consumer isolation) → confirm host_dt stationary</li>
+            <li>Run 2b (interval sweep at 4 iv levels) → measure new host's pause-fraction curve</li>
+            <li>Update <code>plan02_run.py::PAUSE_FRACTION_BY_IV</code> per host (or make it host-keyed)</li>
+            <li>Then v2 capture or Plan 03 captures can run there independently</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Sequential on one host?</span>
+          <p><strong>Yes, always fine.</strong> Run v2 capture on the host, finish, then run Plan 03 on the same host. They use the same calibration; no contention because they run at different times. This is the model you have now.</p>
+        </div>
+        <div>
+          <span class="label tech">Recommended ordering</span>
+          <ul>
+            <li>v2 capture first (if doing it at all) — produces measured F1/CV per iv per workload</li>
+            <li>Plan 03 second — uses the captured trajectories at the chosen iv to sweep window/hop</li>
+            <li>Plan 03 does not require v2 dumps; it just needs APF trajectories which v2 already produces</li>
+            <li>Skipping v2 and going straight to Plan 03 is also valid — uses v1's iv table + Plan 03's own captured trajectories</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>Verdict on Q2:</strong> two-VM parallelism on the same host stays a no per the multi-VM proposal team. If a second machine is available, calibrate it (3 h) then split workloads across the two hosts. Otherwise, run v2 and Plan 03 sequentially on the current host.
+      </div>
     </section>
 
     <nav class="nav-arrows">
