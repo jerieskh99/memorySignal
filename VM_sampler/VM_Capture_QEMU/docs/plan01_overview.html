@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 01 · Overview · Capture Timing Instrumentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: var(--f-sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size: .92em;
+         background: rgba(212,168,90,.07); padding: 1px 6px;
+         border-radius: 4px; color: var(--text); }
+  pre code { background: transparent; padding: 0; }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight: 500;
+                letter-spacing: -.015em; margin: 0; }
+  h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
+  h2 { font-size: clamp(20px, 2.5vw, 28px); margin: 0 0 16px; }
+  h3 { font-size: 18px; margin: 24px 0 10px; color: var(--text); }
+  p  { margin: 8px 0; color: var(--text-dim); }
+
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  @media (max-width: 800px) {
+    .app { grid-template-columns: 1fr; }
+    aside.nav { position: static; height: auto; border-right: none;
+                border-bottom: 1px solid var(--line); }
+  }
+  aside.nav {
+    position: sticky; top: 0; align-self: start;
+    height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--line);
+    padding: 24px 18px;
+  }
+  aside.nav .brand {
+    font-family: var(--f-display); font-size: 16px; font-weight: 600;
+    color: var(--text); margin-bottom: 4px;
+  }
+  aside.nav .sub {
+    font-size: 11px; color: var(--muted); margin-bottom: 22px;
+    letter-spacing: .05em; text-transform: uppercase;
+  }
+  aside.nav ol { list-style: none; padding: 0; margin: 0;
+                 counter-reset: navitem; }
+  aside.nav ol li {
+    counter-increment: navitem; padding: 0; margin: 2px 0;
+  }
+  aside.nav ol li a {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 7px 10px; border-radius: 6px;
+    color: var(--text-dim); font-size: 13.5px;
+    transition: background .15s, color .15s;
+  }
+  aside.nav ol li a::before {
+    content: counter(navitem, decimal-leading-zero);
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--muted); width: 22px;
+  }
+  aside.nav ol li a:hover {
+    background: var(--panel-2); color: var(--text); text-decoration: none;
+  }
+  aside.nav ol li a.active {
+    background: rgba(212,168,90,.10); color: var(--accent);
+  }
+  aside.nav .status-pill {
+    margin-top: 18px; padding: 10px 12px; border-radius: var(--r);
+    background: rgba(124,185,110,.08); border: 1px solid rgba(124,185,110,.20);
+    font-size: 12px; color: var(--good); line-height: 1.45;
+  }
+
+  main {
+    padding: 48px 40px 96px; max-width: 940px; overflow-x: hidden;
+  }
+  @media (max-width: 800px) { main { padding: 32px 20px 64px; } }
+
+  .hero { margin: 0 0 36px 0; }
+  .hero .eyebrow {
+    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px;
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); font-weight: 500; }
+  .hero .deck { font-size: 17px; color: var(--text-dim);
+                margin-top: 14px; max-width: 720px; line-height: 1.55; }
+
+  section.card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 28px 30px;
+    margin: 0 0 22px;
+    box-shadow: var(--shadow);
+    scroll-margin-top: 16px;
+  }
+  section.card .num {
+    font-family: var(--f-mono); font-size: 12px; color: var(--accent);
+    font-weight: 600; letter-spacing: .1em;
+  }
+  section.card h2 + p { margin-top: 4px; color: var(--text-dim); }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+          margin: 18px 0; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+  .pair > div {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 18px;
+  }
+  .pair .label {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    font-weight: 600; margin-bottom: 8px;
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+  }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size: 14.5px; }
+  .pair ul { padding-left: 18px; margin: 6px 0; }
+
+  table { width: 100%; border-collapse: collapse;
+          font-size: 14px; margin: 12px 0; }
+  th, td { padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; font-size: 12px; letter-spacing: .04em;
+       text-transform: uppercase; color: var(--muted);
+       border-bottom: 1px solid var(--line); }
+  td { border-bottom: 1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size: 13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  td .good { color: var(--good); font-weight: 600; }
+  td .acc  { color: var(--accent); font-weight: 600; }
+  td .bad  { color: var(--bad);    font-weight: 600; }
+
+  /* timeline */
+  ol.timeline { list-style: none; padding: 0; margin: 18px 0; position: relative; }
+  ol.timeline::before {
+    content: ""; position: absolute; left: 14px; top: 8px; bottom: 8px;
+    width: 2px; background: var(--line);
+  }
+  ol.timeline li {
+    position: relative; padding: 6px 0 12px 42px;
+  }
+  ol.timeline li::before {
+    content: ""; position: absolute; left: 8px; top: 11px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--panel-2); border: 2px solid var(--accent);
+  }
+  ol.timeline li.done::before  { background: var(--good); border-color: var(--good); }
+  ol.timeline li.now::before   { background: var(--accent); border-color: var(--accent);
+                                  box-shadow: 0 0 0 4px rgba(212,168,90,.18); }
+  ol.timeline li.todo::before  { background: transparent; border-color: var(--muted); }
+  ol.timeline .day {
+    font-family: var(--f-mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  ol.timeline .what {
+    font-size: 15px; color: var(--text); font-weight: 500; margin: 2px 0;
+  }
+  ol.timeline .why { font-size: 13.5px; color: var(--text-dim); }
+
+  /* axes diagram */
+  .axes {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 20px; margin: 14px 0;
+  }
+  .axis-row {
+    display: grid; grid-template-columns: 80px 90px 1fr; gap: 14px;
+    align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line);
+  }
+  .axis-row:last-child { border-bottom: none; }
+  .axis-row .ax {
+    font-family: var(--f-display); font-size: 24px; font-weight: 600;
+    color: var(--accent); text-align: center;
+  }
+  .axis-row .name {
+    font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .axis-row .desc {
+    font-size: 14px; color: var(--text-dim); line-height: 1.5;
+  }
+  .axis-row .val {
+    font-family: var(--f-mono); font-size: 13px; color: var(--good);
+    margin-left: 8px;
+  }
+
+  /* bar chart */
+  .bar-row { display: grid; grid-template-columns: 70px 60px 1fr 40px;
+             gap: 10px; align-items: center; padding: 4px 0;
+             font-size: 13px; font-family: var(--f-mono); }
+  .bar-row .label { color: var(--muted); }
+  .bar-row .pct { color: var(--text); }
+  .bar-row .bar {
+    height: 14px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  }
+  .bar-row .val { color: var(--text); text-align: right; }
+
+  /* mechanism pills */
+  .mech-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px; margin: 14px 0;
+  }
+  .mech {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--good);
+    border-radius: var(--r); padding: 10px 14px;
+  }
+  .mech .id {
+    font-family: var(--f-mono); font-weight: 600;
+    color: var(--accent); font-size: 11px; letter-spacing: .08em;
+  }
+  .mech .name {
+    color: var(--text); font-size: 13px; font-weight: 500;
+    margin: 3px 0;
+  }
+  .mech .fix {
+    color: var(--good); font-size: 11px; font-family: var(--f-mono);
+  }
+
+  .nav-arrows { display: flex; gap: 12px; margin-top: 24px; }
+  .nav-arrows a {
+    flex: 1; padding: 14px 16px; border-radius: var(--r);
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text-dim); text-decoration: none;
+    transition: border-color .15s, color .15s;
+  }
+  .nav-arrows a:hover {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .nav-arrows a .label {
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 4px;
+  }
+  .nav-arrows a .title { font-size: 14px; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(212,168,90,.05);
+    padding: 14px 18px; border-radius: 4px;
+    margin: 16px 0; color: var(--text-dim);
+    font-size: 14.5px;
+  }
+  .callout.warn  { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good  { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info  { border-color: var(--info);  background: rgba(110,167,212,.06); }
+
+  .chip {
+    display: inline-block; padding: 3px 9px; border-radius: 11px;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .chip.done    { background: rgba(124,185,110,.14); color: var(--good); }
+  .chip.next    { background: rgba(212,168,90,.16); color: var(--accent); }
+  .chip.blocked { background: rgba(232,85,58,.12);  color: var(--bad-2); }
+  .chip.now     { background: rgba(110,167,212,.14); color: var(--info); }
+
+  dl.kv { display: grid; grid-template-columns: max-content 1fr;
+          gap: 6px 18px; font-size: 14px; margin: 12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size: 13px; }
+  dl.kv dd { color: var(--text); margin: 0; }
+
+  .deep-links {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 12px 0;
+  }
+  .deep-links a {
+    padding: 6px 12px; border-radius: 4px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 12.5px; color: var(--text-dim);
+  }
+  .deep-links a:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* before/after diff */
+  .ba-grid { display: grid; grid-template-columns: 1fr 1fr;
+             gap: 14px; margin: 14px 0; }
+  @media (max-width: 700px) { .ba-grid { grid-template-columns: 1fr; } }
+  .ba-grid > div {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 14px 16px;
+  }
+  .ba-grid .ba-tag {
+    font-family: var(--f-mono); font-size: 11px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 4px; display: inline-block;
+    margin-bottom: 8px;
+  }
+  .ba-grid .ba-before .ba-tag { background: rgba(232,85,58,.12); color: var(--bad-2); }
+  .ba-grid .ba-after  .ba-tag { background: rgba(124,185,110,.14); color: var(--good); }
+  .ba-grid dl { margin: 4px 0; font-size: 13px; font-family: var(--f-mono); }
+  .ba-grid dt { color: var(--muted); }
+  .ba-grid dd { color: var(--text); margin: 0 0 4px 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Memory Signal · Plan 01</div>
+    <div class="sub">capture timing · done</div>
+    <ol>
+      <li><a href="#what">What this is</a></li>
+      <li><a href="#now">Where we stand now</a></li>
+      <li><a href="#timeline">Round-by-round timeline</a></li>
+      <li><a href="#axes">The three time axes</a></li>
+      <li><a href="#tests">Diagnostic tests (sanity / 2a / 2b / 2c)</a></li>
+      <li><a href="#bugs">12 mechanisms + bugs closed</a></li>
+      <li><a href="#results">Results · the numbers</a></li>
+      <li><a href="#plans">Code plans that landed</a></li>
+      <li><a href="#deliverable">The deliverable</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#faq">Common confusions</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Plan 01: COMPLETE</strong><br>
+      Capture pipeline calibrated.<br>
+      Plan 02 v1 ships on top of it.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 01 · capture-timing instrumentation</div>
+      <h1>The pipeline you measure with is <em>now itself measured</em>.<br>12 mechanisms + bugs closed across 5 rounds.</h1>
+      <p class="deck">
+        Plan 01 is the foundation. Before any per-family <code>intervalMsec</code>
+        choice could be honest, the capture pipeline itself had to be calibrated.
+        That meant nailing down the three time axes, fixing a 15× silent
+        mis-calibration (<code>bc</code> missing), proving stationarity across
+        the iv sweep, and removing the 0.5 s flush sleep for ~10 % wall-clock
+        savings per snapshot. This page is the clean read-out of all of it.
+      </p>
+    </header>
+
+    <!-- ───── 1 · what this is ───── -->
+    <section class="card" id="what">
+      <div class="num">SECTION 01</div>
+      <h2>What this is</h2>
+      <p>Plan 01 is the timing-instrumentation experiment. Before any of the later plans (interval tuning, window/hop, k-segmentation) could trust their inputs, the capture pipeline had to prove it could measure itself honestly. This page reads top-to-bottom and answers the question "what did Plan 01 actually do?".</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Phase 1 of the thesis ran a memory-snapshot capture pipeline on a VM. Plan 01 added timestamps inside the producer at every step (suspend, pmemsave, resume) so we could measure how the pipeline actually behaves — and discovered a series of bugs that had been silently corrupting every previous experiment.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>Plan 01 inserted six per-snapshot timestamps (t0..t5) into <code>capture_producer_qemu_pmemsave.sh</code>, plus a JSONL stream + backpressure events. Built three diagnostic tests (2a consumer isolation, 2b interval sweep, 2c flush sensitivity) plus a sanity orchestrator. Iteratively closed 7 theoretical mechanisms (i-vii) and 5 engineering bugs (D-H) across 5 rounds. Produced a stationary, calibrated, audit-trailed pipeline as input to Plan 02.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Plan 01 is the "instrument" experiment.</strong> Plan 02 is the "measurement" experiment. You cannot trust a measurement made by an uncalibrated instrument. That is why Plan 01 came first and consumed roughly 8 days of the project's 19-day timeline.
+      </div>
+    </section>
+
+    <!-- ───── 2 · where we stand now ───── -->
+    <section class="card" id="now">
+      <div class="num">SECTION 02</div>
+      <h2>Where we stand now</h2>
+      <p>Plan 01 is complete. The deliverable feeds directly into Plan 02 (already published as v1) and Plan 03 (unblocked).</p>
+
+      <dl class="kv">
+        <dt>mechanisms closed</dt>
+        <dd>7 theoretical (i-vii) + 5 engineering (D, E, F, G, H) = 12 total</dd>
+
+        <dt>code commits</dt>
+        <dd>~10 commits across 5 rounds · ~750 LOC orchestrator + ~50 LOC producer</dd>
+
+        <dt>tests</dt>
+        <dd>4 diagnostic scripts (sanity / 2a / 2b / 2c) + 44 unit tests · all green</dd>
+
+        <dt>final verdict</dt>
+        <dd><span class="chip done">REMOVE the 0.5 s flush</span> · saves ~10 % wall-clock per snapshot in production (consumer-drained model)</dd>
+
+        <dt>downstream</dt>
+        <dd>Plan 02 v1 published · Plan 03 unblocked · classifier re-validation is the next thesis gate</dd>
+      </dl>
+    </section>
+
+    <!-- ───── 3 · timeline ───── -->
+    <section class="card" id="timeline">
+      <div class="num">SECTION 03</div>
+      <h2>Round-by-round timeline</h2>
+      <p>Plan 01 ran from the first instrumented snapshot to the final REMOVE-flush verdict locked into the JSON artifact. Seven rounds in total.</p>
+
+      <ol class="timeline">
+        <li class="done">
+          <div class="day">Run 1 · 2026-05-19 · first instrumented capture</div>
+          <div class="what">30 s sanity run · guest_dt measured = 0.0066 s</div>
+          <div class="why">Configured <code>intervalMsec=100</code> but guest reported 6.6 ms · 15× mis-calibration · uncovered <code>bc</code> missing on host</div>
+        </li>
+        <li class="done">
+          <div class="day">Run 2 · 2026-05-20 · post-bc sanity</div>
+          <div class="what">30 s sanity re-run · guest_dt = 0.125 s = intervalMsec + 25 ms ✓</div>
+          <div class="why">bc fix mechanisms i, ii confirmed empirically</div>
+        </li>
+        <li class="done">
+          <div class="day">Round 1 · 2026-05-20 · first 3-test sweep</div>
+          <div class="what">2a + 2b + 2c · uncovered v (dump cleanup) · vii (probe logic) · B (queue starve)</div>
+          <div class="why">dump cleanup silently failed (root-owned dir) · 2c integrity probe wrong on idle Kali</div>
+        </li>
+        <li class="done">
+          <div class="day">Round 2 · 2026-05-20 · post-fixes</div>
+          <div class="what">Same 3-test sweep · suspend 6.4 s → 0.066 s · host_dt 9.25 s → 1.64 s · pause sweep 92 / 85 / 76 / 59 %</div>
+          <div class="why">mechanism iii FIXED · iv parameterized · vi + vii surfaced as new findings</div>
+        </li>
+        <li class="done">
+          <div class="day">Round 3 · 2026-05-21 · after Plans 1, 1b, 3, 4</div>
+          <div class="what">2a + 2b A+ · 2c partial · sanity FAIL (Bug E)</div>
+          <div class="why">vi, vii, D all FIXED empirically · E + F surfaced</div>
+        </li>
+        <li class="done">
+          <div class="day">Round 4 · 2026-05-21 · after Plans 1c, 5</div>
+          <div class="what">sanity 18 snaps · 2c probe all_ok · verdict flipped (Bug G surfaced)</div>
+          <div class="why">E + F closed · G isolated · Plan 6 designed in-place from R4 data</div>
+        </li>
+        <li class="done">
+          <div class="day">Round 5 · 2026-05-21 · after Plan 6 + Bug H</div>
+          <div class="what">2c v5 recommendation = <strong>"REMOVE the flush"</strong> · n_used = 5 · all_ok ✓</div>
+          <div class="why">G closed empirically · H (mkdir output_json parent) found + fixed in same round</div>
+        </li>
+        <li class="done">
+          <div class="day">2026-05-22+ · Plan 01 closed</div>
+          <div class="what">12 mechanisms + bugs closed · pipeline production-quality · Plan 02 starts</div>
+          <div class="why">All capture-side prerequisites for Plan 02 met</div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ───── 4 · the three time axes ───── -->
+    <section class="card" id="axes">
+      <div class="num">SECTION 04</div>
+      <h2>The three time axes · Plan 01's core insight</h2>
+      <p>Before Plan 01, "time" in this pipeline was conflated. There are three distinct axes; they look the same in code but mean different things in physics.</p>
+
+      <div class="axes">
+        <div class="axis-row">
+          <div class="ax">A</div>
+          <div class="name">Guest-running interval</div>
+          <div class="desc">How long the VM was allowed to <em>execute</em> between snapshots. This is the knob — what <code>intervalMsec</code> sets.<br>
+            <span class="val">measured: 0.125 s when iv=100ms · iv + 25ms producer overhead</span></div>
+        </div>
+        <div class="axis-row">
+          <div class="ax">B</div>
+          <div class="name">Host wall-clock per snapshot</div>
+          <div class="desc">How long the <em>capture cycle</em> takes from suspend to resume. Dominated by pmemsave disk I/O.<br>
+            <span class="val">measured: ~1.5 s post-fix · was ~9.25 s pre-bc</span></div>
+        </div>
+        <div class="axis-row">
+          <div class="ax">C</div>
+          <div class="name">Analyzer Δt_frame</div>
+          <div class="desc">The spacing between samples as seen by the downstream analyzer. Must equal Axis A's <em>measured</em> value, not the configured one.<br>
+            <span class="val">measured: 0.125 s · matches Axis A ✓</span></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Why this matters</span>
+          <p>Before Plan 01, the analyzer assumed Δt_frame = 0.100 s (because intervalMsec was 100). Reality was 0.0066 s (bc bug). The analyzer's cepstral peaks were placed at frequencies <strong>15× wrong</strong> on the spectrum, causing false confusion between workloads that should have separated easily. Fixing this one calibration alone may explain a lot of pre-Plan-01 classifier confusion.</p>
+        </div>
+        <div>
+          <span class="label tech">The bug in one line</span>
+          <p>The producer shell script ran <code>sleep "$(echo "scale=3; $intervalMsec/1000" | bc)"</code>. With <code>bc</code> not installed, the inner pipeline emitted empty stdout. <code>sleep ""</code> is a no-op (returns immediately). So <code>intervalMsec</code> set nothing.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 5 · diagnostic tests ───── -->
+    <section class="card" id="tests">
+      <div class="num">SECTION 05</div>
+      <h2>The four diagnostic tests</h2>
+      <p>Plan 01 built four small instrumented scripts. Each isolates one specific question. None of them modifies the capture pipeline. They are diagnostic probes.</p>
+
+      <table>
+        <thead><tr><th>script</th><th>question it answers</th><th>method</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono">sanity</td>
+            <td>does the producer tick at <code>intervalMsec</code>?</td>
+            <td>one 30 s producer run · idle Kali · measure guest_dt</td>
+          </tr>
+          <tr>
+            <td class="mono">2a</td>
+            <td>how much variance is the consumer's fault?</td>
+            <td>A/B · consumer-on vs consumer-killed · 60 s each</td>
+          </tr>
+          <tr>
+            <td class="mono">2b</td>
+            <td>what's the pause-fraction at each iv?</td>
+            <td>4-cell sweep iv ∈ {100, 250, 500, 1000} ms</td>
+          </tr>
+          <tr>
+            <td class="mono">2c</td>
+            <td>is the 0.5 s flush sleep necessary?</td>
+            <td>A/B · flush-on vs flush-off · plus dump-integrity probe</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <strong>Each test outputs one JSON.</strong> The JSON is the artifact of record. Per Plan-01 discipline, "no JSON, no claim". All round analysis cites specific JSON field names, never raw console output.
+      </div>
+    </section>
+
+    <!-- ───── 6 · 12 mechanisms/bugs ───── -->
+    <section class="card" id="bugs">
+      <div class="num">SECTION 06</div>
+      <h2>12 mechanisms + bugs · what each was · how it was closed</h2>
+      <p>Seven theoretical mechanisms (lowercase Roman i-vii) were hypotheses from the pre-investigation confusion-matrix analysis. Five engineering bugs (uppercase Latin D-H) were discovered during the rounds. All twelve closed before Plan 01 was declared complete.</p>
+
+      <h3>Theoretical mechanisms (i-vii)</h3>
+      <div class="mech-grid">
+        <div class="mech">
+          <div class="id">mechanism i</div>
+          <div class="name">window-duration collapse</div>
+          <div class="fix">FIXED · bc install (Run 2)</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism ii</div>
+          <div class="name">cepstral peak mis-mapping</div>
+          <div class="fix">FIXED · same as i</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism iii</div>
+          <div class="name">non-stationary host Δt</div>
+          <div class="fix">FIXED · Plan 1 producer self-clean (R3)</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism iv</div>
+          <div class="name">pause-fraction noise floor</div>
+          <div class="fix">PARAMETERIZED · design knob (R2)</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism v</div>
+          <div class="name">dump cleanup silent fail</div>
+          <div class="fix">FIXED · sudo rm fallback (R2)</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism vi</div>
+          <div class="name">in-pass pmemsave drift</div>
+          <div class="fix">FIXED · Plan 1 + R3 verified</div>
+        </div>
+        <div class="mech">
+          <div class="id">mechanism vii</div>
+          <div class="name">2c verdict false negative</div>
+          <div class="fix">FIXED · Plan 3 + Plan 6 (R5 verified)</div>
+        </div>
+      </div>
+
+      <h3>Engineering bugs (D-H)</h3>
+      <div class="mech-grid">
+        <div class="mech">
+          <div class="id">bug D</div>
+          <div class="name">disk-free check pessimistic</div>
+          <div class="fix">FIXED · Plan 4 (R3)</div>
+        </div>
+        <div class="mech">
+          <div class="id">bug E</div>
+          <div class="name">sanity 0 snaps · 30 backpressure</div>
+          <div class="fix">FIXED · Plan 1c (R4)</div>
+        </div>
+        <div class="mech">
+          <div class="id">bug F</div>
+          <div class="name">2c probe finds 0 dumps</div>
+          <div class="fix">FIXED · Plan 5 (R4)</div>
+        </div>
+        <div class="mech">
+          <div class="id">bug G</div>
+          <div class="name">flush ↔ self-clean coupling</div>
+          <div class="fix">FIXED · Plan 6 n=10→5 (R5)</div>
+        </div>
+        <div class="mech">
+          <div class="id">bug H</div>
+          <div class="name">2b/2c missing <code>mkdir -p</code> output JSON parent</div>
+          <div class="fix">FIXED · 4 LOC (R5)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 7 · results ───── -->
+    <section class="card" id="results">
+      <div class="num">SECTION 07</div>
+      <h2>Results · the numbers</h2>
+      <p>Three "before / after" comparisons. The numbers below come directly from the per-round JSON artifacts.</p>
+
+      <h3>bc fix · guest_dt mis-calibration</h3>
+      <div class="ba-grid">
+        <div class="ba-before">
+          <span class="ba-tag">before · run 1</span>
+          <dl>
+            <dt>configured intervalMsec</dt><dd>100 ms</dd>
+            <dt>measured guest_dt</dt><dd>0.0066 s</dd>
+            <dt>ratio (off by)</dt><dd>15× too fast</dd>
+            <dt>analyzer Δt_frame</dt><dd>incorrect by 15×</dd>
+          </dl>
+        </div>
+        <div class="ba-after">
+          <span class="ba-tag">after · run 2</span>
+          <dl>
+            <dt>configured intervalMsec</dt><dd>100 ms</dd>
+            <dt>measured guest_dt</dt><dd>0.125 s</dd>
+            <dt>ratio</dt><dd>1.0 (+25 ms constant overhead)</dd>
+            <dt>analyzer Δt_frame</dt><dd>correct ✓</dd>
+          </dl>
+        </div>
+      </div>
+
+      <h3>Consumer isolation (mechanism iii) · suspend latency</h3>
+      <div class="ba-grid">
+        <div class="ba-before">
+          <span class="ba-tag">before · round 1</span>
+          <dl>
+            <dt>suspend median</dt><dd>6.380 s</dd>
+            <dt>host_dt mean</dt><dd>9.25 s</dd>
+            <dt>backpressure</dt><dd>85 events</dd>
+            <dt>VM pause fraction</dt><dd>99.8 %</dd>
+          </dl>
+        </div>
+        <div class="ba-after">
+          <span class="ba-tag">after · round 3 (Plan 1)</span>
+          <dl>
+            <dt>suspend median</dt><dd>0.066 s</dd>
+            <dt>host_dt mean</dt><dd>1.65 s</dd>
+            <dt>backpressure</dt><dd>0 events</dd>
+            <dt>VM pause fraction</dt><dd>92.4 % (at iv=100)</dd>
+          </dl>
+        </div>
+      </div>
+
+      <h3>Pause-fraction sweep (mechanism iv) · the design-knob calibration</h3>
+      <p>At each <code>intervalMsec</code> level, how much of host wall-clock is VM-paused?</p>
+      <div style="margin: 16px 0;">
+        <div class="bar-row"><span class="label">100</span><span class="pct">92.5 %</span><div class="bar" style="width: 92.5%;"></div><span class="val">expensive</span></div>
+        <div class="bar-row"><span class="label">250</span><span class="pct">84.8 %</span><div class="bar" style="width: 84.8%;"></div><span class="val"></span></div>
+        <div class="bar-row"><span class="label">500</span><span class="pct">74.2 %</span><div class="bar" style="width: 74.2%;"></div><span class="val"></span></div>
+        <div class="bar-row"><span class="label">1000</span><span class="pct">59.4 %</span><div class="bar" style="width: 59.4%;"></div><span class="val"></span></div>
+        <div class="bar-row"><span class="label">2000</span><span class="pct">42.5 %</span><div class="bar" style="width: 42.5%;"></div><span class="val">cheap</span></div>
+      </div>
+
+      <h3>Flush-sensitivity (mechanism vii) · final verdict</h3>
+      <div class="ba-grid">
+        <div class="ba-before">
+          <span class="ba-tag">flush kept · old default</span>
+          <dl>
+            <dt>host_dt mean (first-5)</dt><dd>1.520 s</dd>
+            <dt>per-snap fixed cost</dt><dd>0.5 s sleep overhead</dd>
+            <dt>per-pilot impact</dt><dd>~10 % of total wall-clock wasted</dd>
+          </dl>
+        </div>
+        <div class="ba-after">
+          <span class="ba-tag">flush removed · R5 verdict</span>
+          <dl>
+            <dt>host_dt mean (first-5)</dt><dd>1.140 s</dd>
+            <dt>delta</dt><dd>−0.380 s · 25 % per-snap saving</dd>
+            <dt>JSON recommendation</dt><dd>"REMOVE the flush ..."</dd>
+            <dt>integrity probe</dt><dd>all_ok = true · both passes</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>The capture pipeline is now production-grade.</strong> Every claim above is reproducible from the per-round JSONs and the audit log. Plan 02 then sat on top of this calibrated pipeline and produced the v1 iv recommendation table.
+      </div>
+    </section>
+
+    <!-- ───── 8 · code plans ───── -->
+    <section class="card" id="plans">
+      <div class="num">SECTION 08</div>
+      <h2>The code plans that landed</h2>
+      <p>"Plan" inside Plan 01 means a small code patch closing one or more bugs. Eight plans landed, all small, all one commit each.</p>
+
+      <table>
+        <thead><tr><th>plan</th><th>target file</th><th>what it does</th><th>LOC</th><th>closes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Plan 1</b></td>
+            <td class="mono">capture_producer_qemu_pmemsave.sh</td>
+            <td>add <code>TIMING_SELF_CLEAN</code> env-var; producer deletes prev dump in-process</td>
+            <td>~10</td>
+            <td>vi</td>
+          </tr>
+          <tr>
+            <td><b>Plan 1b</b></td>
+            <td class="mono">2a / 2b / 2c orchestrators</td>
+            <td>export <code>TIMING_SELF_CLEAN=1</code> by default + <code>--no-self-clean</code> opt-out</td>
+            <td>~10 × 3</td>
+            <td>vi propagation</td>
+          </tr>
+          <tr>
+            <td><b>Plan 1c</b></td>
+            <td class="mono">run_timing_instrumentation_experiment.py</td>
+            <td>sanity script gets self-clean default + queue-drain on start</td>
+            <td>~34</td>
+            <td>E</td>
+          </tr>
+          <tr>
+            <td><b>Plan 3</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td>verdict on stable-subset (first-N) instead of all-N</td>
+            <td>~20</td>
+            <td>vii</td>
+          </tr>
+          <tr>
+            <td><b>Plan 4</b></td>
+            <td class="mono">run_timing_instrumentation_experiment.py</td>
+            <td><code>disk_free_check</code> takes <code>peak_concurrent_dumps</code></td>
+            <td>~5</td>
+            <td>D</td>
+          </tr>
+          <tr>
+            <td><b>Plan 5</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td>2c inverts Plan 1b default; <code>TIMING_SELF_CLEAN</code> off so probe sees dumps</td>
+            <td>~21</td>
+            <td>F</td>
+          </tr>
+          <tr>
+            <td><b>Plan 6</b></td>
+            <td class="mono">run_exp2c_flush_sensitivity.py</td>
+            <td><code>--stable-n</code> default 10 → 5 (catches savings before drift)</td>
+            <td>~1</td>
+            <td>G</td>
+          </tr>
+          <tr>
+            <td><b>Bug-H fix</b></td>
+            <td class="mono">run_exp2b_*.py · run_exp2c_*.py</td>
+            <td><code>mkdir(parents=True, exist_ok=True)</code> before output JSON writes</td>
+            <td>~4</td>
+            <td>H</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top: 12px;">Plan 2 existed in the design doc but was superseded by Plan 1 before coding. Some numbering gaps are intentional.</p>
+    </section>
+
+    <!-- ───── 9 · deliverable ───── -->
+    <section class="card" id="deliverable">
+      <div class="num">SECTION 09</div>
+      <h2>The deliverable</h2>
+      <p>Plan 01 produced three artifacts that the rest of the project leans on.</p>
+
+      <h3>1 · A calibrated capture pipeline</h3>
+      <p>Stationary host_dt at every iv level. Pause-fraction known and parameterized as a function of iv. Producer rolling-delete option (<code>TIMING_SELF_CLEAN</code>) eliminates accumulation drift. Sanity / 2a / 2b / 2c instrumentation scripts available for any future re-validation.</p>
+
+      <h3>2 · The "REMOVE the 0.5 s flush" verdict</h3>
+      <p>For production use (consumer keeps up with producer · normal phase-2 capture model), the 0.5 s flush sleep is overhead. Removing it saves ~10 % wall-clock per snapshot. Verified empirically in Round 5 with the orchestrator's automatic <code>recommendation</code> field reading "REMOVE the flush".</p>
+
+      <h3>3 · The three-time-axes model</h3>
+      <p>Documented in the HTML lab. Used by the downstream analysis to compute Δt_frame correctly (Axis C = measured Axis A, not configured iv). Will be cited in the thesis methodology chapter.</p>
+
+      <div class="deep-links">
+        <a href="../tuning_plans/01_instrumentation_logging_plan.md">Plan 01 design doc</a>
+        <a href="../tuning_plans/experiment_audit.md">Full audit log (Days 1-11)</a>
+        <a href="../EXP2_RESULTS.md">Round-by-round results writeup</a>
+        <a href="../FRAMEWORK_OVERVIEW.md">Vocabulary cheat-sheet (test / plan / bug / round)</a>
+        <a href="../tuning_plans/debug_audit.md">Day-9 debug team session</a>
+      </div>
+    </section>
+
+    <!-- ───── 10 · limits ───── -->
+    <section class="card" id="limits">
+      <div class="num">SECTION 10</div>
+      <h2>Honest limits</h2>
+      <p>Two things the team noted but did NOT close inside Plan 01. Both are tracked for downstream work.</p>
+
+      <h3>Limit A · single-host bias</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Every Plan 01 measurement happened on <code>pcrserral</code>. The pause-fraction curve, the pmemsave-flat 0.77 s, the bc-overhead 25 ms — all are properties of that one machine. A different host with a different disk / kernel / cpu would have different numbers.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>Reproducibility metadata (kernel, qemu version, vm image sha256, git sha) is in schema v2 from Day-0 of Plan 02 specifically because of this. Future host migrations need to re-run sanity + 2b on the new host before claiming the per-family iv table still applies.</p>
+        </div>
+      </div>
+
+      <h3>Limit B · idle-VM characterization only</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Plan 01 measured the pipeline with an idle Kali VM. We never measured what happens when the VM is also running a memory-stressing workload at the same time. The pause-fraction sweep would shift; pmemsave dominance may change.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>Plan 02 Step 2 ran workloads via SSH-launch for 90 cells and showed pause-fraction reproduces idle-VM measurements within 1 %. So in practice the idle-baseline holds under workload load. But this was empirical confirmation, not Plan 01's claim. Recorded for completeness.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 11 · faq ───── -->
+    <section class="card" id="faq">
+      <div class="num">SECTION 11</div>
+      <h2>Common confusions</h2>
+
+      <h3>"Why is Plan 01 about instrumentation, not measurement?"</h3>
+      <p>The naming is unfortunate. "Plan 01" comes from the tuning-plan series (<code>01_instrumentation_logging_plan.md</code>, <code>02_interval_tuning_experiment.md</code>, ...). The 01 prefix means it is the first tuning plan in the series, and that first plan happens to be about getting the instrumentation right. Plan 02 is the first <em>measurement</em> plan that uses the instrumentation built by Plan 01.</p>
+
+      <h3>"What does 'mechanism' vs 'bug' mean?"</h3>
+      <p><strong>Mechanism</strong> (lowercase Roman, i-vii) is a theoretical hypothesis for why the classifier might have confused workloads. They came from pre-Plan-01 confusion-matrix analysis and represent "things the analysis chain could be doing wrong." <strong>Bug</strong> (uppercase Latin, D-H) is a concrete engineering defect that was discovered during the rounds. Both are tracked separately so reading old reports doesn't confuse hypothesis with finding.</p>
+
+      <h3>"What is the actual REMOVE-the-flush change?"</h3>
+      <p>Inside the producer shell script, there was a <code>sleep 0.5</code> after each pmemsave call (line 142 of <code>capture_producer_qemu_pmemsave.sh</code>). Plan 01 verified empirically that this sleep is unnecessary when the consumer keeps up with the producer (production model). Removing it saves ~0.5 s per snapshot. The flag <code>TIMING_NO_FLUSH=1</code> already skips it; the team's recommendation is to make that the default.</p>
+
+      <h3>"Why didn't we delete the flush already?"</h3>
+      <p>Plan 01 produced the <em>verdict</em> (REMOVE). The actual line-deletion in the production producer is a separate operator action that didn't block any other plan. It will land alongside D-51 (analyzer-then-delete hook) when the producer is next touched.</p>
+
+      <h3>"Did Plan 01 close ALL the bugs in the capture pipeline?"</h3>
+      <p>All twelve <em>known</em> ones. There could be more that haven't been triggered yet. Schema v2's reproducibility metadata + the validator (<code>plan02_validate_session.py</code>) are the safety nets for catching future regressions early. The pattern is: any cell that fails C1-C5 surfaces the specific failure mode in <code>notes</code>.</p>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan02_overview.html">
+        <span class="label">next →</span>
+        <span class="title">Plan 02 · per-family intervalMsec table</span>
+      </a>
+      <a href="timing_experiment_1_lab.html">
+        <span class="label">deep dive →</span>
+        <span class="title">Full lab (all 11 days, every round)</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
