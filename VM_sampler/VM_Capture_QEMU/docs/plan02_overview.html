@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 02 · Overview · Memory Signal Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: var(--f-sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size: .92em;
+         background: rgba(212,168,90,.07); padding: 1px 6px;
+         border-radius: 4px; color: var(--text); }
+  pre code { background: transparent; padding: 0; }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight: 500;
+                letter-spacing: -.015em; margin: 0; }
+  h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
+  h2 { font-size: clamp(20px, 2.5vw, 28px); margin: 0 0 16px; }
+  h3 { font-size: 18px; margin: 24px 0 10px; color: var(--text); }
+  p  { margin: 8px 0; color: var(--text-dim); }
+
+  /* layout: sticky sidebar + scrollable content */
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  @media (max-width: 800px) {
+    .app { grid-template-columns: 1fr; }
+    aside.nav { position: static; height: auto; border-right: none;
+                border-bottom: 1px solid var(--line); }
+  }
+  aside.nav {
+    position: sticky; top: 0; align-self: start;
+    height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--line);
+    padding: 24px 18px;
+  }
+  aside.nav .brand {
+    font-family: var(--f-display); font-size: 16px; font-weight: 600;
+    color: var(--text); margin-bottom: 4px;
+  }
+  aside.nav .sub {
+    font-size: 11px; color: var(--muted); margin-bottom: 22px;
+    letter-spacing: .05em; text-transform: uppercase;
+  }
+  aside.nav ol { list-style: none; padding: 0; margin: 0;
+                 counter-reset: navitem; }
+  aside.nav ol li {
+    counter-increment: navitem;
+    padding: 0; margin: 2px 0;
+  }
+  aside.nav ol li a {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 7px 10px; border-radius: 6px;
+    color: var(--text-dim); font-size: 13.5px;
+    transition: background .15s, color .15s;
+  }
+  aside.nav ol li a::before {
+    content: counter(navitem, decimal-leading-zero);
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--muted); width: 22px;
+  }
+  aside.nav ol li a:hover {
+    background: var(--panel-2); color: var(--text); text-decoration: none;
+  }
+  aside.nav ol li a.active {
+    background: rgba(212,168,90,.10); color: var(--accent);
+  }
+  aside.nav .status-pill {
+    margin-top: 18px; padding: 10px 12px; border-radius: var(--r);
+    background: rgba(124,185,110,.08); border: 1px solid rgba(124,185,110,.20);
+    font-size: 12px; color: var(--good); line-height: 1.45;
+  }
+
+  main {
+    padding: 48px 40px 96px; max-width: 940px;
+    overflow-x: hidden;
+  }
+  @media (max-width: 800px) {
+    main { padding: 32px 20px 64px; }
+  }
+
+  /* hero */
+  .hero { margin: 0 0 36px 0; }
+  .hero .eyebrow {
+    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px;
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); font-weight: 500; }
+  .hero .deck { font-size: 17px; color: var(--text-dim);
+                margin-top: 14px; max-width: 720px; line-height: 1.55; }
+
+  /* section */
+  section.card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 28px 30px;
+    margin: 0 0 22px;
+    box-shadow: var(--shadow);
+    scroll-margin-top: 16px;
+  }
+  section.card .num {
+    font-family: var(--f-mono); font-size: 12px; color: var(--accent);
+    font-weight: 600; letter-spacing: .1em;
+  }
+  section.card h2 + p { margin-top: 4px; color: var(--text-dim); }
+
+  /* simple-vs-pro toggle */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+          margin: 18px 0; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+  .pair > div {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 18px;
+  }
+  .pair .label {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    font-weight: 600; margin-bottom: 8px;
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+  }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p { color: var(--text-dim); font-size: 14.5px; }
+  .pair ul { color: var(--text-dim); font-size: 14.5px;
+             padding-left: 18px; margin: 6px 0; }
+
+  /* tables */
+  table { width: 100%; border-collapse: collapse;
+          font-size: 14px; margin: 12px 0; }
+  th, td { padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; font-size: 12px; letter-spacing: .04em;
+       text-transform: uppercase; color: var(--muted);
+       border-bottom: 1px solid var(--line); }
+  td { border-bottom: 1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size: 13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  td .good { color: var(--good); font-weight: 600; }
+  td .acc  { color: var(--accent); font-weight: 600; }
+  td .bad  { color: var(--bad);    font-weight: 600; }
+
+  /* timeline */
+  ol.timeline { list-style: none; padding: 0; margin: 18px 0; position: relative; }
+  ol.timeline::before {
+    content: ""; position: absolute; left: 14px; top: 8px; bottom: 8px;
+    width: 2px; background: var(--line);
+  }
+  ol.timeline li {
+    position: relative; padding: 6px 0 12px 42px;
+  }
+  ol.timeline li::before {
+    content: ""; position: absolute; left: 8px; top: 11px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--panel-2); border: 2px solid var(--accent);
+  }
+  ol.timeline li.done::before  { background: var(--good); border-color: var(--good); }
+  ol.timeline li.now::before   { background: var(--accent); border-color: var(--accent);
+                                  box-shadow: 0 0 0 4px rgba(212,168,90,.18); }
+  ol.timeline li.todo::before  { background: transparent; border-color: var(--muted); }
+  ol.timeline .day {
+    font-family: var(--f-mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  ol.timeline .what {
+    font-size: 15px; color: var(--text); font-weight: 500; margin: 2px 0;
+  }
+  ol.timeline .why { font-size: 13.5px; color: var(--text-dim); }
+
+  /* bar chart */
+  .bar-row { display: grid; grid-template-columns: 70px 60px 1fr 40px;
+             gap: 10px; align-items: center; padding: 4px 0;
+             font-size: 13px; font-family: var(--f-mono); }
+  .bar-row .label { color: var(--muted); }
+  .bar-row .pct { color: var(--text); }
+  .bar-row .bar {
+    height: 14px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  }
+  .bar-row .val { color: var(--text); text-align: right; }
+
+  /* footer / nav links */
+  .nav-arrows { display: flex; gap: 12px; margin-top: 24px; }
+  .nav-arrows a {
+    flex: 1; padding: 14px 16px; border-radius: var(--r);
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text-dim); text-decoration: none;
+    transition: border-color .15s, color .15s;
+  }
+  .nav-arrows a:hover {
+    border-color: var(--accent); color: var(--accent);
+  }
+  .nav-arrows a .label {
+    font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 4px;
+  }
+  .nav-arrows a .title { font-size: 14px; }
+
+  /* highlight box */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(212,168,90,.05);
+    padding: 14px 18px; border-radius: 4px;
+    margin: 16px 0; color: var(--text-dim);
+    font-size: 14.5px;
+  }
+  .callout.warn  { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good  { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info  { border-color: var(--info);  background: rgba(110,167,212,.06); }
+
+  /* status chip */
+  .chip {
+    display: inline-block; padding: 3px 9px; border-radius: 11px;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .chip.done    { background: rgba(124,185,110,.14); color: var(--good); }
+  .chip.next    { background: rgba(212,168,90,.16); color: var(--accent); }
+  .chip.blocked { background: rgba(232,85,58,.12);  color: var(--bad-2); }
+  .chip.now     { background: rgba(110,167,212,.14); color: var(--info); }
+
+  /* small kv list */
+  dl.kv { display: grid; grid-template-columns: max-content 1fr;
+          gap: 6px 18px; font-size: 14px; margin: 12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size: 13px; }
+  dl.kv dd { color: var(--text); margin: 0; }
+
+  /* deep-dive link bar */
+  .deep-links {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 12px 0;
+  }
+  .deep-links a {
+    padding: 6px 12px; border-radius: 4px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 12.5px; color: var(--text-dim);
+  }
+  .deep-links a:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ───── sidebar nav ───── -->
+  <aside class="nav">
+    <div class="brand">Memory Signal · Plan 02</div>
+    <div class="sub">overview · v1 published</div>
+    <ol>
+      <li><a href="#what" class="">What this is</a></li>
+      <li><a href="#now">Where we are now</a></li>
+      <li><a href="#timeline">Day-by-day timeline</a></li>
+      <li><a href="#phases">Phases · what each did</a></li>
+      <li><a href="#measure">What we measured</a></li>
+      <li><a href="#results">Step 2 results</a></li>
+      <li><a href="#table">v1 iv recommendations</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#next">What is actually next</a></li>
+      <li><a href="#faq">Common confusions</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Capture phase: CLOSED</strong><br>
+      v1 recommendations published.<br>
+      Analysis-integration opens with D-51.
+    </div>
+  </aside>
+
+  <!-- ───── main content ───── -->
+  <main>
+
+    <!-- hero -->
+    <header class="hero">
+      <div class="eyebrow">Plan 02 · per-family <code>intervalMsec</code> tuning</div>
+      <h1>Plan 02 v1 <em>shipped</em>.<br>You already have the per-family iv table.</h1>
+      <p class="deck">
+        v1 recommendations were published at the end of Day 11. They are usable
+        for the thesis chapter right now. v2 (metric-driven instead of
+        design-justified) is the optional next strengthening step, gated on
+        the analyzer-then-delete hook (D-51).
+      </p>
+    </header>
+
+    <!-- ───── 1 · what this is ───── -->
+    <section class="card" id="what">
+      <div class="num">SECTION 01</div>
+      <h2>What this is</h2>
+      <p>A single canonical overview of Plan 02. Built because the long-running HTML lab has 11 days of in-place edits and the term "Plan 02" appears in multiple states. This page replaces the question "what's going on?" with a clear answer.</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Phase 1 of the thesis used one fixed sample interval for every workload. Different workloads have different natural rhythms. Plan 02 figured out the right sample interval per workload family by running 90 controlled captures across 5 interval values × 3 durations × 2 workloads × 3 replicates.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>Plan 02 is a factorial controlled experiment over <code>intervalMsec ∈ {100, 250, 500, 1000, 2000}</code> ms. Outputs: per-family recommended iv that balances pause-fraction cost against workload-rhythm resolvability. v1 deliverable: <code>iv_recommendations_v1.json</code>.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Three things share the name "Plan 02".</strong> Knowing which one any sentence refers to is the only trick to reading the old docs.
+        <table style="margin-top: 8px; margin-bottom: 0;">
+          <tr><td class="mono">Plan 02 (design)</td><td>The doc <code>02_interval_tuning_experiment.md</code>. Drafted Day 1.</td><td><span class="chip done">drafted</span></td></tr>
+          <tr><td class="mono">Plan 02 v1</td><td>Per-family iv table from the 90-cell Step 2 capture.</td><td><span class="chip done">done</span></td></tr>
+          <tr><td class="mono">Plan 02 v2</td><td>Same table but iv chosen by measured F1/CV instead of design priors.</td><td><span class="chip next">open</span></td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───── 2 · where we are now ───── -->
+    <section class="card" id="now">
+      <div class="num">SECTION 02</div>
+      <h2>Where we are now</h2>
+      <p>Captured cleanly. Recommendations exist. v2 refinement is optional.</p>
+
+      <dl class="kv">
+        <dt>capture phase</dt> <dd><span class="chip done">closed</span> · 16 mechanisms / bugs closed end-to-end</dd>
+        <dt>step 2 status</dt> <dd><span class="chip done">90 / 90 operational PASS</span> · zero settle retries · zero backpressure</dd>
+        <dt>v1 deliverable</dt> <dd><code>docs/tuning_plans/iv_recommendations_v1.json</code> · 6 families mapped</dd>
+        <dt>open</dt>          <dd><span class="chip next">D-51</span> analyzer-then-delete hook for v2 · <span class="chip next">D-50</span> VM mlock fix</dd>
+        <dt>blocked</dt>       <dd><span class="chip blocked">Plan 03</span> window/hop tuning (un-gated; needs design first) · <span class="chip blocked">classifier re-validation</span></dd>
+      </dl>
+    </section>
+
+    <!-- ───── 3 · timeline ───── -->
+    <section class="card" id="timeline">
+      <div class="num">SECTION 03</div>
+      <h2>Day-by-day timeline</h2>
+      <p>11 working days from problem to v1 deliverable.</p>
+
+      <ol class="timeline">
+        <li class="done">
+          <div class="day">Days 1-5 · capture-pipeline fix chain</div>
+          <div class="what">9 bugs closed across Rounds 1-5 · 0.5 s flush removed</div>
+          <div class="why">bc fix · consumer isolation · pause-fraction sweep · in-pass drift · 2c verdict logic</div>
+        </li>
+        <li class="done">
+          <div class="day">Day 6 · Plan 02 Step 1</div>
+          <div class="what">90-cell idle-VM pilot · capture-pipeline characterization</div>
+          <div class="why">workloads never launched (label-only) · dumps never kept · revealed 2 Day-0 oversights</div>
+        </li>
+        <li class="done">
+          <div class="day">Day 7-8 · Step 1.5a/b/c</div>
+          <div class="what">backfill + workload-launching code + first sub-pilot · 4 bugs surfaced</div>
+          <div class="why">J workload path placeholder · K SSH credentials · L libvirt monitor lock · M false-ok cells</div>
+        </li>
+        <li class="done">
+          <div class="day">Day 9 · debug team</div>
+          <div class="what">disk preflight + per-cell guard + producer-log scan + retry-resume settle</div>
+          <div class="why">~210 LOC across plan02_run.py · 35/35 tests green</div>
+        </li>
+        <li class="done">
+          <div class="day">Day 10 · validator + 1.5c re-run</div>
+          <div class="what">plan02_validate_session.py · 18/18 ok · all 4 guards quiet</div>
+          <div class="why">operational vs informational claim split · Step 2 cleared</div>
+        </li>
+        <li class="done">
+          <div class="day">Day 11 · Step 2 · v1 published</div>
+          <div class="what">90-cell sweep · 5 iv × 3 dur × 2 workloads × 3 reps · 90 / 90 operational PASS</div>
+          <div class="why">pause-fraction sweep matches R2 within 1 % · v1 iv table published</div>
+        </li>
+        <li class="now">
+          <div class="day">YOU ARE HERE · D-51 next (optional for v1)</div>
+          <div class="what">analyzer-then-delete hook · enables F1 / CV measurement without disk burn</div>
+          <div class="why">~150 LOC orchestrator + offline_step_metrics integration · then v2 capture</div>
+        </li>
+        <li class="todo">
+          <div class="day">Plan 03</div>
+          <div class="what">window / hop tuning · independent of v1 vs v2 choice</div>
+          <div class="why">n_windows &lt; 50 at canonical (128, 64) motivates smaller window/hop</div>
+        </li>
+        <li class="todo">
+          <div class="day">Final · classifier re-validation</div>
+          <div class="what">re-collect a confused workload pair on new settings · check confusion collapses</div>
+          <div class="why">if confusion drops ≥ 20 pp → bc + Δt + drift + iv profile chain confirmed load-bearing</div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ───── 4 · phases ───── -->
+    <section class="card" id="phases">
+      <div class="num">SECTION 04</div>
+      <h2>Phases · what each one accomplished</h2>
+      <p>Each phase added one new piece of complexity. Decision gates between phases caught problems before they bled forward.</p>
+
+      <table>
+        <thead><tr>
+          <th>phase</th><th>cost</th><th>what</th><th>decision gate</th>
+        </tr></thead>
+        <tbody>
+          <tr><td><b>Day-0 design</b></td><td class="mono">0 h host</td><td>manifest + schema v2 + orchestrator + dry-run</td><td>tests green</td></tr>
+          <tr><td><b>Step 0.5</b></td><td class="mono">~1 h host</td><td>null baseline · F1_null / CV_null floor</td><td>thresholds calibrated</td></tr>
+          <tr><td><b>Step 0</b></td><td class="mono">~6 h host</td><td>sensitivity probe (iv × window)</td><td>decouple confirmed</td></tr>
+          <tr><td><b>Step 1</b></td><td class="mono">~6 h host</td><td>90-cell pilot · idle VM</td><td>2 oversights surfaced</td></tr>
+          <tr><td><b>Step 1.5a</b></td><td class="mono">0 h host</td><td>backfill n_windows on existing cells</td><td>D-25 confirms C3 informational</td></tr>
+          <tr><td><b>Step 1.5b</b></td><td class="mono">0 h host</td><td>workload-launching + keep_dumps code path</td><td>tests green</td></tr>
+          <tr><td><b>Step 1.5c</b></td><td class="mono">~3 h host</td><td>16-cell sub-pilot · workloads run · 4 bugs J/K/L/M</td><td>guards quiet · gate Step 2</td></tr>
+          <tr><td><b>Step 2</b></td><td class="mono">~14 h host</td><td>90-cell sweep · real workloads · v1 deliverable</td><td>90 / 90 PASS</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        Cost progression goes 0 → 1 h → 6 h → 14 h. Each phase ≤ 3× the prior. Failure at any phase invalidates only that phase's cost, not the next phase's.
+      </div>
+    </section>
+
+    <!-- ───── 5 · what we measured ───── -->
+    <section class="card" id="measure">
+      <div class="num">SECTION 05</div>
+      <h2>What each cell measures · the five claims</h2>
+      <p>Every cell is tested against five claims. The first four gate the operational verdict. The fifth (C3) is informational because it depends on the analyzer window, not on the capture pipeline.</p>
+
+      <table>
+        <thead><tr>
+          <th>claim</th><th>simple</th><th>technical</th><th>gates verdict?</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>C1</b></td>
+            <td>workload binary actually ran</td>
+            <td>≥ 1 <code>[PHASE]</code> marker in <code>workload_stderr.log</code></td>
+            <td><span class="chip done">yes</span></td>
+          </tr>
+          <tr>
+            <td><b>C2</b></td>
+            <td>snap count matches expectation</td>
+            <td><code>actual / expected ≥ 0.85</code></td>
+            <td><span class="chip done">yes</span></td>
+          </tr>
+          <tr>
+            <td><b>C3</b></td>
+            <td>enough windows for downstream analysis</td>
+            <td><code>n_windows ≥ 50</code> at canonical (128, 64)</td>
+            <td><span class="chip blocked">no · informational</span></td>
+          </tr>
+          <tr>
+            <td><b>C4</b></td>
+            <td>libvirt responsive between cells</td>
+            <td>settle <code>lock_retries == 0</code></td>
+            <td><span class="chip done">yes</span></td>
+          </tr>
+          <tr>
+            <td><b>C5</b></td>
+            <td>producer.log clean</td>
+            <td>tail scan for error/fail/denied/no-space returns 0</td>
+            <td><span class="chip done">yes</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ───── 6 · step 2 results ───── -->
+    <section class="card" id="results">
+      <div class="num">SECTION 06</div>
+      <h2>Step 2 results · 90 cells of real-workload capture</h2>
+      <p>The pause-fraction sweep across the 5 iv values · 18 cells per level.</p>
+
+      <div style="margin: 16px 0;">
+        <div class="bar-row"><span class="label">iv (ms)</span><span class="pct">pause</span><span class="bar" style="width:0;"></span><span class="val"></span></div>
+        <div class="bar-row"><span class="label">100</span><span class="pct">92.5 %</span><div class="bar" style="width: 92.5%;"></div><span class="val">18 c</span></div>
+        <div class="bar-row"><span class="label">250</span><span class="pct">84.8 %</span><div class="bar" style="width: 84.8%;"></div><span class="val">18 c</span></div>
+        <div class="bar-row"><span class="label">500</span><span class="pct">74.2 %</span><div class="bar" style="width: 74.2%;"></div><span class="val">18 c</span></div>
+        <div class="bar-row"><span class="label">1000</span><span class="pct">59.4 %</span><div class="bar" style="width: 59.4%;"></div><span class="val">18 c</span></div>
+        <div class="bar-row"><span class="label">2000</span><span class="pct">42.5 %</span><div class="bar" style="width: 42.5%;"></div><span class="val">18 c</span></div>
+      </div>
+
+      <p style="font-size: 13.5px; color: var(--muted);">Reading: at iv=100 ms, the VM is paused 92.5 % of host wall-clock. At iv=2000 ms, paused 42.5 %. Smaller iv = more snapshots per second = higher cost. The right iv per workload depends on how fast the workload's defining rhythm changes.</p>
+
+      <h3>guest_dt mean (s) vs iv · stationarity check</h3>
+      <table>
+        <thead><tr><th>iv (ms)</th><th>guest_dt mean (s)</th><th>CV worst case</th><th>verdict</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">100</td><td class="mono">0.114 – 0.125</td><td class="mono">0.040</td><td><span class="good">stationary</span></td></tr>
+          <tr><td class="mono">250</td><td class="mono">0.275</td><td class="mono">0.021</td><td><span class="good">stationary</span></td></tr>
+          <tr><td class="mono">500</td><td class="mono">0.524</td><td class="mono">0.008</td><td><span class="good">stationary</span></td></tr>
+          <tr><td class="mono">1000</td><td class="mono">1.022</td><td class="mono">0.003</td><td><span class="good">stationary</span></td></tr>
+          <tr><td class="mono">2000</td><td class="mono">2.022</td><td class="mono">0.001</td><td><span class="good">stationary</span></td></tr>
+        </tbody>
+      </table>
+
+      <p style="font-size: 13.5px; color: var(--muted);">All CV values are well below the 0.10 acceptance threshold (worst case at iv=100 ms is 4× under the limit). guest_dt = iv + ~25 ms producer overhead, constant across the range. Stationarity holds; iv is a reliable knob.</p>
+
+      <div class="callout good">
+        <strong>Headline.</strong> Operational validator: <strong>90 / 90 PASS</strong>. Zero settle retries across 90 sequential VM resume/suspend cycles. Pause-fraction reproduces Round-2 within 1 % at every iv level.
+      </div>
+    </section>
+
+    <!-- ───── 7 · the table ───── -->
+    <section class="card" id="table">
+      <div class="num">SECTION 07</div>
+      <h2>v1 recommendation table · the deliverable</h2>
+      <p>What you can use right now in the thesis chapter. Per-family iv mapped to the cheapest level whose pause cost + workload-rhythm fit are mutually acceptable.</p>
+
+      <table>
+        <thead><tr>
+          <th>family</th><th>workload example</th><th>recommended iv</th><th>pause cost</th><th>rationale</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td>MEM steady-state</td>
+            <td class="mono">mem_workingset_sweep_v2</td>
+            <td><b>1000 ms</b></td>
+            <td>59 %</td>
+            <td>steady workload tolerates slow iv</td>
+          </tr>
+          <tr>
+            <td>MEM transient</td>
+            <td class="mono">mem_pagefault_density_v2</td>
+            <td><b>250 ms</b></td>
+            <td>85 %</td>
+            <td>needs fast iv for transient bursts</td>
+          </tr>
+          <tr>
+            <td>APP-REALISTIC OLTP</td>
+            <td class="mono">app_sqlite_oltp_v2</td>
+            <td><b>500 ms</b></td>
+            <td>74 %</td>
+            <td>checkpoint cadence ~1-5 s</td>
+          </tr>
+          <tr>
+            <td>APP-REALISTIC steady</td>
+            <td class="mono">app_compress_streaming_v2</td>
+            <td><b>1000 ms</b></td>
+            <td>59 %</td>
+            <td>steady throughput</td>
+          </tr>
+          <tr>
+            <td>SECURITY-LIKE phasic</td>
+            <td class="mono">sandbox_ransom_batched</td>
+            <td><b>500 ms</b></td>
+            <td>74 %</td>
+            <td>phase boundaries at ~1-5 s · 500 ms gives ≥ 2 samples per phase</td>
+          </tr>
+          <tr>
+            <td>SECURITY-LIKE slowburn</td>
+            <td class="mono">sandbox_ransom_slowburn</td>
+            <td><b>1000 ms</b></td>
+            <td>59 %</td>
+            <td>long-period drift · 1000 ms ample</td>
+          </tr>
+          <tr style="background: rgba(212,168,90,.04);">
+            <td>METHODOLOGY</td>
+            <td class="mono">mp_phase_boundary_inference</td>
+            <td><b>inherits</b></td>
+            <td>—</td>
+            <td>uses child workload's iv</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="deep-links">
+        <a href="../tuning_plans/iv_recommendations_v1.json">JSON · iv_recommendations_v1.json</a>
+        <a href="../tuning_plans/experiment_audit.md">Audit · experiment_audit.md (Day 11)</a>
+        <a href="../tuning_plans/02_interval_tuning_experiment.md">Original design doc</a>
+      </div>
+    </section>
+
+    <!-- ───── 8 · limits ───── -->
+    <section class="card" id="limits">
+      <div class="num">SECTION 08</div>
+      <h2>Honest limits</h2>
+      <p>Three things v1 does NOT yet measure. None invalidates the table; each has a specific small fix.</p>
+
+      <h3>Limit A · no F1 / CV measurement</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Step 2 ran the workloads but did not keep the dump files (would have filled the disk). Without dumps we cannot compute the analyzer-side metrics. v1 picks are made from cost data + workload-design priors, not from a measured signal-quality vs iv interaction.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p><code>analyzer_outputs.{f1_phase, cv_workingset}</code> are null across all 90 cells. Fix is D-51 (analyzer-then-delete hook) · ~150 LOC. Then run a smaller targeted sub-pilot to populate the metrics.</p>
+        </div>
+      </div>
+
+      <h3>Limit B · mlock failure in workingset</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>The workingset_sweep_v2 workload binary asked the Kali VM kernel to pin 512 MiB of its memory; the kernel refused. The workload continued anyway but with some pages swappable. Its rhythm is mildly degraded as a result.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p><code>mlock(536870912) failed: Cannot allocate memory</code> in every workingset stderr. Fix on VM side: raise RLIMIT_MEMLOCK, OR bump VM RAM, OR reduce <code>--working-set-mb</code> from 512 to 256. Documented in audit Day 11 D-50.</p>
+        </div>
+      </div>
+
+      <h3>Limit C · canonical window too coarse</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Simple</span>
+          <p>Even the longest cells (30 min) don't produce enough sliding windows at the Phase-1 default window=128 hop=64. That's a separate question: how big should the analyzer's window be? That is what Plan 03 will answer.</p>
+        </div>
+        <div>
+          <span class="label tech">Technical</span>
+          <p>Max <code>n_windows</code> observed in Step 2: 16 at iv=100 ms, d=1800 s (1088 snaps). To clear 50 windows at (128, 64) needs ≥ 3328 snaps per cell — at iv=100 ms that is 7 min guest-running ≈ 86 min host per cell. Infeasible at 90-cell scale. Resolution: Plan 03 chooses smaller window/hop. C3 in the validator is informational because of this.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 9 · what is actually next ───── -->
+    <section class="card" id="next">
+      <div class="num">SECTION 09</div>
+      <h2>What is actually next</h2>
+      <p>Three options. Pick by priority. None blocks the thesis chapter from being drafted.</p>
+
+      <table>
+        <thead><tr>
+          <th>option</th><th>what it gives</th><th>cost</th><th>blocks anything?</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><b>D-51</b> analyzer-then-delete hook</td>
+            <td>v2 iv table with measured F1 / CV per family</td>
+            <td>~150 LOC + ~3 h capture</td>
+            <td>no · v1 is enough to draft the chapter</td>
+          </tr>
+          <tr>
+            <td><b>D-50</b> VM mlock fix</td>
+            <td>cleaner workingset workload data for future runs</td>
+            <td>~5 min VM-side</td>
+            <td>no</td>
+          </tr>
+          <tr>
+            <td><b>Plan 03</b> window/hop design</td>
+            <td>smaller (window, hop) that clears C3 at our durations</td>
+            <td>~design doc first · then ~6 h capture</td>
+            <td>blocks classifier re-validation</td>
+          </tr>
+          <tr style="background: rgba(110,167,212,.06);">
+            <td><b>Thesis draft</b></td>
+            <td>chapter on Plan-02 using v1 table</td>
+            <td>writing time only</td>
+            <td>can start in parallel with D-51 or Plan 03</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout good">
+        <strong>Recommendation.</strong> Start drafting the chapter using v1 numbers. Run D-51 in parallel — if v2 changes any pick, swap the number; the prose stays the same.
+      </div>
+    </section>
+
+    <!-- ───── 10 · faq ───── -->
+    <section class="card" id="faq">
+      <div class="num">SECTION 10</div>
+      <h2>Common confusions</h2>
+
+      <h3>"I thought we finished Plan 02 · why is it 'next' in the lab?"</h3>
+      <p>The lab text says "next is D-51". D-51 is the upgrade from v1 to v2. <strong>v1 is already finished.</strong> "Plan 02" as a single concept has multiple deliverables; v1 is shipped, v2 is optional refinement.</p>
+
+      <h3>"Do I have the per-family iv numbers?"</h3>
+      <p>Yes. See Section 7 above. Six families mapped to <code>iv ∈ {250, 500, 1000} ms</code>. METHODOLOGY inherits from child workload.</p>
+
+      <h3>"Why are recommendations 'design-justified' instead of 'measured'?"</h3>
+      <p>Because Step 2 did not preserve dump files (would have filled disk). Without dumps, we cannot compute F1 / CV. The v1 picks use pause-fraction (measured) + each workload's intended rhythm (designed). D-51 closes that gap.</p>
+
+      <h3>"Should I run D-51 before writing the thesis?"</h3>
+      <p>No. D-51 produces stronger evidence but is unlikely to flip any pick. Write the chapter using v1; rerun D-51 in the background if you want belt-and-suspenders empirical backing.</p>
+
+      <h3>"What about Plan 03?"</h3>
+      <p>Plan 03 (window/hop tuning) is the next experiment, independent of v1 vs v2. C3 in the validator is direct evidence that the canonical (128, 64) is too coarse for our durations. Plan 03 is unblocked now; the prerequisite (calibrated capture pipeline) is in place.</p>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="timing_experiment_1_lab.html">
+        <span class="label">← back to</span>
+        <span class="title">Full lab (deep dives + all 11-day history)</span>
+      </a>
+      <a href="../tuning_plans/iv_recommendations_v1.json">
+        <span class="label">artifact →</span>
+        <span class="title">iv_recommendations_v1.json</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  // simple scroll-spy: highlight nav item for whichever section's top is closest to viewport top
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
