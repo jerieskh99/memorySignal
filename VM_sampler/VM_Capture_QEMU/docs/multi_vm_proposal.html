@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-VM Proposal · Plan 02 Team Verdict</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: var(--f-sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size: .92em;
+         background: rgba(212,168,90,.07); padding: 1px 6px;
+         border-radius: 4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight: 500;
+                letter-spacing: -.015em; margin: 0; }
+  h1 { font-size: clamp(28px, 4vw, 44px); line-height: 1.1; }
+  h2 { font-size: clamp(20px, 2.5vw, 28px); margin: 0 0 16px; }
+  h3 { font-size: 18px; margin: 24px 0 10px; color: var(--text); }
+  p  { margin: 8px 0; color: var(--text-dim); }
+
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  @media (max-width: 800px) {
+    .app { grid-template-columns: 1fr; }
+    aside.nav { position: static; height: auto; border-right: none;
+                border-bottom: 1px solid var(--line); }
+  }
+  aside.nav {
+    position: sticky; top: 0; align-self: start;
+    height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--line);
+    padding: 24px 18px;
+  }
+  aside.nav .brand {
+    font-family: var(--f-display); font-size: 16px; font-weight: 600;
+    color: var(--text); margin-bottom: 4px;
+  }
+  aside.nav .sub {
+    font-size: 11px; color: var(--muted); margin-bottom: 22px;
+    letter-spacing: .05em; text-transform: uppercase;
+  }
+  aside.nav ol { list-style: none; padding: 0; margin: 0;
+                 counter-reset: navitem; }
+  aside.nav ol li {
+    counter-increment: navitem; padding: 0; margin: 2px 0;
+  }
+  aside.nav ol li a {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 7px 10px; border-radius: 6px;
+    color: var(--text-dim); font-size: 13.5px;
+    transition: background .15s, color .15s;
+  }
+  aside.nav ol li a::before {
+    content: counter(navitem, decimal-leading-zero);
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--muted); width: 22px;
+  }
+  aside.nav ol li a:hover {
+    background: var(--panel-2); color: var(--text); text-decoration: none;
+  }
+  aside.nav ol li a.active {
+    background: rgba(212,168,90,.10); color: var(--accent);
+  }
+  aside.nav .status-pill {
+    margin-top: 18px; padding: 10px 12px; border-radius: var(--r);
+    background: rgba(232,85,58,.08); border: 1px solid rgba(232,85,58,.20);
+    font-size: 12px; color: var(--bad-2); line-height: 1.45;
+  }
+
+  main {
+    padding: 48px 40px 96px; max-width: 940px; overflow-x: hidden;
+  }
+  @media (max-width: 800px) { main { padding: 32px 20px 64px; } }
+
+  .hero { margin: 0 0 36px 0; }
+  .hero .eyebrow {
+    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px;
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); font-weight: 500; }
+  .hero .deck { font-size: 17px; color: var(--text-dim);
+                margin-top: 14px; max-width: 720px; line-height: 1.55; }
+
+  section.card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r-lg); padding: 28px 30px;
+    margin: 0 0 22px;
+    box-shadow: var(--shadow);
+    scroll-margin-top: 16px;
+  }
+  section.card .num {
+    font-family: var(--f-mono); font-size: 12px; color: var(--accent);
+    font-weight: 600; letter-spacing: .1em;
+  }
+  section.card h2 + p { margin-top: 4px; color: var(--text-dim); }
+
+  /* options grid */
+  .options { display: grid; grid-template-columns: repeat(3, 1fr);
+             gap: 14px; margin: 18px 0; }
+  @media (max-width: 900px) { .options { grid-template-columns: 1fr; } }
+  .opt {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 20px;
+    display: flex; flex-direction: column;
+  }
+  .opt .opt-tag {
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--accent); font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .opt h3 { margin: 0 0 8px 0; font-size: 16px; }
+  .opt p { font-size: 14px; line-height: 1.5; flex: 1; }
+  .opt.recommend {
+    border: 1px solid var(--good);
+    box-shadow: 0 0 0 3px rgba(124,185,110,.08);
+  }
+  .opt.reject {
+    border: 1px solid rgba(232,85,58,.40);
+  }
+  .opt.partial {
+    border: 1px solid var(--accent);
+  }
+  .verdict-chip {
+    display: inline-block; padding: 3px 10px; border-radius: 11px;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+    align-self: flex-start; margin-top: 10px;
+  }
+  .verdict-chip.go      { background: rgba(124,185,110,.16); color: var(--good); }
+  .verdict-chip.partial { background: rgba(212,168,90,.16); color: var(--accent); }
+  .verdict-chip.stop    { background: rgba(232,85,58,.14);  color: var(--bad-2); }
+
+  /* pair */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+          margin: 18px 0; }
+  @media (max-width: 700px) { .pair { grid-template-columns: 1fr; } }
+  .pair > div {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 18px;
+  }
+  .pair .label {
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    font-weight: 600; margin-bottom: 8px;
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+  }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size: 14.5px; }
+  .pair ul { padding-left: 18px; margin: 6px 0; }
+
+  table { width: 100%; border-collapse: collapse;
+          font-size: 14px; margin: 12px 0; }
+  th, td { padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; font-size: 12px; letter-spacing: .04em;
+       text-transform: uppercase; color: var(--muted);
+       border-bottom: 1px solid var(--line); }
+  td { border-bottom: 1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size: 13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+
+  .agent {
+    display: grid; grid-template-columns: 90px 1fr 90px;
+    gap: 14px; align-items: flex-start;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 12px 16px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .agent { grid-template-columns: 1fr; } }
+  .agent .agent-id {
+    font-family: var(--f-mono); font-weight: 600;
+    color: var(--accent); font-size: 13px; text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .agent .agent-take { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+  .agent .agent-vote {
+    align-self: center;
+    font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 11px;
+    text-align: center;
+  }
+  .agent .agent-vote.go      { background: rgba(124,185,110,.14); color: var(--good); }
+  .agent .agent-vote.partial { background: rgba(212,168,90,.14); color: var(--accent); }
+  .agent .agent-vote.stop    { background: rgba(232,85,58,.12);  color: var(--bad-2); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: rgba(212,168,90,.05);
+    padding: 14px 18px; border-radius: 4px;
+    margin: 16px 0; color: var(--text-dim); font-size: 14.5px;
+  }
+  .callout.warn  { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good  { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info  { border-color: var(--info);  background: rgba(110,167,212,.06); }
+
+  /* contention diagram */
+  .diagram {
+    font-family: var(--f-mono); font-size: 12px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 20px; overflow-x: auto;
+    color: var(--text-dim); line-height: 1.6;
+    margin: 12px 0;
+  }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+
+  /* bar */
+  .speed-row { display: grid; grid-template-columns: 160px 1fr 90px;
+               gap: 12px; align-items: center; padding: 4px 0;
+               font-size: 13px; font-family: var(--f-mono); }
+  .speed-row .label { color: var(--muted); }
+  .speed-row .bar {
+    height: 14px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  }
+  .speed-row .val { color: var(--text); text-align: right; }
+  .speed-row.fast .bar { background: linear-gradient(90deg, var(--good), var(--good)); opacity: .85; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Multi-VM Proposal</div>
+    <div class="sub">team verdict · no code</div>
+    <ol>
+      <li><a href="#question">Your question</a></li>
+      <li><a href="#options">Three options</a></li>
+      <li><a href="#contention">What changes physically</a></li>
+      <li><a href="#honesty">Honesty risk</a></li>
+      <li><a href="#speed">Speed-up math (real numbers)</a></li>
+      <li><a href="#production">Does it match production?</a></li>
+      <li><a href="#agents">Per-agent take</a></li>
+      <li><a href="#verdict">PM verdict</a></li>
+      <li><a href="#when">When multi-VM WOULD make sense</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Verdict: DO NOT multi-VM for v2.</strong><br>
+      Speed gain ~30 %; honesty risk non-trivial; v1 already in hand.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">decision support · no code change</div>
+      <h1>Multi-VM parallelization · <em>not worth it</em> for v2.<br>Conditional yes for a different question.</h1>
+      <p class="deck">
+        Team reviewed three multi-VM topologies against four criteria: speed-up, honesty,
+        production-match, and design risk. Recommendation: stay single-VM for the
+        Plan-02 v2 sub-pilot. The ~30 % speed-up does not justify the cross-VM
+        confound for an experiment whose v1 deliverable is already published.
+        Conditional re-eval if a future question changes (multi-tenant attack scenarios,
+        large-N sweeps, host-contention robustness).
+      </p>
+    </header>
+
+    <!-- ───── 1 · the question ───── -->
+    <section class="card" id="question">
+      <div class="num">SECTION 01</div>
+      <h2>Your question · as the team read it</h2>
+      <p>You asked: should we run multiple VMs in parallel (or interleaved) on the same host to finish v2 faster, given that we only <em>sample</em> the VMs and they don't share guest RAM?</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In one sentence</span>
+          <p>You want to know if a multi-VM topology can speed up data generation without making the per-family iv recommendation less trustworthy.</p>
+        </div>
+        <div>
+          <span class="label tech">Formal restatement</span>
+          <p>Given an experiment whose per-cell measurement is dominated by host-side disk + scheduling time, and given that QEMU domains are memory-isolated, can we exploit host CPU/IO parallelism to reduce wall-clock for a 50-90 cell sub-pilot without introducing cross-cell confounds that bias the per-family iv selection?</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        Three topologies considered: (A) per-family allocation · 1 VM per family running its family's cells solo; (B) sampling-interleave · multiple VMs, sampled round-robin while others run; (C) single VM (current).
+      </div>
+    </section>
+
+    <!-- ───── 2 · three options ───── -->
+    <section class="card" id="options">
+      <div class="num">SECTION 02</div>
+      <h2>Three options</h2>
+      <p>At-a-glance verdicts. Detail in later sections.</p>
+
+      <div class="options">
+        <div class="opt partial">
+          <div class="opt-tag">Option A</div>
+          <h3>Per-family VM allocation</h3>
+          <p>One VM per workload family. Each VM runs its family's cells solo, all VMs run in parallel on the host. Within-family replicates execute serially per VM.</p>
+          <span class="verdict-chip partial">conditional yes</span>
+        </div>
+        <div class="opt reject">
+          <div class="opt-tag">Option B</div>
+          <h3>Sampling interleave</h3>
+          <p>Multiple VMs alive; orchestrator samples them round-robin. While VM-A is paused for pmemsave, VM-B runs. Idea: reduce per-VM pause-fraction.</p>
+          <span class="verdict-chip stop">no · doesn't speed anything up</span>
+        </div>
+        <div class="opt recommend">
+          <div class="opt-tag">Option C</div>
+          <h3>Single VM (current)</h3>
+          <p>One VM. Sequential cells. Already proven across Step 2's 90 cells. Cell independence is clean. Matches production deployment model.</p>
+          <span class="verdict-chip go">keep for v2</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 3 · what changes physically ───── -->
+    <section class="card" id="contention">
+      <div class="num">SECTION 03</div>
+      <h2>What changes physically when you add VMs</h2>
+      <p>Memory is isolated by QEMU; almost everything else is shared. The team walks through what is and isn't.</p>
+
+      <table>
+        <thead><tr><th>resource</th><th>shared between VMs?</th><th>effect on capture</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>guest RAM</td>
+            <td><span style="color:var(--good)">isolated</span></td>
+            <td>each VM has its own paging structures · no direct interference</td>
+          </tr>
+          <tr>
+            <td>libvirt state-change lock</td>
+            <td><span style="color:var(--good)">per-domain</span></td>
+            <td>Bug-L is per-VM · multi-VM does not multiply the lock contention</td>
+          </tr>
+          <tr>
+            <td>host CPU cores</td>
+            <td><span style="color:var(--bad-2)">shared</span></td>
+            <td>2 VMs × N vCPUs + producer + libvirtd → oversubscription if N_vcpu × N_vm > N_cores</td>
+          </tr>
+          <tr>
+            <td>host disk · dump writes</td>
+            <td><span style="color:var(--bad-2)">shared</span></td>
+            <td>2 pmemsave calls = 2 × 1 GiB writes contend for disk bandwidth → host_dt drifts unpredictably</td>
+          </tr>
+          <tr>
+            <td>host page-cache + writeback</td>
+            <td><span style="color:var(--bad-2)">shared</span></td>
+            <td>Bug-G mechanism (dirty-page pressure) amplifies across VMs</td>
+          </tr>
+          <tr>
+            <td>last-level CPU cache</td>
+            <td><span style="color:var(--bad)">shared</span></td>
+            <td>workload-A's cache footprint pollutes workload-B's · subtle effect</td>
+          </tr>
+          <tr>
+            <td>host RAM (caches + libvirt)</td>
+            <td><span style="color:var(--bad-2)">shared</span></td>
+            <td>each VM's working set × N_vm + page cache + libvirt → host swap if undersized</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">  SINGLE VM (current)                MULTI VM (option A · 2 in parallel)
+  ─────────────────────              ─────────────────────────────────
+  ┌────────────┐                     ┌────────────┐   ┌────────────┐
+  │   VM       │                     │   VM-A     │   │   VM-B     │
+  │  workload  │                     │ workload-1 │   │ workload-2 │
+  │  + guest   │                     │  + guest   │   │  + guest   │
+  └─────┬──────┘                     └─────┬──────┘   └─────┬──────┘
+        │                                  │                │
+   <span class="hl-info">virsh suspend</span>                       <span class="hl-info">virsh suspend</span> ×2 (interleaved or simultaneous)
+   <span class="hl-info">pmemsave</span> 1 GiB                        <span class="hl-info">pmemsave</span> 1 GiB    <span class="hl-info">pmemsave</span> 1 GiB
+        │                                  │                │
+        ▼                                  ▼                ▼
+  ┌──────────────────────┐           ┌──────────────────────────────┐
+  │  host disk · I/O bw  │           │  host disk · I/O bw / 2      │
+  │  host CPU · scheduler│           │  host CPU · oversubscribed   │
+  │  host RAM · cache    │           │  host RAM · 2× pressure      │
+  └──────────────────────┘           └──────────────────────────────┘
+        │                                  │
+   <span class="hl-good">stationary host_dt</span>                    <span class="hl-bad">host_dt drifts ·</span>
+   <span class="hl-good">cell ⊥ cell</span>                           <span class="hl-bad">cells correlated by host load</span>
+</div>
+    </section>
+
+    <!-- ───── 4 · honesty ───── -->
+    <section class="card" id="honesty">
+      <div class="num">SECTION 04</div>
+      <h2>Honesty risk</h2>
+      <p>Cell independence is the core statistical assumption. Multi-VM violates it in subtle but real ways.</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain English</span>
+          <p>If two cells run simultaneously, and the host is contended (disk, CPU, cache), then both cells' measurements include a shared "I was contended" signal. The pause-fraction we report for cell A no longer measures "cost of intervalMsec under workload A" — it measures "cost of intervalMsec under workload A given that workload B happened to be running on the same host at the same time".</p>
+          <p style="margin-top:6px;">That extra dependency means the recommendation table is now conditional: "use iv=500 ms for ransom, but only if there's no concurrent workingset workload". That is a different and weaker claim than what v1 makes.</p>
+        </div>
+        <div>
+          <span class="label tech">Statistical framing</span>
+          <p>Cell measurements <code>y_i</code> have an additive cross-cell error <code>ε_ij</code> when cells <code>i, j</code> share host time. The cross-error covariance is non-zero whenever <code>i</code> and <code>j</code> overlap. Linear models fitted across cells will under-estimate variance (correlated residuals) and over-estimate effect sizes.</p>
+          <p style="margin-top:6px;">Mitigations exist (mixed-effects model with <code>host_load_state</code> as a random effect, or block-randomization where each block is "host-quiet" vs "host-loaded") but they multiply analysis complexity without changing the recommendation in most cases.</p>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>confound</th><th>severity</th><th>controllable?</th></tr></thead>
+        <tbody>
+          <tr><td>disk-bandwidth contention during pmemsave</td><td><span style="color:var(--bad-2)">high</span></td><td>only by NOT overlapping pmemsave windows</td></tr>
+          <tr><td>CPU oversubscription</td><td><span style="color:var(--bad-2)">high</span></td><td>by pinning + capacity planning</td></tr>
+          <tr><td>last-level cache pollution</td><td><span style="color:var(--accent)">medium</span></td><td>by cpu-pin; not perfectly</td></tr>
+          <tr><td>page-cache writeback amplification</td><td><span style="color:var(--accent)">medium</span></td><td>by ensuring writeback drains between samples</td></tr>
+          <tr><td>libvirtd RPC queuing</td><td><span style="color:var(--good)">low</span></td><td>per-domain locks already isolate</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>Bug-G (flush ↔ self-clean coupling) reminder.</strong> We already learned the hard way that shared page-cache state silently degrades pmemsave timing. Multi-VM amplifies exactly that mechanism, in a regime we have not characterized.
+      </div>
+    </section>
+
+    <!-- ───── 5 · speed math ───── -->
+    <section class="card" id="speed">
+      <div class="num">SECTION 05</div>
+      <h2>Speed-up math · real numbers, not hand-waves</h2>
+      <p>v2 sub-pilot is the only relevant target. v1 is already in hand. Numbers from Step 2 timing.</p>
+
+      <h3>Sequential baseline (option C)</h3>
+      <div style="margin: 14px 0;">
+        <div class="speed-row fast"><span class="label">v2 sub-pilot · 1 VM</span><div class="bar" style="width: 100%;"></div><span class="val">~6 h</span></div>
+      </div>
+
+      <h3>Option A · per-family parallel</h3>
+      <p>Assume 3 VMs in parallel (one per family bucket). Each handles ~1/3 of cells. Best-case wall-clock = T<sub>seq</sub> / 3 = <strong>2 h</strong> if there is no contention. Realistic with contention slowdown:</p>
+
+      <div style="margin: 14px 0;">
+        <div class="speed-row"><span class="label">Best case (no contention)</span><div class="bar" style="width: 33%;"></div><span class="val">2 h</span></div>
+        <div class="speed-row"><span class="label">Realistic (1.4× per-cell)</span><div class="bar" style="width: 47%;"></div><span class="val">2.8 h</span></div>
+        <div class="speed-row"><span class="label">Bad host (2× per-cell)</span><div class="bar" style="width: 67%;"></div><span class="val">4 h</span></div>
+      </div>
+
+      <p>So realistic speed-up is ~30-50 % (saving 2-3 h on a 6 h baseline). Not 3×.</p>
+
+      <h3>Option B · sampling interleave</h3>
+      <p><strong>Doesn't save wall-clock.</strong> The orchestrator already runs cells sequentially. Interleaving samples across VMs does not change the total number of pmemsave calls; it just rearranges them. The total host disk-write workload is unchanged.</p>
+
+      <div class="callout">
+        Option B's appeal is "per-VM pause-fraction drops because each VM runs free while the others are sampled". True per-VM, but the <em>host wall-clock</em> needed to complete the experiment is identical. Pause-fraction is not the bottleneck; host disk + scheduling is.
+      </div>
+    </section>
+
+    <!-- ───── 6 · production-match ───── -->
+    <section class="card" id="production">
+      <div class="num">SECTION 06</div>
+      <h2>Does multi-VM match production deployment?</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain English</span>
+          <p>The Plan-02 iv table is for picking sample intervals when capturing real workloads on real hosts. In your thesis, how is each capture session going to run? If it's "one workload per host at a time", measure that. If it's "multiple workloads on the same host", measure that.</p>
+          <p style="margin-top:6px;">Right now your production model is the single-VM case. Phase-2 captures are designed to characterize one workload's signal, not a workload-mixture signal.</p>
+        </div>
+        <div>
+          <span class="label tech">Deployment-fidelity argument</span>
+          <p>External validity requires the experimental conditions to match the target deployment. If the deployment is one VM at a time, the experiment must measure under that condition. Otherwise the iv table is correctly calibrated for a deployment that does not exist.</p>
+          <p style="margin-top:6px;">Counter-case: if the thesis includes a multi-tenant deployment claim (e.g. "this works in cloud environments where many workloads share a host"), then multi-VM measurement is required for validity. The thesis presently does not make that claim.</p>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Production model · single-VM.</strong> The capture pipeline you've been calibrating is a single-VM tool. Plan-02 v1 numbers describe that tool. Multi-VM would describe a different tool you're not currently building.
+      </div>
+    </section>
+
+    <!-- ───── 7 · per-agent take ───── -->
+    <section class="card" id="agents">
+      <div class="num">SECTION 07</div>
+      <h2>Per-agent verdicts</h2>
+
+      <div class="agent">
+        <div class="agent-id">SA</div>
+        <div class="agent-take">Orchestrator currently assumes one VM. Multi-VM means N parallel orchestrators OR a redesigned single orchestrator with VM-multiplexing. The former is ~0 code (just launch in N tmux panes with N manifest dirs) but introduces N copies of the queue, dump dir, ssh target. The latter is a significant refactor. Both come with new failure modes (e.g. one VM dies, others continue silently). <strong>The smallest reliable design is N parallel single-orchestrator instances with strict CPU pinning per VM.</strong></div>
+        <div class="agent-vote partial">conditional</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">EN</div>
+        <div class="agent-take">pmemsave on QEMU is host-side disk-bound. Two pmemsave calls writing 1 GiB simultaneously will saturate most SSDs and absolutely saturate any HDD/NFS. host_dt becomes non-stationary, which is exactly the property Plan-02 spent 11 days establishing as stable. <strong>If you must, schedule pmemsave windows so they never overlap — but then the speed-up vanishes.</strong></div>
+        <div class="agent-vote stop">no</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">ML</div>
+        <div class="agent-take">The recommendation table is design-justified, not metric-driven. Multi-VM does not produce new metric data; it produces faster-but-noisier metric data. Faster + noisier = wash for a recommendation that was already going to be cross-checked with Plan-03 anyway. <strong>Multi-VM gives nothing the analysis chain needs.</strong></div>
+        <div class="agent-vote stop">no</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">XD</div>
+        <div class="agent-take">Cross-workload parallelism (option A across families) is a confound. Within-family replicate parallelism (option A within a single family) is recoverable — same workload, different replicates, controlled host load. But within-family parallelism only buys you 3× speed-up if you have 3 VMs, and your replicate count is 3, so the per-family wall-clock goes from 30 min to 10 min — saving 20 min per family for 6 families = 2 h saved, at the cost of running 3 VMs simultaneously. <strong>The math says don't bother.</strong></div>
+        <div class="agent-vote stop">no</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">DS</div>
+        <div class="agent-take">Cell independence is the easiest statistical assumption to violate and the hardest to recover from. Once you have correlated residuals, every linear test becomes suspect, and you end up needing mixed-effects models with two random effects (workload AND host_load_state). That is a lot of statistical machinery for a 30 % speed-up. <strong>Keep cells independent.</strong></div>
+        <div class="agent-vote stop">no</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">EE</div>
+        <div class="agent-take">Acceptance criteria for v2 require per-cell C1-C5 to pass. Multi-VM introduces a new claim (C6: "no concurrent VM contamination") that we have no instrument for. We could add such an instrument (e.g. correlate cell timing with concurrent host load) but that is exactly the kind of code we just rejected. <strong>The instrumentation budget is spent.</strong></div>
+        <div class="agent-vote stop">no</div>
+      </div>
+
+      <div class="agent">
+        <div class="agent-id">PM</div>
+        <div class="agent-take">v1 is shipped. v2 sub-pilot is ~6 h on a single VM. Multi-VM saves ~3 h at best, costs design + validity. Honesty risk is real and unmeasured in our setup. Production model is single-VM. <strong>Stay single-VM for v2.</strong> Re-evaluate if a future question changes the production model.</div>
+        <div class="agent-vote stop">no</div>
+      </div>
+    </section>
+
+    <!-- ───── 8 · verdict ───── -->
+    <section class="card" id="verdict">
+      <div class="num">SECTION 08</div>
+      <h2>PM verdict · for v2 sub-pilot</h2>
+
+      <table>
+        <thead><tr><th>option</th><th>speed-up</th><th>honesty</th><th>matches production</th><th>verdict</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>A · per-family parallel</b></td>
+            <td>30-50 % saved</td>
+            <td>cross-family confound</td>
+            <td>partial</td>
+            <td><span class="verdict-chip stop">no for v2</span></td>
+          </tr>
+          <tr>
+            <td><b>B · sampling interleave</b></td>
+            <td>~0 %</td>
+            <td>same as A</td>
+            <td>no</td>
+            <td><span class="verdict-chip stop">no</span></td>
+          </tr>
+          <tr style="background: rgba(124,185,110,.05);">
+            <td><b>C · single VM (current)</b></td>
+            <td>baseline</td>
+            <td>clean</td>
+            <td>yes</td>
+            <td><span class="verdict-chip go">keep for v2</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout good">
+        <strong>Final recommendation for v2: stay single-VM.</strong> The speed savings (~3 h) are not worth the validity risk for an experiment whose v1 deliverable is already published and whose v2 sub-pilot is intended to provide stronger evidence, not different conclusions.
+      </div>
+    </section>
+
+    <!-- ───── 9 · when multi-VM would make sense ───── -->
+    <section class="card" id="when">
+      <div class="num">SECTION 09</div>
+      <h2>When multi-VM WOULD make sense</h2>
+      <p>Three scenarios where the verdict flips.</p>
+
+      <h3>Scenario 1 · multi-tenant production claim</h3>
+      <p>If the thesis ever claims "this signal works in cloud / multi-tenant hosts", multi-VM measurement is required for external validity. Single-VM data wouldn't support that claim. Different thesis scope.</p>
+
+      <h3>Scenario 2 · 1000+ cell sweeps</h3>
+      <p>If a future experiment requires hundreds of hours of capture (e.g. exhaustive workload-binary cross-product), parallelism becomes more attractive. At that scale the design cost of building multi-VM cleanly amortizes. v2 at ~6 h does not approach this threshold.</p>
+
+      <h3>Scenario 3 · within-family replicate parallelism with strict isolation</h3>
+      <p>If you ever need to run dozens of replicates of the SAME workload, running 3-4 VMs of that workload in parallel with strict CPU pinning + non-overlapping pmemsave windows is defensible. Same workload means no cross-workload confound. But the pmemsave-window scheduling code does not exist; building it is comparable to D-51 in effort.</p>
+
+      <div class="callout info">
+        None of these scenarios applies to v2. Park multi-VM as a future option; revisit when the question changes.
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
