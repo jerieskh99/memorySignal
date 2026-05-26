@@ -585,9 +585,44 @@
     <section class="card" id="improved">
       <div class="num">SECTION 08</div>
       <h2>Improved plan · B+3.1 specification</h2>
-      <p>Four deltas over B+3. Backward compatible: when <code>TIMING_APF_STREAM</code> is absent, producer behaves identically to today.</p>
+      <p>Four deltas over B+3. Each delta is small, additive, and gated by an env-var so the existing flow is untouched when nothing is set. Below each delta has three parts: <strong>what</strong> it is, <strong>why</strong> we need it, and <strong>how</strong> it is computed / implemented.</p>
+
+      <div class="callout info">
+        <strong>What is a "delta"?</strong> A delta (Δ) is a self-contained change from baseline. Each delta resolves one specific weakness surfaced during the week-long review (Sections 04-06). Together they form B+3.1, the production-ready version. Numbered Δ-1 through Δ-4 in the order the team converged on them, not in implementation order.
+      </div>
 
       <h3>Δ-1 · async helper + cell-end barrier</h3>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What it is</span>
+          <p>The APF-computing helper (which reads two dumps and counts how many memory pages changed between them) now runs <strong>in the background</strong> instead of making the producer wait. After each pmemsave, the producer launches the helper as a separate process and continues immediately to the next snapshot. At the end of the cell, the producer waits ("barriers") for all background helpers to finish before declaring the cell done.</p>
+        </div>
+        <div>
+          <span class="label tech">Why we need it</span>
+          <p>In B+3 (the baseline), the producer blocks for ~1 second per snap while the helper computes APF on a 1 GiB dump. At <code>intervalMsec = 100 ms</code> the producer's natural cycle is ~125 ms; adding +1 s/snap pushes the cycle to ~1.1 s, which is <strong>9×</strong> slower. Pause-fraction climbs past 95 % and the iv=100 regime — the one where F1 detection of fast workload phases matters most — becomes prohibitively expensive.</p>
+          <p style="margin-top: 6px;">Async hides the helper's compute behind the producer's natural waiting period (suspend → pmemsave → resume → sleep). The +1 s/snap penalty drops to roughly zero because the helper finishes during the next snap's normal cycle.</p>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">How it works in practice</span>
+          <ul>
+            <li>Producer writes <code>curr.raw</code> via pmemsave (as before).</li>
+            <li>Producer immediately does <code>python3 plan02_apf_helper.py ... &amp;</code> — the trailing <code>&amp;</code> backgrounds the process. Producer continues to <code>virsh resume</code> + the next sleep cycle.</li>
+            <li>The background helper reads <code>prev.raw</code> and <code>curr.raw</code>, computes APF (~1 s), appends one line to <code>apf_trajectory.jsonl</code>, deletes <code>prev.raw</code>, writes a per-pair <code>.apf_done</code> ack file, exits.</li>
+            <li>Producer keeps a count of spawned helpers. When the cell duration elapses, the producer enters the cell-end <strong>barrier</strong>: it polls the directory for ack files, waiting until <code>n_ack == n_pairs_expected</code> OR a 30 s timeout expires.</li>
+            <li>Barrier complete → producer writes the final sentinel line and exits.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="label tech">Computation cost</span>
+          <p>APF computation per pair is unchanged: <code>numpy.memmap</code> XOR over two 1 GiB files → reshape to <code>[n_pages, 4096]</code> → <code>any(axis=1).sum() / n_pages</code>. ~1 s wall-clock on the host's SSD.</p>
+          <p style="margin-top: 6px;">Async amortizes this: while helper-i runs in the background, the producer is doing pmemsave-(i+1) which also takes ~1 s. The two phases overlap. Effective per-cycle cost drops from <code>~1.5 s + 1 s = 2.5 s</code> (sync) to <code>~1.5 s</code> (async).</p>
+        </div>
+      </div>
+
       <div class="diagram">  PRODUCER CYCLE · B+3.1                                DISK STATE
   ───────────────────────                              ──────────────
   pmemsave → curr.raw                                   prev + curr  (2 GiB)
@@ -610,8 +645,28 @@
 </div>
 
       <h3>Δ-2 · ack file + structured exit codes</h3>
-      <p>Each helper invocation writes <code>&lt;curr_dump_basename&gt;.apf_done</code> in the same directory before exiting.</p>
-      <pre style="background:var(--panel-2); padding:14px; border-radius:6px; font-family:var(--f-mono); font-size:12px; color:var(--text-dim); overflow-x:auto;">{
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What it is</span>
+          <p>Every helper invocation writes a tiny <code>&lt;curr_dump_basename&gt;.apf_done</code> JSON file alongside the dump directory. The file contains the sequence number, prev/curr paths, exit code, helper duration, and the APF value. The helper also returns a <strong>structured exit code</strong> (0 = ok, 1 = transient io, 2 = numpy missing, 3 = disk full, 4 = corrupt dump) instead of just success/fail.</p>
+        </div>
+        <div>
+          <span class="label tech">Why we need it</span>
+          <p>In B+3, if the helper dies mid-cell (OOM kill, segfault, disk full, corrupt dump), the producer never finds out. The producer keeps writing snapshots; the helper backlog grows; disk fills silently. The cell completes, the trajectory file has gaps, but no signal anywhere in the pipeline indicates "things went wrong".</p>
+          <p style="margin-top: 6px;">Ack files give the producer a real-time signal that each pair was processed. Structured exit codes let the producer react appropriately: transient errors get logged and continue; numpy missing aborts the cell; disk full triggers backpressure.</p>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">How it works</span>
+          <p>The helper writes its ack file as the LAST action before exiting. The ack file IS the proof that the pair completed cleanly. Producer's barrier counts ack files, not just helper PIDs.</p>
+          <p style="margin-top: 6px;">If the helper crashes before writing the ack, no ack file appears — the barrier detects the missing one and records it in the final sentinel as a gap.</p>
+        </div>
+        <div>
+          <span class="label tech">Ack file format</span>
+          <pre style="background: rgba(0,0,0,.2); padding: 10px; border-radius: 4px; font-size: 12px; color: var(--text); overflow-x: auto;">{
   "seq": 12,
   "prev": "memory_dump-20260524000012.raw",
   "curr": "memory_dump-20260524000013.raw",
@@ -619,7 +674,11 @@
   "helper_duration_ms": 743,
   "apf": 0.1342
 }</pre>
-      <p>Exit codes:</p>
+          <p style="font-size: 13px; margin-top: 6px;">Writing the ack file is atomic from the producer's perspective: either the file exists (success signal) or it does not (failure signal). No half-states.</p>
+        </div>
+      </div>
+
+      <p>Exit-code reaction table:</p>
       <table>
         <thead><tr><th>code</th><th>meaning</th><th>producer reaction</th></tr></thead>
         <tbody>
@@ -632,19 +691,97 @@
       </table>
 
       <h3>Δ-3 · seq-numbered JSONL + final sentinel</h3>
-      <p>Each apf line carries an explicit <code>seq</code>. After producer ends and barrier completes, producer appends:</p>
-      <pre style="background:var(--panel-2); padding:14px; border-radius:6px; font-family:var(--f-mono); font-size:12px; color:var(--text-dim); overflow-x:auto;">{"final": true, "n_pairs_expected": 147, "n_ok": 145, "n_failed": 2, "gap_seqs": [73, 91]}</pre>
-      <p>Reader (D-51 + validator) sorts by seq, checks for gaps, refuses to compute F1/CV if more than 5 % gaps.</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What it is</span>
+          <p>Each line in the trajectory file carries an explicit <code>seq</code> field — an integer counting from 0 — so the reader can detect missing pairs. When the producer's barrier finishes, the producer appends one last line called the <strong>final sentinel</strong>: a JSON object with <code>n_pairs_expected</code>, <code>n_ok</code>, <code>n_failed</code>, and the list of <code>gap_seqs</code>. The sentinel is the trajectory file's "I am complete and self-describing" marker.</p>
+        </div>
+        <div>
+          <span class="label tech">Why we need it</span>
+          <p>Under async (Δ-1), helpers can finish out of order. Helper-7 might write its line before helper-5 if helper-5 was slow. Without seq numbers, the trajectory file is ambiguous — the reader cannot tell which pair came first or which are missing.</p>
+          <p style="margin-top: 6px;">Without a sentinel, a partially-completed cell (producer crashed before writing it) looks identical on disk to a fully-completed one. The reader has no way to tell. Sentinel makes completeness <em>provable</em> by inspection.</p>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">How the reader uses these</span>
+          <ul>
+            <li><strong>Step 1:</strong> read every line of <code>apf_trajectory.jsonl</code>. Parse each as JSON.</li>
+            <li><strong>Step 2:</strong> find the final-sentinel line (the one with <code>"final": true</code>). If absent, the file is incomplete — mark cell as C6 fail.</li>
+            <li><strong>Step 3:</strong> sort the remaining lines by <code>seq</code>. Check that every integer from <code>0</code> to <code>n_pairs_expected - 1</code> appears exactly once. Missing seqs go in the gap list.</li>
+            <li><strong>Step 4:</strong> compute <code>n_ok / n_pairs_expected</code>. If &lt; 0.95, mark cell as C6 fail (too many gaps for reliable F1/CV).</li>
+            <li><strong>Step 5:</strong> downstream metrics (F1, CV) are computed only on the sorted ok lines.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="label tech">Final sentinel format</span>
+          <pre style="background: rgba(0,0,0,.2); padding: 10px; border-radius: 4px; font-size: 12px; color: var(--text); overflow-x: auto;">{
+  "final": true,
+  "n_pairs_expected": 147,
+  "n_ok": 145,
+  "n_failed": 2,
+  "gap_seqs": [73, 91]
+}</pre>
+          <p style="font-size: 13px; margin-top: 6px;">Three integers + one short list is enough to validate completeness in O(n) time. Total sentinel size: ~80 bytes regardless of cell length.</p>
+        </div>
+      </div>
 
       <h3>Δ-4 · new validator claim C6</h3>
-      <p>Add to <code>plan02_validate_session.py</code>:</p>
-      <ul>
-        <li>C6 · apf_trajectory completeness · file exists · contains final sentinel · n_ok / n_pairs_expected ≥ 0.95</li>
-        <li>Per-cell: <code>cell_workdir/apf_trajectory.jsonl</code> · sentinel parsed · pass/fail recorded</li>
-        <li>C6 is operational · failures gate the cell from contributing to v2 recommendation</li>
-      </ul>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What it is</span>
+          <p>A new "claim" in <code>plan02_validate_session.py</code> — the post-pilot health-check tool. Existing claims C1-C5 cover orchestration ("workload ran", "no settle retries", etc.). C6 covers trajectory completeness: <strong>this cell's APF trajectory exists, has a final sentinel, and at least 95 % of expected pairs landed</strong>.</p>
+        </div>
+        <div>
+          <span class="label tech">Why we need it</span>
+          <p>Without C6, B+3.1 has no acceptance gate that catches "the helper silently failed for half the snaps". A cell could pass C1-C5 ("workload ran", "snap count fine", "no lock retries", "producer log clean") while having an analyzer trajectory missing 30 % of its pairs. F1 / CV computed on such trajectory would be biased.</p>
+          <p style="margin-top: 6px;">C6 promotes "trajectory integrity" from an implicit assumption to an explicit acceptance criterion. Cells that fail C6 are excluded from the v2 recommendation aggregation.</p>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">How C6 is computed</span>
+          <ul>
+            <li>Open <code>&lt;cell_workdir&gt;/apf_trajectory.jsonl</code>. If missing → C6 FAIL.</li>
+            <li>Read all lines. Find one with <code>"final": true</code>. If missing → C6 FAIL.</li>
+            <li>Parse <code>n_pairs_expected</code> and <code>n_ok</code> from sentinel.</li>
+            <li>Compute <code>ratio = n_ok / n_pairs_expected</code>. If <code>ratio &lt; 0.95</code> → C6 FAIL.</li>
+            <li>All checks pass → C6 PASS. Cell contributes to v2 aggregation.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="label tech">Where C6 hooks in</span>
+          <p>In <code>plan02_validate_session.py::evaluate_cell()</code>, add ~25 LOC alongside the existing C1-C5 checks. C6 is operational (not informational), so a C6 failure flips the cell's overall verdict to FAIL.</p>
+          <p style="margin-top: 6px;">For v1-era cells (no trajectory file present because the cell ran without <code>--keep-dumps</code>), C6 is reported as "not applicable" rather than failing. Backward compatible with v1 data.</p>
+        </div>
+      </div>
 
       <h3>Implementation surface</h3>
+      <div class="diagram">  PRODUCER CYCLE · B+3.1                                DISK STATE
+  ───────────────────────                              ──────────────
+  pmemsave → curr.raw                                   prev + curr  (2 GiB)
+   ↓
+  spawn apf_helper(prev, curr) <span class="hl-good">[NON-BLOCKING]</span>            prev + curr + helper-in-flight
+   ↓                                                   (3 GiB transient)
+  virsh resume + sleep intervalMsec
+   ↓
+  next cycle: pmemsave overlaps with prior helper       (cleared to 2 GiB
+                                                         once helper rm-s prev)
+   ↓
+  ... cell continues ...
+   ↓
+  producer ends · BARRIER: wait until all ack files     2 GiB → 1 GiB → 0
+  written OR 30 s timeout
+   ↓
+  producer emits final sentinel with n_ok, n_failed
+   ↓
+  D-51 reads trajectory · computes F1/CV
+</div>
+
       <table>
         <thead><tr><th>file</th><th>change</th><th>LOC</th></tr></thead>
         <tbody>
