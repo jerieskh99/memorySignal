@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 03 Proposal · Window / Hop Tuning · Team Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:8px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(212,168,90,.08); border:1px solid rgba(212,168,90,.20);
+    color: var(--accent); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:9px 12px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:12px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .agent { display:grid; grid-template-columns:90px 1fr 90px;
+            gap:14px; align-items:flex-start;
+            background: var(--panel-2); border:1px solid var(--line);
+            border-radius: var(--r); padding:12px 16px; margin:10px 0; }
+  @media (max-width:700px) { .agent { grid-template-columns:1fr; } }
+  .agent .agent-id { font-family: var(--f-mono); font-weight:600;
+                      color: var(--accent); font-size:13px;
+                      text-transform:uppercase; letter-spacing:.06em; }
+  .agent .agent-take { font-size:14px; color: var(--text-dim); line-height:1.5; }
+  .agent .agent-vote { align-self:center; font-size:11px; font-weight:600;
+                        letter-spacing:.04em; text-transform:uppercase;
+                        padding:4px 10px; border-radius:11px; text-align:center; }
+  .agent .agent-vote.go      { background:rgba(124,185,110,.14); color:var(--good); }
+  .agent .agent-vote.partial { background:rgba(212,168,90,.14); color:var(--accent); }
+  .agent .agent-vote.stop    { background:rgba(232,85,58,.12);  color:var(--bad-2); }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  .day { background: var(--panel-2); border:1px solid var(--line);
+          border-radius: var(--r); padding:16px 18px; margin:10px 0; }
+  .day .day-head { display:flex; gap:12px; align-items:baseline;
+                    margin-bottom:8px; }
+  .day .day-tag { font-family: var(--f-mono); font-size:11px;
+                   font-weight:600; color: var(--accent);
+                   letter-spacing:.08em; text-transform:uppercase; }
+  .day .day-title { font-family: var(--f-display); font-size:16px;
+                     font-weight:500; color: var(--text); }
+  .day .day-meta { margin-left:auto; font-size:11px; color: var(--muted);
+                    font-family: var(--f-mono); }
+  .day ul { padding-left:20px; margin:6px 0; font-size:14px; color: var(--text-dim); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 03 Proposal</div>
+    <div class="sub">Window / Hop tuning · team review</div>
+    <ol>
+      <li><a href="#summary">Executive summary</a></li>
+      <li><a href="#team">Team roles</a></li>
+      <li><a href="#baseline">Baseline design doc</a></li>
+      <li><a href="#topdown">Top-down analysis</a></li>
+      <li><a href="#bottomup">Bottom-up analysis</a></li>
+      <li><a href="#week">Week-long audit</a></li>
+      <li><a href="#disputes">Key disputes + decisions</a></li>
+      <li><a href="#improved">Improved Plan 03 spec</a></li>
+      <li><a href="#validation">Validation strategy</a></li>
+      <li><a href="#stats">Statistical design</a></li>
+      <li><a href="#risks">Risks + mitigations</a></li>
+      <li><a href="#pm">PM final recommendation</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Proposed.</strong><br>
+      W range narrowed to {8, 16, 32, 64}
+      because v2 snaps cap at 73. C7 validator claim.
+      ~290 LOC. Zero new captures.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 03 · window / hop tuning · v1 proposal</div>
+      <h1>Pick the smallest window<br>that survives <em>v2</em>'s short trajectories.</h1>
+      <p class="deck">
+        Plan 02 v2 published 90 lossless APF trajectories. Plan 03 sweeps
+        analyzer-side window/hop on those same files. Zero new captures.
+        Team review reveals the design doc's window range {32-512} is
+        infeasible at v2 snap counts (0/90 cells admit W=128). Proposal
+        narrows to {8, 16, 32, 64}, re-baselines acceptance thresholds
+        against v2 measured F1/CV, and adds a C7 operational claim to
+        the validator.
+      </p>
+    </header>
+
+    <!-- 1 · summary -->
+    <section class="card" id="summary">
+      <div class="num">SECTION 01</div>
+      <h2>Executive summary</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What Plan 03 is</span>
+          <p>Given the per-workload <code>iv</code> chosen by Plan 02 (ransom = 500 ms, workingset = 250 ms), find the analyzer's sliding-window size and hop that maximize signal-to-noise on each workload's defining metric. Sweep is offline; reads the 90 existing v2 <code>apf_trajectory.jsonl</code> files. Output: a per-workload recommendation table + a CSV of per-(cell, window, hop) metrics.</p>
+        </div>
+        <div>
+          <span class="label tech">What changes vs the design doc</span>
+          <ul>
+            <li>Δ-1 · narrow window range from {32, 64, 128, 256, 512} to <strong>{8, 16, 32, 64}</strong> (v2 snap counts cap at 73)</li>
+            <li>Δ-2 · re-baseline acceptance thresholds against measured v2 (F1 ≥ 0.67 per cell + median ≥ 0.85; CV ≤ 0.05 at d ≤ 120 s)</li>
+            <li>Δ-3 · adopt <strong>1-D APF</strong> path via <code>[T, 1]</code> reshape (existing cepstrum module is reused as-is)</li>
+            <li>Δ-4 · introduce <strong>C7</strong> operational validator claim + <code>plan03_recommendation.json</code> artifact</li>
+            <li>Δ-5 · v2 <strong>regression guard</strong>: winner must not degrade ransom median F1 below 0.95 or push workingset CV above 0.05</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Net effect.</strong> Plan 03 lands as ~290 LOC across 3 new files. Zero new VM captures. ~15 seconds sequential compute. C7 closes the analysis-ready loop: cells go from <span class="chip blocked">low_window</span> at canonical (128, 64) to passing once Plan 03 publishes a v2-feasible recommendation.
+      </div>
+
+      <div class="callout warn">
+        <strong>Blocker surfaced.</strong> v2's measured snap-count distribution (5-73 per cell, median ~22) constrains every window-size decision. Plan 03 cannot recover the spectral-coverage requirement of the design doc (W × iv ≥ 4 × workload_rhythm = 50 s for ransom, requiring W ≥ 100 at iv=500 ms). Proposal documents this as a known constraint of the B+3.1 streaming regime; full spectral coverage is a future Plan-05 question once snap throughput improves.
+      </div>
+    </section>
+
+    <!-- 2 · team roles -->
+    <section class="card" id="team">
+      <div class="num">SECTION 02</div>
+      <h2>Team roles · simulated week</h2>
+      <table>
+        <thead><tr><th>agent</th><th>code</th><th>focus during this review</th></tr></thead>
+        <tbody>
+          <tr><td>Project Manager</td><td>PM</td><td>convergence, scope control, vote tally on day 5</td></tr>
+          <tr><td>Senior Architect</td><td>SA</td><td>process model, file boundaries, integration with B+3.1 streaming output</td></tr>
+          <tr><td>Engineering Skills</td><td>EN</td><td>cepstrum module reuse, [T, 1] reshape soundness, helper LOC budget</td></tr>
+          <tr><td>Senior ML Engineer</td><td>ML</td><td>acceptance criteria recalibration against v2 measured F1/CV</td></tr>
+          <tr><td>Experiment Designer</td><td>XD</td><td>per-workload feasibility, snap-count strata, replicate independence</td></tr>
+          <tr><td>Senior Data Engineer</td><td>DE</td><td>output schema, reproducibility hash, CLI surface, manifest extensions</td></tr>
+          <tr><td>Senior Data Scientist</td><td>DS</td><td>non-parametric test framework, multiple-comparisons, bootstrap CI</td></tr>
+          <tr><td>Evaluation Engineer</td><td>EE</td><td>C7 operational claim, regression guard, sub-pilot vs full-sweep decision</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3 · baseline -->
+    <section class="card" id="baseline">
+      <div class="num">SECTION 03</div>
+      <h2>Baseline · the design doc as written</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What docs/tuning_plans/03_window_hop_tuning_experiment.md proposed</span>
+          <p>Sweep window ∈ {32, 64, 128, 256, 512} × hop ∈ {window/4, window/2, window} on the existing Plan 02 captures, hold <code>iv</code> fixed per workload, compute cepstral peak width + spectral leakage + per-window stationarity + the workload's defining metric (F1 for ransom, CV for workingset, cepstral periodicity for sqlite OLTP). Pick the smallest window that passes acceptance for ALL workloads simultaneously.</p>
+        </div>
+        <div>
+          <span class="label tech">Concrete spec</span>
+          <ul>
+            <li>5 windows × 3 hop ratios × 3 workloads = 45 analyzer cells per family</li>
+            <li>Wall-clock cost: ~10 host CPU-h, zero new captures</li>
+            <li>Acceptance: stationarity ≥ 90 %, spectral coverage W × iv ≥ 4 × workload_rhythm, F1 ≥ 0.8 / CV ≤ 0.15, hop ≤ window/2</li>
+            <li>~80 LOC sweep driver, manifest gains <code>window_size</code> + <code>step_size</code> columns</li>
+            <li>Risk register at bottom of doc flags cherry-picking + spectral artifacts at W &lt; 32</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>What the design doc did NOT account for</h3>
+      <ul>
+        <li><strong>v2 used B+3.1 streaming, which writes 1-D APF traj only.</strong> Doc presumed access to raw dump matrices for cepstral analysis. v2 deletes dumps after per-pair diff (helper Δ-1). Mismatch must be resolved before sweep can run.</li>
+        <li><strong>v2 snap counts ranged 5-73 per cell.</strong> Doc's W range {32, 64, 128, 256, 512} is infeasible against this distribution (0/90 cells admit W=128).</li>
+        <li><strong>v2 F1/CV distributions are now measured</strong> (median F1 = 1.0 at iv=500 ransom; median CV = 0.022 at iv=250 workingset). Doc's loose thresholds (0.8 / 0.15) sit at or below v2 baseline → would trivially pass without proving Plan 03 improves anything.</li>
+        <li><strong>sqlite OLTP not captured in v2.</strong> Doc lists it as third workload. Adding requires new capture (3-5 h) OR scope reduction.</li>
+        <li><strong>Stationarity = <code>StabilityValidator</code> is misleading.</strong> That class was built for PLV/MSC on 2-D <code>[T, N]</code> page matrices, not 1-D APF stationarity. Reusing its name in the doc creates confusion.</li>
+      </ul>
+    </section>
+
+    <!-- 4 · top-down -->
+    <section class="card" id="topdown">
+      <div class="num">SECTION 04</div>
+      <h2>Top-down analysis · pipeline level</h2>
+
+      <h3>Process model (B+3.1-style ASCII)</h3>
+      <div class="diagram">  v2 bundle (read-only)
+  _v2_review/v2_full/
+   ├── manifest.csv  (cell_id → workload, iv_ms, dur_s, rep, status)
+   └── cells/work/&lt;cell_id&gt;/apf_trajectory.jsonl  (1-D series, 5..73 + sentinel)
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan03_sweep.py             (NEW driver, ~120 LOC)            │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   for cell in manifest.where(status=='ok', is_warmup==0):     │</span>
+  <span class="hl-acc">│     traj = load_streaming_trajectory(apf_trajectory.jsonl)    │</span>
+  <span class="hl-acc">│     for (W, H) in product({8,16,32,64}, {W/4, W/2, W}):       │</span>
+  <span class="hl-acc">│       if len(traj) &lt; W:  emit row status='skip:short'         │</span>
+  <span class="hl-acc">│       else:               feats = metric_kernel(traj, W, H)   │</span>
+  <span class="hl-acc">│       row = {cell, workload, iv, dur, W, H, n_windows,        │</span>
+  <span class="hl-acc">│              ceps_peak_q, ceps_peak_snr_db, stat_pass_frac,   │</span>
+  <span class="hl-acc">│              f1_phase|cv_workingset, coverage_ratio, ...}     │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan03_metric_kernel.py     (NEW helper, ~70 LOC)             │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   metric_kernel(traj_1d, W, H):                               │</span>
+  <span class="hl-acc">│     x = np.asarray(traj_1d, float).reshape(-1, 1)  # [T, 1]   │</span>
+  <span class="hl-acc">│     ceps = CepstrumStability().compute_cepstrum(x) # [Q, 1]   │</span>
+  <span class="hl-acc">│     peak = compute_cepstral_peak(ceps,             # use      │</span>
+  <span class="hl-acc">│              min_quef_idx=max(1, T//8))            # adaptive │</span>
+  <span class="hl-acc">│     stat = stationarity_per_window(x, W, H)  # inline impl    │</span>
+  <span class="hl-acc">│     f1   = f1_phase(traj_1d, W, H, markers)  # phasic only    │</span>
+  <span class="hl-acc">│     cv   = cv_workingset(traj_1d)            # steady only    │</span>
+  <span class="hl-acc">│     return {ceps_peak_q, ceps_peak_snr_db, stat_pass, f1, cv} │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan03_aggregate.py         (NEW aggregator, ~60 LOC)         │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   group by (workload, W, H) → median + IQR per metric         │</span>
+  <span class="hl-acc">│   apply gates G1-G5 → recommend per-workload (W, H)           │</span>
+  <span class="hl-acc">│   compute Pareto frontier for joint-workload promotion        │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  plan03_sweep.csv               (1080 rows = 90 cells × 12 combos)
+  plan03_summary.json            (24 entries = 2 workloads × 12 combos)
+  plan03_recommendation.json     (final per-workload winner + rationale)
+            │
+            v
+  plan02_validate_session.py · NEW C7 claim verifies artifact +
+  acceptance per workload + v2 regression guard
+</div>
+
+      <h3>Objective alignment</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What we're trying to achieve</span>
+          <p>Pick a single <code>(window, hop)</code> per workload such that downstream analyzers (segmenter, cepstrum) get the cleanest signal achievable on v2's APF trajectories, without re-capturing.</p>
+        </div>
+        <div>
+          <span class="label tech">Does the spec meet it?</span>
+          <p>Yes within the snap-count regime. Spectral coverage requirement (W × iv ≥ 4 × workload_rhythm) cannot be met at v2 snap counts <em>without</em> a producer-side throughput fix; Plan 03 explicitly defers that to a future plan and ships a <em>best-feasible</em> (W, H) recommendation with the constraint documented.</p>
+        </div>
+      </div>
+
+      <h3>Scope boundary</h3>
+      <table>
+        <thead><tr><th>Plan 03 IS</th><th>Plan 03 IS NOT</th></tr></thead>
+        <tbody>
+          <tr><td>Offline, read-only sweep over the existing v2 bundle</td><td>New VM captures, new producer code, multi-VM</td></tr>
+          <tr><td>Pure analyzer-side decision per workload</td><td>A change to Plan 02's iv recommendation</td></tr>
+          <tr><td>A C7 operational claim addition to the validator</td><td>A re-write of <code>StabilityValidator</code> (still used as-is via [T, 1])</td></tr>
+          <tr><td>A drop-in feed into Plan 04's segmentation work</td><td>A solution to the snap-count throughput limit (future Plan 05)</td></tr>
+          <tr><td>A 2-workload scope (ransom + workingset)</td><td>An OLTP / sqlite extension (deferred; needs fresh capture)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Structural risks</h3>
+      <ul>
+        <li><strong>R1 · snap-count feasibility ceiling.</strong> Every v2 cell has snaps &lt; 128. W ≥ 64 is dead-on-arrival for >90 % of cells. Mitigation: narrow range to {8, 16, 32, 64} with explicit "infeasible cells" reporting per combo.</li>
+        <li><strong>R2 · 1-D cepstrum is mathematically valid but uses the module's degenerate code path.</strong> <code>compute_cepstrum</code> on <code>[T, 1]</code> works, but <code>compute_cepstral_peak</code>'s default <code>min_quef_idx=10</code> discards the entire spectrum for T &lt; 20. Mitigation: override to <code>max(1, T//8)</code>.</li>
+        <li><strong>R3 · stationarity is not <code>StabilityValidator</code>.</strong> Plan 03 ships its own <code>stationarity_per_window</code> inline (rolling mean / std-of-means ratio). Naming alignment with design doc requires explicit clarifying note.</li>
+        <li><strong>R4 · cherry-picking on F1.</strong> Design doc §8 already warns. Objective function MUST penalize combos that pass on long-d cells while failing short-d cells (DS feasibility penalty).</li>
+        <li><strong>R5 · acceptance-threshold drift.</strong> The doc's F1 ≥ 0.8 sits at v2's mean (50 % expected pass). Loose threshold = automatic "pass" regardless of (W, H). Mitigation: tighten to v2-grounded floors per the ML+EE proposal.</li>
+      </ul>
+    </section>
+
+    <!-- 5 · bottom-up -->
+    <section class="card" id="bottomup">
+      <div class="num">SECTION 05</div>
+      <h2>Bottom-up analysis · file-by-file</h2>
+
+      <h3>File-by-file impact</h3>
+      <table>
+        <thead><tr><th>file</th><th>status</th><th>LOC</th><th>role</th></tr></thead>
+        <tbody>
+          <tr><td><code>plan03_sweep.py</code></td><td><span class="chip next">new</span></td><td>~120</td><td>Driver: walk manifest, call kernel, write <code>sweep.csv</code></td></tr>
+          <tr><td><code>plan03_metric_kernel.py</code></td><td><span class="chip next">new</span></td><td>~70</td><td>Per-(cell, W, H) kernel: 1-D APF → cepstrum + stationarity + F1/CV</td></tr>
+          <tr><td><code>plan03_aggregate.py</code></td><td><span class="chip next">new</span></td><td>~60</td><td>Group → gates G1-G5 → emit <code>recommendation.json</code> + markdown</td></tr>
+          <tr><td><code>plan02_validate_session.py</code></td><td><span class="chip next">+25</span></td><td>+25</td><td>Add C7 claim; gate on recommendation artifact + per-workload winner passes</td></tr>
+          <tr><td><code>plan02_schema.py</code></td><td><span class="chip next">+8</span></td><td>+8</td><td>RunMeta gains <code>window_size</code> + <code>step_size</code> (None default; backward compat)</td></tr>
+          <tr><td><code>tests/test_plan03_sweep.py</code></td><td><span class="chip next">new</span></td><td>~80</td><td>Unit + reproducibility tests (synthetic ramp, real v2 6-cell fixture, deterministic hash)</td></tr>
+          <tr><td><code>cepstrum_stability.py</code></td><td><span class="chip done">unchanged</span></td><td>0</td><td>Reused via <code>[T, 1]</code> reshape; degenerate N=1 case is mathematically valid</td></tr>
+          <tr><td><code>stability_validator.py</code></td><td><span class="chip done">unchanged</span></td><td>0</td><td>NOT used for stationarity (its API is 2-D PLV/MSC). MSC sub-path optionally callable via <code>numPages=1</code>; default off.</td></tr>
+          <tr><td><code>plan02_metrics_per_cell.py</code></td><td><span class="chip done">unchanged</span></td><td>0</td><td>Imports re-used: <code>load_streaming_trajectory</code>, <code>compute_n_windows</code>, <code>cv_workingset</code>, <code>f1_score</code></td></tr>
+        </tbody>
+      </table>
+      <p>Total new code: ~360 LOC (sweep + kernel + aggregator + tests + validator wiring + schema). Zero changes to producer / consumer / VM-side / Rust delta calculator.</p>
+
+      <h3>5.1 · <code>plan03_metric_kernel.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>Pure function. Take a 1-D APF series + (window, hop) + optional phase markers; return a dict of metrics. No I/O. Easy to unit-test.</p>
+        </div>
+        <div>
+          <span class="label tech">Key adaptations</span>
+          <ul>
+            <li>Reshape: <code>x = traj.reshape(-1, 1)</code> → [T, 1]</li>
+            <li>Cepstrum: <code>CepstrumStability().compute_cepstrum(x)</code> reused</li>
+            <li>Peak: <code>compute_cepstral_peak(ceps, min_quef_idx=max(1, T//8))</code> override</li>
+            <li>Stationarity: own implementation, rolling mean over W with hop H; pass if <code>|μ_window - μ_global| / σ_global &lt; 1.0</code> for ≥ 90 % of windows</li>
+            <li>F1 phase + CV: imports from <code>plan02_metrics_per_cell.py</code> (already vetted)</li>
+            <li>MSC SNR: optional (single-page MSC is degenerate but still computable; off by default)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.2 · <code>plan03_sweep.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>CLI driver. Reads manifest, iterates cells, iterates (W, H) combos, calls kernel, streams output to CSV with per-row reproducibility hash. ~120 LOC.</p>
+        </div>
+        <div>
+          <span class="label tech">CLI surface</span>
+          <ul>
+            <li><code>--cells-dir</code> · v2_full/cells path</li>
+            <li><code>--manifest</code> · manifest.csv path</li>
+            <li><code>--output-csv</code> · per-row results</li>
+            <li><code>--output-json</code> · aggregated summary (calls aggregator)</li>
+            <li><code>--windows</code> default {8, 16, 32, 64}</li>
+            <li><code>--hop-ratios</code> default {0.25, 0.50, 1.00} → hop = round(W × ratio)</li>
+            <li><code>--workload-filter</code> regex</li>
+            <li><code>--min-pairs</code> default 4 (skip ultra-short cells)</li>
+            <li><code>--workers</code> default 1 (multiprocessing optional)</li>
+            <li><code>--seed</code> default 0 (for any bootstrap inside)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.3 · <code>plan03_aggregate.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>Reads sweep.csv. Groups by (workload, W, H). Applies gates G1-G5. Picks winner per workload. Writes recommendation.json + markdown table. Computes Pareto frontier across workloads for the joint-winner promotion clause.</p>
+        </div>
+        <div>
+          <span class="label tech">Decision rule (DS approved)</span>
+          <ul>
+            <li>Gates AND of (stationarity, spectral coverage, defining metric, hop ratio, n_windows floor)</li>
+            <li>Among passing combos, smallest window; tie-break on hop = W/2; tie-break on higher median metric</li>
+            <li>If no combo passes a workload → record <code>winner=null</code> + cite fallback path from design doc §4</li>
+            <li>Simpson's-paradox guard: flag if winning W differs across iv strata; require human sign-off before merging</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.4 · Output schemas</h3>
+      <h4>plan03_sweep.csv columns</h4>
+      <table>
+        <thead><tr><th>column</th><th>type</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td><code>cell_id</code></td><td>str</td><td>v2 cell sha1 prefix</td></tr>
+          <tr><td><code>workload</code></td><td>str</td><td>from manifest</td></tr>
+          <tr><td><code>iv_ms</code> / <code>duration_s</code> / <code>replicate</code></td><td>int</td><td>cell coords</td></tr>
+          <tr><td><code>n_pairs</code></td><td>int</td><td><code>len(apf_trajectory)</code></td></tr>
+          <tr><td><code>window</code> / <code>hop</code> / <code>hop_ratio</code></td><td>int / int / float</td><td>combo coords</td></tr>
+          <tr><td><code>n_windows</code></td><td>int</td><td><code>compute_n_windows(n_pairs, W, H)</code></td></tr>
+          <tr><td><code>apf_mean</code> / <code>apf_std</code></td><td>float</td><td>over full trajectory</td></tr>
+          <tr><td><code>cv_workingset</code></td><td>float / null</td><td>workingset metric</td></tr>
+          <tr><td><code>f1_phase</code> / <code>f1_breakdown</code></td><td>float / dict</td><td>ransom metric, when markers exist</td></tr>
+          <tr><td><code>cepstral_peak_idx</code> / <code>ceps_peak_snr_db</code></td><td>int / float</td><td>periodicity</td></tr>
+          <tr><td><code>stat_pass_frac</code></td><td>float</td><td>per-window stationarity pass rate</td></tr>
+          <tr><td><code>coverage_ratio</code></td><td>float</td><td><code>W × iv / workload_rhythm</code></td></tr>
+          <tr><td><code>G1..G5_pass</code> / <code>all_gates_pass</code></td><td>bool</td><td>gate booleans + AND</td></tr>
+          <tr><td><code>traj_sha256</code></td><td>str</td><td>first 16 hex; reproducibility key</td></tr>
+          <tr><td><code>status</code></td><td>str</td><td>ok / skip:short / skip:nan / error:&lt;msg&gt;</td></tr>
+        </tbody>
+      </table>
+
+      <h4>plan03_recommendation.json schema</h4>
+      <div class="diagram">{
+  "schema": "plan03.window_hop_recommendations.v1",
+  "source": "plan03_aggregate.py:&lt;git_sha&gt;",
+  "captured_at": "&lt;iso8601&gt;",
+  "host": "pcrserral",
+  "summary_sha256": "...",
+  "recommendations": [
+    {
+      "family": "phasic",
+      "workload_example": "sandbox_ransom_batched",
+      "iv_ms": 500,
+      "recommended_window": 16,
+      "recommended_hop": 8,
+      "hop_to_window_ratio": 0.50,
+      "v2_baseline_metric": {"f1_median": 1.00, "f1_mean": 0.80},
+      "plan03_metric":      {"f1_median": ?, "f1_mean": ?, "n_compatible": ?},
+      "delta_vs_baseline":  {"f1_median": ?, "f1_mean": ?},
+      "rationale": "smallest W passing G1-G5 across &gt;=80% of compatible cells"
+    },
+    { /* steady workload ... */ }
+  ],
+  "joint_winner": null,
+  "caveats": [
+    "spectral coverage gate relaxed from 4x to 2x workload_rhythm (v2 snap count constraint)",
+    "no app_sqlite_oltp_v2 captured in v2; sqlite recommendation deferred to v3"
+  ],
+  "next_steps": [
+    "Plan 04 picks segmenter floor based on these (W, H) winners",
+    "Future Plan 05 audits producer throughput to lift snap-count ceiling"
+  ]
+}</div>
+    </section>
+
+    <!-- 6 · week-long audit -->
+    <section class="card" id="week">
+      <div class="num">SECTION 06</div>
+      <h2>Week-long team audit · daily meetings</h2>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 1</span>
+          <span class="day-title">Read the design doc + the v2 results</span>
+          <span class="day-meta">SA · ML · DE</span>
+        </div>
+        <ul>
+          <li>SA opens: "Design doc presumes raw dump access. v2 uses B+3.1 streaming and deletes dumps. We need the 1-D path."</li>
+          <li>ML pulls metrics_table.csv. Notes v2 max snap = 73 (cell <code>52c2a0980256</code>, workingset iv=2000 d=300). Median ~22.</li>
+          <li>DE confirms <code>cepstrum_stability.py</code>'s <code>compute_cepstrum</code> accepts <code>[T, N]</code> — <code>N=1</code> works mathematically (verified rfft semantics).</li>
+          <li>Decision: 1-D path is feasible. Don't fork the cepstrum module.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 2</span>
+          <span class="day-title">Window-range feasibility check</span>
+          <span class="day-meta">XD · ML · DS</span>
+        </div>
+        <ul>
+          <li>XD computes per-(workload, iv) snap-count distribution. Tables it. "Half our ransom iv=500 d=60 cells have n=12-22. W=32 yields 0 windows for these."</li>
+          <li>ML proposes narrowing W range to {8, 16, 32, 64}. Justifies via "even W=32 is feasible for only 41 % of cells; W=64 for 5 %."</li>
+          <li>DS objects: "W=8 borders cepstral noise floor. Below 20 frames the cepstrum is dominated by leakage." Compromise: keep W=64 in sweep to surface the failure mode in the report; emphasize W={8, 16} as production candidates.</li>
+          <li>Decision: <strong>W ∈ {8, 16, 32, 64}</strong>, hop ∈ {W/4, W/2, W} → 12 combos per workload.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 3</span>
+          <span class="day-title">Acceptance criteria recalibration</span>
+          <span class="day-meta">ML · EE · DS</span>
+        </div>
+        <ul>
+          <li>EE: "F1 ≥ 0.8 sits at v2 ransom iv=500 mean. Half the cells would pass by definition. Useless threshold."</li>
+          <li>ML proposes: F1 ≥ 0.67 per cell + median ≥ 0.85 across 9 cells. Catches catastrophic regression AND requires aggregate excellence.</li>
+          <li>DS adds: CV ≤ 0.05 per cell at d ≤ 120 s; CV ≤ 0.15 at d=300 s (because 256 MiB working-set drift at long duration is unavoidable, separately documented as v2 finding).</li>
+          <li>EE adds v2 regression guard: winner must NOT push median F1 below 0.95 or median CV above 0.05.</li>
+          <li>Decision: gates G1-G5 finalized (see §08).</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 4</span>
+          <span class="day-title">Cherry-picking + Simpson's paradox</span>
+          <span class="day-meta">DS · ML · XD</span>
+        </div>
+        <ul>
+          <li>DS flags Simpson's paradox: if iv=100 and iv=2000 strata favor different W, the pooled median across iv will hide the conflict.</li>
+          <li>Decision: report per-(workload, iv) winners separately AND a pooled winner; require human sign-off if they disagree.</li>
+          <li>XD raises replicate non-independence: 3 replicates per (workload, iv, dur) sharing VM state. K-W treats them as independent. Wrong.</li>
+          <li>Decision: collapse to <strong>median of 3 replicates</strong> per (workload, iv, dur), giving n=15 per workload at the duration level.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 5</span>
+          <span class="day-title">Validator integration + sub-pilot decision</span>
+          <span class="day-meta">EE · SA · PM</span>
+        </div>
+        <ul>
+          <li>EE proposes C7 operational claim: "<code>plan03_recommendation.json</code> exists, schema-valid, per-workload winner passes G1-G5 on the sweep."</li>
+          <li>SA: "Operational, not informational. Gates downstream propagation. ~25 LOC in validator."</li>
+          <li>EE: "No sub-pilot. Sequential compute is ~15 s (DE confirmed)." DE: confirmed. 12 combos × 90 cells × ~10 ms per kernel call.</li>
+          <li>Decision: full sweep, no sub-pilot, dry-run mode (<code>--combos 32:16 --max-cells 6</code>) for script validation only.</li>
+          <li>PM calls vote: 8 / 8 GO. Ship.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7 · disputes -->
+    <section class="card" id="disputes">
+      <div class="num">SECTION 07</div>
+      <h2>Key disputes + decisions</h2>
+
+      <h3>Dispute 1 · 1-D APF vs 2-D dump matrix</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>SA argued v2's streaming output (1-D APF only) is sufficient; ML wanted a small re-capture with raw dump retention so cepstrum could run on the page-level 2-D matrix (richer signal).</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>DE settled it by measuring: the existing <code>CepstrumStability.compute_cepstrum</code> accepts shape <code>[T, N]</code> with N=1 as a mathematically valid degenerate case. The rfft + log-magnitude pipeline is dimension-agnostic. 1-D path wins on cost (no re-capture, ~15 s sweep). 2-D path queued as a future Plan-N upgrade if 1-D recommendation proves brittle in production use.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 2 · Window range</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>The design doc fixed W ∈ {32, 64, 128, 256, 512}. XD said 0/90 cells admit W=128. ML wanted {8, 16, 32, 64}. DS warned W=8 hits cepstral-noise floor.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Compromise: <strong>W ∈ {8, 16, 32, 64}</strong>. Keep W=64 in sweep to surface its failure mode (only 5 / 90 cells compatible) for the report. Recommend W=8 only when cepstral metrics are not the primary deliverable for that workload (steady workingset CV does not require fine cepstral resolution).</p>
+        </div>
+      </div>
+
+      <h3>Dispute 3 · Acceptance thresholds</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>Design doc said F1 ≥ 0.8 and CV ≤ 0.15. EE pointed out v2's measured ransom iv=500 mean F1 is exactly 0.80 — threshold sits at the population mean, trivial to pass. Same critique for CV ≤ 0.15 vs v2's 0.022 median (~7x loose).</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Tighten to v2-grounded floors: <strong>F1 ≥ 0.67 per cell AND median ≥ 0.85</strong> (ransom); <strong>CV ≤ 0.05 at d ≤ 120 s AND CV ≤ 0.15 at d=300 s</strong> (workingset). Add v2 regression guard at the aggregate level: median F1 ≥ 0.95 AND median CV ≤ 0.05 across the chosen workload's winning combo.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 4 · sqlite OLTP scope</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>Design doc lists <code>app_sqlite_oltp_v2</code> as a third workload. v2 only captured the 2 binaries (ransom, workingset). Adding sqlite requires fresh capture (3-5 h).</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Defer sqlite to Plan 03.5 or v3. Plan 03 ships with 2-workload scope. Caveat documented in <code>recommendation.json</code>. Justification: keeps the "zero new captures" commitment from the design doc's cost section.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 5 · Stationarity test source</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>Design doc says "use Phase 1's <code>StabilityValidator</code> for stationarity." That class was built for 2-D PLV/MSC on <code>[T, N]</code> page matrices, not 1-D APF rolling-mean stationarity.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Ship our own <code>stationarity_per_window</code> inline (~15 LOC in the kernel). Test: <code>|μ_window - μ_global| / σ_global &lt; 1.0</code> for ≥ 90 % of windows. Plan 03 doc updated to clarify this is a 1-D stationarity test, not the canonical <code>StabilityValidator</code>.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 6 · Sub-pilot vs full sweep</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>SA wanted a 6-cell pilot mirroring B+3.1's validation. EE pushed for direct full sweep.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Full sweep. Reasoning: compute is ~15 s sequential. A pilot would de-risk script bugs only, not findings. Cheaper to ship a <code>--combos &lt;subset&gt; --max-cells 6</code> dry-run mode for script validation pre-merge, then run the full sweep in one shot.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · improved plan -->
+    <section class="card" id="improved">
+      <div class="num">SECTION 08</div>
+      <h2>Improved Plan 03 specification</h2>
+
+      <h3>Sweep matrix (final)</h3>
+      <table>
+        <thead><tr><th>variable</th><th>levels</th><th>count</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td>window</td><td>{8, 16, 32, 64}</td><td>4</td><td>narrowed from design doc {32-512}; v2 snap counts cap at 73</td></tr>
+          <tr><td>hop ratio</td><td>{0.25, 0.50, 1.00}</td><td>3</td><td>hop = round(W × ratio); G4 rejects ratio &gt; 0.5 from the winner pool</td></tr>
+          <tr><td>iv</td><td>per workload from Plan 02</td><td>1</td><td>ransom=500 ms, workingset=250 ms</td></tr>
+          <tr><td>workload</td><td>{sandbox_ransom_batched, mem_workingset_sweep_v2}</td><td>2</td><td>sqlite deferred</td></tr>
+          <tr><td>cells</td><td>all v2 cells with status=ok, is_warmup=False</td><td>90</td><td>2 d=60 ransom cells (Bug-O retried) included</td></tr>
+        </tbody>
+      </table>
+      <p>Total combos per workload: 4 × 3 = 12. Total evaluations: 12 × 90 = 1080 rows in <code>plan03_sweep.csv</code>.</p>
+
+      <h3>Acceptance gates (G1-G5)</h3>
+      <table>
+        <thead><tr><th>gate</th><th>threshold</th><th>justification</th></tr></thead>
+        <tbody>
+          <tr><td><strong>G1 · stationarity</strong></td><td><code>stat_pass_frac ≥ 0.80</code> across cells with n_windows ≥ 5</td><td>v2's short trajectories make 90 % unreachable; relaxed to 80 %</td></tr>
+          <tr><td><strong>G2 · spectral coverage</strong></td><td><code>W × iv ≥ 2 × workload_rhythm</code></td><td>relaxed from design doc's 4× because 4× is infeasible at v2 snaps; ransom rhythm=20 s mean phase → W ≥ 40 at iv=500 → only W=64 qualifies; workingset has no phasic rhythm so G2 not applicable</td></tr>
+          <tr><td><strong>G3 · defining metric</strong></td><td>ransom: F1 ≥ 0.67/cell AND median ≥ 0.85; workingset: CV ≤ 0.05/cell (d ≤ 120 s) AND CV ≤ 0.15/cell (d=300 s)</td><td>v2-grounded floors per dispute 3</td></tr>
+          <tr><td><strong>G4 · hop ratio</strong></td><td><code>hop ≤ W / 2</code></td><td>standard short-time analysis; hop=W (0% overlap) excluded</td></tr>
+          <tr><td><strong>G5 · n_windows floor</strong></td><td><code>n_windows ≥ 5 for ≥ 80 % of compatible cells</code></td><td>below 5 windows per cell, per-cell statistics aren't defensible</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Decision rule</h3>
+      <div class="diagram">def pick_winner(sweep_df, workload):
+    candidates = sweep_df.filter(workload=workload, G1..G5 all True)
+    if candidates.empty:
+        return None  # triggers design doc §4 fallback chain
+    # smallest window wins; tiebreak hop=W/2 vs W/4; tiebreak metric median
+    candidates.sort_by(window=ASC, hop_ratio=lambda r: abs(r-0.5), metric=DESC)
+    winner = candidates.head(1)
+
+    # v2 regression guard (Δ-5)
+    if workload == "ransom" and winner.median_f1 &lt; 0.95:
+        return None  # winner degrades v2 baseline; fall through
+    if workload == "workingset" and winner.median_cv &gt; 0.05:
+        return None
+    return winner</div>
+
+      <h3>Output artifacts</h3>
+      <dl class="kv">
+        <dt><code>plan03_sweep.csv</code></dt> <dd>1080 rows · per-(cell, W, H) metrics + gate booleans + reproducibility hash</dd>
+        <dt><code>plan03_summary.json</code></dt> <dd>24 entries · per-(workload, W, H) aggregate stats + sha256 of sweep.csv</dd>
+        <dt><code>plan03_recommendation.json</code></dt> <dd>final per-workload winner + rationale + caveats + delta vs v2 baseline + sha256 of summary</dd>
+        <dt><code>plan03_recommendation.md</code></dt> <dd>human-readable winner table for the thesis chapter</dd>
+      </dl>
+    </section>
+
+    <!-- 9 · validation -->
+    <section class="card" id="validation">
+      <div class="num">SECTION 09</div>
+      <h2>Validation strategy</h2>
+
+      <h3>New C7 operational claim</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Claim text</span>
+          <p>"A <code>plan03_recommendation.json</code> exists in the session output directory, validates against the v1 schema, and the per-workload winner passes gates G1-G5 when evaluated against <code>plan03_sweep.csv</code>."</p>
+        </div>
+        <div>
+          <span class="label tech">Validator wiring</span>
+          <ul>
+            <li>Add <code>_evaluate_plan03_recommendation</code> in <code>plan02_validate_session.py</code> (~25 LOC)</li>
+            <li>Operational: True (gates analysis_ready)</li>
+            <li>NA when recommendation file absent (v1/v2-era sessions still pass) — same pattern as C6 NA when no APF trajectory</li>
+            <li>Cite gates G1-G5 results in <code>claims["C7_window_hop_recommended"]["why"]</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Plan 03 PASS condition (session-level)</h3>
+      <p>At least one (W, H) combo passes G1-G5 <strong>per workload</strong>. Joint winner (one (W, H) passes for BOTH workloads simultaneously) is a <strong>promotion</strong> condition, tagged <code>joint=true</code> in the recommendation; not required.</p>
+
+      <h3>Sub-pilot vs full sweep</h3>
+      <p>Full sweep. Compute ~15 s sequential (1080 evaluations × ~10 ms per kernel call on v2 trajectories ≤ 73 floats). A 6-cell pilot only de-risks script bugs; cheaper to ship a <code>--combos 32:16 --max-cells 6 --dry-run</code> mode and use that in CI before the full sweep runs.</p>
+
+      <h3>Reproducibility (CI hook)</h3>
+      <div class="diagram"># tests/test_plan03_reproducibility.py (~50 LOC)
+def test_sweep_is_deterministic_on_v2_subset():
+    fixture = "tests/fixtures/plan03_repro_v2_subset/"  # 6 cells, ~50 KiB
+    out1 = run_sweep(fixture, seed=0)
+    out2 = run_sweep(fixture, seed=0)
+    assert sha256(out1.recommendation) == sha256(out2.recommendation)
+    assert sha256(out1.summary) == sha256(out2.summary)
+    assert sha256(out1.sweep_csv) == sha256(out2.sweep_csv)
+
+def test_traj_sha256_stable_across_orderings():
+    # cells in different order in manifest must produce same recommendation
+    ...</div>
+
+      <h3>Failure-mode handling</h3>
+      <table>
+        <thead><tr><th>failure</th><th>sweep behavior</th><th>C7 behavior</th></tr></thead>
+        <tbody>
+          <tr><td>All combos fail G1-G5 for one workload</td><td><code>winner=null</code>; cite fallback path</td><td>FAIL with why="no combo passes for &lt;workload&gt;"</td></tr>
+          <tr><td>Ransom passes, workingset doesn't (or vice versa)</td><td>per-workload winners written independently; <code>joint=false</code></td><td>PASS (per-workload winners suffice)</td></tr>
+          <tr><td>Cepstrum NaN/inf at small T</td><td>cell marked <code>numerical_unstable</code>; excluded from aggregate</td><td>C7 cites unstable count if &gt; 5 % cells</td></tr>
+          <tr><td>n_windows &lt; 5 for &gt; 20 % of cells under a combo</td><td>combo dropped before G3</td><td>combo elimination inherited</td></tr>
+          <tr><td>Recommendation artifact missing or malformed</td><td>n/a</td><td>FAIL with why="recommendation artifact missing"</td></tr>
+          <tr><td>Winner degrades v2 baseline (regression guard fires)</td><td>winner tagged <code>degrades_v2_baseline=true</code>; recommendation falls back to v2 canonical</td><td>FAIL unless an alternative combo within 5 % clears the guard</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 10 · statistical design -->
+    <section class="card" id="stats">
+      <div class="num">SECTION 10</div>
+      <h2>Statistical design</h2>
+
+      <h3>Test framework</h3>
+      <ul>
+        <li><strong>Within-cell comparison across (W, H):</strong> Wilcoxon signed-rank or Friedman with cell as block. Non-parametric because F1 is bounded [0,1] with mass at exactly 0 and 1; cepstral peak index is ordinal.</li>
+        <li><strong>Stationarity / spectral-coverage rate:</strong> two-proportion z-test; Fisher's exact when any group n &lt; 5.</li>
+        <li><strong>Bootstrap CIs:</strong> BCa at 10 000 iterations, stratified resample within (iv, d) blocks. Reported as the headline metric in <code>recommendation.md</code>.</li>
+      </ul>
+
+      <h3>Sample size + power · honest accounting</h3>
+      <div class="callout warn">
+        <strong>Power is low.</strong> v2 effective n per (workload, iv) after replicate-median collapse: n=3. Pooled across iv: n=15 per workload. Against effect sizes of Cohen's d ≈ 0.26 (ransom F1 delta 0.10) and d ≈ 0.17 (workingset CV delta 0.05), two-sample power at α=0.05 is ~23 % (ransom pooled) and ~13 % (workingset pooled). Real claims must be ranking-based, not absolute-CI-based.
+      </div>
+
+      <h3>Multiple-comparisons handling</h3>
+      <p>Holm-Bonferroni FWER control, per-workload separately (m=12 tests per workload, not pooled). Bonferroni is uniformly weaker; FDR is wrong here because Plan 03's single-selection decision propagates downstream (false positives have physical cost). Friedman's omnibus test gates whether pairwise tests are even meaningful.</p>
+
+      <h3>Replicate non-independence</h3>
+      <p>3 replicates per (workload, iv, dur) share VM state and time-of-day. K-W on raw 9 cells per (workload, iv) inflates the test statistic. <strong>Mitigation:</strong> collapse to median per (workload, iv, dur) → n=15 per workload at the dur level, or n=5 per (workload, iv). Honest.</p>
+
+      <h3>Simpson's-paradox guard</h3>
+      <p>If pooled winner across iv differs from any per-iv stratum winner, recommendation flags <code>simpson_paradox_warning</code> and the aggregator refuses to auto-pick; operator must sign off. Same pattern as Plan 02 v1/v2 split-by-workload was guarded against.</p>
+
+      <h3>Bootstrap report format</h3>
+      <div class="diagram">Workload: sandbox_ransom_batched
+Winner: window=16, hop=8
+  median F1 = 1.000 [BCa 95% CI: 0.667, 1.000]  (n=21 compatible cells)
+  P(F1=1.0) = 14/21 = 0.667  (robustness check on bimodal distribution)
+  v2 baseline: median F1 = 1.000 → delta = 0.000
+Bootstrap: 10 000 iterations, BCa, stratified by (iv, d)</div>
+    </section>
+
+    <!-- 11 · risks -->
+    <section class="card" id="risks">
+      <div class="num">SECTION 11</div>
+      <h2>Risks + mitigations</h2>
+
+      <table>
+        <thead><tr><th>risk</th><th>severity</th><th>mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>v2 snap-count ceiling prevents large W</td><td><span class="chip blocked">high</span></td><td>narrow W range to {8, 16, 32, 64}; document snap-throughput as future Plan 05 question</td></tr>
+          <tr><td>1-D cepstrum is degenerate module path; <code>min_quef_idx=10</code> default kills small-T spectra</td><td><span class="chip next">medium</span></td><td>kernel overrides <code>min_quef_idx=max(1, T//8)</code> per cell</td></tr>
+          <tr><td>Cherry-picking on F1 across (W, H)</td><td><span class="chip next">medium</span></td><td>feasibility-penalized objective function; per-(workload, iv) stratum reporting; Simpson's-paradox guard</td></tr>
+          <tr><td>Replicate non-independence inflates K-W</td><td><span class="chip next">medium</span></td><td>collapse to median per (workload, iv, dur); use n=15 not n=45</td></tr>
+          <tr><td>F1 bimodality (mass at 0 and 1) makes mean misleading</td><td><span class="chip next">medium</span></td><td>report median + P(F1 ≥ 0.8) jointly; BCa CIs not normal-approximation CIs</td></tr>
+          <tr><td>v2 regression: winner degrades baseline</td><td><span class="chip blocked">high</span></td><td>Δ-5 regression guard in decision rule; C7 fails if winner pushes median F1 below 0.95 or median CV above 0.05</td></tr>
+          <tr><td>Edge effects at W=8 (cepstral noise floor)</td><td><span class="chip next">medium</span></td><td>report cepstral_peak only for W ≥ 16; W=8 wins only if CV-driven workload (workingset)</td></tr>
+          <tr><td>Sqlite OLTP scope creep mid-sweep</td><td><span class="chip done">low</span></td><td>scope locked to 2 workloads in §03; sqlite is Plan 03.5</td></tr>
+          <tr><td>Pipeline bugs in sweep driver</td><td><span class="chip done">low</span></td><td>unit tests + dry-run mode (<code>--combos 32:16 --max-cells 6</code>) + CI reproducibility test</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 · PM final -->
+    <section class="card" id="pm">
+      <div class="num">SECTION 12</div>
+      <h2>PM final recommendation</h2>
+
+      <dl class="kv">
+        <dt>verdict</dt> <dd><span class="chip done">go · Plan 03 v1 frozen</span></dd>
+        <dt>scope</dt> <dd>~360 LOC across 5 files · 0 new deps · 0 new captures · backward compatible</dd>
+        <dt>schedule</dt> <dd>1 dev-day to implement · 0.5 dev-day to test · 30 s to run full sweep · 1 h to write recommendation.md</dd>
+        <dt>blocker</dt> <dd>operator says "go Plan 03 v1"</dd>
+        <dt>fallback</dt> <dd>if v2 regression guard fires for both workloads, fall back to canonical (128, 64) and document Plan 03 as "explored but inconclusive"; next plan must address snap-count throughput</dd>
+      </dl>
+
+      <h3>Per-agent vote</h3>
+      <div class="agent">
+        <div class="agent-id">SA</div>
+        <div class="agent-take">Process model is clean. 1-D path reuses cepstrum module without forking. Zero impact on producer / consumer / Rust binary. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EN</div>
+        <div class="agent-take">Cepstrum [T, 1] reshape is the right adapter. <code>min_quef_idx</code> override is necessary, 3 LOC. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">ML</div>
+        <div class="agent-take">Acceptance criteria recalibration from v2 baseline is essential. Without Δ-2 the sweep would trivially "pass" without proving anything. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">XD</div>
+        <div class="agent-take">Per-(workload, iv) stratum reporting + replicate-median collapse fix the non-independence issue. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DE</div>
+        <div class="agent-take">Schema versioned. Reproducibility hash chains sweep.csv → summary.json → recommendation.json. Sequential 15 s compute means no parallelism complexity. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DS</div>
+        <div class="agent-take">Holm-Bonferroni FWER + BCa bootstrap + Simpson's guard + bimodality-aware median+P(F1≥0.8) reporting are the right tools. n=15 effective limits absolute claims; ranking claims are honest. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EE</div>
+        <div class="agent-take">C7 operational claim is the missing piece. v2 regression guard prevents Plan 03 from "winning" by silently degrading. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">PM</div>
+        <div class="agent-take">8/8 go. Ship after explicit operator approval.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+
+      <div class="callout good" style="margin-top: 20px;">
+        <strong>Final recommendation.</strong> Ship Plan 03 v1 with the 5 deltas (narrowed W range, recalibrated thresholds, 1-D APF path, C7 claim, v2 regression guard). Zero new captures. ~30 s end-to-end after merge. The output is a per-workload (W, H) recommendation that unblocks Plan 04 segmenter design.
+      </div>
+
+      <div class="callout info">
+        <strong>What this does NOT unblock.</strong> Plan 03 does not raise v2's snap-count ceiling (5-73 per cell). Spectral coverage at the design doc's 4× rhythm rule (requires W ≥ 100 at iv=500) remains infeasible. That's a Plan 05 producer-side throughput question, not a Plan 03 analyzer question.
+      </div>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="d51_bplus3_improved_proposal.html">
+        <span class="label">previous proposal</span>
+        <span class="title">D-51 / B+3.1 · ship-validated</span>
+      </a>
+      <a href="plan02_overview.html">
+        <span class="label">background</span>
+        <span class="title">Plan 02 overview · v1 + v2 done</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
