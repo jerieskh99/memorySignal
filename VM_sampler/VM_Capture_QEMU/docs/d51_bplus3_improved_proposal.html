@@ -212,8 +212,8 @@
     <div class="status-pill">
       <strong>Shipped + validated.</strong><br>
       B+3.1 ran 94/94 cells end-to-end.
-      88/90 operational PASS. 2 trailing-helper races
-      surfaced; not blockers.
+      <strong>90/90 operational PASS</strong> after Bug O fix + retry.
+      Full v2 lossless.
     </div>
   </aside>
 
@@ -954,7 +954,7 @@
       <h3>Run summary</h3>
       <dl class="kv">
         <dt>cells executed</dt> <dd>94 (90 production + 4 warmup)</dd>
-        <dt>operational PASS</dt> <dd>88 / 90 (97.8 %)</dd>
+        <dt>operational PASS</dt> <dd>88 / 90 (97.8 %) initial run · <strong>90 / 90 after Bug O fix + retry</strong></dd>
         <dt>wall-clock</dt> <dd>~16-18 h end-to-end on pcrserral, in screen session</dd>
         <dt>persistent footprint</dt> <dd>4.7 MiB total (under 50 MiB design target)</dd>
         <dt>transient disk swing</dt> <dd>59.5 GiB (73.6 - 133.1 GiB free) <span class="chip next">over design target of 5 GiB</span></dd>
@@ -1038,6 +1038,36 @@
         beyond last expected snap, or wait for explicit ack of the last seq.
         Not a blocker for this batch -- 88/90 is acceptable for thesis -- but
         document for future scaling.
+      </div>
+
+      <h3>Bug O fix · landed and verified (commit <code>30de0e5</code>)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What the fix does</span>
+          <p>Replaces the flat 30-second wall-clock barrier in <code>wait_for_apf_helpers</code> with a progressive idle timeout. Barrier exits when (1) all expected acks arrive, (2) no new ack appears in 15 seconds (idle quit), or (3) a 180-second hard cap fires (safety stop). Healthy cells finish quickly via the success path; only genuinely stuck helpers trigger the idle quit; only pathological hangs hit the cap. Backward compatible -- legacy callers passing only <code>timeout_s</code> still get the original semantics.</p>
+        </div>
+        <div>
+          <span class="label tech">Operator retry confirmation</span>
+          <ul>
+            <li>Reset 2 failed cells to pending via <code>plan02_manifest.py force-status</code></li>
+            <li>Re-ran <code>plan02_run.py</code> · only the 2 pending cells executed (others left untouched)</li>
+            <li>Both cells passed C6 cleanly with the new barrier:
+              <ul>
+                <li><code>73e42bc7c685</code>: 7 pairs, 6/7 → <strong>24 snaps, ratio 1.04, C6 ✓</strong></li>
+                <li><code>e61a27074f69</code>: 13 pairs, 12/13 → <strong>17 snaps, ratio 1.00, C6 ✓</strong></li>
+              </ul>
+            </li>
+            <li>3 new unit tests added: progressive-ack waiting, idle-quit-when-stalled, backward-compat single-arg call. 76 / 76 green.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Final operational status (post-Bug-O retry): 90 / 90 PASS.</strong>
+        C1 90/90 · C2 90/90 · C4 90/90 · C5 90/90 · <strong>C6 90/90</strong>.
+        Bug O confirmed reproduced + fixed + retried + validated end-to-end.
+        Full v2 run is now lossless. v1 vs v2 recommendation table in
+        Section 14 stands on the full 90-cell empirical foundation.
       </div>
 
       <h3>Disk budget reconciliation</h3>
