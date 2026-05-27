@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thesis Q&amp;A · operator + advisor questions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  p  { margin:10px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(110,167,212,.08); border:1px solid rgba(110,167,212,.20);
+    color: var(--info); }
+  main { padding:48px 40px 96px; max-width:880px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+
+  /* Q&A blocks */
+  .qa { border-left:3px solid var(--accent); padding:4px 0 4px 18px;
+         margin:24px 0; }
+  .qa .q-tag { display:inline-block; padding:2px 8px; border-radius:11px;
+                font-family: var(--f-mono); font-size:10px;
+                font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+                background: rgba(212,168,90,.14); color: var(--accent);
+                margin-bottom:8px; }
+  .qa .q-tag.advisor { background: rgba(110,167,212,.14); color: var(--info); }
+  .qa .q-tag.operator { background: rgba(124,185,110,.14); color: var(--good); }
+  .qa .q { font-family: var(--f-display); font-size:18px; font-weight:500;
+            color: var(--text); margin:0 0 12px; line-height:1.35; }
+  .qa .a p { color: var(--text-dim); margin:8px 0; }
+  .qa .a ul, .qa .a ol { color: var(--text-dim); padding-left:22px; margin:8px 0; }
+  .qa .a strong { color: var(--text); }
+
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:8px 11px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:11px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:14px 18px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+
+  .legend { display:flex; gap:18px; flex-wrap:wrap;
+             font-size:12px; color: var(--text-dim);
+             padding:10px 14px; background: var(--panel-2);
+             border:1px solid var(--line); border-radius: var(--r);
+             margin:0 0 20px; }
+  .legend > div { display:flex; align-items:center; gap:6px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Thesis Q&amp;A</div>
+    <div class="sub">operator + advisor likely-asks</div>
+    <ol>
+      <li><a href="#operator">Operator's three</a></li>
+      <li><a href="#apf">What APF actually is</a></li>
+      <li><a href="#pipeline">Pipeline architecture</a></li>
+      <li><a href="#methodology">Methodology defense</a></li>
+      <li><a href="#stats">Statistical defense</a></li>
+      <li><a href="#threat">Threat model + workloads</a></li>
+      <li><a href="#scaling">Scaling + production</a></li>
+      <li><a href="#future">Future work + Plan-N</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Living document.</strong><br>
+      Q&amp;A snapshot · v2 done + Plan 03 proposed.
+      Append new questions here as they come up.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Thesis · question + answer reference</div>
+      <h1>What you'll be asked,<br>and how the data <em>answers</em>.</h1>
+      <p class="deck">
+        Plain-prose answers to the three questions the operator asked
+        during the Plan 03 review, plus ~25 more that an advisor would
+        likely raise during the defense or chapter review. Grounded in
+        the v2 90-cell empirical results. Linked back to the
+        proposal docs where the underlying evidence lives.
+      </p>
+      <div class="legend" style="margin-top: 18px;">
+        <div><span class="chip done">operator</span> asked during this conversation</div>
+        <div><span class="chip info">advisor</span> likely defense question</div>
+      </div>
+    </header>
+
+    <!-- 1 · operator's three -->
+    <section class="card" id="operator">
+      <div class="num">SECTION 01</div>
+      <h2>The operator's three questions</h2>
+
+      <div class="qa">
+        <span class="q-tag operator">operator · Q1</span>
+        <p class="q">What exactly does Plan 03 not unblock? What is going to be Plan 05?</p>
+        <div class="a">
+          <p>Plan 03 cannot raise the <strong>snap-throughput ceiling</strong>. Every cell in the v2 experiment got between 5 and 73 memory snapshots, with a median around 22. The theoretical target at iv=100 ms for a 300-second cell is 3000 snapshots. We got around 50 instead.</p>
+          <p>The reason is hardware physics. Every snap is a <code>pmemsave</code> command that writes the full 1 GiB of guest RAM to disk. Even on a fast SSD that takes between 300 milliseconds and 2 seconds. While that write is happening, the VM is paused. Then the B+3.1 helper has to read the old dump back, compute which pages changed, and delete it. So even when we ask for one snap every 100 milliseconds, real cadence is more like one every 3 to 15 seconds.</p>
+          <p>The consequence for Plan 03 is that the analyzer's sliding window cannot exceed the trajectory length. The original design doc wanted W &times; iv &geq; 4 &times; the workload's slowest rhythm (50 seconds for ransomware phases). At iv=500 ms that means W &geq; 400 snaps. <strong>No v2 cell has 400 snaps.</strong> So that rule is infeasible. Plan 03 relaxes it from 4&times; to 2&times; and documents the gap.</p>
+          <p>A future <strong>Plan 05</strong> would fix the snap-throughput ceiling. Four directions, none of which are analyzer changes:</p>
+          <ul>
+            <li>Faster storage (multi-NVMe RAID for higher write bandwidth)</li>
+            <li>Smaller VM RAM (256 MB instead of 1 GiB makes dumps 4&times; faster)</li>
+            <li>Incremental delta-encoded snapshots (eBPF page-fault tracing or QEMU's own dirty-page API)</li>
+            <li>A different capture mechanism entirely (sample-based access tracing, no full dumps)</li>
+          </ul>
+          <p>Plan 03's job is "do the best with what we got." Plan 05 would change what we get.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag operator">operator · Q2</span>
+        <p class="q">Why are we calling them "deltas"? What does that even mean?</p>
+        <div class="a">
+          <p>Two unrelated meanings of "delta" collide in this codebase. They share a word but nothing else.</p>
+          <p><strong>Meaning A &mdash; project-management jargon.</strong> When the team reviews an existing plan and proposes incremental changes, those changes are labelled "deltas." The word is shorthand for "what is different from the baseline." The B+3 to B+3.1 review proposed four such changes, labelled <code>&Delta;-1</code> through <code>&Delta;-4</code>. The Plan 03 review proposed five, labelled <code>&Delta;-1</code> through <code>&Delta;-5</code>. These are bullet points in a planning document. No mathematics involved.</p>
+          <p><strong>Meaning B &mdash; mathematical distance.</strong> There is a Rust binary in the codebase called <code>live_delta_calc</code>. It takes pairs of memory dumps and computes cosine distance plus Hamming distance between corresponding 4 KiB pages. The output is, literally, deltas &mdash; numerical differences between pages. This is Phase 1's terminology, used in the original <code>run_files_controlled.py</code> pipeline.</p>
+          <p>Plan 03's five deltas are five edits to a planning document. They are not measurements, not metrics, and not anything the Rust binary touches. Counting them:</p>
+          <ol>
+            <li><code>&Delta;-1</code> &mdash; narrow window range from {32, 64, 128, 256, 512} to {8, 16, 32, 64}.</li>
+            <li><code>&Delta;-2</code> &mdash; recalibrate the acceptance thresholds based on v2 measurements.</li>
+            <li><code>&Delta;-3</code> &mdash; feed the cepstrum module a 1-D APF series reshaped as <code>[T, 1]</code> instead of forking the module.</li>
+            <li><code>&Delta;-4</code> &mdash; add the C7 operational claim to the validator plus emit <code>plan03_recommendation.json</code>.</li>
+            <li><code>&Delta;-5</code> &mdash; v2 regression guard so the chosen <code>(window, hop)</code> cannot silently degrade the v2 baseline.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag operator">operator · Q3</span>
+        <p class="q">Are we calculating the same cosine / Hamming deltas as before? What is going on?</p>
+        <div class="a">
+          <p>No. Two parallel pipelines exist, and we switched from one to the other for v2.</p>
+          <p><strong>Pipeline A (Phase 1).</strong> Producer dumps RAW memory. A consumer process (the Rust <code>live_delta_calc</code> binary) reads consecutive dumps and computes per-page cosine distance and Hamming distance &mdash; both continuous values in [0, 1] &mdash; for every 4 KiB page in the dump. The output is a 2-D matrix <code>[T snaps, N pages]</code> where N is roughly 262144 pages for a 1 GiB guest. Downstream analyzers (PLV, MSC, cepstrum) operate on this 2-D matrix. Disk-expensive: keeping the full dumps means about 60 GiB per long cell, around 5 TiB for 90 cells. Infeasible on our server (around 145 GiB free).</p>
+          <p><strong>Pipeline B (v2 / B+3.1).</strong> Producer dumps RAW memory same as before. A Python helper (<code>plan02_apf_helper.py</code>) reads consecutive dumps with <code>numpy.memmap</code>, computes a single number per pair: the Active Page Fraction (APF), defined as the fraction of 4 KiB pages whose contents differ at all between snap N and snap N+1. Then the helper deletes the previous dump. Persistent output is a 1-D float series, one APF value per pair. Disk usage stays bounded at about 2-3 GiB regardless of cell duration. For 90 cells the total persistent footprint is 4.7 MB.</p>
+          <p><strong>Trade-off.</strong> APF gives a coarser memory-activity signature than cosine / Hamming. Cosine and Hamming say "for each page, how similar are the bytes?" APF says "did this page get touched at all, yes or no?" APF is enough for the thesis's separation claim (ransom CV is 28&ndash;140&times; workingset CV at every iv, F1 saturates from iv=250 upward). It is not enough for a per-page sub-signature claim, which would require Pipeline A.</p>
+          <p>Plan 03 operates purely on Pipeline B's 1-D APF trajectory. It sweeps analyzer <code>(window, hop)</code> settings over those trajectories. It does not touch cosine or Hamming. The Rust binary is dormant in the repository and would re-enter the pipeline if a future plan solves the disk-budget problem.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · what APF actually is -->
+    <section class="card" id="apf">
+      <div class="num">SECTION 02</div>
+      <h2>What APF actually is &mdash; foundational concepts</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q4</span>
+        <p class="q">In one sentence, what is APF?</p>
+        <div class="a">
+          <p>APF (Active Page Fraction) is a single floating-point number per pair of consecutive memory snapshots, equal to the fraction of 4 KiB pages whose bytes changed at all between the two snapshots.</p>
+          <p>If a guest VM has 1 GiB of RAM, that's 262144 pages of 4 KiB each. If between snap-N and snap-N+1 exactly 65536 pages had any byte change, APF for that pair is 65536 &divide; 262144 = 0.25. The math is <code>(pages_where_old_bytes != new_bytes) / total_pages</code>. A page that flipped one bit and a page that was completely rewritten count the same.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q5</span>
+        <p class="q">Why a binary "changed or not" rather than a continuous distance? Aren't you throwing away information?</p>
+        <div class="a">
+          <p>Yes, deliberately. Three reasons.</p>
+          <ul>
+            <li><strong>Disk budget.</strong> Continuous per-page distance (cosine / Hamming) requires keeping every full memory dump. That is 5 TiB for a 90-cell run. Binary "changed or not" needs only the previous dump available momentarily for the diff, then deletes it. Total persistent footprint: 4.7 MB instead of 5 TiB. Roughly a million-times reduction.</li>
+            <li><strong>Sufficiency.</strong> The thesis's central claim is that phasic workloads (ransomware encryption phases) produce a recognizably different memory-activity signature than steady workloads (cyclic working-set churn). At the workload-class level that distinction is captured cleanly by APF alone. Ransom CV across the v2 cells is 28&ndash;140&times; workingset CV at every sampling interval. Continuous distances would refine the signal further, but they are not necessary to make the separation claim.</li>
+            <li><strong>Compute speed.</strong> Binary diff with <code>numpy.memmap</code> on a 1 GiB dump completes in 300&ndash;500 milliseconds. Per-page cosine plus Hamming with the Rust binary is roughly 1.5-3 seconds. Faster diff means lower contention with the next <code>pmemsave</code>, which means more snaps per cell, which means a longer effective trajectory.</li>
+          </ul>
+          <p>If the thesis ever needs to make a finer claim &mdash; for example "ransomware family A produces a different per-page distribution than family B" &mdash; we would have to re-introduce cosine / Hamming and pay the disk cost.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q6</span>
+        <p class="q">What exactly is a "snap" or "snapshot" here?</p>
+        <div class="a">
+          <p>A snap is the output of one <code>pmemsave</code> call against the QEMU monitor socket. <code>pmemsave</code> dumps the entire guest physical memory to a file on host disk, byte for byte. For a 1 GiB guest the dump file is exactly 1 GiB.</p>
+          <p>During the dump the VM is paused (QEMU's <code>stop</code> / <code>cont</code> primitives are issued around <code>pmemsave</code>). Pause duration is roughly equal to dump duration, 300 milliseconds to 2 seconds. From the analyzer's point of view a snap is a single "frozen frame" of the guest's memory at one host-time instant.</p>
+          <p>The full lifecycle of one snap-pair under B+3.1 is:</p>
+          <div class="diagram">  t=0     virsh suspend                          (guest stops)
+  t=0+   pmemsave -&gt; /var/lib/libvirt/qemu/dump/snap_N.raw
+  t=A    pmemsave returns                       (~0.3-2 s wall-clock)
+  t=A+   virsh resume                           (guest runs again)
+  t=A+   async helper memmap-diffs snap_N-1 vs snap_N
+  t=B    APF written to apf_trajectory.jsonl, snap_N-1 deleted
+  t=A    producer waits until t=A + iv_ms, then loops to t=0 again</div>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q7</span>
+        <p class="q">What does F1 mean in this context? It's a classification metric, but you're not classifying memory pages.</p>
+        <div class="a">
+          <p>F1 here measures how well the APF trajectory's automatic "boundary detector" matches the ground-truth phase boundaries reported by the workload binary itself.</p>
+          <p>The ransomware workload (<code>sandbox_ransom_batched</code>) emits explicit phase-transition markers to its stderr during execution: "PHASE: encryption_start", "PHASE: encryption_end", and so on. Those markers are timestamped against the host clock. The host orchestrator captures them in <code>workload_stderr.log</code> per cell. We then know, with ground truth, at which snap-index in the APF trajectory each true boundary occurred.</p>
+          <p>Separately, the analyzer runs a simple boundary-detection heuristic on the APF series itself &mdash; "wherever |APF[t] - APF[t-1]| exceeds a median-plus-1.5&sigma; threshold, declare a boundary." This gives a set of predicted boundary indices.</p>
+          <p>F1 is then the standard precision-recall F1 of predicted boundaries against true boundaries. F1=1.0 means every true boundary was detected and no false positives were declared. F1=0.0 means either no true boundaries were detected (all false negatives) or every prediction was wrong.</p>
+          <p>For the working-set workload there are no phase boundaries by design &mdash; it is steady-state. F1 is reported for it as well, but it is essentially noise (no true positives possible, so F1 is artifact of the detector's false-positive rate).</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q8</span>
+        <p class="q">What does CV mean here?</p>
+        <div class="a">
+          <p>CV is the standard <strong>coefficient of variation</strong> of the APF series: standard deviation divided by mean. It's a unitless measure of "how spiky" the trajectory is.</p>
+          <p>A steady workload that touches roughly the same memory at every snap produces an APF trajectory that hovers around its mean &mdash; CV is small, on the order of 0.02&ndash;0.10. A phasic workload like ransomware has long quiet periods (APF near 0) punctuated by encryption bursts (APF spikes to 0.4-0.5), so the std is large relative to the mean &mdash; CV is large, on the order of 2&ndash;5.</p>
+          <p>The thesis taxonomy claim is: ransom CV is 28&ndash;140&times; workingset CV at every iv (ratios computed from the v2 medians). That gap is the empirical separator between "phasic" and "steady" workload classes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · pipeline architecture -->
+    <section class="card" id="pipeline">
+      <div class="num">SECTION 03</div>
+      <h2>Pipeline architecture</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q9</span>
+        <p class="q">Why QEMU specifically? Why not VMware, KVM directly, or a container?</p>
+        <div class="a">
+          <p>QEMU provides the cleanest path to a synchronous, full-memory snapshot from the host, via the QEMU monitor's <code>pmemsave</code> command. KVM (the kernel hypervisor) doesn't expose a memory-dump primitive to userspace by itself; it works in concert with QEMU.</p>
+          <p>VMware also has snapshot capabilities, but the API is proprietary, the licensing is restrictive for academic work, and the snapshot semantics are heavier (full VM state, not just memory).</p>
+          <p>Containers (Docker, podman, LXC) share the host's memory and don't have a clean "VM memory" abstraction to dump. You would have to sample <code>/proc/&lt;pid&gt;/pagemap</code> + <code>/proc/&lt;pid&gt;/maps</code>, which gives a fundamentally different signal (per-process, not whole-system). The thesis's whole-system memory model needs the VM-level abstraction.</p>
+          <p>The choice was driven by: licensing (QEMU is GPL, freely usable in academic publication), instrumentation API (<code>pmemsave</code> is documented and stable), and analytical model (whole-system memory is the unit of analysis).</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q10</span>
+        <p class="q">Why does the VM have 1 GiB of RAM? Doesn't that affect the results?</p>
+        <div class="a">
+          <p>1 GiB is the smallest RAM size where the chosen workloads can run cleanly. The ransomware workload reads, encrypts, and writes a set of files; with 256 MB it would either trigger guest-side swapping (which would dominate the memory signal with paging activity, not encryption) or fail to load the workload binary. The working-set sweep workload deliberately allocates 256 MB of working set, so a 256 MB guest would have no room for the OS plus the workload simultaneously.</p>
+          <p>Yes, RAM size affects results in a quantifiable way: every <code>pmemsave</code> is one full RAM dump, so disk write time scales linearly with RAM. A 256 MB guest would dump in roughly 80 milliseconds and give us ~4&times; more snaps per cell. Trade-off discussed in question Q1 / Plan 05 future work.</p>
+          <p>For the thesis claim of "phasic vs steady are separable at the memory-signature level," 1 GiB is sufficient and reproducible. For a productization story, a smaller guest with the same workload structure would give finer temporal resolution.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q11</span>
+        <p class="q">Why <code>pmemsave</code> instead of QEMU's dirty-page tracking API, which would tell you which pages changed without dumping the full memory?</p>
+        <div class="a">
+          <p>Dirty-page tracking in QEMU is built for live migration, not for offline analysis. The API exists (<code>QEMU_VM_SECTION_FULL</code> plus the migration bitmap), but it has several limitations for our use case:</p>
+          <ul>
+            <li><strong>It samples, doesn't snapshot.</strong> The bitmap is updated continuously while the guest runs; reading it gives "which pages have been dirtied since the last reset" but you cannot freeze the page contents at a precise instant the way <code>pmemsave</code> does.</li>
+            <li><strong>Tracking has its own overhead.</strong> Enabling dirty bitmaps requires the guest's EPT (extended page table) to mark pages as read-only on first access, causing a fault on the first write. That perturbs the workload itself, which contaminates the signal we are trying to measure.</li>
+            <li><strong>The bitmap is just one bit per page.</strong> APF computed from <code>pmemsave</code> + XOR-diff is mathematically equivalent in information content (also one bit per page: "changed or not"), but with the option to upgrade to cosine / Hamming later without changing the producer side. Dirty bitmaps lose that upgrade path.</li>
+          </ul>
+          <p>For a Plan 05 incremental-snapshot direction, dirty-page tracking is exactly the right primitive. For the current v1 / v2 / Plan 03 work, <code>pmemsave</code> is the right primitive because it gives us flexibility we may later need.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q12</span>
+        <p class="q">What's the difference between Plan 02 v1 and Plan 02 v2?</p>
+        <div class="a">
+          <p>Both v1 and v2 capture 90 cells at the same workload &times; iv &times; duration matrix. The difference is in how the per-cell metrics get computed.</p>
+          <table>
+            <thead><tr><th></th><th>v1</th><th>v2 (B+3.1)</th></tr></thead>
+            <tbody>
+              <tr><td>iv recommendation</td><td>design-justified (producer-overhead arguments)</td><td>data-driven (measured F1 / CV per cell)</td></tr>
+              <tr><td>Dump retention</td><td>dumps deleted by producer (<code>TIMING_SELF_CLEAN=1</code>)</td><td>dumps kept transiently, helper diffs + deletes (<code>TIMING_APF_STREAM=1</code>)</td></tr>
+              <tr><td>Per-cell F1 / CV</td><td>null (no dump content to analyze post-hoc)</td><td>populated from APF trajectory</td></tr>
+              <tr><td>Disk peak per cell</td><td>~1 GiB transient</td><td>~2-3 GiB transient</td></tr>
+              <tr><td>Persistent storage per cell</td><td>~500 KB (timing JSONL + metadata)</td><td>~500 KB + ~50 KB APF trajectory</td></tr>
+              <tr><td>Recommended ransom iv</td><td>250 ms (design)</td><td>500 ms (data)</td></tr>
+              <tr><td>Recommended workingset iv</td><td>1000 ms (design)</td><td>250 ms (data)</td></tr>
+            </tbody>
+          </table>
+          <p>v1 was the demonstration that the capture pipeline worked end-to-end. v2 is the demonstration that we can use the captured data to answer the iv-selection question empirically rather than from first principles. The B+3.1 design was the engineering needed to make v2 affordable on the available disk.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · methodology defense -->
+    <section class="card" id="methodology">
+      <div class="num">SECTION 04</div>
+      <h2>Methodology defense</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q13</span>
+        <p class="q">Why only two workloads? An attacker has hundreds of behaviors. Don't you need a broader sample?</p>
+        <div class="a">
+          <p>Two workloads is the minimum to prove a separation between two classes. The thesis claim is not "we can detect any ransomware" or "we can detect every working-set behavior." The claim is "phasic memory signatures and steady memory signatures are empirically separable at the active-page-fraction level."</p>
+          <p>To prove that claim you need (a) at least one representative of each class and (b) measurements that distinguish them. We have both. The 90-cell sweep across 5 sampling intervals and 3 durations shows the separation is robust across capture parameters, not just one lucky setting.</p>
+          <p>What two-workload scope does NOT prove:</p>
+          <ul>
+            <li>That every ransomware family produces this signature. Only <code>sandbox_ransom_batched</code> was tested.</li>
+            <li>That every steady workload looks like working-set sweep. Different memory-access patterns (sequential scan, pointer chase, etc.) would need to be measured separately.</li>
+            <li>That a real-world adversary cannot mimic the steady signature to evade detection.</li>
+          </ul>
+          <p>Broadening to more workloads is appropriate follow-up work, but it is a separate research question from "can we separate the two canonical classes." That separation question is what the thesis answers.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q14</span>
+        <p class="q">How do you defend the iv recommendation table against the criticism that you cherry-picked it?</p>
+        <div class="a">
+          <p>Three lines of defense.</p>
+          <ul>
+            <li><strong>Statistical pre-registration.</strong> The acceptance gates and decision rule were specified in the Plan 03 proposal before the sweep ran. The team is on record (in <code>d51_bplus3_improved_proposal.html</code> and the Plan 03 proposal) for the gates G1-G5. Picking a winner that does not pass the gates is publicly visible as a deviation.</li>
+            <li><strong>Multiple-comparisons correction.</strong> Holm-Bonferroni FWER applied per workload (m=12 tests). Multi-test correction reduces the false-positive rate from the naive 0.05 per test to 0.05 family-wise. So winning a single (window, hop) by chance is much harder than it looks.</li>
+            <li><strong>v2 regression guard.</strong> The chosen (window, hop) must not push the workload's median metric below the v2 baseline by more than 0.05 absolute. That is explicitly checked in the decision rule. A combo can fail the gates by degrading; it cannot win by happening to look slightly better on a quirky subset.</li>
+          </ul>
+          <p>The Plan 03 proposal also includes a Simpson's-paradox guard: if the pooled winner across iv strata differs from any per-iv stratum winner, the aggregator refuses to auto-pick and demands explicit operator sign-off. That blocks the most common cherry-picking failure mode.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q15</span>
+        <p class="q">What if the phase markers from the ransomware binary are wrong or mis-aligned with the snapshot timestamps?</p>
+        <div class="a">
+          <p>This is a real risk and the team flagged it explicitly during the v2 review. Four ransom cells (<code>d84c750f0590</code>, <code>01b7bc77c211</code>, plus two more at iv=500 / 1000) have F1=0 despite plentiful snaps (41 and 57 snaps respectively). The data scientist flagged these as likely phase-marker misalignment rather than analyzer failure.</p>
+          <p>The mechanism is: the ransomware binary emits phase markers to stderr on the guest side. They are captured by the host orchestrator via SSH. The host clock and the guest clock are NTP-synchronized but not phase-locked. A skew of even a few hundred milliseconds is enough to mis-place a phase marker by one or two snap indices, which destroys F1 for short cells.</p>
+          <p>Plan 03's response is to flag these cells in the recommendation output (<code>simpson_paradox_warning</code> / <code>outlier_flag</code>) and to weight median statistics over mean statistics, since the median is robust to a handful of misaligned cells.</p>
+          <p>A real audit of the marker pipeline (host-clock to guest-clock skew measurement, marker arrival time vs guest emission time) is filed as Plan-03-adjacent follow-up work. It does not block the iv recommendation, because the recommendation rests on the median and the median is unchanged by 2 of 9 mislabelled cells.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q16</span>
+        <p class="q">Why these specific iv values (100, 250, 500, 1000, 2000 ms)? Why not a finer grid?</p>
+        <div class="a">
+          <p>The values are logarithmically spaced because the expected effect of iv on the signal is multiplicative, not additive. At iv=100 ms versus iv=200 ms you see a roughly 2&times; difference in temporal resolution. At iv=1000 ms versus iv=1100 ms you see a 10% difference. Log spacing gives you uniform coverage in the regime where the effect actually lives.</p>
+          <p>The lower bound (100 ms) is set by hardware: pmemsave writes 1 GiB. On our disk that takes at least ~300 ms in the best case, so iv below ~300 ms cannot physically be sustained. iv=100 is in the sweep specifically to confirm that this hardware floor produces a measurable signal collapse (which it does &mdash; ransom F1 drops to 0 at iv=100).</p>
+          <p>The upper bound (2000 ms) is set by Nyquist: detecting a 50-second ransom phase requires sampling at &le; 25 seconds per sample. We push past that comfortably (2000 ms = 25&times; margin) to confirm the signal survives.</p>
+          <p>A finer grid (every 100 ms from 100 to 2000) would multiply the experiment cost by 4&times; (20 iv values vs 5) without changing the conclusion: the data already shows that iv=250 through iv=2000 are statistically tied for ransom F1 (pairwise p &gt; 0.96 between every pair), and the only meaningful break is at iv=100. A finer grid would replicate that finding at higher cost. Not informative.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · statistical defense -->
+    <section class="card" id="stats">
+      <div class="num">SECTION 05</div>
+      <h2>Statistical defense</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q17</span>
+        <p class="q">n=3 replicates per cell. n=9 per (workload, iv). Isn't that statistically thin?</p>
+        <div class="a">
+          <p>Yes, and we say so explicitly in the proposal docs. Three observations.</p>
+          <ul>
+            <li>For the <strong>ranking</strong> claim ("iv=500 is better than iv=100 for ransom F1"), n=9 within (workload, iv) is sufficient because the effect size is large. Kruskal-Wallis on F1 across iv gives H=14.61 and p=0.0056. The effect is driven entirely by the iv=100 collapse; every pairwise test between iv=100 and any other iv has p &lt; 0.05 even after Holm-Bonferroni correction. The signal is strong relative to the noise at this n.</li>
+            <li>For the <strong>absolute</strong> claim ("ransom F1 at iv=500 is 0.80 &plusmn; 0.35"), n=9 gives a 95% confidence interval of roughly &plusmn;0.27. That is wide. We do not report this as a precise number; we report it as a distribution with median and IQR. Readers who interpret the median as a precise point estimate are over-interpreting.</li>
+            <li>For the <strong>workingset</strong> claim ("workingset CV is stable across iv"), K-W gives p=0.648 &mdash; not significant. We say so explicitly: at n=9 we lack statistical power to distinguish CV across iv strata. The recommendation of iv=250 for workingset is based on tail behavior (cleanest IQR) and practical considerations (lowest disk pressure), not on a significant difference in central tendency.</li>
+          </ul>
+          <p>A power calculation against the observed within-group std (~0.17 for CV, ~0.39 for F1) suggests roughly 20 replicates would be needed to detect a 0.05 absolute difference at 80% power. n=3 was a feasibility trade-off; n=20 would have made the v2 sweep take a week instead of overnight.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q18</span>
+        <p class="q">Aren't the three replicates within a cell going to be correlated? Same VM, same time of day, same kernel state.</p>
+        <div class="a">
+          <p>Yes, and the data scientist explicitly flagged this in the v2 review. The 3 replicates of (workload, iv, d) run sequentially on the same VM with the same configuration. They share kernel state, page-cache state, and possibly time-of-day patterns. Treating them as 3 independent draws in a Kruskal-Wallis test inflates the test statistic.</p>
+          <p>Mitigation adopted in Plan 03's statistical design: collapse the 3 replicates to a single median value per (workload, iv, d) cell. That gives n=15 per workload at the duration level (5 ivs &times; 3 durations) instead of the naive n=45. Conservative but honest. The headline claim is unchanged (iv=100 collapse is still significant after this correction).</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q19</span>
+        <p class="q">F1 is bimodal in your ransom data (mass at 0.0 and at 1.0). Doesn't that violate the assumptions of most statistical tests?</p>
+        <div class="a">
+          <p>It violates the assumptions of <strong>parametric</strong> tests (t-test, ANOVA) which assume approximate normality. That is why the statistical design uses <strong>non-parametric</strong> tests throughout: Kruskal-Wallis, Mann-Whitney U, Friedman, Wilcoxon signed-rank. These rank-based tests do not assume any particular distribution shape.</p>
+          <p>Specifically for the F1 bimodality, we also report two summary statistics jointly: the median (which is robust to bimodality) and the proportion P(F1 &geq; 0.8). For the v2 ransom iv=500 cells the median is 1.0 and P(F1 &geq; 0.8) is 0.667. Reporting both lets the reader see "the median is at the upper mode but a third of cells fall in the lower mode" rather than hiding the bimodality behind a single number.</p>
+          <p>For confidence intervals we use BCa (bias-corrected and accelerated) bootstrap, which makes no distributional assumption and handles the boundary mass at 0 and 1 correctly. Standard t-based CIs would be misleading here because they assume symmetric variance which the data does not have.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q20</span>
+        <p class="q">How do you guard against p-hacking?</p>
+        <div class="a">
+          <p>Three structural safeguards, plus one cultural one.</p>
+          <ul>
+            <li><strong>Pre-registered hypotheses.</strong> The acceptance gates (G1-G5 for Plan 03) and the iv recommendation criteria (for v2) were specified in published proposal documents (<code>d51_bplus3_improved_proposal.html</code>, <code>plan03_window_hop_proposal.html</code>) before any analysis ran. They are dated by commit timestamps in git history.</li>
+            <li><strong>Multiple-comparisons correction.</strong> Holm-Bonferroni per workload, applied to all pairwise tests. Limits the family-wise false-positive rate at 0.05.</li>
+            <li><strong>Regression guards.</strong> The chosen winner for Plan 03 must not degrade the v2 baseline. So even if a (window, hop) happened to look good on some sub-stratum, it cannot win if it sacrifices a metric the previous plan established.</li>
+            <li><strong>Cultural.</strong> The week-long simulated team review (PM, SA, EN, ML, XD, DE, DS, EE) is on record in the HTML proposals. Disagreements and their resolutions are documented. A reader can read the disputes section of each proposal to see what was contested and how it was resolved. Cherry-picking would have left no audit trail.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · threat model + workloads -->
+    <section class="card" id="threat">
+      <div class="num">SECTION 06</div>
+      <h2>Threat model + workloads</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q21</span>
+        <p class="q">What's the threat model? Who is the adversary and what are they trying to do?</p>
+        <div class="a">
+          <p>The threat model is host-based detection of ransomware encryption activity inside a Type 1 hypervisor environment (host = QEMU/KVM on Linux, guest = a Windows or Linux VM that may or may not be compromised). The adversary is malware running inside the guest with no awareness that the host is observing its memory.</p>
+          <p>What the host can see: full guest physical memory at any moment, via QEMU's monitor interface. The host has root-equivalent access to the hypervisor.</p>
+          <p>What the host cannot see: contents of CPU registers between snapshots, contents of cache, decisions the malware made between snapshots (only the memory side effects are visible).</p>
+          <p>What the adversary cannot easily do (in this model): detect that the host is sampling memory. <code>pmemsave</code> works through hardware-mediated VM exits but does not signal to the guest that a dump occurred. The brief VM pause (300 ms - 2 s) is theoretically detectable via a timing oracle inside the guest, but exploiting that to evade detection requires the malware to have a counter accurate enough to notice and to alter its behavior accordingly &mdash; a non-trivial adversary upgrade.</p>
+          <p>The detection target: distinguish "this VM is currently running ransomware-like memory activity" from "this VM is running normal application memory activity." The thesis demonstrates this distinction is achievable at the APF level for two canonical workload classes.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q22</span>
+        <p class="q">Could a real adversary evade this by changing its memory access pattern?</p>
+        <div class="a">
+          <p>Yes, in principle. The thesis claim is "we can separate the two canonical workload classes." It is not "no adversary can evade us." Two specific evasion routes are plausible:</p>
+          <ul>
+            <li><strong>Slow encryption (anti-phasic).</strong> If the adversary encrypts at a rate slow enough that each <code>pmemsave</code> sample sees only a small fraction of the working set changed, the APF spike characteristic of phasic encryption disappears. CV drops toward the steady-workload range. Cost to the adversary: encryption now takes hours instead of minutes &mdash; the attack is slower, possibly to the point of being interrupted by other defenses (network detection, behavioral analytics) before completion. There is a trade-off, not a free evasion.</li>
+            <li><strong>Encryption interleaved with decoy steady activity.</strong> The adversary periodically touches a large working set to mask the encryption phases. Result: the APF series has both spiky and steady components; CV is intermediate. The naive phasic-vs-steady classifier would mis-classify. Cost to the adversary: extra memory bandwidth, easier to detect via other side channels (page-cache thrashing, CPU pinning).</li>
+          </ul>
+          <p>Defending against these adaptive evasions is future work. The thesis's contribution is the measurement and analysis framework that makes "what does ransomware memory activity look like" a quantifiable question rather than an intuition.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q23</span>
+        <p class="q">Why those two specific workload binaries? What's <code>sandbox_ransom_batched</code> actually doing?</p>
+        <div class="a">
+          <p><code>sandbox_ransom_batched</code> is a research-grade ransomware simulation. It:</p>
+          <ul>
+            <li>Walks a fixed directory tree on the guest's filesystem.</li>
+            <li>For each file in scope, reads it into memory, encrypts the bytes with AES-256-CBC, writes the encrypted bytes back to disk.</li>
+            <li>Runs in "rounds" where each round processes a batch of files (default 1 round = phase = ~10 seconds of activity).</li>
+            <li>Emits explicit PHASE markers to stderr before and after each round for ground-truth alignment.</li>
+            <li>Does NOT perform any actual network exfiltration or cross-host activity (academic sandbox).</li>
+          </ul>
+          <p><code>mem_workingset_sweep_v2</code> is a synthetic steady-state probe. It:</p>
+          <ul>
+            <li>Allocates a fixed working set (default 256 MB) of contiguous memory.</li>
+            <li>Walks that memory in a cyclic pattern, reading and writing pages at a rate that keeps the working set hot.</li>
+            <li>Maintains constant memory access rate for the full cell duration.</li>
+            <li>Does NOT emit phase markers &mdash; it has no phases by design.</li>
+          </ul>
+          <p>The pair is chosen to be the cleanest possible representatives of the phasic and steady classes. Real-world malware will be messier than <code>sandbox_ransom_batched</code>, and real-world applications will be more variable than <code>mem_workingset_sweep_v2</code>. The thesis demonstrates the technique on clean exemplars; downstream work would apply it to messier real samples.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q24</span>
+        <p class="q">Why measure memory and not CPU? Network? Disk?</p>
+        <div class="a">
+          <p>Four reasons memory was chosen as the primary signal.</p>
+          <ul>
+            <li><strong>Universality.</strong> Every computation touches memory. CPU monitoring (via performance counters) is rich but architecture-specific. Disk monitoring catches only workloads that write to disk. Network monitoring catches only network-active workloads. Memory is the common substrate.</li>
+            <li><strong>Anti-evasion property.</strong> A guest workload can avoid touching disk (run from a RAM-disk) or avoid the network (operate locally), but it cannot run without using memory. Memory monitoring catches workloads that would be invisible to other channels.</li>
+            <li><strong>Granularity.</strong> The page-level (4 KiB) granularity gives a useful intermediate level between the per-instruction CPU signal (too noisy) and the per-system-call disk / network signal (too coarse).</li>
+            <li><strong>VM-friendly.</strong> The hypervisor already mediates memory access between guest and host hardware. Adding observation is a hypervisor change, not a guest change &mdash; the guest does not need cooperation or instrumentation.</li>
+          </ul>
+          <p>Multi-modal monitoring (memory + CPU + disk + network) is a natural extension. The thesis scope is "what does memory alone reveal?" which is a meaningful question because it sets the floor for what multi-modal can achieve.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · scaling -->
+    <section class="card" id="scaling">
+      <div class="num">SECTION 07</div>
+      <h2>Scaling + production</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q25</span>
+        <p class="q">Could this scale to 1000 VMs or to a data-center-scale deployment?</p>
+        <div class="a">
+          <p>Not as currently engineered. Three bottlenecks would surface.</p>
+          <ul>
+            <li><strong>Disk bandwidth.</strong> One VM at 1 GiB RAM with iv=1000 ms generates 1 GB/s of dump traffic during active capture. 1000 VMs would need 1 TB/s of write bandwidth. Even a high-end NVMe RAID array is 30-50 GB/s. Need either far fewer VMs sampled at any one time (sample-and-rotate), much smaller VM RAM, or incremental-snapshot Plan 05 work.</li>
+            <li><strong>Trailing-helper race at scale.</strong> Plan 02's Bug O analysis estimated 22 out of 1000 cells would tail-miss on the original 30 s barrier. The Bug O fix (progressive idle timeout) reduces this; at 1000 cells the residual rate is probably 1-2 cells. Acceptable but not zero.</li>
+            <li><strong>Validator throughput.</strong> The C1-C7 claim evaluator iterates per cell. Validation of 1000 cells takes minutes, not hours, but the validator was not designed for streaming live results &mdash; it expects all cells to be complete before validation runs. A live-detection deployment would need a streaming validator.</li>
+          </ul>
+          <p>For a "monitor 10 VMs at once on a single host" deployment, the current pipeline is feasible after Plan 05 fixes the snap-throughput ceiling. For "1000 VMs across a data center" you would need a different architecture: distributed capture nodes, central aggregation, and the analyzer running in streaming mode rather than batch.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q26</span>
+        <p class="q">What is the latency from "attack starts" to "detection fires"?</p>
+        <div class="a">
+          <p>End-to-end latency under the current pipeline at iv=500 ms (ransom recommendation):</p>
+          <table>
+            <thead><tr><th>stage</th><th>typical time</th></tr></thead>
+            <tbody>
+              <tr><td>Attack onset (in-guest)</td><td>t = 0</td></tr>
+              <tr><td>First snap pair containing attack activity</td><td>t = iv = 500 ms (worst case 1000 ms if attack starts just after a snap)</td></tr>
+              <tr><td>APF computed for that pair</td><td>+ 300 ms (helper memmap diff)</td></tr>
+              <tr><td>Window of W=16 acquires 8 new snaps (for boundary detection)</td><td>+ 8 &times; iv = 4 s</td></tr>
+              <tr><td>F1 boundary detector fires on the spike</td><td>+ 50 ms</td></tr>
+              <tr><td><strong>Total cold-start detection latency</strong></td><td><strong>~4.85 seconds</strong></td></tr>
+            </tbody>
+          </table>
+          <p>For a ransomware attack that encrypts hundreds of files over tens of seconds, sub-five-second detection latency is operationally useful. For an attack that completes in 1-2 seconds (a single small file encrypted with a script-kiddie's tool) the current pipeline would miss it because the entire phase is shorter than one analyzer window.</p>
+          <p>Sub-second detection would require either smaller windows (W &lt; 8, which Plan 03 explicitly excludes due to cepstral noise floor) or higher iv (which Plan 05 addresses).</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q27</span>
+        <p class="q">What is the false-positive rate? If you deploy this in production, how often will it alarm on benign activity?</p>
+        <div class="a">
+          <p>The thesis does not directly measure false-positive rate, because the working-set workload was specifically chosen to be a "non-phasic" reference, not a representative sample of all benign workloads. The fair statement is: "ransom and workingset are separable; we have not characterized the false-positive rate against arbitrary benign software."</p>
+          <p>What the v2 data does say: workingset CV across all 45 cells stays below 0.15 (the loose acceptance threshold) in 100% of cases and below 0.05 in 85% of cases. Ransom CV stays above 0.5 in 95% of cases (excluding iv=100). So a CV-based classifier with a threshold somewhere in the 0.1-0.5 range would give roughly zero false positives on workingset and roughly 5% false negatives on ransom.</p>
+          <p>This is a per-cell rate, not a per-time rate. In a deployment that evaluates the metric every minute, a 5% false-negative cell rate corresponds to an attack taking on average about 12 minutes to be reliably detected. Adjustable by tuning the threshold or by requiring K consecutive positive cells.</p>
+          <p>Characterizing the false-positive rate against a diverse set of real applications (Postgres under load, Chrome, a video encoder, a build server) is a critical productization step and was not done as part of the thesis scope.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · future work + Plan-N -->
+    <section class="card" id="future">
+      <div class="num">SECTION 08</div>
+      <h2>Future work + Plan-N</h2>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q28</span>
+        <p class="q">What would Plan 04, 05, 06 actually be?</p>
+        <div class="a">
+          <p>Each plan addresses a distinct layer of the pipeline:</p>
+          <ul>
+            <li><strong>Plan 04 &mdash; segmenter tuning.</strong> Given an APF trajectory and a Plan 03 (window, hop), how does the segmenter decide where one "phase" ends and another begins? Today the segmenter is a stub (median + 1.5&sigma; threshold). A trained segmenter (HMM, change-point detector, or a small neural model) would improve F1 numbers absolutely while leaving the iv ranking stable.</li>
+            <li><strong>Plan 05 &mdash; snap-throughput ceiling.</strong> Discussed above (Q1). The hardware-limited 5-73 snaps per cell becomes the bottleneck for window-size selection. Plan 05 raises that ceiling through faster storage, smaller guest RAM, or incremental snapshots.</li>
+            <li><strong>Plan 06 &mdash; cosine / Hamming re-introduction.</strong> If Plan 05 solves the disk budget, the original Phase 1 cosine and Hamming per-page distance pipeline can come back. The richer 2-D <code>[T, N]</code> signal would enable per-page sub-classification (which memory regions are oscillating, which malware family the rhythm matches).</li>
+            <li><strong>Plan 07 &mdash; multi-workload broadening.</strong> Add workloads beyond the two canonical exemplars: Postgres, Redis, Chrome, kernel build, scientific compute, web server. Characterize where each falls in the phasic-steady spectrum. Build a population baseline for false-positive analysis.</li>
+            <li><strong>Plan 08 &mdash; adversarial robustness.</strong> Run the slow-encryption and decoy-interleaved evasion strategies. Measure detection degradation. Propose multi-modal counters.</li>
+          </ul>
+          <p>These are notional. Only Plan 01, 02, and 03 are formally proposed in the codebase today.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q29</span>
+        <p class="q">What machine learning would you put on top of this?</p>
+        <div class="a">
+          <p>Three layers, in increasing sophistication.</p>
+          <ul>
+            <li><strong>Threshold classifier.</strong> A single threshold on CV (or on F1, or on a small linear combination). Already implicit in the thesis's recommendation table. No training data required. Detects "phasic activity present yes/no."</li>
+            <li><strong>Sequence model on the APF trajectory.</strong> An LSTM, GRU, or small Transformer trained on (APF series, phase label) pairs across many workloads. Predicts not just "phasic / steady" but "what phase is the workload currently in." Plan 03's (window, hop) recommendation gives the input feature window size.</li>
+            <li><strong>Multi-modal model.</strong> APF as one feature stream alongside disk I/O rate, network bytes, CPU PMU counters. Cross-modal correlations are stronger than any single channel. Requires extending the capture pipeline to other observation modalities &mdash; not a thesis-scope deliverable.</li>
+          </ul>
+          <p>The thesis sticks at the "threshold classifier" layer because the central claim is "the signature itself is separable." Layers 2 and 3 are downstream engineering.</p>
+        </div>
+      </div>
+
+      <div class="qa">
+        <span class="q-tag advisor">advisor · Q30</span>
+        <p class="q">Could this run on real hosts, not just VMs? The threat model needs to address real attacks.</p>
+        <div class="a">
+          <p>Yes, with a different memory-access primitive. The QEMU-specific <code>pmemsave</code> mechanism does not apply to bare-metal hosts. Three plausible substitutes:</p>
+          <ul>
+            <li><strong>Linux <code>/proc/&lt;pid&gt;/pagemap</code> + <code>/proc/&lt;pid&gt;/maps</code> + <code>/proc/&lt;pid&gt;/mem</code>.</strong> Per-process memory observation from a privileged userspace agent. Coarser than the whole-system view, but real-system-applicable.</li>
+            <li><strong>eBPF page-fault tracing.</strong> Hooks into the kernel's page-fault handler to log every fault. Gives a fine-grained access pattern per page. Performance overhead is the concern: page faults are frequent, logging every one is expensive.</li>
+            <li><strong>Intel Processor Trace + memory taint.</strong> Hardware-supported instruction tracing combined with memory-access logging. Requires recent Intel CPUs and significant analyzer infrastructure. Highest fidelity, highest cost.</li>
+          </ul>
+          <p>The thesis's VM-focused work is a controlled environment in which the signal can be cleanly measured. Translating to bare metal is downstream engineering of a different research question: "does the same memory signal survive in a less-controlled environment." Not blocked by anything in the thesis; just out of scope.</p>
+        </div>
+      </div>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan03_window_hop_proposal.html">
+        <span class="label">most recent proposal</span>
+        <span class="title">Plan 03 · window/hop proposal</span>
+      </a>
+      <a href="d51_bplus3_improved_proposal.html">
+        <span class="label">previous proposal</span>
+        <span class="title">D-51 / B+3.1 · shipped + validated</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
