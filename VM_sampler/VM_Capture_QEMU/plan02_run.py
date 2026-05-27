@@ -214,15 +214,36 @@ def pre_cell_disk_check(image_dir: Path, ram_mb: int,
 
 
 def wait_for_apf_helpers(ack_dir: Path, n_pairs_expected: int,
-                          timeout_s: float = 30.0,
+                          timeout_s: float = 180.0,
+                          idle_timeout_s: float | None = None,
                           poll_interval_s: float = 0.2) -> dict:
-    """B+3.1 Δ-1 cell-end barrier.
+    """B+3.1 Δ-1 cell-end barrier · Bug O fix (progressive idle timeout).
 
-    Poll `ack_dir` until n_pairs_expected ack files exist, OR timeout.
+    Poll `ack_dir` until any of:
+      1. n_pairs_expected ack files exist (success), OR
+      2. no new ack arrived in `idle_timeout_s` seconds (idle quit), OR
+      3. hard cap `timeout_s` reached (safety stop).
+
+    The idle-timeout exits quickly when helpers are stuck without
+    burning the full hard-cap budget. The hard cap protects against
+    pathological hangs.
+
+    Pre-Bug-O the barrier was a flat 30 s wall clock measured from
+    barrier-start. Short ransom d=60 cells with B+3.1 helper contention
+    (ionice -c 3 + cumulative 1 GiB memmap diff) could miss the trailing
+    pair by ~5-15 s, dropping C6 below 95 %.
+
     Returns dict with: n_ok, n_failed, n_observed, gap_seqs, timed_out.
     Caller writes the final sentinel based on this result.
+
+    Backwards compatible: passing only `timeout_s` (as legacy callers did)
+    sets idle_timeout_s to the same value, preserving original semantics.
     """
-    deadline = time.monotonic() + timeout_s
+    if idle_timeout_s is None:
+        idle_timeout_s = timeout_s
+    start = time.monotonic()
+    deadline = start + timeout_s
+    last_progress = start
     info = {
         "n_pairs_expected": int(max(0, n_pairs_expected)),
         "n_ok": 0,
@@ -233,16 +254,22 @@ def wait_for_apf_helpers(ack_dir: Path, n_pairs_expected: int,
     }
     if n_pairs_expected <= 0:
         return info
-    last_observed = -1
-    while time.monotonic() < deadline:
+    last_count = 0
+    while True:
+        now = time.monotonic()
         try:
-            ack_files = list(ack_dir.glob("seq_*.apf_done"))
+            ack_count = len(list(ack_dir.glob("seq_*.apf_done")))
         except OSError:
-            ack_files = []
-        if len(ack_files) != last_observed:
-            last_observed = len(ack_files)
-        if len(ack_files) >= n_pairs_expected:
+            ack_count = 0
+        if ack_count > last_count:
+            last_progress = now
+            last_count = ack_count
+        if ack_count >= n_pairs_expected:
             break
+        if now >= deadline:
+            break  # hard cap
+        if now - last_progress >= idle_timeout_s:
+            break  # idle quit
         time.sleep(poll_interval_s)
     # Tally
     seen: set[int] = set()
@@ -788,8 +815,12 @@ def execute_cell(
     apf_barrier_info: dict | None = None
     if cell.keep_dumps and apf_jsonl is not None and apf_ack_dir is not None:
         n_pairs_expected = max(0, int(producer_stats.snapshots_completed) - 1)
+        # Bug O fix: hard cap 180 s + idle quit after 15 s without new
+        # ack. Healthy cells finish quickly via the success path; stuck
+        # cells exit via idle quit; only pathological hangs hit the cap.
         apf_barrier_info = wait_for_apf_helpers(
-            apf_ack_dir, n_pairs_expected, timeout_s=30.0,
+            apf_ack_dir, n_pairs_expected,
+            timeout_s=180.0, idle_timeout_s=15.0,
         )
         try:
             write_apf_final_sentinel(apf_jsonl, apf_barrier_info)

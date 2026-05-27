@@ -1051,6 +1051,71 @@ class Day13BarrierTests(unittest.TestCase):
             self.assertTrue(sentinel["final"])
             self.assertEqual(sentinel["n_ok"], 4)
 
+    def test_barrier_waits_through_progressive_acks_bug_o(self):
+        """Bug O: slow helpers must not trip the barrier when they are
+        still making progress."""
+        import threading
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+
+            def drip_acks():
+                for s in range(5):
+                    time.sleep(0.25)
+                    ack = tdp / f"seq_{s:07d}.apf_done"
+                    ack.write_text(json.dumps({"seq": s, "exit_code": 0}))
+
+            t = threading.Thread(target=drip_acks, daemon=True)
+            t.start()
+            # idle_timeout 1 s is shorter than the 1.25 s total run, but
+            # each ack restarts the idle clock, so the barrier must wait
+            # for all 5.
+            info = pr.wait_for_apf_helpers(
+                tdp, n_pairs_expected=5,
+                timeout_s=10.0, idle_timeout_s=1.0,
+                poll_interval_s=0.05,
+            )
+            t.join(timeout=2.0)
+            self.assertEqual(info["n_ok"], 5)
+            self.assertEqual(info["gap_seqs"], [])
+            self.assertFalse(info["timed_out"])
+
+    def test_barrier_idle_quits_when_helpers_stall_bug_o(self):
+        """Bug O: when helpers stop making progress, barrier must quit
+        on idle timeout rather than burn the full hard cap."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            # Only 3 of 5 expected acks present; nothing else will appear.
+            for s in range(3):
+                ack = tdp / f"seq_{s:07d}.apf_done"
+                ack.write_text(json.dumps({"seq": s, "exit_code": 0}))
+            t0 = time.monotonic()
+            info = pr.wait_for_apf_helpers(
+                tdp, n_pairs_expected=5,
+                timeout_s=30.0, idle_timeout_s=0.5,
+                poll_interval_s=0.05,
+            )
+            elapsed = time.monotonic() - t0
+            # Should quit ~0.5 s after the 3 acks were observed, well
+            # before the 30 s hard cap.
+            self.assertLess(elapsed, 2.0)
+            self.assertTrue(info["timed_out"])
+            self.assertEqual(info["n_ok"], 3)
+            self.assertEqual(info["gap_seqs"], [3, 4])
+
+    def test_barrier_backward_compat_single_timeout_arg(self):
+        """Legacy callers passing only timeout_s must still see the
+        original semantics (idle = hard cap)."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            t0 = time.monotonic()
+            info = pr.wait_for_apf_helpers(
+                tdp, n_pairs_expected=2, timeout_s=0.3,
+            )
+            elapsed = time.monotonic() - t0
+            self.assertGreaterEqual(elapsed, 0.25)  # full timeout consumed
+            self.assertTrue(info["timed_out"])
+            self.assertEqual(info["n_ok"], 0)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
