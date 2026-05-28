@@ -111,6 +111,33 @@ def _classify_workload(workload: str) -> str:
     return "unknown"
 
 
+def _augment_workload_command(cmd: str, duration_s: int) -> str:
+    """Idempotently append --phase-markers and --duration to a workload
+    command (v3 deployment fix).
+
+    The orchestrator owns the capture window: it sleeps duration_s then
+    kills the workload. So we set the workload's own --duration to the
+    exact cell duration, ensuring duration-respecting workloads (seq,
+    slowburn, mem_*, hashtable) stay active for the whole window instead
+    of finishing early and leaving an idle tail.
+
+    Both appends are idempotent: if the operator already specified either
+    flag in the manifest command, it is left untouched.
+
+    Note: the Phase-2 sandbox binaries reject --duration > 600
+    (P2_SANDBOX_MAX_DURATION_S). v3 durations are <= 600 so this is safe.
+    A future sweep above 600 must clamp to min(duration_s, 600) here.
+    Note: sandbox_ransom_batched parses --duration but ignores it (one
+    pass then exit) -- injection is accepted but ineffective for that
+    bursty probe by design.
+    """
+    if "--phase-markers" not in cmd:
+        cmd = cmd + " --phase-markers"
+    if "--duration" not in cmd:
+        cmd = cmd + f" --duration {duration_s}"
+    return cmd
+
+
 def asdict_safe(obj: object) -> dict:
     """Like dataclasses.asdict but degrades to repr() for non-serializable
     fields. Used to persist plan02_metrics_per_cell.PerCellMetrics as JSON.
@@ -591,11 +618,11 @@ def execute_cell(
         ssh_target = cell.ssh_target
         ssh_key = os.environ.get("SSH_KEY", "")
         ssh_opts = os.environ.get("SSH_OPTS", "")
-        # Append --phase-markers if not already present (so mp_phase_boundary_
-        # inference style detectors can pick up ground-truth events).
-        wcmd = cell.workload_command
-        if "--phase-markers" not in wcmd:
-            wcmd = wcmd + " --phase-markers"
+        # v3: idempotently append --phase-markers (ground-truth events for
+        # phase-boundary detectors) AND --duration <cell.duration_s> so the
+        # workload stays active for the whole capture window. cell.workload_
+        # command (the original) stays persisted to RunMeta untouched.
+        wcmd = _augment_workload_command(cell.workload_command, cell.duration_s)
         # SSH timeout configured to outlive the cell duration
         ok = e1.wait_for_ssh(ssh_target, ssh_key, ssh_opts,
                              timeout_s=min(30, cell.duration_s))
