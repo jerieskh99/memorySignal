@@ -1122,6 +1122,89 @@ class Day13BarrierTests(unittest.TestCase):
             self.assertEqual(info["n_ok"], 0)
 
 
+class DurationInjectionTests(unittest.TestCase):
+    """v3: orchestrator auto-injects --duration + --phase-markers into the
+    workload command (plan02_run._augment_workload_command)."""
+
+    def test_duration_appended_when_absent(self):
+        out = pr._augment_workload_command("/bin/mem_x", 300)
+        self.assertIn("--duration 300", out)
+        self.assertIn("--phase-markers", out)
+
+    def test_duration_not_doubled_when_present(self):
+        out = pr._augment_workload_command("/bin/mem_x --duration 600", 300)
+        self.assertEqual(out.count("--duration"), 1)
+        self.assertIn("--duration 600", out)
+        self.assertNotIn("--duration 300", out)
+
+    def test_phase_markers_appended_when_absent(self):
+        out = pr._augment_workload_command("/bin/mem_x", 120)
+        self.assertEqual(out.count("--phase-markers"), 1)
+
+    def test_phase_markers_not_doubled(self):
+        out = pr._augment_workload_command("/bin/mem_x --phase-markers", 120)
+        self.assertEqual(out.count("--phase-markers"), 1)
+
+    def test_both_present_passthrough(self):
+        base = "/bin/mem_x --phase-markers --duration 600"
+        out = pr._augment_workload_command(base, 300)
+        self.assertEqual(out.count("--phase-markers"), 1)
+        self.assertEqual(out.count("--duration"), 1)
+        self.assertIn("--duration 600", out)
+
+    def test_duration_value_is_exact_cell_duration(self):
+        out = pr._augment_workload_command("/bin/mem_x", 120)
+        self.assertIn("--duration 120", out)
+
+    def test_binary_path_token_unchanged(self):
+        # The orchestrator's binary-existence probe uses wcmd.split()[0];
+        # appended flags must never change token 0.
+        out = pr._augment_workload_command("/bin/sandbox_ransom_seq --files 4000", 600)
+        self.assertEqual(out.split()[0], "/bin/sandbox_ransom_seq")
+
+
+class WorkloadClassifierTests(unittest.TestCase):
+    """v3: lock the workload->family mapping for all Phase-2 workloads so a
+    rename cannot silently reclassify (plan02_run._classify_workload)."""
+
+    PHASIC = [
+        "sandbox_ransom_batched", "sandbox_ransom_seq",
+        "sandbox_ransom_slowburn", "sandbox_ransom_selective",
+        "sandbox_scanner_metadata",
+    ]
+    STEADY = [
+        "mem_workingset_sweep_v2", "mem_mmap_traversal_v2",
+        "mem_pagefault_density_v2", "mem_rmw_intensity_v2",
+        "mem_writemag_sweep_v2", "app_hashtable_intensive_v2",
+    ]
+
+    def test_classify_all_phasic(self):
+        for name in self.PHASIC:
+            with self.subTest(name=name):
+                self.assertEqual(pr._classify_workload(name), "phasic")
+
+    def test_classify_all_steady(self):
+        for name in self.STEADY:
+            with self.subTest(name=name):
+                self.assertEqual(pr._classify_workload(name), "steady")
+
+    def test_classify_bimodal_hashtable_is_steady(self):
+        # hashtable is build->probe bimodal; labeled steady (probe dominates).
+        self.assertEqual(
+            pr._classify_workload("app_hashtable_intensive_v2"), "steady")
+
+    def test_classify_scanner_is_phasic(self):
+        self.assertEqual(
+            pr._classify_workload("sandbox_scanner_metadata"), "phasic")
+
+    def test_classify_unknown_fallthrough(self):
+        self.assertEqual(pr._classify_workload("totally_made_up"), "unknown")
+
+    def test_classify_case_insensitive(self):
+        self.assertEqual(
+            pr._classify_workload("MEM_WORKINGSET_SWEEP_V2"), "steady")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
