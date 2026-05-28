@@ -556,8 +556,13 @@ class Day10ValidatorTests(unittest.TestCase):
             self.assertTrue(r["claims"]["C4_no_settle_retries"]["pass"])
             self.assertTrue(r["claims"]["C5_producer_log_clean"]["pass"])
             self.assertTrue(r["ok"], "operational ok must not depend on C3")
-            self.assertFalse(r["analysis_ready"],
-                             "analysis_ready must reflect C3 status")
+            # Plan 03 contract: C3 is informational only; analysis_ready
+            # gates on C7 (window/hop recommendation). With no
+            # plan03_recommendation.json present, C7 is NA (pass), so
+            # analysis_ready == ok == True. Low n_windows is documented
+            # via C3 but no longer blocks analysis_ready.
+            self.assertTrue(r["analysis_ready"],
+                            "Plan 03: analysis_ready gates on C7 not C3")
 
 
 class Day12MetricsTests(unittest.TestCase):

@@ -4,13 +4,16 @@
 Owner: EE (Evaluation Engineer) + DE (Senior Data Engineer).
 Reference: docs/tuning_plans/experiment_audit.md Decisions D-41 / D-42.
 
-Verifies five claims that 'ok' status alone does NOT prove.
+Verifies seven claims that 'ok' status alone does NOT prove.
 
 Operational claims (must pass · gate Step 2 launch):
   C1: workload binary actually ran (PHASE markers in workload_stderr.log)
   C2: snap_completion_ratio is healthy across the whole session
   C4: Bug-L settle was a no-op (lock_retries == 0) under nominal load
   C5: producer.log had no error-ish lines for any cell
+  C6: apf_trajectory.jsonl is complete (B+3.1 Δ-4 streaming sentinel)
+  C7: plan03_recommendation.json schema-valid + per-workload winner
+      passes G1-G5 (Plan 03 Δ-4 · NA when artifact absent)
 
 Informational claim (reported, does NOT gate Step 2 per D-25):
   C3: n_windows >= --min-windows under canonical Phase-1 (128, 64).
@@ -122,6 +125,69 @@ def _compute_n_windows(n_snaps: int, window: int, hop: int) -> int:
     return max(0, (n_snaps - window) // hop + 1)
 
 
+def _evaluate_plan03_recommendation(cells_dir: Path) -> dict:
+    """C7 (Plan 03) · operational claim · gates Step 2 once Plan 03 has run.
+
+    Looks for ``plan03_recommendation.json`` either alongside the cells
+    directory (typical layout) or inside it. NA when the artifact is
+    absent (v1/v2-era sessions still pass · same pattern as C6 NA).
+    When present, the claim passes iff every recommendations[].
+    ``passes_acceptance`` field is True.
+    """
+    candidates = [
+        cells_dir.parent / "plan03_recommendation.json",
+        cells_dir / "plan03_recommendation.json",
+    ]
+    rec_path = next((p for p in candidates if p.is_file()), None)
+    if rec_path is None:
+        return {"pass": True, "operational": False,
+                "why": "no plan03_recommendation.json found "
+                       "(Plan 03 not run) · NA",
+                "artifact": None, "recommendations": []}
+    try:
+        with rec_path.open() as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"pass": False, "operational": True,
+                "why": f"failed to read {rec_path}: {exc}",
+                "artifact": str(rec_path), "recommendations": []}
+    if payload.get("schema") != "plan03.window_hop_recommendations.v1":
+        return {"pass": False, "operational": True,
+                "why": (f"unexpected schema in {rec_path.name}: "
+                        f"{payload.get('schema')!r}"),
+                "artifact": str(rec_path), "recommendations": []}
+    recs = payload.get("recommendations") or []
+    if not recs:
+        return {"pass": False, "operational": True,
+                "why": "recommendations[] empty",
+                "artifact": str(rec_path), "recommendations": []}
+    summary: list[dict] = []
+    overall = True
+    for r in recs:
+        rid = r.get("workload", "?")
+        passes = bool(r.get("passes_acceptance"))
+        degrades = bool(r.get("degrades_v2_baseline"))
+        summary.append({
+            "workload": rid,
+            "window": r.get("recommended_window"),
+            "hop": r.get("recommended_hop"),
+            "passes_acceptance": passes,
+            "degrades_v2_baseline": degrades,
+        })
+        if not passes:
+            overall = False
+    if overall:
+        why = (f"{len(recs)} workload winner(s) all pass G1-G5; "
+               f"artifact={rec_path.name}")
+    else:
+        bad = [s["workload"] for s in summary if not s["passes_acceptance"]]
+        why = (f"{len(bad)}/{len(recs)} workload winner(s) did not pass "
+               f"acceptance: {bad}")
+    return {"pass": overall, "operational": True,
+            "why": why, "artifact": str(rec_path),
+            "recommendations": summary}
+
+
 def _evaluate_apf_completeness(cell_workdir: Path,
                                 min_ok_ratio: float = 0.95) -> tuple[bool, str, dict]:
     """B+3.1 Δ-4: C6 trajectory-completeness check.
@@ -166,7 +232,8 @@ def _evaluate_apf_completeness(cell_workdir: Path,
 
 def evaluate_cell(cell_path: Path, workdir_root: Path,
                   min_ratio: float, min_windows: int,
-                  window: int, hop: int) -> dict:
+                  window: int, hop: int,
+                  c7_result: dict | None = None) -> dict:
     """Return one health record for a cell. Six booleans + diagnostic ctx.
 
     B+3.1 Δ-4: adds C6 (apf trajectory completeness · operational gate
@@ -251,12 +318,25 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
     else:
         c6, c6_reason, c6_sentinel = True, "NA (no apf trajectory file)", {}
 
+    # C7 · Plan 03 window/hop recommendation. Session-level result; we
+    # carry the same dict into every cell record so the summary table
+    # and writers don't need a special-case path.
+    c7_data = c7_result or {"pass": True, "operational": False,
+                            "why": "no plan03_recommendation.json found "
+                                   "(Plan 03 not run) · NA",
+                            "artifact": None, "recommendations": []}
+    c7 = bool(c7_data["pass"])
+    c7_reason = c7_data["why"]
+    c7_applicable = bool(c7_data.get("operational"))
+
     # Operational ok = the gates that actually block Step 2 launch.
     # C3 is informational (D-25): low n_windows is a duration-matrix
     # issue, not an orchestration regression. Plan 03 owns window/hop
     # tuning. Reported per-cell + per-summary but does not flip ok=False.
     # C6 (B+3.1) is operational when applicable; NA cells pass trivially.
-    ok = c1 and c2 and c4 and c5 and c6
+    # C7 (Plan 03 Delta-4) is operational when applicable; NA when no
+    # plan03_recommendation.json exists.
+    ok = c1 and c2 and c4 and c5 and c6 and c7
     return {
         "cell_id": cid,
         "workload": workload,
@@ -279,35 +359,43 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
             "C5_producer_log_clean": {"pass": c5, "why": c5_reason, "operational": True},
             "C6_apf_complete": {"pass": c6, "why": c6_reason,
                                  "operational": c6_applicable},
+            "C7_window_hop_recommended": {"pass": c7, "why": c7_reason,
+                                          "operational": c7_applicable,
+                                          "artifact": c7_data.get("artifact"),
+                                          "recommendations":
+                                              c7_data.get("recommendations") or []},
         },
         "ok": ok,
-        "analysis_ready": ok and c3,
+        # Day 10 D-25 wiring: C3 stays informational; C7 is the new
+        # operational gate (NA when Plan 03 has not run yet).
+        "analysis_ready": ok and c7,
     }
 
 
 def _print_table(records: list[dict]) -> None:
     print(f"\n{'cell':<14} {'workload':<28} {'iv':>5} {'d':>5} "
           f"{'snaps':>6} {'win':>4} {'ratio':>5} "
-          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} {'C6':>3} "
+          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} {'C6':>3} {'C7':>3} "
           f"{'[C3]':>4} OPERATIONAL  ANALYSIS-READY")
-    print("─" * 140)
+    print("─" * 144)
     for r in records:
         if "claims" not in r:
             print(f"{r.get('cell_id', '?'):<14} ERROR: {r.get('error')}")
             continue
         c = r["claims"]
         # Operational claims first (these gate Step 2 launch)
-        # C6 may be NA when no trajectory file exists
+        # C6 + C7 may be NA when their gating artifact is absent.
         def mark(k: str) -> str:
             if k not in c:
                 return " "
-            if k == "C6_apf_complete" and not c[k].get("operational"):
+            if k in ("C6_apf_complete", "C7_window_hop_recommended") \
+                    and not c[k].get("operational"):
                 return "·"  # NA · trivially passes
             return "✓" if c[k]["pass"] else "✗"
         op_marks = " ".join(
             mark(k) for k in ("C1_workload_ran", "C2_ratio_healthy",
                               "C4_no_settle_retries", "C5_producer_log_clean",
-                              "C6_apf_complete")
+                              "C6_apf_complete", "C7_window_hop_recommended")
         )
         # Informational claim in brackets (Plan-03 territory)
         info_mark = "[✓]" if c["C3_enough_windows"]["pass"] else "[✗]"
@@ -342,6 +430,10 @@ def _summarize(records: list[dict]) -> dict:
             "C5_producer_log_clean": sum(1 for r in real if r["claims"]["C5_producer_log_clean"]["pass"]),
             "C6_apf_complete": sum(1 for r in real
                                     if r["claims"].get("C6_apf_complete", {}).get("pass")),
+            "C7_window_hop_recommended": sum(
+                1 for r in real
+                if r["claims"].get("C7_window_hop_recommended", {}).get("pass")
+            ),
         },
         "all_real_cells_operational": all(r["ok"] for r in real) and not bad,
         "all_real_cells_pass": all(r["ok"] for r in real) and not bad,
@@ -376,6 +468,9 @@ def _main(argv: list[str] | None = None) -> int:
     workdir_root = (Path(args.workdir).expanduser().resolve()
                     if args.workdir else cells_dir / "work")
 
+    # C7 · Plan 03 recommendation lookup is session-level; resolved once.
+    c7_result = _evaluate_plan03_recommendation(cells_dir)
+
     records: list[dict] = []
     for path in sorted(cells_dir.glob("*.json")):
         if path.name == "session_sentinel.json":
@@ -384,7 +479,8 @@ def _main(argv: list[str] | None = None) -> int:
             continue
         rec = evaluate_cell(path, workdir_root,
                             args.min_ratio, args.min_windows,
-                            args.window, args.hop)
+                            args.window, args.hop,
+                            c7_result=c7_result)
         records.append(rec)
 
     summary = _summarize(records)
@@ -401,13 +497,16 @@ def _main(argv: list[str] | None = None) -> int:
     print(f"  operational pass:     {summary['passing_real_cells']} / "
           f"{summary['real_cells']}   (gates Step 2 launch)")
     print(f"  analysis-ready:       {summary['analysis_ready_real_cells']} / "
-          f"{summary['real_cells']}   (operational + C3 cleared)")
+          f"{summary['real_cells']}   (operational + C7 cleared · "
+          f"C7 NA still counts as cleared)")
     print(f"  per-claim pass counts (out of {summary['real_cells']} real cells):")
     for claim, n in summary["claim_pass_counts"].items():
         if claim == "C3_enough_windows":
             op = "informational (D-25)"
         elif claim == "C6_apf_complete":
             op = "operational when applicable (B+3.1 Δ-4)"
+        elif claim == "C7_window_hop_recommended":
+            op = "operational when applicable (Plan 03 Δ-4)"
         else:
             op = "operational"
         print(f"    {claim:<28}  {n:>2}   [{op}]")
@@ -415,8 +514,8 @@ def _main(argv: list[str] | None = None) -> int:
     op_status = "PASS" if summary["all_real_cells_operational"] else "FAIL"
     print(f"  operational status:   {op_status}")
     if op_status == "PASS" and summary["analysis_ready_real_cells"] < summary["real_cells"]:
-        print(f"  note: some cells have low n_windows (Plan 03 territory · D-25). "
-              f"Step 2 launch is NOT blocked by C3.")
+        print(f"  note: C7 has not cleared for some cells. C3 (low n_windows) is "
+              f"informational per D-25 and never blocks Step 2.")
     return 0 if summary["all_real_cells_operational"] else 1
 
 

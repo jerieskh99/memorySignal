@@ -141,6 +141,11 @@ class RunMeta:
     workload_stderr_path: str | None = None
     workload_exit_status: int | None = None
     keep_dumps: bool = False
+    # Plan 03 additions: analyzer window/hop applied to this cell. Both
+    # are None on producer-only sessions (Plan 03 sweeps later); the
+    # validator's C7 claim reads them from plan03_recommendation.json.
+    window_size: int | None = None
+    step_size: int | None = None
 
 
 @dataclass
