@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 03 Overview · Window / Hop Tuning Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:10px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(124,185,110,.08); border:1px solid rgba(124,185,110,.20);
+    color: var(--good); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:8px 11px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:11px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .win td { background: rgba(124,185,110,.07); }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 03 Overview</div>
+    <div class="sub">window / hop tuning · results</div>
+    <ol>
+      <li><a href="#what">What this is</a></li>
+      <li><a href="#now">Where we are now</a></li>
+      <li><a href="#swept">What Plan 03 swept</a></li>
+      <li><a href="#measure">What each metric means</a></li>
+      <li><a href="#gates">The five gates</a></li>
+      <li><a href="#results">Sweep results · 90 cells</a></li>
+      <li><a href="#table">The recommendation</a></li>
+      <li><a href="#ransom">Why ransom can't pass cleanly</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#next">What is actually next</a></li>
+      <li><a href="#faq">Common confusions</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Plan 03 done.</strong><br>
+      Workingset W=8 H=4 clean.
+      Ransom W=8 H=4 best-feasible.
+      108/108 tests. Zero new captures.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 03 · window / hop tuning · results readout</div>
+      <h1>The analyzer window<br>that fits <em>v2</em>'s data.</h1>
+      <p class="deck">
+        Plan 02 measured the best sampling interval. Plan 03 measures
+        the best analyzer window and hop to slide across the captured
+        APF trajectories. Pure offline sweep over the 90 v2 cells.
+        Zero new captures. The answer for both workloads is W=8, H=4,
+        but for two different reasons.
+      </p>
+    </header>
+
+    <!-- 1 · what this is -->
+    <section class="card" id="what">
+      <div class="num">SECTION 01</div>
+      <h2>What this is</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain words</span>
+          <p>Each v2 cell produced a list of numbers, one per snapshot-pair, called the APF trajectory (the fraction of memory pages that changed). To extract features from that list, an analyzer slides a window across it and computes statistics inside each window. Two settings control the slide: the <strong>window</strong> (how many samples per window) and the <strong>hop</strong> (how far the window moves each step). Plan 03 tries many window/hop pairs and picks the best one per workload.</p>
+        </div>
+        <div>
+          <span class="label tech">In one line</span>
+          <p>Offline grid search over <code>(window, hop)</code> &isin; {8, 16, 32, 64} &times; {W/4, W/2, W}, evaluated against five acceptance gates on the 90 captured v2 APF trajectories, picking the smallest window that passes per workload.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Where Plan 03 sits.</strong> Plan 01 instrumented the capture timing. Plan 02 picked the sampling interval (v1 design-driven, v2 data-driven). Plan 03 picks the analyzer window/hop. Plan 04 (next) tunes the segmenter. Each plan tunes one layer; Plan 03 owns the analyzer's short-time-analysis parameters.</p>
+      </div>
+
+      <div class="diagram">  APF trajectory (one cell)        sliding window (W=8, H=4)
+  ───────────────────────────      ────────────────────────────
+  [.01 .49 .00 .50 .01 .48 ...]    [.01 .49 .00 .50 .01 .48 .02 .51]  window 0
+                                            [.01 .48 .02 .51 .00 .49 .01 .50]  window 1 (hop 4)
+                                                    [.00 .49 .01 .50 .02 .48 ...]  window 2
+  Per window: cepstral peak + SNR, stationarity, CV.
+  Plan 03 asks: which W and H give the cleanest features?</div>
+    </section>
+
+    <!-- 2 · where we are now -->
+    <section class="card" id="now">
+      <div class="num">SECTION 02</div>
+      <h2>Where we are now</h2>
+      <dl class="kv">
+        <dt>input</dt> <dd>90 v2 APF trajectories (the lossless B+3.1 capture, 4.7 MiB total)</dd>
+        <dt>sweep size</dt> <dd>90 cells &times; 12 combos &times; 2 workloads = 1080 evaluations</dd>
+        <dt>compute</dt> <dd>~15 s sequential on a laptop CPU. Zero VM time. Zero server.</dd>
+        <dt>status rows</dt> <dd>561 ok &middot; 519 skip:short (combos where window &gt; trajectory length)</dd>
+        <dt>workingset winner</dt> <dd><span class="chip done">W=8 H=4</span> passes all five gates</dd>
+        <dt>ransom winner</dt> <dd><span class="chip next">W=8 H=4</span> best-feasible (4/5 gates; G2 unreachable)</dd>
+        <dt>tests</dt> <dd>108/108 green (32 new Plan 03 tests + 76 carried forward)</dd>
+        <dt>blocked on</dt> <dd>nothing for Plan 04 &middot; ransom clean-pass waits on Plan 05 (producer throughput)</dd>
+      </dl>
+    </section>
+
+    <!-- 3 · what plan 03 swept -->
+    <section class="card" id="swept">
+      <div class="num">SECTION 03</div>
+      <h2>What Plan 03 swept</h2>
+
+      <h3>The grid</h3>
+      <table>
+        <thead><tr><th>variable</th><th>levels</th><th>count</th><th>why</th></tr></thead>
+        <tbody>
+          <tr><td>window (W)</td><td class="mono">8, 16, 32, 64</td><td>4</td><td>narrowed from the design doc's {32-512}; v2 trajectories are 4-72 samples long so larger windows admit almost no cells</td></tr>
+          <tr><td>hop ratio</td><td class="mono">W/4, W/2, W</td><td>3</td><td>standard short-time-analysis overlaps (75 %, 50 %, 0 %)</td></tr>
+          <tr><td>workload</td><td class="mono">ransom, workingset</td><td>2</td><td>the two v2 workload classes (phasic + steady)</td></tr>
+          <tr><td>cells</td><td class="mono">all 90 v2 cells</td><td>90</td><td>status=ok, not warmup; includes the two Bug-O-retried ransom cells</td></tr>
+        </tbody>
+      </table>
+      <p>12 combos per workload. The hop = W combos are kept in the sweep so the report can show why 0 % overlap fails gate G4, but they never win.</p>
+
+      <h3>Trajectory lengths (the constraint that shapes everything)</h3>
+      <table>
+        <thead><tr><th>workload</th><th>n_pairs min</th><th>n_pairs median</th><th>n_pairs max</th></tr></thead>
+        <tbody>
+          <tr><td>sandbox_ransom_batched</td><td class="mono">6</td><td class="mono">24</td><td class="mono">67</td></tr>
+          <tr><td>mem_workingset_sweep_v2</td><td class="mono">4</td><td class="mono">20</td><td class="mono">72</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>Why this dominates the results.</strong> A window of 64 needs at least 64 samples in the trajectory just to fit once. The median cell has ~22 samples. So W=64 is "skip:short" for the majority of cells, and even W=32 only fits a minority. This is the v2 snap-throughput ceiling (explained in Plan 02 v2) reaching forward into Plan 03.
+      </div>
+    </section>
+
+    <!-- 4 · what each metric means -->
+    <section class="card" id="measure">
+      <div class="num">SECTION 04</div>
+      <h2>What each metric means</h2>
+
+      <h3>n_windows</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Plain</span>
+          <p>How many window positions fit in this trajectory at this (W, H). More windows = more per-window statistics = more reliable aggregate.</p>
+        </div>
+        <div>
+          <span class="label tech">Formula</span>
+          <p><code>floor((n_pairs - W) / H) + 1</code>, clamped at 0 when n_pairs &lt; W. For a 22-sample cell at W=8 H=4: floor(14/4)+1 = 4 windows.</p>
+        </div>
+      </div>
+
+      <h3>cepstral peak + SNR</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Plain</span>
+          <p>The cepstrum finds repeating rhythms in a signal. The peak quefrency is the dominant rhythm's period; the SNR (in dB) says how clearly that rhythm stands out above background. A high SNR means the analyzer can resolve the workload's repeating pattern at this window scale.</p>
+        </div>
+        <div>
+          <span class="label tech">Compute</span>
+          <p>The 1-D APF series is reshaped to <code>[T, 1]</code> and fed to <code>CepstrumStability.compute_cepstrum</code> (rfft &rarr; log-magnitude &rarr; irfft). <code>ceps_peak_snr_db</code> = 10&middot;log10(|cepstrum[peak]| / median|cepstrum[min_quef:]|). Larger W = longer FFT = finer quefrency resolution = higher SNR (observed: ransom SNR climbs 8.9 dB at W=8 to 13.5 dB at W=32).</p>
+        </div>
+      </div>
+
+      <h3>stationarity (stat_pass_frac)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Plain</span>
+          <p>Fraction of windows that look "stable enough" — where the window's mean is close to the global mean. A long window that spans a workload behavior change is a bad window; this metric catches that.</p>
+        </div>
+        <div>
+          <span class="label tech">Test</span>
+          <p>A window passes if <code>|window_mean - global_mean| / global_std &lt; 1.0</code>. If global_std == 0 (constant trajectory), all windows pass trivially. Observed: stat_pass_frac = 1.0 for essentially every combo on v2 (the APF series are well-behaved at these window sizes).</p>
+        </div>
+      </div>
+
+      <h3>CV (workingset) and F1 (ransom)</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Plain</span>
+          <p>CV (coefficient of variation = std/mean) measures how steady the trajectory is — the defining metric for the steady workload. F1 measures how well a boundary detector matches the ransomware's phase markers — the defining metric for the phasic workload.</p>
+        </div>
+        <div>
+          <span class="label tech">A subtlety that mattered</span>
+          <p>F1's boundary detector (<code>detect_boundaries_diff</code>) takes only the trajectory — it has no window/hop parameter. So F1 is identical across all combos for a given cell. It cannot discriminate (W, H). This was a defect in the original gate design; Plan 03 replaced F1 in the ransom gate with cepstral SNR (which is window-dependent) and kept F1 only for the v2 baseline regression check.</p>
+        </div>
+      </div>
+
+      <h3>coverage_ratio</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Plain</span>
+          <p>Does the window span enough guest time to contain the workload's slowest rhythm? The ransom encryption phase is ~20 s; a window that covers only 4 s of guest time cannot resolve it.</p>
+        </div>
+        <div>
+          <span class="label tech">Formula</span>
+          <p><code>(W &times; iv_ms / 1000) / workload_rhythm_s</code>, with workload_rhythm_s = 20 for ransom. At iv=500 ms W=8: (8&times;0.5)/20 = 0.2. The gate wants &geq; 2.0. v2's short trajectories make this unreachable for ransom — see Section 08.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · the five gates -->
+    <section class="card" id="gates">
+      <div class="num">SECTION 05</div>
+      <h2>The five acceptance gates</h2>
+      <p>A (window, hop) combo is accepted for a workload only if all five gates pass. The gates were recalibrated against v2's measured data during implementation (two of them had defects on the first run).</p>
+
+      <table>
+        <thead><tr><th>gate</th><th>test</th><th>why</th></tr></thead>
+        <tbody>
+          <tr><td><strong>G1</strong> stationarity</td><td>median stat_pass_frac &geq; 0.80 across cells with n_windows &geq; 5</td><td>the within-window stability assumption the downstream analyzer relies on</td></tr>
+          <tr><td><strong>G2</strong> spectral coverage</td><td>median coverage_ratio &geq; 2.0 (phasic only; N/A for steady)</td><td>the window must span at least twice the workload's slowest rhythm to resolve it</td></tr>
+          <tr><td><strong>G3</strong> defining metric</td><td>ransom: median ceps_peak_snr_db &geq; 5 dB &middot; workingset: median CV &leq; 0.05 (d&leq;120 s) or &leq; 0.15 (d=300 s)</td><td>v2-grounded floors; ransom uses SNR because F1 is window-independent</td></tr>
+          <tr><td><strong>G4</strong> hop ratio</td><td>hop &leq; W/2</td><td>0 % overlap (hop = W) aliases the sliding statistic; excluded</td></tr>
+          <tr><td><strong>G5</strong> window-count floor</td><td>&geq; 80 % of <em>eligible</em> cells (n_pairs &geq; W + 4H) deliver &geq; 5 windows</td><td>fewer than 5 windows per cell makes per-cell statistics indefensible</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Two gate defects found + fixed on the first sweep</h3>
+      <div class="pair">
+        <div>
+          <span class="label tech">G3 ransom · F1 was window-blind</span>
+          <p>Original G3 used median F1 &geq; 0.85. But F1's detector has no window parameter, so every combo got the same F1 for a cell. The gate couldn't tell W=8 from W=64. Fixed by switching to median cepstral SNR &geq; 5 dB, which <em>is</em> window-dependent.</p>
+        </div>
+        <div>
+          <span class="label tech">G5 denominator · ineligible cells dragged it down</span>
+          <p>Original G5 divided by all cells. v2's d=60 cells (5-15 samples) can't produce 5 windows at any sensible (W, H), so they guaranteed failure. Fixed by counting only cells whose length could in principle deliver 5 windows: <code>n_pairs &geq; W + 4H</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · sweep results -->
+    <section class="card" id="results">
+      <div class="num">SECTION 06</div>
+      <h2>Sweep results · all 24 combos</h2>
+      <p>Medians shown per (workload, W, H). The green rows pass all five gates. <code>ge5</code> = cells delivering &geq; 5 windows. SNR in dB. Coverage relative to the 20 s ransom rhythm (N/A for steady).</p>
+
+      <h3>mem_workingset_sweep_v2 (steady)</h3>
+      <table>
+        <thead><tr><th>W</th><th>H</th><th>ge5</th><th>n_win</th><th>stat</th><th>SNR dB</th><th>CV</th><th>G1</th><th>G2</th><th>G3</th><th>G4</th><th>G5</th><th>all</th></tr></thead>
+        <tbody>
+          <tr class="win"><td class="mono">8</td><td class="mono">2</td><td>29</td><td>8</td><td>1.0</td><td>1.46</td><td>0.037</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip done">pass</span></td></tr>
+          <tr class="win"><td class="mono">8</td><td class="mono">4</td><td>20</td><td>4</td><td>1.0</td><td>1.46</td><td>0.037</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip done">pass &larr; winner</span></td></tr>
+          <tr><td class="mono">8</td><td class="mono">8</td><td>15</td><td>2</td><td>1.0</td><td>1.46</td><td>0.037</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&times;</td></tr>
+          <tr class="win"><td class="mono">16</td><td class="mono">4</td><td>16</td><td>7</td><td>1.0</td><td>2.00</td><td>0.089</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip done">pass</span></td></tr>
+          <tr class="win"><td class="mono">16</td><td class="mono">8</td><td>12</td><td>4</td><td>1.0</td><td>2.00</td><td>0.089</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip done">pass</span></td></tr>
+          <tr><td class="mono">16</td><td class="mono">16</td><td>0</td><td>2</td><td>1.0</td><td>2.00</td><td>0.089</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+          <tr class="win"><td class="mono">32</td><td class="mono">8</td><td>4</td><td>4</td><td>1.0</td><td>7.06</td><td>0.216</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip done">pass</span></td></tr>
+          <tr><td class="mono">32</td><td class="mono">16</td><td>0</td><td>2</td><td>1.0</td><td>7.06</td><td>0.216</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">32</td><td class="mono">32</td><td>0</td><td>1</td><td>1.0</td><td>7.06</td><td>0.216</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">16</td><td>0</td><td>1</td><td>1.0</td><td>9.61</td><td>0.868</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">32</td><td>0</td><td>1</td><td>1.0</td><td>9.61</td><td>0.868</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">64</td><td>0</td><td>1</td><td>1.0</td><td>9.61</td><td>0.868</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+        </tbody>
+      </table>
+      <p><strong>5 of 12 combos pass all gates.</strong> Winner is the smallest window (W=8) with hop=W/2 (H=4). Note CV climbs with window (0.037 &rarr; 0.868) because a longer window spans multiple working-set cycles and captures their drift — smaller windows give the cleanest steady signature.</p>
+
+      <h3>sandbox_ransom_batched (phasic)</h3>
+      <table>
+        <thead><tr><th>W</th><th>H</th><th>ge5</th><th>n_win</th><th>stat</th><th>SNR dB</th><th>cov</th><th>G1</th><th>G2</th><th>G3</th><th>G4</th><th>G5</th><th>all</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">8</td><td class="mono">2</td><td>33</td><td>9</td><td>1.0</td><td>8.87</td><td>0.2</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td></tr>
+          <tr><td class="mono">8</td><td class="mono">4</td><td>23</td><td>5</td><td>1.0</td><td>8.87</td><td>0.2</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td><span class="chip next">4/5 &larr; best-feasible</span></td></tr>
+          <tr><td class="mono">8</td><td class="mono">8</td><td>15</td><td>3</td><td>1.0</td><td>8.87</td><td>0.2</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&times;</td></tr>
+          <tr><td class="mono">16</td><td class="mono">4</td><td>19</td><td>5</td><td>1.0</td><td>11.53</td><td>0.4</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td></tr>
+          <tr><td class="mono">16</td><td class="mono">8</td><td>8</td><td>3</td><td>1.0</td><td>11.53</td><td>0.4</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td></tr>
+          <tr><td class="mono">16</td><td class="mono">16</td><td>0</td><td>2</td><td>1.0</td><td>11.53</td><td>0.4</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">32</td><td class="mono">8</td><td>1</td><td>2</td><td>1.0</td><td>13.49</td><td>0.8</td><td>&check;</td><td>&times;</td><td>&check;</td><td>&check;</td><td>&check;</td><td>&times;</td></tr>
+          <tr><td class="mono">32</td><td class="mono">16</td><td>0</td><td>1</td><td>1.0</td><td>13.49</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">32</td><td class="mono">32</td><td>0</td><td>1</td><td>1.0</td><td>13.49</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">16</td><td>0</td><td>1</td><td>1.0</td><td>11.45</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">32</td><td>0</td><td>1</td><td>1.0</td><td>11.45</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td></tr>
+          <tr><td class="mono">64</td><td class="mono">64</td><td>0</td><td>1</td><td>1.0</td><td>11.45</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
+        </tbody>
+      </table>
+      <p><strong>0 of 12 combos pass all gates</strong> — every combo fails G2 (spectral coverage maxes at 0.8, below the 2.0 floor). Best-feasible is W=8 H=4, passing 4/5 gates with a strong 8.87 dB cepstral SNR. Note ransom SNR is much higher than workingset (8.9-13.5 dB vs 1.5-9.6 dB) — the phasic rhythm is genuinely easier to resolve in the cepstrum, exactly as the taxonomy predicts.</p>
+    </section>
+
+    <!-- 7 · the recommendation -->
+    <section class="card" id="table">
+      <div class="num">SECTION 07</div>
+      <h2>The recommendation · the deliverable</h2>
+
+      <table>
+        <thead><tr><th>workload</th><th>family</th><th>window</th><th>hop</th><th>status</th><th>defining metric</th><th>eligible cells</th></tr></thead>
+        <tbody>
+          <tr class="win"><td>mem_workingset_sweep_v2</td><td>steady</td><td class="mono">8</td><td class="mono">4</td><td><span class="chip done">passes_acceptance</span></td><td>median CV = 0.037</td><td>20</td></tr>
+          <tr><td>sandbox_ransom_batched</td><td>phasic</td><td class="mono">8</td><td class="mono">4</td><td><span class="chip next">best-feasible</span></td><td>median SNR = 8.87 dB</td><td>23</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout good">
+        <strong>Both workloads converge on W=8, H=4 — for different reasons.</strong> Workingset picks it as the smallest window with the cleanest CV. Ransom picks it as the smallest window with strong cepstral SNR among the combos that pass the four reachable gates. The coincidence is convenient for downstream code: a single (window, hop) serves both.
+      </div>
+
+      <h3>Why W=8 specifically</h3>
+      <ul>
+        <li><strong>Smallest window finer time-localization.</strong> Among combos that pass, the smallest window resolves phase boundaries with the least temporal blur.</li>
+        <li><strong>Most eligible cells.</strong> Small windows fit in more of v2's short trajectories — W=8 admits 20-23 cells with &geq; 5 windows; W=32 admits only 1-4.</li>
+        <li><strong>Cleanest CV for steady.</strong> Larger windows inflate workingset CV by spanning multiple cycles. W=8 gives CV=0.037; W=64 gives 0.868.</li>
+      </ul>
+
+      <h3>The recommendation artifact</h3>
+      <div class="diagram">{
+  "schema": "plan03.window_hop_recommendations.v1",
+  "recommendations": [
+    { "workload": "mem_workingset_sweep_v2", "recommended_window": 8,
+      "recommended_hop": 4, "passes_acceptance": <span class="hl-good">true</span>,
+      "median_metric": 0.0367, "median_metric_name": "cv_workingset" },
+    { "workload": "sandbox_ransom_batched", "recommended_window": 8,
+      "recommended_hop": 4, "passes_acceptance": <span class="hl-bad">false</span>,
+      "median_metric": 8.870, "median_metric_name": "ceps_peak_snr_db",
+      "degrades_v2_baseline": <span class="hl-bad">true</span> }
+  ],
+  "joint_winner": null
+}</div>
+      <p>This file is read by the validator's new C7 claim and by Plan 04's segmenter design.</p>
+    </section>
+
+    <!-- 8 · why ransom can't pass cleanly -->
+    <section class="card" id="ransom">
+      <div class="num">SECTION 08</div>
+      <h2>Why ransom can't pass cleanly</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">The plain reason</span>
+          <p>To recognize the ransomware's repeating encryption phase, the analyzer window must be long enough to contain at least one or two full phases. A phase lasts about 20 seconds. But v2's captures only produced ~22 samples per cell, and the gap between samples (the effective interval) is several seconds. So a window of 8 samples covers only a few seconds of guest time — far less than one 20-second phase. The window literally cannot see a whole phase.</p>
+        </div>
+        <div>
+          <span class="label tech">The numbers</span>
+          <p>Gate G2 wants coverage_ratio &geq; 2.0 = window spans &geq; 40 s. The best ransom combo reaches only 0.8 (= 16 s). To hit 2.0 at iv=500 ms would need W &geq; 80 samples; the longest ransom trajectory in v2 is 67 samples. No window in the feasible range clears G2. This is the v2 snap-throughput ceiling, not a Plan 03 analyzer flaw.</p>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>degrades_v2_baseline = true is a v2 ceiling, not a regression.</strong> The regression guard compares the winner's per-cell F1 (read from the v2 cell JSONs) against a 0.95 floor. v2's own median ransom F1 is 0.67 — the floor was never reachable on v2 data because of the marker-alignment limitation documented in Plan 02 v2. The guard fires correctly; the cause is upstream (capture-side), not Plan 03.
+      </div>
+
+      <h3>What would let ransom pass cleanly</h3>
+      <ol>
+        <li><strong>Plan 05 (producer throughput).</strong> Raise the snaps-per-cell from ~22 to ~200+ via faster storage, smaller guest RAM, or incremental snapshots. Then a window can span a full phase and G2 becomes reachable.</li>
+        <li><strong>v3 re-capture</strong> at the higher throughput, with fixed phase-marker alignment so the F1 baseline rises above the 0.95 floor.</li>
+        <li><strong>Re-set the G2 / regression thresholds</strong> for the v2 reality (relax to coverage &geq; 0.5, F1 floor &geq; 0.6) if the thesis chapter wants ransom to read "passes" on v2 data alone. This is a documentation choice; the team's recommendation is to keep the honest "best-feasible" label.</li>
+      </ol>
+    </section>
+
+    <!-- 9 · honest limits -->
+    <section class="card" id="limits">
+      <div class="num">SECTION 09</div>
+      <h2>Honest limits</h2>
+      <ul>
+        <li><strong>The window range is bounded by v2's data, not by theory.</strong> W=128, 256, 512 from the original design doc are absent because 0/90 cells admit them. Plan 03's answer is "best within {8, 16, 32, 64}", not "best in the abstract."</li>
+        <li><strong>Ransom never clears G2.</strong> The phasic workload's defining gate (spectral coverage) is unreachable on v2. The W=8 H=4 pick is defensible (strongest SNR among feasible combos) but carries the best-feasible caveat.</li>
+        <li><strong>F1 doesn't discriminate windows.</strong> The boundary detector is a global-threshold stub; it ignores window/hop. Plan 03 worked around this with cepstral SNR, but a windowed F1 detector (Plan 04 territory) would be a stronger phasic gate.</li>
+        <li><strong>Stationarity passed trivially everywhere (1.0).</strong> Either the APF series are genuinely well-behaved at these scales, or the test threshold (1 sigma) is too loose to bite. Worth a sensitivity check.</li>
+        <li><strong>n=eligible is small for large W.</strong> W=32 has 1-4 eligible cells; any statistic there is fragile. The winners (W=8) rest on 20-33 cells, which is sturdier.</li>
+        <li><strong>Two workloads only.</strong> Same scope caveat as Plan 02 — clean exemplars of phasic and steady, not a population sample. sqlite OLTP deferred.</li>
+      </ul>
+    </section>
+
+    <!-- 10 · what is next -->
+    <section class="card" id="next">
+      <div class="num">SECTION 10</div>
+      <h2>What is actually next</h2>
+      <table>
+        <thead><tr><th>plan</th><th>owns</th><th>uses Plan 03 output how</th><th>status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Plan 04</strong></td><td>segmenter floor + change-point detector</td><td>builds the segmenter at the W=8 H=4 window; replaces the F1 stub with a windowed detector</td><td><span class="chip next">unblocked now</span></td></tr>
+          <tr><td><strong>Plan 05</strong></td><td>producer throughput (snap-count ceiling)</td><td>lifts snaps/cell so ransom can clear G2 in a future sweep</td><td><span class="chip blocked">needed for ransom clean-pass</span></td></tr>
+          <tr><td><strong>Plan 06</strong></td><td>cosine / Hamming re-introduction</td><td>richer 2-D signal once disk budget allows; per-page cepstrum at the chosen window</td><td><span class="chip blocked">after Plan 05</span></td></tr>
+          <tr><td>downstream ML</td><td>sequence model on APF</td><td>W=8 H=4 sets the feature-window for any LSTM/Transformer on v2 trajectories</td><td><span class="chip info">unblocked</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <strong>Operator decision still open.</strong> The validator's C7 claim currently requires <em>all</em> recommendations to pass. Ransom's best-feasible status would fail C7. Options: (a) keep all-pass and let ransom block C7 until Plan 05; (b) relax to any-pass (workingset alone clears it); (c) carve out "NA for ransom when the documented v2 ceiling is the blocker". Team recommends (c).
+      </div>
+    </section>
+
+    <!-- 11 · common confusions -->
+    <section class="card" id="faq">
+      <div class="num">SECTION 11</div>
+      <h2>Common confusions</h2>
+
+      <h3>"You ran Plan 03 without the server?"</h3>
+      <p>Yes. Plan 03 is pure offline analysis. The inputs are the 90 APF trajectories already captured by v2 and bundled into a 4.7 MiB archive. The sweep slides windows over those number-lists with numpy. No VM, no pmemsave, no server. ~15 s on a laptop.</p>
+
+      <h3>"Why does both workloads picking W=8, H=4 not look suspicious?"</h3>
+      <p>Different gates drove each pick. Workingset: smallest window with cleanest CV, passes all five gates. Ransom: smallest window with strong SNR among the four-of-five it can pass. They land on the same combo by independent reasoning, which is convenient, not circular.</p>
+
+      <h3>"Is the window the same as the sampling interval?"</h3>
+      <p>No. The sampling interval (Plan 02) is how often a snapshot is taken in the VM (milliseconds of guest time). The window (Plan 03) is how many of those snapshots the analyzer groups together to compute one set of features. iv controls capture; window controls analysis. They multiply to give a guest-time span, but they are tuned by separate plans.</p>
+
+      <h3>"Why is ransom's SNR higher than workingset's?"</h3>
+      <p>Because the ransomware's encryption phases are a genuine repeating rhythm — the cepstrum locks onto them (8.9-13.5 dB). The working-set sweep is steady by design, with no strong periodicity, so its cepstral peak is weaker (1.5-9.6 dB). This is the phasic-vs-steady taxonomy showing up in the frequency domain, consistent with the CV gap measured in Plan 02 v2.</p>
+
+      <h3>"Does best-feasible mean the ransom result is useless?"</h3>
+      <p>No. It means the formal acceptance gate (G2 spectral coverage) is unreachable on v2's short trajectories, so the recommendation is flagged honestly rather than claimed as a clean pass. The W=8 H=4 pick is still the strongest analyzer setting available for ransom on this data, and Plan 04 can use it. The "clean pass" label waits for Plan 05 to lift the capture ceiling.</p>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan03_window_hop_proposal.html">
+        <span class="label">design + team review</span>
+        <span class="title">Plan 03 proposal · 5 deltas + §13 closure</span>
+      </a>
+      <a href="plan02_overview.html">
+        <span class="label">previous plan</span>
+        <span class="title">Plan 02 overview · v1 + v2 done</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
