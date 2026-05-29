@@ -273,12 +273,13 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
         ratio = (n_snaps / (1 + n_snaps)) if not iv else None
     # B+3.1 (keep_dumps=True) cells run the async APF helper which competes
     # for disk bandwidth; pause-fraction rises and snap_completion_ratio
-    # is naturally lower than v1's calibration. The orchestrator already
-    # applies the 0.15 floor; the validator's MIN_RATIO_DEFAULT (0.85)
-    # is the "ideal" ratio for v1 cells but unattainable for B+3.1 cells.
-    # Use mode-aware C2 threshold here too.
+    # is naturally lower than v1's calibration. v3 recalibration (D-80):
+    # sustained heavy workloads slow the cadence ~3×, so the v2 floor of
+    # 0.15 false-failed ~14 % of cells with sound trajectories. Lowered to
+    # 0.08, matching the orchestrator. Still catches true stalls (~0.02).
+    # MIN_RATIO_DEFAULT (0.85) remains the v1 "ideal"; unattainable here.
     keep_dumps = bool((cell.get("run_meta") or {}).get("keep_dumps"))
-    c2_min_ratio = 0.15 if keep_dumps else min_ratio
+    c2_min_ratio = 0.08 if keep_dumps else min_ratio
     c2 = (ratio is not None and ratio >= c2_min_ratio)
     c2_reason = (f"ratio={ratio:.2f} >= {c2_min_ratio} (mode={'B+3.1' if keep_dumps else 'v1'})"
                  if c2

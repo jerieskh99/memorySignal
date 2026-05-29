@@ -949,19 +949,26 @@ def execute_cell(
     #   - backpressure ratio < 1%
     #   - snapshot_completion_ratio >= ratio_threshold
     #
-    # Day-14 fix · mode-aware threshold (D-71):
+    # Day-14 fix · mode-aware threshold (D-71), v3 recalibration (D-80):
     #   v1 (TIMING_SELF_CLEAN, keep_dumps=False): 0.30
-    #   B+3.1 (keep_dumps=True, async APF helper): 0.15
+    #   B+3.1 (keep_dumps=True, async APF helper): 0.08
     # The B+3.1 mode runs the helper concurrently with pmemsave; helper
-    # I/O competes for disk bandwidth even with ionice -c 3, so the
-    # effective pause-fraction rises 1.5-2× over the v1-calibrated
-    # expected_snapshots() prior. A 0.15 threshold still catches the
-    # true-failure modes (VM lock contention, workload absence, disk
-    # full) without flagging cells whose data is intrinsically sound.
+    # I/O competes for disk bandwidth even with ionice -c 3. v2 set this
+    # floor at 0.15 against the light `batched` probe (which idles after
+    # ~13 s, so the capture loop runs fast and the ratio stays high).
+    # v3 uses SUSTAINED heavy workloads (seq, slowburn, rmw, hashtable,
+    # many-file ransom) that keep the guest + disk busy for the whole
+    # window, slowing the pmemsave cadence ~3× (≈15 s/snap vs ≈4.3 s/snap).
+    # Real snap ratios cluster at 0.10-0.20, so the 0.15 floor false-failed
+    # ~14 % of sustained cells whose trajectories were intrinsically sound
+    # (healthy apf_mean, computed CV/F1). Lowered to 0.08: still cleanly
+    # separates "slow but ran the full window" (>=0.10) from a true stall
+    # (VM absent / workload missing -> ~0.02-0.03). The C3 / Plan-03 G5
+    # window-count gates judge analysis adequacy separately.
     expected = expected_snapshots(cell.duration_s, cell.interval_ms)
     actual = int(producer_stats.snapshots_completed)
     ratio = (actual / expected) if expected > 0 else 0.0
-    ratio_threshold = 0.15 if cell.keep_dumps else 0.30
+    ratio_threshold = 0.08 if cell.keep_dumps else 0.30
     # Persist ratio in producer_stats notes for the analysis layer
     notes.append(
         f"snap completion: actual={actual} expected={expected} "

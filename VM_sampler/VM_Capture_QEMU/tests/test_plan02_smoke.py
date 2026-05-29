@@ -870,8 +870,8 @@ class Day13ValidatorC6Tests(unittest.TestCase):
             self.assertFalse(r["ok"])
 
     def test_c2_lower_threshold_for_keep_dumps_cell(self):
-        """Day-14 D-71: B+3.1 cells (keep_dumps=True) accept ratio >= 0.15
-        while v1 cells require >= 0.85."""
+        """Day-14 D-71 / v3 D-80: B+3.1 cells (keep_dumps=True) accept a
+        low ratio (floor now 0.08) while v1 cells require >= 0.85."""
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
             cells_dir = tdp / "cells"
@@ -928,6 +928,70 @@ class Day13ValidatorC6Tests(unittest.TestCase):
             r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
             self.assertFalse(r["claims"]["C2_ratio_healthy"]["pass"])
             self.assertIn("v1", r["claims"]["C2_ratio_healthy"]["why"])
+
+    def test_c2_v3_sustained_ratio_passes_at_new_floor(self):
+        """v3 D-80: a B+3.1 sustained-workload cell at ratio=0.12 (which
+        false-failed under the old 0.15 floor) must now PASS at 0.08."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "v3_sustained"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-28T00:00:00Z] [PHASE] test=rmw phase=measure\n"
+            )
+            (workdir_root / cid / "apf_trajectory.jsonl").write_text(
+                json.dumps({"seq": 0, "apf": 0.3}) + "\n" +
+                json.dumps({"final": True, "n_pairs_expected": 1,
+                            "n_ok": 1, "n_failed": 0, "gap_seqs": []}) + "\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = True
+            rec.notes = [
+                # ratio 0.12 · failed at old 0.15 floor · passes at 0.08
+                "snap completion: actual=18 expected=148 ratio=0.12 threshold=0.08 (mode=B+3.1)",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 18
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertTrue(r["claims"]["C2_ratio_healthy"]["pass"],
+                            f"C2 should pass for B+3.1 at ratio=0.12, got {r}")
+
+    def test_c2_true_stall_still_fails_under_new_floor(self):
+        """v3 D-80: the lowered 0.08 floor must still catch a true capture
+        stall (VM absent / workload missing -> ratio ~0.03)."""
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            cells_dir = tdp / "cells"
+            workdir_root = cells_dir / "work"
+            cid = "v3_stall"
+            (workdir_root / cid).mkdir(parents=True)
+            (workdir_root / cid / "workload_stderr.log").write_text(
+                "[2026-05-28T00:00:00Z] [PHASE] test=rmw phase=measure\n"
+            )
+            (workdir_root / cid / "apf_trajectory.jsonl").write_text(
+                json.dumps({"seq": 0, "apf": 0.3}) + "\n" +
+                json.dumps({"final": True, "n_pairs_expected": 1,
+                            "n_ok": 1, "n_failed": 0, "gap_seqs": []}) + "\n"
+            )
+            rec = _minimal_v2_record()
+            rec.run_meta.cell_id = cid
+            rec.run_meta.keep_dumps = True
+            rec.notes = [
+                # ratio 0.03 · a genuine stall · must still FAIL at 0.08
+                "snap completion: actual=5 expected=148 ratio=0.03 threshold=0.08 (mode=B+3.1)",
+                "vm settle: state='running' lock_retries=0 other_errors=0",
+            ]
+            rec.producer_stats.snapshots_completed = 5
+            cell_path = cells_dir / f"cell_{cid}.json"
+            sc.write_json_atomic(cell_path, rec)
+            r = pv.evaluate_cell(cell_path, workdir_root, 0.85, 50, 128, 64)
+            self.assertFalse(r["claims"]["C2_ratio_healthy"]["pass"],
+                             f"C2 must still fail a true stall at ratio=0.03, got {r}")
 
     def test_c4_na_when_no_settle_note(self):
         """D-76: cells without a `vm settle: ... lock_retries=N` note must
