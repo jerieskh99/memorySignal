@@ -141,10 +141,24 @@ def _coerce(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _workload_kind(workload: str) -> str:
+    """v3 D-81: map all Phase-2 workloads onto the existing 2-kind dispatch.
+
+    'ransom' bucket = phasic-style (boundary-rich, F1/cepstral-SNR primary):
+        sandbox_ransom_*, sandbox_scanner_metadata
+    'workingset' bucket = steady-style (continuous, CV primary):
+        mem_workingset_sweep, mem_mmap_traversal, mem_pagefault_density,
+        mem_rmw_intensity, mem_writemag_sweep, app_hashtable_intensive
+    Mirrors plan02_run._classify_workload's phasic/steady split.
+    """
     w = (workload or "").lower()
-    if "ransom" in w:
+    phasic_keys = ("ransom", "scanner_metadata", "phase_boundary", "phasic")
+    steady_keys = ("workingset", "mmap_traversal", "pagefault_density",
+                   "rmw_intensity", "writemag_sweep", "hashtable_intensive",
+                   "compress_streaming", "compress_gzip", "decompress_gzip",
+                   "json_parse", "sqlite_oltp", "sqlite_analytical", "steady")
+    if any(k in w for k in phasic_keys):
         return "ransom"
-    if "workingset" in w:
+    if any(k in w for k in steady_keys):
         return "workingset"
     return "unknown"
 

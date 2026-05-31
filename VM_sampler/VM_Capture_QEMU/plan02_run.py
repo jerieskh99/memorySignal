@@ -631,6 +631,34 @@ def execute_cell(
                          "workload not launched; producer-only this cell")
             workload_skipped_reason = "ssh_unreachable"
         else:
+            # v3 D-82: pre-cell guest-side sandbox wipe. Workloads create
+            # /var/tmp/sandbox/phase2_sandbox_<pid> subdirs and only clean
+            # up on natural exit. Orchestrator kills the workload at
+            # duration_s, so the subdir is left behind. Across many cells
+            # these accumulate and fill the guest disk (>10 GiB after
+            # ~30 sandbox cells). Wipe any --sandbox-dir / --backing-dir
+            # path the command names, before launch. Belt-and-braces:
+            # only wipe inside the known safe roots.
+            _safe_roots = ("/var/tmp/", "/tmp/", "/home/kali/")
+            _sd_set: set[str] = set()
+            _parts = wcmd.split()
+            for _i, _t in enumerate(_parts):
+                if _t in ("--sandbox-dir", "--backing-dir") and _i + 1 < len(_parts):
+                    _sd_set.add(_parts[_i + 1])
+            for _sd in _sd_set:
+                if not any(_sd.startswith(r) for r in _safe_roots):
+                    notes.append(f"refusing to wipe non-sandbox dir {_sd!r}")
+                    continue
+                _wipe_cmd = e1.build_ssh_cmd(
+                    ssh_target, ssh_key, ssh_opts,
+                    f"rm -rf {_sd}/* 2>/dev/null; true")
+                try:
+                    subprocess.run(_wipe_cmd, capture_output=True, text=True,
+                                   timeout=15, check=False)
+                    notes.append(f"pre-cell guest wipe: {_sd}")
+                except (subprocess.TimeoutExpired, Exception) as _exc:  # noqa: BLE001
+                    notes.append(f"pre-cell wipe warning: {_sd}: {_exc}")
+
             # Bug-J runtime probe (D-29): verify the binary exists on the VM
             # before launching, so placeholder paths or typos fail fast at
             # cell granularity rather than producing fake-ok cells.
