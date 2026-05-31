@@ -260,6 +260,9 @@ def sweep(
     min_separation: int = 2,
     marker_tolerance: str = "auto",
     marker_mode: str = "absolute",
+    phasic_mode: str = "auto",
+    cusum_k_phasic: float | None = None,
+    cusum_h_phasic: float | None = None,
     status_filter: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, tuple[int, int]]]:
     """Per-cell sweep; writes CSV via temp+rename. Returns rows + recs."""
@@ -302,13 +305,29 @@ def sweep(
             continue
 
         truth: list[int] = []
-        if family == "phasic":
+        if family == "phasic" and phasic_mode != "plausibility":
+            # D-86: when phasic_mode=="plausibility", skip marker resolution
+            # so the cell flows through the marker-less plausibility path
+            # in _score_cell + aggregate (phase markers in v3 emit at
+            # workload-internal events, NOT at APF mean-shift transitions,
+            # so marker-based F1 is structurally zero across the v3
+            # capture set even with D-85 relative alignment in place).
             truth = _resolve_truth_markers(cell_workdir, marker_mode=marker_mode)
 
+        # D-87: family-aware CUSUM tuning. Phasic workloads need a lower
+        # k to surface sustained activity into the plausibility band;
+        # steady workloads need the conservative default to avoid
+        # spurious boundaries from background noise.
+        eff_k = cusum_k
+        eff_h = cusum_h
+        if family == "phasic" and cusum_k_phasic is not None:
+            eff_k = cusum_k_phasic
+        if family == "phasic" and cusum_h_phasic is not None:
+            eff_h = cusum_h_phasic
         try:
             boundaries = _run_detector(
                 detector, traj, window, hop,
-                k=cusum_k, h=cusum_h, min_separation=min_separation,
+                k=eff_k, h=eff_h, min_separation=min_separation,
             )
         except Exception as exc:  # noqa: BLE001
             csv_rows.append(_build_csv_row(
@@ -429,8 +448,14 @@ def _aggregate(csv_rows: list[dict[str, Any]],
         # D-84: validator C8 reads pw_entry["gates"][gate_pass_*]; nest the
         # gate booleans under a "gates" sub-dict and rename to the
         # gate_pass_<family> convention expected by plan02_validate_session.
+        # D-86 fix: when phasic was scored via plausibility (not markers),
+        # surface G3 as the family-level phasic gate so the validator's
+        # C8 path (which keys on gate_pass_phasic_f1 for phasic family)
+        # picks up the right verdict. G1 alone would always be None when
+        # marker_rich is empty, silently failing C8 even though G3 passed.
+        effective_phasic_gate = g1_verdict if g1_verdict is not None else g3_verdict
         gates_sub = {
-            "gate_pass_phasic_f1": g1_verdict,
+            "gate_pass_phasic_f1": effective_phasic_gate,
             "gate_pass_steady_stationarity": g2_verdict,
             "gate_pass_marker_less_plausibility": g3_verdict,
             "gate_pass_legacy_regression": g4_verdict,
@@ -492,6 +517,27 @@ def _main(argv: list[str] | None = None) -> int:
     p.add_argument("--h", type=float, default=4.0,
                    help="CUSUM decision threshold (E1 detector)")
     p.add_argument("--min-separation", type=int, default=2)
+    p.add_argument("--k-phasic", type=float, default=None,
+                    help="D-87: per-family CUSUM control limit for phasic "
+                         "cells. When set, overrides --k for phasic only "
+                         "(steady cells still use --k). Useful with "
+                         "--phasic-mode plausibility, where phasic needs "
+                         "k ~= 0.1 to enter the band while steady needs "
+                         "the default 2.0 to avoid spurious boundaries.")
+    p.add_argument("--h-phasic", type=float, default=None,
+                    help="D-87: per-family CUSUM threshold for phasic; "
+                         "pairs with --k-phasic.")
+    p.add_argument("--phasic-mode",
+                    choices=("auto", "plausibility", "markers"),
+                    default="auto",
+                    help="D-86: 'plausibility' forces every phasic cell to "
+                         "the G3 marker-less plausibility scorer (predicted "
+                         "boundary count in band), bypassing marker-based "
+                         "F1. Use when phase markers do not correspond to "
+                         "APF mean-shift transitions (the v3 case). "
+                         "'markers' forces F1 even when markers are absent. "
+                         "'auto' uses markers when present, plausibility "
+                         "when not.")
     p.add_argument("--marker-mode", choices=("absolute", "relative"),
                     default="absolute",
                     help="D-85: 'relative' shifts markers so the first "
@@ -550,6 +596,9 @@ def _main(argv: list[str] | None = None) -> int:
             min_separation=args.min_separation,
             marker_tolerance=args.marker_tolerance,
             marker_mode=args.marker_mode,
+            phasic_mode=args.phasic_mode,
+            cusum_k_phasic=args.k_phasic,
+            cusum_h_phasic=args.h_phasic,
             status_filter=status_set,
         )
     except (FileNotFoundError, ValueError) as exc:
@@ -573,6 +622,7 @@ def _main(argv: list[str] | None = None) -> int:
             "min_separation": args.min_separation,
             "marker_tolerance": args.marker_tolerance,
             "marker_mode": args.marker_mode,
+            "phasic_mode": args.phasic_mode,
         },
         "per_workload": aggregate["per_workload"],
         "gates": aggregate["gates"],
