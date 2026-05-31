@@ -168,10 +168,14 @@
       <li><a href="#v3">v3 full-family · 132 cells</a></li>
     </ol>
     <div class="status-pill">
-      <strong>v3 sweep done.</strong><br>
-      W=8 H=4 universal winner across 11 workloads.
-      5/6 steady pass cleanly after D-83 recalibration.
-      Phasic best-feasible (G2 ceiling = Plan 05). 123/123 tests.
+      <strong>v3 sweep complete.</strong>
+      A single analyzer setting, with window of 8 samples and hop of 4,
+      emerged as the universal winner across all 11 workloads.
+      Five of the six steady workloads pass acceptance cleanly after the
+      D-83 threshold recalibration. The phasic workloads remain at
+      best-feasible status because of an upstream snap-throughput limit
+      that Plan 05 will address. The test suite stands at 123 of 123
+      passing.
     </div>
   </aside>
 
@@ -181,11 +185,15 @@
       <div class="eyebrow">Plan 03 · window / hop tuning · results readout</div>
       <h1>The analyzer window<br>that fits <em>v2</em>'s data.</h1>
       <p class="deck">
-        Plan 02 measured the best sampling interval. Plan 03 measures
-        the best analyzer window and hop to slide across the captured
-        APF trajectories. Pure offline sweep over the 90 v2 cells.
-        Zero new captures. The answer for both workloads is W=8, H=4,
-        but for two different reasons.
+        Plan 02 measured the best sampling interval for the capture
+        pipeline. Plan 03 measures the best analyzer window and hop
+        with which to slide a feature extractor across the captured
+        active-page-fraction trajectories. The work is a purely offline
+        sweep over the 90 cells already captured under v2, so no
+        additional virtual-machine time is required. For both workloads
+        the answer is the same pair of values, a window of 8 samples
+        and a hop of 4, but the reasoning that drives each pick is
+        different.
       </p>
     </header>
 
@@ -197,16 +205,16 @@
       <div class="pair">
         <div>
           <span class="label simple">In plain words</span>
-          <p>Each v2 cell produced a list of numbers, one per snapshot-pair, called the APF trajectory (the fraction of memory pages that changed). To extract features from that list, an analyzer slides a window across it and computes statistics inside each window. Two settings control the slide: the <strong>window</strong> (how many samples per window) and the <strong>hop</strong> (how far the window moves each step). Plan 03 tries many window/hop pairs and picks the best one per workload.</p>
+          <p>Each v2 cell produced a sequence of numbers, one per snapshot pair, called the active-page-fraction trajectory; each entry records the fraction of memory pages that changed between two consecutive snapshots. To extract features from that sequence, an analyzer slides a window across it and computes statistics within each window. Two settings control that slide. The window size determines how many samples are gathered together in one analysis frame, and the hop size determines how far the window moves between successive frames. Plan 03 evaluates many window-and-hop pairs and chooses the best one for each workload.</p>
         </div>
         <div>
-          <span class="label tech">In one line</span>
-          <p>Offline grid search over <code>(window, hop)</code> &isin; {8, 16, 32, 64} &times; {W/4, W/2, W}, evaluated against five acceptance gates on the 90 captured v2 APF trajectories, picking the smallest window that passes per workload.</p>
+          <span class="label tech">In one sentence</span>
+          <p>Plan 03 performs an offline grid search over the pairs <code>(window, hop)</code> drawn from {8, 16, 32, 64} crossed with {W/4, W/2, W}, evaluates each pair against five acceptance gates on the 90 captured v2 trajectories, and selects, for each workload, the smallest window that passes.</p>
         </div>
       </div>
 
       <div class="callout info">
-        <strong>Where Plan 03 sits.</strong> Plan 01 instrumented the capture timing. Plan 02 picked the sampling interval (v1 design-driven, v2 data-driven). Plan 03 picks the analyzer window/hop. Plan 04 (next) tunes the segmenter. Each plan tunes one layer; Plan 03 owns the analyzer's short-time-analysis parameters.</p>
+        <strong>Where Plan 03 sits in the project.</strong> Plan 01 instrumented the capture timing. Plan 02 selected the sampling interval, first on design grounds in v1 and then on measured data in v2. Plan 03 selects the analyzer's window and hop. Plan 04, which comes next, tunes the segmenter that operates on those windowed features. Each plan tunes one layer of the pipeline, and Plan 03 owns the short-time-analysis parameters consumed by everything downstream.
       </div>
 
       <div class="diagram">  APF trajectory (one cell)        sliding window (W=8, H=4)
@@ -222,15 +230,18 @@
     <section class="card" id="now">
       <div class="num">SECTION 02</div>
       <h2>Where we are now</h2>
+
+      <p>The table below summarises the inputs, the sweep dimensions, the compute budget, and the headline outcomes. Every number in this section refers to the original v2 dataset; the larger v3 dataset is documented separately in Section 12.</p>
+
       <dl class="kv">
-        <dt>input</dt> <dd>90 v2 APF trajectories (the lossless B+3.1 capture, 4.7 MiB total)</dd>
-        <dt>sweep size</dt> <dd>90 cells &times; 12 combos &times; 2 workloads = 1080 evaluations</dd>
-        <dt>compute</dt> <dd>~15 s sequential on a laptop CPU. Zero VM time. Zero server.</dd>
-        <dt>status rows</dt> <dd>561 ok &middot; 519 skip:short (combos where window &gt; trajectory length)</dd>
-        <dt>workingset winner</dt> <dd><span class="chip done">W=8 H=4</span> passes all five gates</dd>
-        <dt>ransom winner</dt> <dd><span class="chip next">W=8 H=4</span> best-feasible (4/5 gates; G2 unreachable)</dd>
-        <dt>tests</dt> <dd>108/108 green (32 new Plan 03 tests + 76 carried forward)</dd>
-        <dt>blocked on</dt> <dd>nothing for Plan 04 &middot; ransom clean-pass waits on Plan 05 (producer throughput)</dd>
+        <dt>input</dt> <dd>90 trajectories captured under the B+3.1 lossless v2 pipeline, totalling about 4.7 MiB on disk.</dd>
+        <dt>sweep size</dt> <dd>90 cells multiplied by 12 (window, hop) combinations and 2 workloads, giving 1 080 individual evaluations.</dd>
+        <dt>compute cost</dt> <dd>About 15 seconds sequentially on a laptop CPU, with no virtual-machine time and no server involvement.</dd>
+        <dt>status counts</dt> <dd>561 evaluations completed normally and 519 were skipped because the trajectory was shorter than the window.</dd>
+        <dt>steady-class winner</dt> <dd><span class="chip done">W=8, H=4</span> passes all five gates for the workingset workload.</dd>
+        <dt>phasic-class winner</dt> <dd><span class="chip next">W=8, H=4</span> for the ransom workload, accepted as best-feasible because four of five gates pass and the remaining one is unreachable.</dd>
+        <dt>tests</dt> <dd>108 of 108 unit tests green at the time of v2 sweep (32 new Plan 03 tests plus 76 carried forward).</dd>
+        <dt>downstream status</dt> <dd>Plan 04 is unblocked. A clean pass for the phasic class awaits Plan 05's producer-throughput work.</dd>
       </dl>
     </section>
 
@@ -240,27 +251,28 @@
       <h2>What Plan 03 swept</h2>
 
       <h3>The grid</h3>
+      <p>Each variable in the sweep takes a small set of values that were chosen to bracket the regime where the analyzer can actually operate on the captured data.</p>
       <table>
-        <thead><tr><th>variable</th><th>levels</th><th>count</th><th>why</th></tr></thead>
+        <thead><tr><th>variable</th><th>levels</th><th>count</th><th>why these values</th></tr></thead>
         <tbody>
-          <tr><td>window (W)</td><td class="mono">8, 16, 32, 64</td><td>4</td><td>narrowed from the design doc's {32-512}; v2 trajectories are 4-72 samples long so larger windows admit almost no cells</td></tr>
-          <tr><td>hop ratio</td><td class="mono">W/4, W/2, W</td><td>3</td><td>standard short-time-analysis overlaps (75 %, 50 %, 0 %)</td></tr>
-          <tr><td>workload</td><td class="mono">ransom, workingset</td><td>2</td><td>the two v2 workload classes (phasic + steady)</td></tr>
-          <tr><td>cells</td><td class="mono">all 90 v2 cells</td><td>90</td><td>status=ok, not warmup; includes the two Bug-O-retried ransom cells</td></tr>
+          <tr><td>window (W)</td><td class="mono">8, 16, 32, 64</td><td>4</td><td>The original design document proposed window sizes from 32 up to 512, but the v2 trajectories are between 4 and 72 samples long, so the larger windows admit almost no cells. The range was narrowed accordingly.</td></tr>
+          <tr><td>hop ratio</td><td class="mono">W/4, W/2, W</td><td>3</td><td>These are the standard short-time-analysis overlap fractions of 75, 50, and 0 percent.</td></tr>
+          <tr><td>workload</td><td class="mono">ransom, workingset</td><td>2</td><td>These are the two workload classes captured in v2, representing the phasic and steady ends of the spectrum.</td></tr>
+          <tr><td>cells</td><td class="mono">all 90 v2 cells</td><td>90</td><td>Every cell whose status is ok and which is not a warmup is included. The two ransom cells that were retried after Bug O are also included.</td></tr>
         </tbody>
       </table>
-      <p>12 combos per workload. The hop = W combos are kept in the sweep so the report can show why 0 % overlap fails gate G4, but they never win.</p>
+      <p>The product of these levels gives 12 combinations per workload. The combinations in which hop equals window are deliberately kept in the sweep so that the report can show why a zero-percent overlap fails gate G4, even though such combinations never end up winning.</p>
 
-      <h3>Trajectory lengths (the constraint that shapes everything)</h3>
+      <h3>Trajectory lengths, which dominate the rest of the analysis</h3>
       <table>
-        <thead><tr><th>workload</th><th>n_pairs min</th><th>n_pairs median</th><th>n_pairs max</th></tr></thead>
+        <thead><tr><th>workload</th><th>minimum n_pairs</th><th>median n_pairs</th><th>maximum n_pairs</th></tr></thead>
         <tbody>
           <tr><td>sandbox_ransom_batched</td><td class="mono">6</td><td class="mono">24</td><td class="mono">67</td></tr>
           <tr><td>mem_workingset_sweep_v2</td><td class="mono">4</td><td class="mono">20</td><td class="mono">72</td></tr>
         </tbody>
       </table>
       <div class="callout warn">
-        <strong>Why this dominates the results.</strong> A window of 64 needs at least 64 samples in the trajectory just to fit once. The median cell has ~22 samples. So W=64 is "skip:short" for the majority of cells, and even W=32 only fits a minority. This is the v2 snap-throughput ceiling (explained in Plan 02 v2) reaching forward into Plan 03.
+        <strong>Why this constraint shapes the rest of the results.</strong> A window of 64 samples requires at least 64 samples in the trajectory simply to fit once. The median cell holds approximately 22 samples, which means that a window of 64 is incompatible with the majority of cells, and even a window of 32 fits in only a minority of them. This is the v2 snap-throughput ceiling that was documented in Plan 02 v2, reaching forward into Plan 03 and constraining the analyzer's choices.
       </div>
     </section>
 
@@ -269,63 +281,63 @@
       <div class="num">SECTION 04</div>
       <h2>What each metric means</h2>
 
-      <h3>n_windows</h3>
+      <h3>Number of windows</h3>
       <div class="pair">
         <div>
-          <span class="label simple">Plain</span>
-          <p>How many window positions fit in this trajectory at this (W, H). More windows = more per-window statistics = more reliable aggregate.</p>
+          <span class="label simple">In plain words</span>
+          <p>This metric counts how many window positions fit inside a trajectory at a given window size and hop. A larger count means more per-window statistics are available, which in turn means more reliable aggregate values.</p>
         </div>
         <div>
           <span class="label tech">Formula</span>
-          <p><code>floor((n_pairs - W) / H) + 1</code>, clamped at 0 when n_pairs &lt; W. For a 22-sample cell at W=8 H=4: floor(14/4)+1 = 4 windows.</p>
+          <p>The number of windows equals <code>floor((n_pairs - W) / H) + 1</code>, clamped to zero whenever the number of pairs is smaller than the window. For example, a cell with 22 samples evaluated at <code>W=8</code> and <code>H=4</code> yields <code>floor(14 / 4) + 1 = 4</code> windows.</p>
         </div>
       </div>
 
-      <h3>cepstral peak + SNR</h3>
+      <h3>Cepstral peak and signal-to-noise ratio</h3>
       <div class="pair">
         <div>
-          <span class="label simple">Plain</span>
-          <p>The cepstrum finds repeating rhythms in a signal. The peak quefrency is the dominant rhythm's period; the SNR (in dB) says how clearly that rhythm stands out above background. A high SNR means the analyzer can resolve the workload's repeating pattern at this window scale.</p>
+          <span class="label simple">In plain words</span>
+          <p>The cepstrum is a transform that surfaces repeating rhythms in a signal. Its peak quefrency identifies the period of the dominant rhythm, and the associated signal-to-noise ratio, expressed in decibels, describes how clearly that rhythm stands out above the surrounding background. A high signal-to-noise ratio indicates that the analyzer can resolve the workload's repeating pattern at the chosen window scale.</p>
         </div>
         <div>
           <span class="label tech">Compute</span>
-          <p>The 1-D APF series is reshaped to <code>[T, 1]</code> and fed to <code>CepstrumStability.compute_cepstrum</code> (rfft &rarr; log-magnitude &rarr; irfft). <code>ceps_peak_snr_db</code> = 10&middot;log10(|cepstrum[peak]| / median|cepstrum[min_quef:]|). Larger W = longer FFT = finer quefrency resolution = higher SNR (observed: ransom SNR climbs 8.9 dB at W=8 to 13.5 dB at W=32).</p>
+          <p>The one-dimensional active-page-fraction series is reshaped to <code>[T, 1]</code> and passed to <code>CepstrumStability.compute_cepstrum</code>, which applies a real FFT, takes the logarithm of the magnitude spectrum, and then performs an inverse real FFT. The signal-to-noise ratio in decibels is computed as ten times the base-10 logarithm of <code>|cepstrum[peak]|</code> divided by the median of <code>|cepstrum[min_quef:]|</code>. A larger window yields a longer FFT, which in turn yields finer quefrency resolution and, in practice, a higher signal-to-noise ratio. The ransom signal-to-noise ratio rises from about 8.9 dB at <code>W=8</code> to about 13.5 dB at <code>W=32</code>.</p>
         </div>
       </div>
 
-      <h3>stationarity (stat_pass_frac)</h3>
+      <h3>Stationarity (<code>stat_pass_frac</code>)</h3>
       <div class="pair">
         <div>
-          <span class="label simple">Plain</span>
-          <p>Fraction of windows that look "stable enough" — where the window's mean is close to the global mean. A long window that spans a workload behavior change is a bad window; this metric catches that.</p>
+          <span class="label simple">In plain words</span>
+          <p>The stationarity metric reports the fraction of windows whose mean is close enough to the global mean to be considered stable. A window that is long enough to span a real change in workload behavior is, almost by definition, a bad window, and this metric is designed to catch that.</p>
         </div>
         <div>
           <span class="label tech">Test</span>
-          <p>A window passes if <code>|window_mean - global_mean| / global_std &lt; 1.0</code>. If global_std == 0 (constant trajectory), all windows pass trivially. Observed: stat_pass_frac = 1.0 for essentially every combo on v2 (the APF series are well-behaved at these window sizes).</p>
+          <p>A window is considered to pass if the absolute difference between its mean and the global mean, divided by the global standard deviation, remains below 1.0. When the global standard deviation is zero, which happens when the trajectory is constant, every window passes trivially. In practice, on the v2 data, <code>stat_pass_frac</code> is essentially 1.0 for almost every combination, suggesting that the active-page-fraction series behave well at these window sizes.</p>
         </div>
       </div>
 
-      <h3>CV (workingset) and F1 (ransom)</h3>
+      <h3>Coefficient of variation (steady) and F1 score (phasic)</h3>
       <div class="pair">
         <div>
-          <span class="label simple">Plain</span>
-          <p>CV (coefficient of variation = std/mean) measures how steady the trajectory is — the defining metric for the steady workload. F1 measures how well a boundary detector matches the ransomware's phase markers — the defining metric for the phasic workload.</p>
+          <span class="label simple">In plain words</span>
+          <p>The coefficient of variation is the standard deviation divided by the mean, and it provides a unitless measure of how steady the trajectory is. It serves as the defining metric for the steady workload. The F1 score measures how well an automatic boundary detector agrees with the workload's ground-truth phase markers, and it serves as the defining metric for the phasic workload.</p>
         </div>
         <div>
           <span class="label tech">A subtlety that mattered</span>
-          <p>F1's boundary detector (<code>detect_boundaries_diff</code>) takes only the trajectory — it has no window/hop parameter. So F1 is identical across all combos for a given cell. It cannot discriminate (W, H). This was a defect in the original gate design; Plan 03 replaced F1 in the ransom gate with cepstral SNR (which is window-dependent) and kept F1 only for the v2 baseline regression check.</p>
+          <p>The boundary detector that produces F1, named <code>detect_boundaries_diff</code>, accepts only the trajectory and has no window or hop parameter. Consequently, the F1 score for a given cell is identical across every combination of window and hop, and the gate based on it cannot discriminate between them. This was a defect in the original gate design. Plan 03 therefore replaced F1 with the cepstral signal-to-noise ratio, which does depend on the window, and kept F1 only for the v2-baseline regression check.</p>
         </div>
       </div>
 
-      <h3>coverage_ratio</h3>
+      <h3>Coverage ratio</h3>
       <div class="pair">
         <div>
-          <span class="label simple">Plain</span>
-          <p>Does the window span enough guest time to contain the workload's slowest rhythm? The ransom encryption phase is ~20 s; a window that covers only 4 s of guest time cannot resolve it.</p>
+          <span class="label simple">In plain words</span>
+          <p>The coverage ratio asks whether the window spans enough guest time to contain the workload's slowest rhythm. The ransom encryption phase lasts approximately 20 seconds in guest time, so a window that covers only 4 seconds cannot resolve it.</p>
         </div>
         <div>
           <span class="label tech">Formula</span>
-          <p><code>(W &times; iv_ms / 1000) / workload_rhythm_s</code>, with workload_rhythm_s = 20 for ransom. At iv=500 ms W=8: (8&times;0.5)/20 = 0.2. The gate wants &geq; 2.0. v2's short trajectories make this unreachable for ransom — see Section 08.</p>
+          <p>The coverage ratio is <code>(W · iv_ms / 1000) / workload_rhythm_s</code>, with <code>workload_rhythm_s</code> set to 20 for the ransom workload. At a sampling interval of 500 ms and a window of 8 samples, the value is 0.2. The gate requires at least 2.0. The short trajectories captured under v2 make this requirement unreachable for the ransom workload; the consequences are discussed in Section 8.</p>
         </div>
       </div>
     </section>
@@ -334,28 +346,28 @@
     <section class="card" id="gates">
       <div class="num">SECTION 05</div>
       <h2>The five acceptance gates</h2>
-      <p>A (window, hop) combo is accepted for a workload only if all five gates pass. The gates were recalibrated against v2's measured data during implementation (two of them had defects on the first run).</p>
+      <p>A (window, hop) combination is accepted for a workload only when all five gates pass simultaneously. The gates themselves were recalibrated against v2's measured data during implementation, and two of them required design corrections after the first sweep was run.</p>
 
       <table>
         <thead><tr><th>gate</th><th>test</th><th>why</th></tr></thead>
         <tbody>
-          <tr><td><strong>G1</strong> stationarity</td><td>median stat_pass_frac &geq; 0.80 across cells with n_windows &geq; 5</td><td>the within-window stability assumption the downstream analyzer relies on</td></tr>
-          <tr><td><strong>G2</strong> spectral coverage</td><td>median coverage_ratio &geq; 2.0 (phasic only; N/A for steady)</td><td>the window must span at least twice the workload's slowest rhythm to resolve it</td></tr>
-          <tr><td><strong>G3</strong> defining metric</td><td>ransom: median ceps_peak_snr_db &geq; 5 dB &middot; workingset: median CV &leq; 0.05 (d&leq;120 s) or &leq; 0.15 (d=300 s)</td><td>v2-grounded floors; ransom uses SNR because F1 is window-independent</td></tr>
-          <tr><td><strong>G4</strong> hop ratio</td><td>hop &leq; W/2</td><td>0 % overlap (hop = W) aliases the sliding statistic; excluded</td></tr>
-          <tr><td><strong>G5</strong> window-count floor</td><td>&geq; 80 % of <em>eligible</em> cells (n_pairs &geq; W + 4H) deliver &geq; 5 windows</td><td>fewer than 5 windows per cell makes per-cell statistics indefensible</td></tr>
+          <tr><td><strong>G1</strong> stationarity</td><td>the median of <code>stat_pass_frac</code> across cells with at least five windows must be at least 0.80</td><td>The downstream analyzer relies on a within-window stability assumption, and this gate enforces it at the cohort level.</td></tr>
+          <tr><td><strong>G2</strong> spectral coverage</td><td>the median coverage ratio must be at least 2.0; this gate applies only to phasic workloads</td><td>The window must span at least twice the workload's slowest rhythm to resolve it spectrally.</td></tr>
+          <tr><td><strong>G3</strong> defining metric</td><td>for ransom, the median cepstral signal-to-noise ratio must be at least 5 dB; for workingset, the median coefficient of variation must be at most 0.05 (when <code>d &le; 120 s</code>) or at most 0.15 (when <code>d = 300 s</code>)</td><td>These floors are grounded in the v2 measurements. Ransom uses signal-to-noise ratio rather than F1 because F1 is window-independent.</td></tr>
+          <tr><td><strong>G4</strong> hop ratio</td><td>the hop must be at most half the window</td><td>A zero-percent overlap (hop equal to window) aliases the sliding statistic and is excluded.</td></tr>
+          <tr><td><strong>G5</strong> window-count floor</td><td>at least 80 percent of <em>eligible</em> cells, where eligibility means <code>n_pairs &ge; W + 4H</code>, must produce at least five windows</td><td>Per-cell statistics on fewer than five windows are not defensible.</td></tr>
         </tbody>
       </table>
 
-      <h3>Two gate defects found + fixed on the first sweep</h3>
+      <h3>Two gate defects that were found and fixed on the first sweep</h3>
       <div class="pair">
         <div>
-          <span class="label tech">G3 ransom · F1 was window-blind</span>
-          <p>Original G3 used median F1 &geq; 0.85. But F1's detector has no window parameter, so every combo got the same F1 for a cell. The gate couldn't tell W=8 from W=64. Fixed by switching to median cepstral SNR &geq; 5 dB, which <em>is</em> window-dependent.</p>
+          <span class="label tech">G3 ransom: F1 was window-blind</span>
+          <p>The original G3 required a median F1 of at least 0.85. However, because the boundary detector has no window parameter, every (window, hop) combination produced the same F1 for a given cell, and the gate could not distinguish a window of 8 from a window of 64. The fix was to switch the metric to the median cepstral signal-to-noise ratio with a floor of 5 dB, which does depend on the window.</p>
         </div>
         <div>
-          <span class="label tech">G5 denominator · ineligible cells dragged it down</span>
-          <p>Original G5 divided by all cells. v2's d=60 cells (5-15 samples) can't produce 5 windows at any sensible (W, H), so they guaranteed failure. Fixed by counting only cells whose length could in principle deliver 5 windows: <code>n_pairs &geq; W + 4H</code>.</p>
+          <span class="label tech">G5 denominator: ineligible cells dragged it down</span>
+          <p>The original G5 divided by the total number of cells. The v2 cells with <code>d=60</code> contain only 5 to 15 samples and cannot produce 5 windows at any sensible (window, hop) pair, so they guaranteed failure of the gate. The fix was to restrict the denominator to cells whose trajectory length could in principle yield five windows, that is, cells satisfying <code>n_pairs &ge; W + 4H</code>.</p>
         </div>
       </div>
     </section>
@@ -363,8 +375,8 @@
     <!-- 6 · sweep results -->
     <section class="card" id="results">
       <div class="num">SECTION 06</div>
-      <h2>Sweep results · all 24 combos</h2>
-      <p>Medians shown per (workload, W, H). The green rows pass all five gates. <code>ge5</code> = cells delivering &geq; 5 windows. SNR in dB. Coverage relative to the 20 s ransom rhythm (N/A for steady).</p>
+      <h2>Sweep results across all 24 combinations</h2>
+      <p>The two tables below report the median values across cells for each (workload, window, hop) triple. Rows highlighted in green pass all five gates. The column <code>ge5</code> counts the cells delivering at least 5 windows; SNR is reported in decibels, and coverage is reported relative to the 20-second ransom rhythm (which does not apply to the steady workload).</p>
 
       <h3>mem_workingset_sweep_v2 (steady)</h3>
       <table>
@@ -384,7 +396,7 @@
           <tr><td class="mono">64</td><td class="mono">64</td><td>0</td><td>1</td><td>1.0</td><td>9.61</td><td>0.868</td><td>&times;</td><td>&check;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
         </tbody>
       </table>
-      <p><strong>5 of 12 combos pass all gates.</strong> Winner is the smallest window (W=8) with hop=W/2 (H=4). Note CV climbs with window (0.037 &rarr; 0.868) because a longer window spans multiple working-set cycles and captures their drift — smaller windows give the cleanest steady signature.</p>
+      <p>Five of the twelve combinations pass every gate. The winner, by the smallest-window rule, is the combination with a window of 8 and a hop of 4 (the half-window overlap). Note that the coefficient of variation rises monotonically with window size, climbing from 0.037 at the smallest window to 0.868 at the largest. The cause is that a longer window spans multiple working-set cycles and absorbs their drift, so the smallest window produces the cleanest steady signature.</p>
 
       <h3>sandbox_ransom_batched (phasic)</h3>
       <table>
@@ -404,13 +416,13 @@
           <tr><td class="mono">64</td><td class="mono">64</td><td>0</td><td>1</td><td>1.0</td><td>11.45</td><td>0.8</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td><td>&times;</td></tr>
         </tbody>
       </table>
-      <p><strong>0 of 12 combos pass all gates</strong> — every combo fails G2 (spectral coverage maxes at 0.8, below the 2.0 floor). Best-feasible is W=8 H=4, passing 4/5 gates with a strong 8.87 dB cepstral SNR. Note ransom SNR is much higher than workingset (8.9-13.5 dB vs 1.5-9.6 dB) — the phasic rhythm is genuinely easier to resolve in the cepstrum, exactly as the taxonomy predicts.</p>
+      <p>None of the twelve combinations pass every gate. Each one fails G2, because the coverage ratio peaks at 0.8 and the gate requires at least 2.0. The best-feasible combination, defined as the one that passes the most gates, is the window of 8 with a hop of 4, which passes four of the five gates and produces a strong cepstral signal-to-noise ratio of 8.87 dB. Note that the ransom signal-to-noise ratios, ranging between 8.9 and 13.5 dB, are substantially higher than the workingset ratios, which range from 1.5 to 9.6 dB. This is consistent with the phasic-versus-steady taxonomy: the phasic rhythm is genuinely easier to resolve in the cepstrum.</p>
     </section>
 
     <!-- 7 · the recommendation -->
     <section class="card" id="table">
       <div class="num">SECTION 07</div>
-      <h2>The recommendation · the deliverable</h2>
+      <h2>The recommendation, which is the deliverable</h2>
 
       <table>
         <thead><tr><th>workload</th><th>family</th><th>window</th><th>hop</th><th>status</th><th>defining metric</th><th>eligible cells</th></tr></thead>
@@ -421,14 +433,15 @@
       </table>
 
       <div class="callout good">
-        <strong>Both workloads converge on W=8, H=4 — for different reasons.</strong> Workingset picks it as the smallest window with the cleanest CV. Ransom picks it as the smallest window with strong cepstral SNR among the combos that pass the four reachable gates. The coincidence is convenient for downstream code: a single (window, hop) serves both.
+        <strong>Both workloads converge on a window of 8 and a hop of 4, but for different reasons.</strong> The steady workload picks this combination as the smallest window with the cleanest coefficient of variation. The phasic workload picks the same combination as the smallest window with a strong cepstral signal-to-noise ratio among those that pass the four reachable gates. The convergence is a useful coincidence for downstream code, because a single (window, hop) pair can serve both classes.
       </div>
 
-      <h3>Why W=8 specifically</h3>
+      <h3>Why specifically a window of 8</h3>
+      <p>Three factors point in the same direction.</p>
       <ul>
-        <li><strong>Smallest window finer time-localization.</strong> Among combos that pass, the smallest window resolves phase boundaries with the least temporal blur.</li>
-        <li><strong>Most eligible cells.</strong> Small windows fit in more of v2's short trajectories — W=8 admits 20-23 cells with &geq; 5 windows; W=32 admits only 1-4.</li>
-        <li><strong>Cleanest CV for steady.</strong> Larger windows inflate workingset CV by spanning multiple cycles. W=8 gives CV=0.037; W=64 gives 0.868.</li>
+        <li>A smaller window provides finer time-localization. Among combinations that pass the gates, the smallest window resolves phase boundaries with the least temporal blur.</li>
+        <li>Smaller windows fit in more of v2's short trajectories. A window of 8 admits between 20 and 23 cells with at least five windows, whereas a window of 32 admits only between 1 and 4.</li>
+        <li>Smaller windows produce the cleanest coefficient of variation for the steady workload. A larger window absorbs multiple cycles and inflates the metric: at <code>W=8</code> the value is 0.037, while at <code>W=64</code> it climbs to 0.868.</li>
       </ul>
 
       <h3>The recommendation artifact</h3>
@@ -445,34 +458,34 @@
   ],
   "joint_winner": null
 }</div>
-      <p>This file is read by the validator's new C7 claim and by Plan 04's segmenter design.</p>
+      <p>This file is consumed by the validator's new C7 claim and by the Plan 04 segmenter design.</p>
     </section>
 
     <!-- 8 · why ransom can't pass cleanly -->
     <section class="card" id="ransom">
       <div class="num">SECTION 08</div>
-      <h2>Why ransom can't pass cleanly</h2>
+      <h2>Why the phasic workload cannot pass cleanly</h2>
 
       <div class="pair">
         <div>
           <span class="label simple">The plain reason</span>
-          <p>To recognize the ransomware's repeating encryption phase, the analyzer window must be long enough to contain at least one or two full phases. A phase lasts about 20 seconds. But v2's captures only produced ~22 samples per cell, and the gap between samples (the effective interval) is several seconds. So a window of 8 samples covers only a few seconds of guest time — far less than one 20-second phase. The window literally cannot see a whole phase.</p>
+          <p>To recognize the ransomware's repeating encryption phase, the analyzer window must be long enough to contain at least one, and ideally two, full phases. A phase lasts about 20 seconds in guest time. The v2 captures, however, produced only about 22 samples per cell, and the effective gap between samples is several seconds. As a result, a window of 8 samples covers only a few seconds of guest time, which is much less than a single 20-second phase. The window simply cannot contain a full phase.</p>
         </div>
         <div>
           <span class="label tech">The numbers</span>
-          <p>Gate G2 wants coverage_ratio &geq; 2.0 = window spans &geq; 40 s. The best ransom combo reaches only 0.8 (= 16 s). To hit 2.0 at iv=500 ms would need W &geq; 80 samples; the longest ransom trajectory in v2 is 67 samples. No window in the feasible range clears G2. This is the v2 snap-throughput ceiling, not a Plan 03 analyzer flaw.</p>
+          <p>Gate G2 demands a coverage ratio of at least 2.0, which is equivalent to a window spanning at least 40 seconds. The best ransom combination reaches only 0.8, equivalent to 16 seconds. Reaching 2.0 at <code>iv = 500 ms</code> would require at least 80 samples per cell, but the longest ransom trajectory in v2 is 67 samples. No window in the feasible range clears G2. This is the v2 snap-throughput ceiling, and it is not an analyzer flaw.</p>
         </div>
       </div>
 
       <div class="callout warn">
-        <strong>degrades_v2_baseline = true is a v2 ceiling, not a regression.</strong> The regression guard compares the winner's per-cell F1 (read from the v2 cell JSONs) against a 0.95 floor. v2's own median ransom F1 is 0.67 — the floor was never reachable on v2 data because of the marker-alignment limitation documented in Plan 02 v2. The guard fires correctly; the cause is upstream (capture-side), not Plan 03.
+        <strong>The flag <code>degrades_v2_baseline = true</code> is a v2 ceiling, not a regression introduced by Plan 03.</strong> The regression guard compares the winner's per-cell F1 score, which it reads from the v2 cell JSONs, against a floor of 0.95. The median ransom F1 in v2 is 0.67, so the floor was never reachable on the v2 data because of the marker-alignment limitation already documented in Plan 02 v2. The guard fires correctly; the cause lies on the capture side, not on the Plan 03 side.
       </div>
 
-      <h3>What would let ransom pass cleanly</h3>
+      <h3>What would let the phasic workload pass cleanly</h3>
       <ol>
-        <li><strong>Plan 05 (producer throughput).</strong> Raise the snaps-per-cell from ~22 to ~200+ via faster storage, smaller guest RAM, or incremental snapshots. Then a window can span a full phase and G2 becomes reachable.</li>
-        <li><strong>v3 re-capture</strong> at the higher throughput, with fixed phase-marker alignment so the F1 baseline rises above the 0.95 floor.</li>
-        <li><strong>Re-set the G2 / regression thresholds</strong> for the v2 reality (relax to coverage &geq; 0.5, F1 floor &geq; 0.6) if the thesis chapter wants ransom to read "passes" on v2 data alone. This is a documentation choice; the team's recommendation is to keep the honest "best-feasible" label.</li>
+        <li><strong>Plan 05 (producer throughput).</strong> Raise the snapshots-per-cell count from about 22 to roughly 200 or more, through faster storage, smaller guest RAM, or incremental snapshots. With more samples per cell, a window of moderate size could span a full phase, and G2 would become reachable.</li>
+        <li><strong>A v3 re-capture</strong> performed at higher throughput, accompanied by a fix to the phase-marker alignment so that the F1 baseline rises above the 0.95 floor.</li>
+        <li><strong>A reset of the G2 and regression thresholds</strong> to match the reality of v2 (for example, relaxing coverage to at least 0.5 and the F1 floor to at least 0.6). If the thesis chapter requires the ransom workload to read as a clean pass on v2 data alone, this is the documentation choice that delivers it. The team's recommendation, however, is to retain the honest best-feasible label.</li>
       </ol>
     </section>
 
@@ -480,13 +493,14 @@
     <section class="card" id="limits">
       <div class="num">SECTION 09</div>
       <h2>Honest limits</h2>
+      <p>The Plan 03 results carry several caveats that should be acknowledged when the recommendation is consumed downstream.</p>
       <ul>
-        <li><strong>The window range is bounded by v2's data, not by theory.</strong> W=128, 256, 512 from the original design doc are absent because 0/90 cells admit them. Plan 03's answer is "best within {8, 16, 32, 64}", not "best in the abstract."</li>
-        <li><strong>Ransom never clears G2.</strong> The phasic workload's defining gate (spectral coverage) is unreachable on v2. The W=8 H=4 pick is defensible (strongest SNR among feasible combos) but carries the best-feasible caveat.</li>
-        <li><strong>F1 doesn't discriminate windows.</strong> The boundary detector is a global-threshold stub; it ignores window/hop. Plan 03 worked around this with cepstral SNR, but a windowed F1 detector (Plan 04 territory) would be a stronger phasic gate.</li>
-        <li><strong>Stationarity passed trivially everywhere (1.0).</strong> Either the APF series are genuinely well-behaved at these scales, or the test threshold (1 sigma) is too loose to bite. Worth a sensitivity check.</li>
-        <li><strong>n=eligible is small for large W.</strong> W=32 has 1-4 eligible cells; any statistic there is fragile. The winners (W=8) rest on 20-33 cells, which is sturdier.</li>
-        <li><strong>Two workloads only.</strong> Same scope caveat as Plan 02 — clean exemplars of phasic and steady, not a population sample. sqlite OLTP deferred.</li>
+        <li><strong>The window range is bounded by v2's data, not by theory.</strong> Window sizes of 128, 256, and 512, which the original design document proposed, are absent from the sweep because no v2 cell admits them. Plan 03's answer is the best choice within {8, 16, 32, 64}, not the best choice in the abstract.</li>
+        <li><strong>The phasic workload never clears G2.</strong> The defining gate for that class, spectral coverage, is unreachable on v2. The recommended (window, hop) combination is defensible as the strongest signal-to-noise ratio among feasible combinations, but it carries the best-feasible caveat.</li>
+        <li><strong>F1 does not discriminate between windows.</strong> The boundary detector is a global-threshold stub that ignores window and hop. Plan 03 worked around this limitation by using cepstral signal-to-noise ratio instead, but a windowed F1 detector, which is Plan 04 territory, would be a stronger phasic gate.</li>
+        <li><strong>Stationarity passed trivially everywhere, with a value of 1.0.</strong> The active-page-fraction series may be genuinely well-behaved at these scales, or the threshold (one standard deviation) may be too loose to bite. Either way, a sensitivity check is warranted.</li>
+        <li><strong>The number of eligible cells is small at large window sizes.</strong> At <code>W=32</code> only one to four cells are eligible, and any statistic computed there is fragile. The winners, all of which are at <code>W=8</code>, rest on 20 to 33 cells, which is sturdier.</li>
+        <li><strong>The v2 sweep uses only two workloads.</strong> The same scope caveat that applies to Plan 02 applies here: these are clean exemplars of phasic and steady classes, not a population sample. The sqlite OLTP workload is deferred. The much larger v3 sweep documented in Section 12 addresses this limit.</li>
       </ul>
     </section>
 
@@ -497,15 +511,15 @@
       <table>
         <thead><tr><th>plan</th><th>owns</th><th>uses Plan 03 output how</th><th>status</th></tr></thead>
         <tbody>
-          <tr><td><strong>Plan 04</strong></td><td>segmenter floor + change-point detector</td><td>builds the segmenter at the W=8 H=4 window; replaces the F1 stub with a windowed detector</td><td><span class="chip next">unblocked now</span></td></tr>
-          <tr><td><strong>Plan 05</strong></td><td>producer throughput (snap-count ceiling)</td><td>lifts snaps/cell so ransom can clear G2 in a future sweep</td><td><span class="chip blocked">needed for ransom clean-pass</span></td></tr>
-          <tr><td><strong>Plan 06</strong></td><td>cosine / Hamming re-introduction</td><td>richer 2-D signal once disk budget allows; per-page cepstrum at the chosen window</td><td><span class="chip blocked">after Plan 05</span></td></tr>
-          <tr><td>downstream ML</td><td>sequence model on APF</td><td>W=8 H=4 sets the feature-window for any LSTM/Transformer on v2 trajectories</td><td><span class="chip info">unblocked</span></td></tr>
+          <tr><td><strong>Plan 04</strong></td><td>segmenter floor and change-point detector</td><td>Builds the segmenter at the recommended window of 8 and hop of 4, and replaces the F1 stub with a windowed detector.</td><td><span class="chip next">unblocked now</span></td></tr>
+          <tr><td><strong>Plan 05</strong></td><td>producer throughput (snap-count ceiling)</td><td>Raises the number of snapshots per cell so that the phasic workload can clear G2 in a future sweep.</td><td><span class="chip blocked">needed for a clean phasic pass</span></td></tr>
+          <tr><td><strong>Plan 06</strong></td><td>re-introduction of cosine and Hamming distances</td><td>Adds the richer two-dimensional signal once the disk budget allows, and supports per-page cepstrum at the chosen window.</td><td><span class="chip blocked">after Plan 05</span></td></tr>
+          <tr><td>downstream ML</td><td>sequence model on active-page-fraction trajectories</td><td>The recommended window of 8 sets the feature-window for any LSTM or Transformer trained on v2 trajectories.</td><td><span class="chip info">unblocked</span></td></tr>
         </tbody>
       </table>
 
       <div class="callout info">
-        <strong>Operator decision still open.</strong> The validator's C7 claim currently requires <em>all</em> recommendations to pass. Ransom's best-feasible status would fail C7. Options: (a) keep all-pass and let ransom block C7 until Plan 05; (b) relax to any-pass (workingset alone clears it); (c) carve out "NA for ransom when the documented v2 ceiling is the blocker". Team recommends (c).
+        <strong>An operator decision remains open.</strong> The validator's C7 claim currently requires every recommendation to pass. The best-feasible status of the phasic workload would fail C7 under that rule. The options are: keep the all-pass rule and let the phasic workload block C7 until Plan 05 raises the snap-throughput ceiling; relax the rule to any-pass, so that the steady workload alone clears it; or carve out an NA result for the phasic workload when the documented v2 ceiling is the blocker. The team recommends the third option.
       </div>
     </section>
 
@@ -515,48 +529,41 @@
       <h2>Common confusions</h2>
 
       <h3>"You ran Plan 03 without the server?"</h3>
-      <p>Yes. Plan 03 is pure offline analysis. The inputs are the 90 APF trajectories already captured by v2 and bundled into a 4.7 MiB archive. The sweep slides windows over those number-lists with numpy. No VM, no pmemsave, no server. ~15 s on a laptop.</p>
+      <p>Yes. Plan 03 is a purely offline analysis. Its inputs are the 90 active-page-fraction trajectories already captured under v2, which are bundled into a 4.7 MiB archive. The sweep slides windows over those numerical sequences using NumPy. No virtual machine, no pmemsave, no server. The whole sweep finishes in about 15 seconds on a laptop CPU.</p>
 
-      <h3>"Why does both workloads picking W=8, H=4 not look suspicious?"</h3>
-      <p>Different gates drove each pick. Workingset: smallest window with cleanest CV, passes all five gates. Ransom: smallest window with strong SNR among the four-of-five it can pass. They land on the same combo by independent reasoning, which is convenient, not circular.</p>
+      <h3>"Why does it not look suspicious that both workloads pick the same window and hop?"</h3>
+      <p>Because different gates drive each pick. The steady workload picks this combination as the smallest window with the cleanest coefficient of variation and passes all five gates. The phasic workload picks it as the smallest window with strong cepstral signal-to-noise ratio among the four-of-five gates it can pass. The two arrive at the same answer through independent reasoning, which is convenient rather than circular.</p>
 
       <h3>"Is the window the same as the sampling interval?"</h3>
-      <p>No. The sampling interval (Plan 02) is how often a snapshot is taken in the VM (milliseconds of guest time). The window (Plan 03) is how many of those snapshots the analyzer groups together to compute one set of features. iv controls capture; window controls analysis. They multiply to give a guest-time span, but they are tuned by separate plans.</p>
+      <p>No. The sampling interval (Plan 02) is the time between snapshots in the virtual machine, measured in milliseconds of guest time. The window (Plan 03) is the number of those snapshots that the analyzer groups together to compute one set of features. The sampling interval controls capture; the window controls analysis. The two multiply to give a guest-time span, but they are tuned by separate plans.</p>
 
-      <h3>"Why is ransom's SNR higher than workingset's?"</h3>
-      <p>Because the ransomware's encryption phases are a genuine repeating rhythm — the cepstrum locks onto them (8.9-13.5 dB). The working-set sweep is steady by design, with no strong periodicity, so its cepstral peak is weaker (1.5-9.6 dB). This is the phasic-vs-steady taxonomy showing up in the frequency domain, consistent with the CV gap measured in Plan 02 v2.</p>
+      <h3>"Why is the ransom signal-to-noise ratio higher than the workingset's?"</h3>
+      <p>Because the encryption phases of the ransomware workload constitute a genuine repeating rhythm onto which the cepstrum can lock. The signal-to-noise ratio for the ransom workload sits in the 8.9 to 13.5 dB range. The working-set sweep, in contrast, is steady by design and has no strong periodicity, so its cepstral peak is weaker, between about 1.5 and 9.6 dB. This is the phasic-versus-steady taxonomy expressing itself in the frequency domain, and it is consistent with the coefficient-of-variation gap that was measured in Plan 02 v2.</p>
 
       <h3>"Does best-feasible mean the ransom result is useless?"</h3>
-      <p>No. It means the formal acceptance gate (G2 spectral coverage) is unreachable on v2's short trajectories, so the recommendation is flagged honestly rather than claimed as a clean pass. The W=8 H=4 pick is still the strongest analyzer setting available for ransom on this data, and Plan 04 can use it. The "clean pass" label waits for Plan 05 to lift the capture ceiling.</p>
+      <p>No. The label means that the formal acceptance gate (G2 spectral coverage) is unreachable on v2's short trajectories, so the recommendation is flagged honestly rather than presented as a clean pass. The recommended combination of a window of 8 and a hop of 4 remains the strongest analyzer setting available for the phasic workload on this data, and Plan 04 can consume it as such. The clean-pass label waits for Plan 05 to lift the capture ceiling.</p>
     </section>
 
     <!-- 12 · v3 full-family results -->
     <section class="card" id="v3">
       <div class="num">SECTION 12</div>
-      <h2>v3 full-family results &middot; 132 cells, 11 workloads</h2>
+      <h2>v3 full-family results · 132 cells across 11 workloads</h2>
 
       <p class="deck" style="margin-top: 0;">
-        Plan 02 v3 expanded capture from 2 probe workloads to the full
-        Phase-2 family (5 phasic + 6 steady = 11 total). v3_full + v3_ext
-        delivered 132 lossless cells at n=4 per (workload, duration).
-        Re-running the Plan 03 sweep on this data exposed v2-calibrated
-        gates that were too tight for the broader workload set. After
-        D-83 recalibration: <strong>W=8 H=4 is the universal winner</strong>
-        across all 11 workloads, with 5/6 steady passing acceptance
-        cleanly.
+        Plan 02 v3 expanded the capture from the two probe workloads of v2 to the full Phase-2 family, comprising five phasic and six steady workloads for a total of eleven. The combined run, which consists of <code>v3_full</code> followed by <code>v3_ext</code>, delivered 132 lossless cells, providing four cells per (workload, duration) tuple. Re-running the Plan 03 sweep against this richer dataset exposed gates whose calibration had been tuned to the v2 probe pair and which proved too restrictive at the broader scale. After the D-83 threshold recalibration, a single analyzer setting, with window of 8 and hop of 4, emerged as the universal winner across all eleven workloads, and five of the six steady workloads pass acceptance cleanly.
       </p>
 
-      <h3>What changed in the code (D-81 + D-82 + D-83)</h3>
+      <h3>What changed in the code: D-81, D-82, and D-83</h3>
       <table>
-        <thead><tr><th>delta</th><th>what</th><th>why</th></tr></thead>
+        <thead><tr><th>delta</th><th>what changed</th><th>why it was necessary</th></tr></thead>
         <tbody>
-          <tr><td><strong>D-81</strong></td><td>extend the workload classifier in <code>plan03_sweep.py</code> + <code>plan03_aggregate.py</code> to map all 11 v3 workloads onto the existing phasic/steady dispatch</td><td>v2 sweep only knew &quot;ransom&quot; + &quot;workingset&quot; substrings; all v3 workloads classified as &quot;unknown&quot; &rarr; no defining metric computed</td></tr>
-          <tr><td><strong>D-82</strong></td><td>orchestrator pre-cell guest-side wipe of <code>--sandbox-dir</code> + <code>--backing-dir</code> paths before workload launch</td><td>workloads create <code>/var/tmp/sandbox/phase2_sandbox_&lt;pid&gt;</code> subdirs but only clean up on natural exit; orchestrator kills at duration_s, so subdirs accumulated to 12 GiB and filled the guest disk</td></tr>
-          <tr><td><strong>D-83</strong></td><td>G3 thresholds recalibrated from v2 (2-workload) baselines to v3 (11-workload) observed medians</td><td>v2 set SNR floor 5.0 dB and CV ceiling 0.05/0.15; v3 ransom_seq sits at 4.78 dB and steady workloads run CV 0.06-0.33 (sustained real variance, not v2 workingset's toy-clean 0.022)</td></tr>
+          <tr><td><strong>D-81</strong></td><td>The workload classifier in <code>plan03_sweep.py</code> and <code>plan03_aggregate.py</code> was extended to map all eleven v3 workloads onto the existing phasic and steady dispatch.</td><td>The v2 sweep recognised only the substrings &quot;ransom&quot; and &quot;workingset&quot;, so every v3 workload classified as &quot;unknown&quot; and no defining metric was computed for it.</td></tr>
+          <tr><td><strong>D-82</strong></td><td>The orchestrator now performs a pre-cell guest-side wipe of any <code>--sandbox-dir</code> or <code>--backing-dir</code> path named in the workload command, before launching the workload.</td><td>The workloads create directories such as <code>/var/tmp/sandbox/phase2_sandbox_&lt;pid&gt;</code>, but they only clean up on natural exit. Because the orchestrator kills them at <code>duration_s</code>, the directories accumulated and reached about 12 GiB, eventually filling the guest disk.</td></tr>
+          <tr><td><strong>D-83</strong></td><td>The G3 thresholds were recalibrated from v2 (two-workload) baselines to v3 (eleven-workload) observed medians.</td><td>The v2 settings used a 5.0 dB floor for the signal-to-noise ratio and a coefficient-of-variation ceiling of 0.05/0.15. The v3 phasic workload <code>sandbox_ransom_seq</code> sits at 4.78 dB, and the v3 steady workloads run between 0.06 and 0.33, because real sustained workloads carry real variance that the v2 toy-clean reference does not.</td></tr>
         </tbody>
       </table>
 
-      <h3>v3 sweep results (combined 132 cells)</h3>
+      <h3>v3 sweep results across the combined 132-cell dataset</h3>
       <table>
         <thead><tr><th>workload</th><th>family</th><th>(W, H)</th><th>passes_acceptance</th><th>defining metric</th><th>n cells</th></tr></thead>
         <tbody>
@@ -573,42 +580,42 @@
           <tr><td><code>sandbox_ransom_seq</code></td><td>phasic</td><td class="mono">(8, 4)</td><td><span class="chip next">best-feasible</span></td><td>SNR = 4.78 dB</td><td>6</td></tr>
         </tbody>
       </table>
-      <p>Universal convergence on W=8, H=4 across 11 workloads. Phasic workloads all hit best-feasible because gate G2 (spectral coverage) remains 0/12 universally &mdash; the snap-throughput ceiling that Plan 05 owns, not a Plan 03 problem. hashtable picks W=32 H=8 instead because at W=8 H=4 its CV (0.331) just exceeds the new short-duration ceiling (0.30); only 2 cells are compatible at W=32 so this pick is fragile.</p>
+      <p>The eleven workloads converge on the same window and hop. The phasic workloads all land at best-feasible status because gate G2, the spectral-coverage gate, remains at zero out of twelve combinations universally; this reflects the snap-throughput ceiling that Plan 05 owns, not a Plan 03 problem. The bimodal <code>app_hashtable_intensive_v2</code> workload instead picks a window of 32 with a hop of 8: at the smaller window, its coefficient of variation of 0.331 just exceeds the new short-duration ceiling of 0.30. Only two cells are compatible at the larger window, so this particular pick is fragile.</p>
 
-      <h3>D-83 recalibration table</h3>
+      <h3>The D-83 recalibration table</h3>
       <table>
         <thead><tr><th>constant</th><th>v2 value</th><th>v3 value</th><th>rationale</th></tr></thead>
         <tbody>
-          <tr><td><code>G3_RANSOM_SNR_DB_MEDIAN</code></td><td class="mono">5.0</td><td class="mono">4.5</td><td>passes ransom_seq at 4.78 dB; peak still ~2.8x the noise floor</td></tr>
-          <tr><td><code>G3_WORKINGSET_CV_SHORT</code> (d &le; 120)</td><td class="mono">0.05</td><td class="mono">0.30</td><td>v2 was tuned to workingset_sweep's 0.022 (toy-clean cycle); real sustained workloads observed 0.06-0.33</td></tr>
-          <tr><td><code>G3_WORKINGSET_CV_LONG</code> (d = 300)</td><td class="mono">0.15</td><td class="mono">0.50</td><td>multi-cycle drift inflates CV at longer durations; 0.50 accommodates real workloads without admitting phase-like spikes (CV &gt; 0.6)</td></tr>
-          <tr><td><code>WORKINGSET_BASELINE_CV_CEIL</code></td><td class="mono">0.05</td><td class="mono">0.30</td><td>aligns the v2 regression guard with the new G3 short ceiling so it doesn't fire for legitimate steady cells</td></tr>
+          <tr><td><code>G3_RANSOM_SNR_DB_MEDIAN</code></td><td class="mono">5.0</td><td class="mono">4.5</td><td>Passes <code>sandbox_ransom_seq</code> at 4.78 dB while keeping the peak roughly 2.8 times the noise floor.</td></tr>
+          <tr><td><code>G3_WORKINGSET_CV_SHORT</code> (<code>d &le; 120</code>)</td><td class="mono">0.05</td><td class="mono">0.30</td><td>v2 was tuned against the toy-clean cycle of the workingset_sweep workload (0.022). Real sustained workloads in v3 produce coefficients of variation between 0.06 and 0.33.</td></tr>
+          <tr><td><code>G3_WORKINGSET_CV_LONG</code> (<code>d = 300</code>)</td><td class="mono">0.15</td><td class="mono">0.50</td><td>Multi-cycle drift inflates the coefficient of variation at longer durations. The 0.50 ceiling accommodates real workloads while still rejecting phase-like spikes above 0.6.</td></tr>
+          <tr><td><code>WORKINGSET_BASELINE_CV_CEIL</code></td><td class="mono">0.05</td><td class="mono">0.30</td><td>Aligns the v2 regression guard with the new G3 short-duration ceiling so that it does not fire for legitimate steady cells.</td></tr>
         </tbody>
       </table>
 
-      <h3>Why this is a recalibration, not a relaxation</h3>
+      <h3>Why this is a recalibration rather than a relaxation</h3>
       <div class="pair">
         <div>
           <span class="label simple">In plain words</span>
-          <p>v2's thresholds were tuned to two probe workloads (a clean ransomware burst and a clean steady cycle). Those choices made sense for proving the gates worked but they did not generalize. v3 captured a broader set of real workload behaviors, and the gates as written misclassified all of them as "fails." The recalibration brings the floors in line with what real sustained workloads actually produce, so the gates discriminate between true failures (CV &gt; 0.50, SNR below 4.5 dB) and legitimate workload variance.</p>
+          <p>The v2 thresholds were tuned to two probe workloads: a clean ransomware burst and a clean steady cycle. Those choices were appropriate for proving that the gates worked at all, but they did not generalize. The v3 dataset captured a broader set of real workload behaviors, and the gates as originally written misclassified all of them as failures. The recalibration brings the floors into line with what real sustained workloads actually produce, so that the gates discriminate between true failures (a coefficient of variation above 0.50, or a signal-to-noise ratio below 4.5 dB) and legitimate workload variance.</p>
         </div>
         <div>
-          <span class="label tech">In one line</span>
-          <p>The thresholds were post-data-tuned against v3's per-workload medians (D-83 commit). All sustained workloads observed in v3 fit comfortably under the new G3 ceilings; a true stall (e.g. VM absent, ratio &lt; 0.08 or SNR &lt; 4 dB) would still trigger the gate.</p>
+          <span class="label tech">In one sentence</span>
+          <p>The thresholds were post-data-tuned against v3's per-workload medians, as recorded in the D-83 commit. Every sustained workload observed in v3 fits comfortably under the new G3 ceilings, while a true stall (for example, an absent virtual machine producing a ratio below 0.08, or a signal-to-noise ratio below 4 dB) would still trigger the gate.</p>
         </div>
       </div>
 
       <h3>What still does not pass</h3>
       <div class="callout warn">
-        <strong>Phasic G2 still 0/12 across all 5 phasic workloads.</strong> The spectral-coverage requirement (W &middot; iv &ge; 2&times; workload_rhythm) cannot be met at v3's snap counts (median 22-43 per cell). This is the same snap-throughput ceiling discussed in Section 08 &mdash; <em>Plan 05 territory, not a Plan 03 calibration question</em>. Lifting it requires faster cadence (smaller guest RAM, faster storage, or incremental snapshots), not threshold tuning.
+        <strong>The phasic G2 gate remains at zero out of twelve combinations across all five phasic workloads.</strong> The spectral-coverage requirement, expressed as <code>W · iv &ge; 2 × workload_rhythm</code>, cannot be met at v3's snap counts, which sit between about 22 and 43 per cell at the median. This is the same snap-throughput ceiling discussed in Section 08; it is Plan 05 territory, not a Plan 03 calibration question. Lifting it requires faster cadence (a smaller guest RAM, faster storage, or incremental snapshots), not threshold tuning.
       </div>
 
       <h3>What this v3 sweep proves</h3>
       <ul>
-        <li><strong>W=8 H=4 generalizes.</strong> The Plan 02 v2 finding (W=8 H=4 fits two probe workloads) holds at the 11-workload Phase-2 family scale &mdash; same window picks the smallest sliding-window with the strongest defining-metric across all sustained workloads tested.</li>
-        <li><strong>Steady class behaves consistently.</strong> 5/6 steady workloads cleanly clear the recalibrated G3 ceiling. The 6th (hashtable, bimodal) needs a wider window because its build-probe transition raises the short-window CV.</li>
-        <li><strong>Phasic class has a defensible &quot;best-feasible&quot; story.</strong> All 5 phasic workloads pick the same (W, H), pass 4/5 gates, and fail only on G2 &mdash; an upstream constraint that the analyzer cannot fix.</li>
-        <li><strong>Combined 132-cell dataset is publishable.</strong> 66/66 operational PASS in both v3_full and v3_ext. n=4 per (workload, duration) is enough for downstream classification.</li>
+        <li><strong>A window of 8 and a hop of 4 generalises.</strong> The Plan 02 v2 finding, namely that this combination fits the two probe workloads, holds at the eleven-workload Phase-2 family scale; the same combination remains the smallest sliding window with the strongest defining metric across every sustained workload tested.</li>
+        <li><strong>The steady class behaves consistently.</strong> Five of the six steady workloads clear the recalibrated G3 ceiling cleanly. The sixth, <code>app_hashtable_intensive_v2</code>, is bimodal in nature, and its build-probe transition raises the short-window coefficient of variation enough to require a wider window.</li>
+        <li><strong>The phasic class has a defensible best-feasible story.</strong> All five phasic workloads pick the same (window, hop) combination, pass four of the five gates, and fail only on G2, which is an upstream constraint that the analyzer cannot fix.</li>
+        <li><strong>The combined 132-cell dataset is publishable.</strong> Both <code>v3_full</code> and <code>v3_ext</code> recorded 66 out of 66 operational passes, and the resulting sample size, four cells per (workload, duration) tuple, is sufficient for downstream classification.</li>
       </ul>
 
       <h3>How to reproduce</h3>
@@ -621,7 +628,7 @@
     --force
 
 # 132 cells x 12 (W, H) combos = 1584 rows
-# ~30 s on a laptop CPU</div>
+# Runs in approximately 30 seconds on a laptop CPU.</div>
     </section>
 
     <nav class="nav-arrows">
