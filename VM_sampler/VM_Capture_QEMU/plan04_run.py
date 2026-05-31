@@ -120,8 +120,22 @@ def _load_snap_timestamps(jsonl_path: Path) -> list[float]:
     return ts
 
 
-def _resolve_truth_markers(cell_workdir: Path) -> list[int]:
-    """Phase-marker snap indices; empty list if absent or unresolvable."""
+def _resolve_truth_markers(cell_workdir: Path,
+                            marker_mode: str = "absolute") -> list[int]:
+    """Phase-marker snap indices; empty list if absent or unresolvable.
+
+    marker_mode:
+      "absolute" -- compare marker epoch_seconds to snap epoch_seconds
+                    (legacy behavior; fails if clocks are skewed).
+      "relative" -- D-85 workaround for v3's wall-clock skew (~63 h
+                    between workload_stderr.log and
+                    snapshot_timings.jsonl, with all markers collapsing
+                    to snap_idx=0). Shift markers so the FIRST marker
+                    aligns to the FIRST snap, preserving inter-marker
+                    spacing. Works when (a) the workload launches at or
+                    near the first snap and (b) markers fire in their
+                    natural cadence afterward.
+    """
     stderr_path = cell_workdir / "workload_stderr.log"
     if not stderr_path.is_file():
         return []
@@ -134,6 +148,10 @@ def _resolve_truth_markers(cell_workdir: Path) -> list[int]:
     snap_ts = _load_snap_timestamps(cell_workdir / "snapshot_timings.jsonl")
     if not snap_ts:
         return []
+    if marker_mode == "relative":
+        # Shift so markers[0] -> snap_ts[0]; preserves relative spacing.
+        delta = snap_ts[0] - markers[0][0]
+        markers = [(t + delta, p) for (t, p) in markers]
     try:
         return phase_markers_to_snap_indices(markers, snap_ts)
     except Exception:  # noqa: BLE001
@@ -241,6 +259,7 @@ def sweep(
     cusum_h: float = 4.0,
     min_separation: int = 2,
     marker_tolerance: str = "auto",
+    marker_mode: str = "absolute",
     status_filter: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, tuple[int, int]]]:
     """Per-cell sweep; writes CSV via temp+rename. Returns rows + recs."""
@@ -284,7 +303,7 @@ def sweep(
 
         truth: list[int] = []
         if family == "phasic":
-            truth = _resolve_truth_markers(cell_workdir)
+            truth = _resolve_truth_markers(cell_workdir, marker_mode=marker_mode)
 
         try:
             boundaries = _run_detector(
@@ -473,6 +492,13 @@ def _main(argv: list[str] | None = None) -> int:
     p.add_argument("--h", type=float, default=4.0,
                    help="CUSUM decision threshold (E1 detector)")
     p.add_argument("--min-separation", type=int, default=2)
+    p.add_argument("--marker-mode", choices=("absolute", "relative"),
+                    default="absolute",
+                    help="D-85: 'relative' shifts markers so the first "
+                         "marker aligns with the first snap, compensating "
+                         "for wall-clock skew between workload_stderr.log "
+                         "and snapshot_timings.jsonl. Use when markers "
+                         "appear to collapse to snap_idx=0.")
     p.add_argument("--marker-tolerance", default="auto",
                    help="int snap count or 'auto' (per-workload Delta-6 table)")
     p.add_argument("--status-filter", default="ok",
@@ -523,6 +549,7 @@ def _main(argv: list[str] | None = None) -> int:
             cusum_h=args.h,
             min_separation=args.min_separation,
             marker_tolerance=args.marker_tolerance,
+            marker_mode=args.marker_mode,
             status_filter=status_set,
         )
     except (FileNotFoundError, ValueError) as exc:
@@ -545,6 +572,7 @@ def _main(argv: list[str] | None = None) -> int:
             "h": args.h,
             "min_separation": args.min_separation,
             "marker_tolerance": args.marker_tolerance,
+            "marker_mode": args.marker_mode,
         },
         "per_workload": aggregate["per_workload"],
         "gates": aggregate["gates"],
