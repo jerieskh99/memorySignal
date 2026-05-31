@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 04 Proposal · Segmenter / Change-Point Detector · Team Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:8px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(212,168,90,.08); border:1px solid rgba(212,168,90,.20);
+    color: var(--accent); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:9px 12px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:12px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .agent { display:grid; grid-template-columns:90px 1fr 90px;
+            gap:14px; align-items:flex-start;
+            background: var(--panel-2); border:1px solid var(--line);
+            border-radius: var(--r); padding:12px 16px; margin:10px 0; }
+  @media (max-width:700px) { .agent { grid-template-columns:1fr; } }
+  .agent .agent-id { font-family: var(--f-mono); font-weight:600;
+                      color: var(--accent); font-size:13px;
+                      text-transform:uppercase; letter-spacing:.06em; }
+  .agent .agent-take { font-size:14px; color: var(--text-dim); line-height:1.5; }
+  .agent .agent-vote { align-self:center; font-size:11px; font-weight:600;
+                        letter-spacing:.04em; text-transform:uppercase;
+                        padding:4px 10px; border-radius:11px; text-align:center; }
+  .agent .agent-vote.go      { background:rgba(124,185,110,.14); color:var(--good); }
+  .agent .agent-vote.partial { background:rgba(212,168,90,.14); color:var(--accent); }
+  .agent .agent-vote.stop    { background:rgba(232,85,58,.12);  color:var(--bad-2); }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  .day { background: var(--panel-2); border:1px solid var(--line);
+          border-radius: var(--r); padding:16px 18px; margin:10px 0; }
+  .day .day-head { display:flex; gap:12px; align-items:baseline;
+                    margin-bottom:8px; }
+  .day .day-tag { font-family: var(--f-mono); font-size:11px;
+                   font-weight:600; color: var(--accent);
+                   letter-spacing:.08em; text-transform:uppercase; }
+  .day .day-title { font-family: var(--f-display); font-size:16px;
+                     font-weight:500; color: var(--text); }
+  .day .day-meta { margin-left:auto; font-size:11px; color: var(--muted);
+                    font-family: var(--f-mono); }
+  .day ul { padding-left:20px; margin:6px 0; font-size:14px; color: var(--text-dim); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 04 Proposal</div>
+    <div class="sub">Segmenter / change-point · team review</div>
+    <ol>
+      <li><a href="#summary">Executive summary</a></li>
+      <li><a href="#team">Team roles</a></li>
+      <li><a href="#baseline">Baseline design doc</a></li>
+      <li><a href="#topdown">Top-down analysis</a></li>
+      <li><a href="#bottomup">Bottom-up analysis</a></li>
+      <li><a href="#week">Week-long audit</a></li>
+      <li><a href="#disputes">Key disputes + decisions</a></li>
+      <li><a href="#improved">Improved Plan 04 spec</a></li>
+      <li><a href="#validation">Validation strategy</a></li>
+      <li><a href="#stats">Statistical design</a></li>
+      <li><a href="#risks">Risks + mitigations</a></li>
+      <li><a href="#pm">PM final recommendation</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Ready to ship.</strong><br>
+      Detector: windowed CUSUM on the APF
+      series at Plan 03's (W=8, H=4).
+      Family-aware dispatch via
+      <code>_classify_workload</code>.
+      C8 validator claim.
+      8 / 8 GO.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 04 · segmenter / change-point detector · v1 proposal</div>
+      <h1>Replace the window-blind boundary stub<br>with a <em>windowed</em> change-point detector.</h1>
+      <p class="deck">
+        Plan 03 picked <code>W = 8</code>, <code>H = 4</code> universally across
+        all eleven v3 workloads, but it also surfaced the central limitation
+        of the existing F1 path: <code>detect_boundaries_diff</code> is
+        window-independent and so cannot be tuned by Plan 03's choices.
+        Plan 04 swaps the stub for a windowed CUSUM detector that operates
+        on the same APF series at the Plan 03 grid, dispatches by workload
+        family, and gates promotion with a new C8 operational claim. No
+        new captures. Approximately 420 LOC across four new files plus
+        small surgical edits in two existing files.
+      </p>
+    </header>
+
+    <!-- 1 · summary -->
+    <section class="card" id="summary">
+      <div class="num">SECTION 01</div>
+      <h2>Executive summary</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What Plan 04 is</span>
+          <p>Given the per-workload <code>(iv, W, H)</code> triple frozen by Plans 02 and 03, run an offline change-point detector on each cell's APF trajectory; route the per-cell metric through a family-aware dispatcher (phasic uses windowed F1 against the phase-marker ground truth; steady uses a spurious-boundary count); and emit a per-workload acceptance verdict plus a per-cell breakdown. The sweep reads the existing 132 v3 cells; zero new captures. Output: <code>plan04_segments.csv</code>, <code>plan04_summary.json</code>, and <code>plan04_recommendation.json</code>, the last consumed by a new validator claim C8.</p>
+        </div>
+        <div>
+          <span class="label tech">What changes vs the design doc</span>
+          <ul>
+            <li>Δ-1 · pick <strong>windowed CUSUM</strong> on the W=8 APF mean series (rationale in §07 dispute 1)</li>
+            <li>Δ-2 · family-aware dispatch: phasic uses windowed F1, steady uses spurious-boundary count (reuses <code>plan02_run._classify_workload</code>)</li>
+            <li>Δ-3 · add <strong>C8</strong> operational validator claim · gates analysis-ready once Plan 04 has run</li>
+            <li>Δ-4 · keep <code>detect_boundaries_diff</code> as a backward-compatible fallback behind <code>--detector legacy</code>; Plan 02 v1/v2 paths unchanged</li>
+            <li>Δ-5 · synthetic + real test fixtures (step-function ramp, constant, single-phase, real v3 fault_only cell)</li>
+            <li>Δ-6 · per-workload boundary tolerance: 1 snap for ransom_batched, 2 snaps for ransom_seq and hashtable, 0 for steady (no boundaries expected)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Net effect.</strong> Plan 04 lands as approximately 420 LOC of new code across four new files plus targeted edits in two existing ones. Zero new VM captures. Approximately 20 seconds of sequential compute on the 132-cell v3 bundle. C8 closes the boundary-detection loop: phasic cells get a window-tunable F1; steady cells get a "did the detector hold its peace?" check.
+      </div>
+
+      <div class="callout warn">
+        <strong>Bound surfaced.</strong> Phase markers are only emitted by a subset of workloads (the four ground-truth-rich phasic tests plus <code>mem_pagefault_density_v2:fault_only</code> and <code>app_hashtable_intensive_v2</code>); the remaining workloads cannot compute F1. Plan 04 explicitly documents this and falls back to stationarity-ratio + spurious-count for marker-less phasic workloads, mirroring Plan 03's best-feasible pattern. A true F1 lift for marker-less cells is out of scope (it would require either a new workload-side <code>--phase-markers</code> capability or an unsupervised reference, both beyond Plan 04).
+      </div>
+    </section>
+
+    <!-- 2 · team roles -->
+    <section class="card" id="team">
+      <div class="num">SECTION 02</div>
+      <h2>Team roles · simulated week</h2>
+      <table>
+        <thead><tr><th>agent</th><th>code</th><th>focus during this review</th></tr></thead>
+        <tbody>
+          <tr><td>Project Manager</td><td>PM</td><td>scope control, week-long convergence, vote tally on day 5</td></tr>
+          <tr><td>Senior Architect</td><td>SA</td><td>process model, integration with Plan 03 windows, file boundaries</td></tr>
+          <tr><td>Engineering Skills</td><td>EN</td><td>detector implementation, backward-compat flag, code surface</td></tr>
+          <tr><td>Senior ML Engineer</td><td>ML</td><td>detector choice + hyperparameter justification, phasic/steady dispatch</td></tr>
+          <tr><td>Experiment Designer</td><td>XD</td><td>ground-truth alignment, per-workload boundary tolerance, marker coverage</td></tr>
+          <tr><td>Senior Data Engineer</td><td>DE</td><td>output schema, reuse of <code>plan03_metric_kernel</code> windowing, manifest extension</td></tr>
+          <tr><td>Senior Data Scientist</td><td>DS</td><td>F1 distribution under bimodality, bootstrap CIs, spurious-rate inference</td></tr>
+          <tr><td>Evaluation Engineer</td><td>EE</td><td>C8 claim definition, regression guard vs <code>detect_boundaries_diff</code>, acceptance gates</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3 · baseline -->
+    <section class="card" id="baseline">
+      <div class="num">SECTION 03</div>
+      <h2>Baseline · the design doc as written</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What docs/tuning_plans/04_k_segmentation_tuning_plan.md proposed</span>
+          <p>Sweep the segmenter's segment count <code>k</code> per workload and <code>min_windows_per_segment</code> across <code>{10, 25, 50, 100}</code>, holding the Plan 02 interval and Plan 03 window/hop fixed. Use F1 against phase markers for ground-truth-rich workloads; for the rest, use within-vs-across segment variance ratio (target ≤ 0.5). Estimate ~10 host CPU-hours, zero new captures.</p>
+        </div>
+        <div>
+          <span class="label tech">Concrete spec</span>
+          <ul>
+            <li>Independent variables: <code>k</code> per workload, <code>min_windows_per_segment ∈ {10, 25, 50, 100}</code></li>
+            <li>Dependent variables: F1, per-segment stationarity ratio, segmenter rejection rate</li>
+            <li>Acceptance: F1 ≥ 0.8 on the four marker-rich workloads, rejection rate &lt; 5 %, stationarity ratio ≤ 0.5, forced-<code>k</code>=1 does not split spuriously</li>
+            <li>Implementation surface: <code>offline_step_metrics.py:_MIN_WINDOWS_PER_SEGMENT_DEFAULT</code> made configurable (~20 LOC), per-test metadata schema (~10 LOC), small <code>segmenter_audit.py</code> driver (~150 LOC)</li>
+            <li>Open follow-ups: adaptive <code>k</code> selection, online segmentation</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>What the design doc did NOT account for</h3>
+      <ul>
+        <li><strong>The 1-D streaming APF series has no segmenter to tune.</strong> <code>offline_step_metrics.py</code> was the segmenter for the 2-D dump-matrix path. v2 / v3 use B+3.1 streaming and never write the matrix; consequently the existing segmenter has no input to operate on. Plan 04's actual surface is <code>plan02_metrics_per_cell.detect_boundaries_diff</code>, not the offline segmenter, and the substitution is what unlocks Plan 03's choice of W and H downstream.</li>
+        <li><strong>F1 in v2 was already a window-independent stub.</strong> <code>detect_boundaries_diff</code> takes only the trajectory; it has no W or H argument and produces identical boundaries for every (W, H) combo. Plan 03 §06 names this the "subtlety that mattered" and worked around it by switching the ransom defining metric to cepstral SNR. Plan 04's central job is to replace the stub with a windowed detector so the F1 lever becomes real.</li>
+        <li><strong>The <code>k</code> question is mostly moot at v3.</strong> Of the eleven v3 workloads, eight have ground-truth <code>k = 1</code> (single-segment steady or single-phase phasic). Of the three multi-segment workloads, only <code>sandbox_ransom_batched</code> (<code>k</code> = 5) and <code>app_hashtable_intensive_v2</code> (<code>k</code> = 2) emit phase markers usable for F1; <code>mem_pagefault_density_v2:fault_only</code> emits markers but at <code>k</code> = 2. Sweeping <code>k</code> across <code>{1, 2, 5}</code> is the right shape, not the doc's wider scan.</li>
+        <li><strong><code>min_windows_per_segment ∈ {10, 25, 50, 100}</code> is infeasible at the Plan 03 grid.</strong> At W=8, H=4 on a 60-second cell with iv=500 ms, the cell produces approximately 16 snaps and approximately 3 windows; the smallest level in the doc (10 windows) exceeds the total available. The level set must be re-baselined against Plan 03's <code>n_windows</code>.</li>
+        <li><strong>Backward compatibility is unstated.</strong> The design doc does not address how the new segmenter coexists with the v2/v3 cells whose per-cell JSON already records an <code>f1_phase</code> computed from the stub. Plan 04 must preserve that lookup path so the v2 baseline regression guard from Plan 03 §08 keeps working.</li>
+      </ul>
+    </section>
+
+    <!-- 4 · top-down -->
+    <section class="card" id="topdown">
+      <div class="num">SECTION 04</div>
+      <h2>Top-down analysis · pipeline level</h2>
+
+      <h3>Process model (B+3.1-style ASCII)</h3>
+      <div class="diagram">  v3 bundle (read-only)
+  _v3_combined/v3_full + v3_ext/
+   ├── manifest.csv          (cell_id → workload, iv_ms, dur_s, rep, status)
+   ├── plan03_recommendation.json   (per-workload (W, H) winner)
+   └── cells/work/&lt;cell_id&gt;/
+        ├── apf_trajectory.jsonl    (1-D APF series + sentinel)
+        └── workload_stderr.log     (phase-marker lines, where emitted)
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan04_sweep.py             (NEW driver, ~140 LOC)            │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   for cell in manifest.where(status=='ok', is_warmup==0):     │</span>
+  <span class="hl-acc">│     family = _classify_workload(cell.workload)                │</span>
+  <span class="hl-acc">│     traj   = load_streaming_trajectory(apf_trajectory.jsonl)  │</span>
+  <span class="hl-acc">│     gt     = parse_phase_markers(workload_stderr.log)         │</span>
+  <span class="hl-acc">│     (W, H) = plan03_recommendation.window_hop_for(workload)   │</span>
+  <span class="hl-acc">│     pred   = detect_boundaries_cusum(traj, W, H, k=2.0)       │</span>
+  <span class="hl-acc">│     row    = score_segments(family, traj, pred, gt, W, H)     │</span>
+  <span class="hl-acc">│     write_csv(row)                                            │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan04_change_point.py      (NEW detector, ~110 LOC)          │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   detect_boundaries_cusum(traj_1d, W, H, k=2.0):              │</span>
+  <span class="hl-acc">│     mu_series  = rolling_mean(traj_1d, W, H)   # |windows|    │</span>
+  <span class="hl-acc">│     sd         = mad(mu_series) * 1.4826       # robust scale │</span>
+  <span class="hl-acc">│     S_plus, S_minus = cusum(mu_series, k*sd)                  │</span>
+  <span class="hl-acc">│     window_idx = argpeaks(|S_plus| + |S_minus|,               │</span>
+  <span class="hl-acc">│                            threshold = 5 * sd)                │</span>
+  <span class="hl-acc">│     snap_idx   = window_idx * H + W // 2  # window-centre map │</span>
+  <span class="hl-acc">│     return sorted(set(snap_idx))                              │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan04_dispatch.py          (NEW dispatcher, ~70 LOC)         │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   score_segments(family, traj, pred, gt, W, H):               │</span>
+  <span class="hl-acc">│     if family == "phasic" and gt:                             │</span>
+  <span class="hl-acc">│       tol = boundary_tolerance_for(workload)  # 1 or 2 snaps  │</span>
+  <span class="hl-acc">│       fb  = f1_score(pred, gt, tolerance=tol)                 │</span>
+  <span class="hl-acc">│       return {family, n_pred, n_gt, f1: fb["f1"], ...}        │</span>
+  <span class="hl-acc">│     elif family == "steady":                                  │</span>
+  <span class="hl-acc">│       n_spurious = len(pred)                                  │</span>
+  <span class="hl-acc">│       return {family, n_pred: n_spurious, f1: None, ...}      │</span>
+  <span class="hl-acc">│     else: return {family: "unknown", ...}                     │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  <span class="hl-acc">┌───────────────────────────────────────────────────────────────┐</span>
+  <span class="hl-acc">│ plan04_aggregate.py         (NEW aggregator, ~100 LOC)        │</span>
+  <span class="hl-acc">│                                                               │</span>
+  <span class="hl-acc">│   group by workload → median F1 (phasic) or median spurious  │</span>
+  <span class="hl-acc">│   apply gates G1-G4 → recommend per-workload promotion        │</span>
+  <span class="hl-acc">│   regression-guard against legacy diff stub (Delta-4)         │</span>
+  <span class="hl-acc">└───────────────────────────────────────────────────────────────┘</span>
+            │
+            v
+  plan04_segments.csv            (132 rows = one per v3 cell)
+  plan04_summary.json            (11 entries = one per workload)
+  plan04_recommendation.json     (per-workload verdict + rationale)
+            │
+            v
+  plan02_validate_session.py · NEW C8 claim verifies artifact +
+  per-workload phasic F1 ≥ floor + steady spurious count &lt; ceiling
+</div>
+
+      <h3>Objective alignment</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What we're trying to achieve</span>
+          <p>Make the boundary-detection lever actually move when Plan 03 changes <code>(W, H)</code>; route per-family acceptance so steady workloads are not unfairly judged by a metric (F1) that has no semantics for them; ship a single artifact that downstream consumers can read.</p>
+        </div>
+        <div>
+          <span class="label tech">Does the spec meet it?</span>
+          <p>Yes within the marker-coverage regime. A windowed CUSUM on the W=8 rolling mean is window-sensitive by construction (the input series itself depends on W and H), it has a single tunable knob (<code>k = 2</code>, the standard 2σ rule), and it can be unit-tested on synthetic step functions. The marker-less cells fall back to a spurious-boundary count, which mirrors Plan 03's best-feasible pattern.</p>
+        </div>
+      </div>
+
+      <h3>Scope boundary</h3>
+      <table>
+        <thead><tr><th>Plan 04 IS</th><th>Plan 04 IS NOT</th></tr></thead>
+        <tbody>
+          <tr><td>Offline, read-only sweep over the existing v3 bundle</td><td>New VM captures, new producer code, multi-VM</td></tr>
+          <tr><td>A drop-in replacement for <code>detect_boundaries_diff</code> behind a flag</td><td>A rewrite of <code>plan02_metrics_per_cell.f1_score</code></td></tr>
+          <tr><td>A C8 operational claim addition to the validator</td><td>A change to Plan 03's window or hop choice</td></tr>
+          <tr><td>A single-detector recommendation (CUSUM) with one tuning knob</td><td>A neural or learned change-point detector (deferred to future Plan-N)</td></tr>
+          <tr><td>Workload-family-aware acceptance routing</td><td>An unsupervised change-point benchmark for marker-less workloads</td></tr>
+          <tr><td>A drop-in feed into a thesis chapter on phase detection</td><td>An online / streaming segmenter (the streaming pipeline still emits per-window, not per-segment)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Structural risks</h3>
+      <ul>
+        <li><strong>R1 · marker coverage is thin.</strong> Of the eleven v3 workloads, only five emit phase markers usable as ground truth. The F1 evidence base is therefore approximately 5 × 4 = 20 cells per duration stratum, before further filtering by <code>n_windows</code> floor. Mitigation: report per-workload F1 with bootstrap CIs and an explicit "marker-less" carve-out in the recommendation JSON.</li>
+        <li><strong>R2 · steady acceptance is asymmetric.</strong> A steady workload's score lives on a "lower is better" spurious-count axis with no upper-bound symmetry vs F1. Combining the two in a single C8 verdict requires per-family gates, not a pooled metric. Mitigation: G1 (phasic F1) and G2 (steady spurious) are evaluated independently; C8 PASS requires every applicable workload to clear its own gate.</li>
+        <li><strong>R3 · window-centre alignment.</strong> CUSUM emits boundaries in window index space; the F1 scorer wants snap indices to match the phase-marker emission space. The transform <code>snap_idx = window_idx × H + W // 2</code> introduces a constant W/2 = 4-snap bias for every prediction at W=8. Mitigation: bake the centring into the dispatcher and document it; the per-workload boundary tolerance absorbs the residual.</li>
+        <li><strong>R4 · CUSUM hyperparameter (k).</strong> The threshold <code>k</code> on the cumulative sum is the only tuning knob in the v1 plan. The rule of thumb is 2σ, but on a robust MAD scale the effective level changes. Mitigation: sweep <code>k ∈ {1.5, 2.0, 2.5}</code> in the test harness, keep <code>k = 2.0</code> as the default; allow per-workload override in the recommendation JSON.</li>
+        <li><strong>R5 · cherry-picking on F1.</strong> Plan 03 §11 already flagged this for the analyzer sweep. Plan 04 inherits the same risk for the detector sweep. Mitigation: report median F1 per workload AND P(F1 ≥ 0.67) jointly; do not aggregate across families.</li>
+      </ul>
+    </section>
+
+    <!-- 5 · bottom-up -->
+    <section class="card" id="bottomup">
+      <div class="num">SECTION 05</div>
+      <h2>Bottom-up analysis · file-by-file</h2>
+
+      <h3>File-by-file impact</h3>
+      <table>
+        <thead><tr><th>file</th><th>status</th><th>LOC</th><th>role</th></tr></thead>
+        <tbody>
+          <tr><td><code>plan04_change_point.py</code></td><td><span class="chip next">new</span></td><td>~110</td><td>Pure-function CUSUM detector on the rolling W-mean of a 1-D APF trajectory; returns snap-index boundaries</td></tr>
+          <tr><td><code>plan04_dispatch.py</code></td><td><span class="chip next">new</span></td><td>~70</td><td>Family-aware scorer: phasic → windowed F1 vs markers; steady → spurious-boundary count; unknown → both reported</td></tr>
+          <tr><td><code>plan04_sweep.py</code></td><td><span class="chip next">new</span></td><td>~140</td><td>CLI driver: walk manifest, read Plan 03 recommendation, call detector + dispatcher, stream rows to <code>segments.csv</code></td></tr>
+          <tr><td><code>plan04_aggregate.py</code></td><td><span class="chip next">new</span></td><td>~100</td><td>Group → gates G1-G4 → emit <code>recommendation.json</code> + markdown; legacy regression guard</td></tr>
+          <tr><td><code>plan02_validate_session.py</code></td><td><span class="chip next">+30</span></td><td>+30</td><td>Add C8 claim; mirrors C7 plumbing for the <code>plan04_recommendation.json</code> artifact</td></tr>
+          <tr><td><code>plan02_schema.py</code></td><td><span class="chip next">+6</span></td><td>+6</td><td>RunMeta gains <code>segmenter</code> (default <code>"cusum_v1"</code>, backward compat) and <code>boundary_tolerance</code> (default 1)</td></tr>
+          <tr><td><code>tests/test_plan04_change_point.py</code></td><td><span class="chip next">new</span></td><td>~120</td><td>Unit tests (synthetic step, constant, single-phase, ramp), real v3 fixtures, deterministic-hash reproducibility</td></tr>
+          <tr><td><code>plan02_metrics_per_cell.py</code></td><td><span class="chip done">unchanged</span></td><td>0</td><td><code>detect_boundaries_diff</code> stays as the legacy fallback (Δ-4); <code>f1_score</code> reused as-is</td></tr>
+          <tr><td><code>plan03_metric_kernel.py</code></td><td><span class="chip done">unchanged</span></td><td>0</td><td>Reused for rolling-mean windowing math; <code>compute_n_windows</code> import; no edits</td></tr>
+        </tbody>
+      </table>
+      <p>Total new code: approximately 540 LOC (detector + dispatcher + sweep + aggregator + tests + validator wiring + schema). Zero changes to producer / consumer / VM-side / Rust delta calculator.</p>
+
+      <h3>5.1 · <code>plan04_change_point.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>Pure function. Takes a 1-D APF trajectory plus (W, H) plus an optional CUSUM threshold <code>k</code>; returns a sorted list of snap-index boundaries. No I/O. Easy to unit-test on synthetic ramps and step functions.</p>
+        </div>
+        <div>
+          <span class="label tech">Algorithm spelled out</span>
+          <ul>
+            <li>Compute rolling mean <code>μ_i</code> over each W-wide window with hop H → a series of length <code>n_windows</code></li>
+            <li>Robust scale estimate <code>σ̂ = MAD(μ) × 1.4826</code> (median absolute deviation, scaled to match the normal)</li>
+            <li>Two-sided CUSUM: <code>S_i⁺ = max(0, S_{i-1}⁺ + (μ_i − μ̄) − k σ̂)</code>; <code>S_i⁻</code> the symmetric negative version</li>
+            <li>Peak detection on <code>|S⁺| + |S⁻|</code> with threshold <code>5 σ̂</code>; collapse consecutive peaks within W of one another</li>
+            <li>Map window-index peaks back to snap index via <code>snap_idx = window_idx × H + W // 2</code></li>
+            <li>Single tuning knob: <code>k</code> (default 2.0, the standard 2σ CUSUM rule)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.2 · <code>plan04_dispatch.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>Family-aware scoring. Reuses <code>plan02_run._classify_workload</code> as the source of truth for phasic vs steady (no duplicate logic). For phasic workloads with markers, calls <code>f1_score</code> at a per-workload tolerance. For steady workloads, simply counts predicted boundaries: a steady workload should produce zero.</p>
+        </div>
+        <div>
+          <span class="label tech">Per-workload boundary tolerance (Δ-6)</span>
+          <ul>
+            <li><code>sandbox_ransom_batched</code>: tolerance 1 snap (sharp transitions)</li>
+            <li><code>sandbox_ransom_seq</code>: tolerance 2 snaps (per-file granularity is fuzzier)</li>
+            <li><code>sandbox_ransom_selective</code>: tolerance 1 snap</li>
+            <li><code>app_hashtable_intensive_v2</code>: tolerance 2 snaps (build/probe transition is gradual)</li>
+            <li><code>mem_pagefault_density_v2:fault_only</code>: tolerance 2 snaps (decay tail blurs the boundary)</li>
+            <li>steady workloads: tolerance = 0 (no boundaries expected; count any prediction as spurious)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.3 · <code>plan04_sweep.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>CLI driver. Reads manifest, iterates cells, reads (W, H) from <code>plan03_recommendation.json</code>, calls the detector and dispatcher, streams output to CSV with per-row reproducibility hash. Approximately 140 LOC.</p>
+        </div>
+        <div>
+          <span class="label tech">CLI surface</span>
+          <ul>
+            <li><code>--cells-dir</code> · v3 cells path</li>
+            <li><code>--manifest</code> · manifest.csv path</li>
+            <li><code>--plan03-rec</code> · path to <code>plan03_recommendation.json</code></li>
+            <li><code>--output-csv</code> · per-cell rows</li>
+            <li><code>--output-json</code> · aggregated summary (calls aggregator)</li>
+            <li><code>--detector</code> default <code>cusum</code>; <code>legacy</code> selects <code>detect_boundaries_diff</code> for Δ-4 backward compat</li>
+            <li><code>--cusum-k</code> default 2.0</li>
+            <li><code>--workload-filter</code> regex</li>
+            <li><code>--workers</code> default 1</li>
+            <li><code>--seed</code> default 0 (for any bootstrap inside)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.4 · <code>plan04_aggregate.py</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What it does</span>
+          <p>Reads <code>segments.csv</code>. Groups by workload. Applies gates G1-G4. Picks per-workload verdict (PASS / best-feasible / FAIL). Writes <code>recommendation.json</code> + markdown table. Includes a regression check against the legacy <code>detect_boundaries_diff</code> output stored in the per-cell JSON for marker-rich workloads.</p>
+        </div>
+        <div>
+          <span class="label tech">Decision rule (DS approved)</span>
+          <ul>
+            <li>Phasic workloads with markers: gate G1 fires when median F1 ≥ 0.67 AND per-cell P(F1 ≥ 0.50) ≥ 0.75</li>
+            <li>Phasic workloads without markers: gate G3 fires when n_predicted is plausible (1 ≤ pred ≤ k_expected + 2)</li>
+            <li>Steady workloads: gate G2 fires when median spurious count ≤ 1 AND P(spurious = 0) ≥ 0.5</li>
+            <li>Regression guard (Δ-4): on marker-rich workloads, new median F1 must not fall below legacy F1 minus 0.10; otherwise tag <code>regression_vs_legacy=true</code> and fall back to <code>detect_boundaries_diff</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>5.5 · Output schemas</h3>
+      <h4>plan04_segments.csv columns</h4>
+      <table>
+        <thead><tr><th>column</th><th>type</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td><code>cell_id</code></td><td>str</td><td>v3 cell sha1 prefix</td></tr>
+          <tr><td><code>workload</code></td><td>str</td><td>from manifest</td></tr>
+          <tr><td><code>iv_ms</code> / <code>duration_s</code> / <code>replicate</code></td><td>int</td><td>cell coords</td></tr>
+          <tr><td><code>family</code></td><td>str</td><td>phasic / steady / unknown</td></tr>
+          <tr><td><code>window</code> / <code>hop</code></td><td>int / int</td><td>from Plan 03 recommendation</td></tr>
+          <tr><td><code>n_pairs</code> / <code>n_windows</code></td><td>int / int</td><td>trajectory length and windows actually used</td></tr>
+          <tr><td><code>detector</code></td><td>str</td><td><code>cusum_v1</code> / <code>legacy_diff</code></td></tr>
+          <tr><td><code>cusum_k</code></td><td>float</td><td>threshold used; null when detector=legacy</td></tr>
+          <tr><td><code>n_predicted</code></td><td>int</td><td>boundaries returned</td></tr>
+          <tr><td><code>n_truth</code></td><td>int / null</td><td>phase-marker count; null when markers absent</td></tr>
+          <tr><td><code>boundary_tolerance</code></td><td>int</td><td>per-workload, snap-index units</td></tr>
+          <tr><td><code>f1</code> / <code>precision</code> / <code>recall</code></td><td>float / null</td><td>phasic with markers; null otherwise</td></tr>
+          <tr><td><code>n_spurious</code></td><td>int / null</td><td>steady metric; equal to n_predicted</td></tr>
+          <tr><td><code>legacy_f1</code></td><td>float / null</td><td>regression-guard reference</td></tr>
+          <tr><td><code>traj_sha256</code></td><td>str</td><td>first 16 hex; reproducibility key</td></tr>
+          <tr><td><code>status</code></td><td>str</td><td>ok / skip:short / skip:no_markers / error:&lt;msg&gt;</td></tr>
+        </tbody>
+      </table>
+
+      <h4>plan04_recommendation.json schema</h4>
+      <div class="diagram">{
+  "schema": "plan04.segmenter_recommendations.v1",
+  "source": "plan04_aggregate.py:&lt;git_sha&gt;",
+  "captured_at": "&lt;iso8601&gt;",
+  "host": "pcrserral",
+  "summary_sha256": "...",
+  "detector": "cusum_v1",
+  "detector_hyperparams": { "k": 2.0 },
+  "input": {
+    "plan03_recommendation_sha256": "...",
+    "manifest_sha256": "..."
+  },
+  "recommendations": [
+    {
+      "workload": "sandbox_ransom_batched",
+      "family": "phasic",
+      "marker_coverage": "rich",
+      "boundary_tolerance": 1,
+      "n_cells": 12,
+      "metric": {"name": "f1", "median": ?, "P_ge_0_67": ?},
+      "legacy_metric": {"name": "f1", "median": ?},
+      "delta_vs_legacy": ?,
+      "regression_vs_legacy": false,
+      "passes_acceptance": ?,
+      "rationale": "median F1 above floor; no regression vs legacy"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "family": "steady",
+      "marker_coverage": "n/a",
+      "boundary_tolerance": 0,
+      "n_cells": 12,
+      "metric": {"name": "n_spurious", "median": ?, "P_eq_0": ?},
+      "passes_acceptance": ?,
+      "rationale": "median spurious count at or below ceiling"
+    }
+  ],
+  "joint_winner_detector": "cusum_v1",
+  "caveats": [
+    "marker-rich workloads carry the F1 evidence; six v3 workloads contribute only spurious-count evidence",
+    "CUSUM threshold k=2.0 is the standard 2σ rule; per-workload overrides supported but not used in v1"
+  ],
+  "next_steps": [
+    "thesis chapter on phase detection consumes per-workload F1 + spurious counts",
+    "future Plan-N may add learned detectors once a marker-augmentation source is available"
+  ]
+}</div>
+    </section>
+
+    <!-- 6 · week-long audit -->
+    <section class="card" id="week">
+      <div class="num">SECTION 06</div>
+      <h2>Week-long team audit · daily meetings</h2>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 1</span>
+          <span class="day-title">Read the design doc + the Plan 03 outputs</span>
+          <span class="day-meta">SA · ML · DE</span>
+        </div>
+        <ul>
+          <li>SA opens: "The design doc names <code>offline_step_metrics</code> as the surface, but v3 uses streaming and never writes the 2-D dump matrix. Our actual surface is <code>detect_boundaries_diff</code>."</li>
+          <li>ML pulls Plan 03 §06 dispute notes. Confirms the F1 stub is window-independent, which is exactly the limitation Plan 04 is supposed to remove.</li>
+          <li>DE reads <code>plan03_recommendation.json</code>: <code>W = 8</code>, <code>H = 4</code> for every v3 workload after D-83. "Good news, Plan 04 doesn't have to dispatch on (W, H); it dispatches on workload family."</li>
+          <li>Decision: replace <code>detect_boundaries_diff</code> behind a flag; do not touch the 2-D segmenter path.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 2</span>
+          <span class="day-title">Detector shortlist + pick</span>
+          <span class="day-meta">ML · DS · EN</span>
+        </div>
+        <ul>
+          <li>ML lists candidates: CUSUM, BOCPD (Bayesian online change-point detection), PELT (pruned exact linear time), median + MAD on rolling derivative, a small CNN or LSTM.</li>
+          <li>DS asks the budget question: "How many cells do we have for hyperparameter selection?" ML: "20 marker-rich cells per duration stratum, at best." DS: "Then anything with more than one knob is over-parameterised for our data. BOCPD has a hazard rate that needs a prior. PELT has a penalty term and a cost model. CNN needs a training set we don't have. Pick CUSUM with the 2σ rule."</li>
+          <li>EN: "CUSUM is approximately 30 lines. Median + MAD scale plus two cumulative sums. Default <code>k = 2.0</code>, no learned parameters. We can unit-test on synthetic step functions."</li>
+          <li>Decision: <strong>windowed CUSUM</strong> on the rolling W-mean of the APF series. <code>k = 2.0</code> default; per-workload override allowed but unused in v1.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 3</span>
+          <span class="day-title">Family-aware dispatch + boundary tolerance</span>
+          <span class="day-meta">XD · ML · EE</span>
+        </div>
+        <ul>
+          <li>XD: "Steady workloads have no boundaries. Running F1 on them is meaningless. We need a per-family score."</li>
+          <li>EE proposes the split: phasic with markers → F1; steady → spurious-boundary count (lower is better, target 0); phasic without markers → fall back to predicted-count plausibility (1 ≤ pred ≤ k_expected + 2).</li>
+          <li>XD adds per-workload tolerance: <code>ransom_batched</code> 1 snap; <code>ransom_seq</code> and <code>hashtable</code> 2 snaps; steady 0 snaps. Rationale: at iv=500 ms, 1 snap is 500 ms of guest time, which is a reasonable epsilon for sharp transitions.</li>
+          <li>ML: "Reuse <code>plan02_run._classify_workload</code> as the dispatch function. Same source of truth as the analyzer."</li>
+          <li>Decision: gates G1-G4 finalised (see §08).</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 4</span>
+          <span class="day-title">Backward compat + legacy regression guard</span>
+          <span class="day-meta">EN · EE · DE</span>
+        </div>
+        <ul>
+          <li>EN raises Δ-4: "Existing per-cell JSON records an <code>f1_phase</code> from the diff stub. Plan 03's v2 regression guard relies on that field. We can't break it."</li>
+          <li>EE proposes: keep <code>detect_boundaries_diff</code> in <code>plan02_metrics_per_cell.py</code> verbatim; expose the new detector behind <code>--detector cusum</code>; the legacy path is selectable via <code>--detector legacy</code>; the per-cell JSON's <code>f1_phase</code> continues to use the diff stub until the operator opts in.</li>
+          <li>DE: "And the regression guard in the aggregator reads the legacy F1 from the same per-cell JSON for the marker-rich workloads. If new median F1 falls more than 0.10 below the legacy median, we tag <code>regression_vs_legacy=true</code> and fall back."</li>
+          <li>Decision: Δ-4 backward-compat flag + Δ-4 regression guard both adopted.</li>
+        </ul>
+      </div>
+
+      <div class="day">
+        <div class="day-head">
+          <span class="day-tag">Day 5</span>
+          <span class="day-title">C8 validator wiring + synthetic fixtures + vote</span>
+          <span class="day-meta">EE · SA · PM</span>
+        </div>
+        <ul>
+          <li>EE proposes C8 operational claim: "<code>plan04_recommendation.json</code> exists, schema-valid, every applicable workload's <code>passes_acceptance</code> is true under the per-family gates."</li>
+          <li>SA: "Mirror C7's plumbing exactly. ~30 LOC. C8 is NA when the recommendation artifact is absent; cells from sessions pre-Plan-04 still pass."</li>
+          <li>EN brings the synthetic test fixture list: (a) step function 0 → 1 → 0; (b) constant series (zero boundaries); (c) single phase ramp (zero or one boundary); (d) real v3 <code>mem_pagefault_density_v2:fault_only</code> cell (known one boundary); (e) real v3 <code>sandbox_ransom_batched</code> cell (known five boundaries).</li>
+          <li>EE: "Compute is small; no sub-pilot needed. Full sweep on 132 cells is approximately 20 seconds sequential."</li>
+          <li>PM calls vote: 8 / 8 GO. Ship.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7 · disputes -->
+    <section class="card" id="disputes">
+      <div class="num">SECTION 07</div>
+      <h2>Key disputes + decisions</h2>
+
+      <h3>Dispute 1 · Which change-point detector</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>ML opened with five candidates: CUSUM, BOCPD, PELT, median + MAD on the rolling derivative, and a small CNN. SA and DS argued the budget question: with approximately 20 marker-rich cells per duration stratum, any detector with more than one knob is over-parameterised. EN seconded on implementation cost: BOCPD requires a hazard prior, PELT a penalty term and a cost-model selection, the CNN a training set we do not have.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Windowed CUSUM. One knob (<code>k</code>, default 2.0 from the standard 2σ rule). Implementation is approximately 30 LOC over the existing <code>plan03_metric_kernel</code> windowing math. The robust-scale variant uses MAD × 1.4826 rather than the sample standard deviation, which handles the bimodal APF distribution without re-tuning. Per-workload override of <code>k</code> remains supported in the recommendation JSON for future use but is not exercised in v1.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 2 · Family-aware vs unified score</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>EE wanted a single per-cell metric so the aggregator can pool across all 132 cells. DS pointed out that steady workloads produce zero ground-truth boundaries, so F1 is undefined (TP, FP, FN all touch zero denominators). XD proposed the split: phasic → F1, steady → spurious count.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Family-aware dispatch via <code>plan02_run._classify_workload</code>. Phasic with markers uses windowed F1 against the parsed <code>workload_stderr.log</code> markers; phasic without markers falls back to predicted-count plausibility; steady uses spurious-count (lower is better). C8 PASS requires every applicable workload to clear its own family-specific gate. No pooled score is reported, on principle.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 3 · Per-workload boundary tolerance</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>XD argued that ransom_batched transitions are sharp (binary on / off encryption) while ransom_seq transitions are fuzzy (per-file granularity bleeds across snaps) and hashtable transitions are gradual (build / probe shift over multiple seconds). A single global tolerance would either be too tight for the gradual workloads or too loose for the sharp ones.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Per-workload tolerance baked into <code>plan04_dispatch.py</code>: ransom_batched and ransom_selective at 1 snap; ransom_seq, hashtable, and fault_only at 2 snaps; steady at 0 snaps (no boundaries permitted). At iv=500 ms, 1 snap is 500 ms of guest time, which is a reasonable epsilon for the sharp workloads.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 4 · Backward compatibility of <code>detect_boundaries_diff</code></h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>EN wanted to delete the stub and replace it with the CUSUM detector wholesale, on the grounds that two boundary detectors in the codebase invite drift. EE pushed back: the existing per-cell JSON records an <code>f1_phase</code> field computed from the stub, and Plan 03's v2 regression guard reads it; deleting the stub would silently break that lookup.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Keep the stub verbatim. Add the CUSUM detector under a new module. Select between them via <code>--detector cusum|legacy</code> on the sweep CLI, with <code>cusum</code> as default. The per-cell JSON's <code>f1_phase</code> field continues to record the legacy F1 from the stub; the new Plan 04 recommendation file records the CUSUM F1 separately. Plan 03's regression guard keeps working.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 5 · Regression guard against legacy stub</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>EE proposed a regression guard: if the new CUSUM F1 falls more than 0.10 below the legacy stub F1 on a marker-rich workload, tag <code>regression_vs_legacy=true</code> and refuse to promote. DS pointed out that the stub's bimodal F1 distribution (mass at 0 and 1) means the median can swing 0.20 from a single-cell flip, so the threshold needs to be loose.</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Threshold of 0.10 on the median, evaluated per workload (not pooled). When the guard fires, the aggregator emits <code>regression_vs_legacy=true</code> AND <code>passes_acceptance=false</code> AND falls back to the legacy stub in the recommendation for that workload. C8 then fails for that workload, surfacing the regression to the operator for sign-off.</p>
+        </div>
+      </div>
+
+      <h3>Dispute 6 · Test fixtures · synthetic vs real</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">The fight</span>
+          <p>EN wanted synthetic-only tests (cheap, fast, deterministic). DS argued that synthetic step functions do not exercise the bimodal APF noise floor. XD wanted real v3 fixtures committed to the repo (a small subset).</p>
+        </div>
+        <div>
+          <span class="label tech">The resolution</span>
+          <p>Both. Synthetic fixtures: (a) step 0 → 1 → 0, (b) constant, (c) ramp, (d) noisy step. Real fixtures: a 6-cell subset (~30 KiB) covering ransom_batched, ransom_seq, fault_only, hashtable, workingset, scanner_metadata. The synthetic set proves correctness; the real set proves robustness to the actual APF noise. Both run in CI.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · improved plan -->
+    <section class="card" id="improved">
+      <div class="num">SECTION 08</div>
+      <h2>Improved Plan 04 specification</h2>
+
+      <h3>Sweep matrix (final)</h3>
+      <table>
+        <thead><tr><th>variable</th><th>levels</th><th>count</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td>detector</td><td>{cusum_v1}</td><td>1</td><td>legacy_diff available as fallback under <code>--detector legacy</code></td></tr>
+          <tr><td>cusum k (threshold)</td><td>{2.0}</td><td>1</td><td>2σ rule; sweep {1.5, 2.0, 2.5} reserved for the test harness</td></tr>
+          <tr><td>(W, H)</td><td>{(8, 4)}</td><td>1</td><td>universal Plan 03 winner across all eleven v3 workloads</td></tr>
+          <tr><td>workload</td><td>11 v3 workloads (5 phasic, 6 steady)</td><td>11</td><td>5 phasic emit markers; 6 steady do not</td></tr>
+          <tr><td>cells</td><td>all v3 cells with status=ok, is_warmup=False</td><td>132</td><td>66 from v3_full + 66 from v3_ext</td></tr>
+        </tbody>
+      </table>
+      <p>Total evaluations: 1 detector × 1 (W, H) × 132 cells = 132 rows in <code>plan04_segments.csv</code>. Compute approximately 20 seconds sequential at approximately 150 ms per kernel call (CUSUM is O(T) and T ≤ 600).</p>
+
+      <h3>Acceptance gates (G1-G4)</h3>
+      <table>
+        <thead><tr><th>gate</th><th>threshold</th><th>justification</th></tr></thead>
+        <tbody>
+          <tr><td><strong>G1 · phasic F1 (marker-rich)</strong></td><td>median F1 ≥ 0.67 AND per-cell P(F1 ≥ 0.50) ≥ 0.75</td><td>median F1 grounded against the Plan 03 §13 v2 baseline of 0.67; per-cell floor catches catastrophic single-cell failure</td></tr>
+          <tr><td><strong>G2 · steady spurious count</strong></td><td>median <code>n_spurious</code> ≤ 1 AND P(<code>n_spurious</code> = 0) ≥ 0.5</td><td>steady should produce zero boundaries; allow at most 1 spurious half the time</td></tr>
+          <tr><td><strong>G3 · phasic plausibility (marker-less)</strong></td><td>1 ≤ <code>n_predicted</code> ≤ <code>k_expected + 2</code> for ≥ 0.80 of cells</td><td>marker-less phasic cannot use F1; require predicted count to land in a plausible interval per the design doc's <code>k</code> table</td></tr>
+          <tr><td><strong>G4 · legacy regression guard</strong></td><td>new median F1 ≥ legacy median F1 − 0.10 per marker-rich workload</td><td>Δ-4 commitment: do not silently degrade the existing per-cell F1 path; threshold loose enough to absorb bimodal-median jitter</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Decision rule</h3>
+      <div class="diagram">def pick_verdict(seg_df, workload, family, marker_coverage):
+    cells = seg_df.filter(workload=workload)
+    if family == "phasic" and marker_coverage == "rich":
+        median_f1 = cells.f1.median()
+        p_ge_050 = (cells.f1 &gt;= 0.50).mean()
+        if median_f1 &gt;= 0.67 and p_ge_050 &gt;= 0.75:
+            # G4 regression guard
+            legacy_med = cells.legacy_f1.median()
+            if median_f1 &gt;= legacy_med - 0.10:
+                return PASS
+            return BEST_FEASIBLE(regression_vs_legacy=True)
+        return FAIL
+    elif family == "phasic" and marker_coverage == "none":
+        plausible = ((cells.n_predicted &gt;= 1) &amp;
+                     (cells.n_predicted &lt;= cells.k_expected + 2)).mean()
+        return PASS if plausible &gt;= 0.80 else BEST_FEASIBLE
+    elif family == "steady":
+        med_spur = cells.n_spurious.median()
+        p_eq_0 = (cells.n_spurious == 0).mean()
+        if med_spur &lt;= 1 and p_eq_0 &gt;= 0.5:
+            return PASS
+        return FAIL</div>
+
+      <h3>Output artifacts</h3>
+      <dl class="kv">
+        <dt><code>plan04_segments.csv</code></dt> <dd>132 rows · per-cell detector output + family verdict + reproducibility hash</dd>
+        <dt><code>plan04_summary.json</code></dt> <dd>11 entries · per-workload aggregate (median, P(F1 ≥ 0.67), P(spurious = 0), legacy median)</dd>
+        <dt><code>plan04_recommendation.json</code></dt> <dd>final per-workload PASS / best-feasible / FAIL verdict + rationale + caveats + sha256 chain to summary</dd>
+        <dt><code>plan04_recommendation.md</code></dt> <dd>human-readable verdict table for the thesis chapter on phase detection</dd>
+      </dl>
+    </section>
+
+    <!-- 9 · validation -->
+    <section class="card" id="validation">
+      <div class="num">SECTION 09</div>
+      <h2>Validation strategy</h2>
+
+      <h3>New C8 operational claim</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">Claim text</span>
+          <p>"A <code>plan04_recommendation.json</code> exists in the session output directory, validates against the v1 schema, and every applicable workload's <code>passes_acceptance</code> is true under the per-family gates G1-G4. The segmenter produced at least one boundary for phasic workloads, or fewer than two spurious boundaries for steady workloads."</p>
+        </div>
+        <div>
+          <span class="label tech">Validator wiring</span>
+          <ul>
+            <li>Add <code>_evaluate_plan04_recommendation</code> in <code>plan02_validate_session.py</code> (~30 LOC)</li>
+            <li>Operational: True (gates analysis_ready in the C7-style chain)</li>
+            <li>NA when recommendation file absent (sessions pre-Plan-04 still pass) — same pattern as C6 NA and C7 NA</li>
+            <li>Cite per-workload G1-G4 results in <code>claims["C8_segments_recommended"]["why"]</code></li>
+            <li>Distinguish <code>passes_acceptance=false</code> (operational fail) from <code>regression_vs_legacy=true</code> (warning surfaced for operator sign-off)</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Plan 04 PASS condition (session-level)</h3>
+      <p>Every applicable workload PASSES its family-specific gate, with the regression guard not firing on any marker-rich workload. Marker-less phasic workloads contribute via G3 plausibility, not F1. Steady workloads contribute via G2 spurious count. C8 fails session-level if any applicable workload reports <code>passes_acceptance=false</code>, with the offending workload(s) named in <code>why</code>.</p>
+
+      <h3>Sub-pilot vs full sweep</h3>
+      <p>Full sweep. Compute approximately 20 seconds sequential on the 132-cell v3 bundle (132 evaluations × approximately 150 ms per CUSUM + dispatcher call on trajectories up to 600 floats). A 6-cell pilot only de-risks script bugs; cheaper to ship a <code>--workload-filter ransom_batched --max-cells 6 --dry-run</code> mode for CI and run the full sweep in one shot.</p>
+
+      <h3>Reproducibility (CI hook)</h3>
+      <div class="diagram"># tests/test_plan04_reproducibility.py (~60 LOC)
+def test_sweep_is_deterministic_on_v3_subset():
+    fixture = "tests/fixtures/plan04_repro_v3_subset/"  # 6 cells, ~30 KiB
+    out1 = run_sweep(fixture, seed=0, detector="cusum", k=2.0)
+    out2 = run_sweep(fixture, seed=0, detector="cusum", k=2.0)
+    assert sha256(out1.recommendation) == sha256(out2.recommendation)
+    assert sha256(out1.summary) == sha256(out2.summary)
+    assert sha256(out1.segments_csv) == sha256(out2.segments_csv)
+
+def test_legacy_fallback_matches_detect_boundaries_diff():
+    # detector="legacy" must produce identical boundaries to
+    # plan02_metrics_per_cell.detect_boundaries_diff for every cell
+    ...
+
+def test_window_centre_alignment():
+    # synthetic step at snap 30, window=8, hop=4 must report
+    # snap 28 or 32 (within ±W/2), not window-index 7
+    ...</div>
+
+      <h3>Synthetic + real test fixtures (Δ-5)</h3>
+      <table>
+        <thead><tr><th>fixture</th><th>type</th><th>expected output</th></tr></thead>
+        <tbody>
+          <tr><td>step 0 → 1 → 0 at snap 20 and 40</td><td>synthetic</td><td>boundaries at 20 ± 1 and 40 ± 1</td></tr>
+          <tr><td>constant series at 0.5</td><td>synthetic</td><td>zero boundaries</td></tr>
+          <tr><td>linear ramp 0 → 1 over 60 snaps</td><td>synthetic</td><td>zero boundaries (no abrupt change)</td></tr>
+          <tr><td>noisy step (snr ≈ 3 dB)</td><td>synthetic</td><td>one boundary at the true location ± 1</td></tr>
+          <tr><td>v3 fault_only · iv=500 · d=120</td><td>real</td><td>one boundary near the decay snap</td></tr>
+          <tr><td>v3 ransom_batched · iv=500 · d=180</td><td>real</td><td>five boundaries within tolerance 1</td></tr>
+          <tr><td>v3 ransom_seq · iv=500 · d=300</td><td>real</td><td>one run-level boundary or zero (per-file phases are sub-segment)</td></tr>
+          <tr><td>v3 workingset_sweep_v2 · iv=250 · d=120</td><td>real</td><td>zero spurious boundaries</td></tr>
+          <tr><td>v3 hashtable_intensive_v2 · iv=500 · d=120</td><td>real</td><td>two boundaries (build → probe) within tolerance 2</td></tr>
+          <tr><td>v3 scanner_metadata · iv=500 · d=120</td><td>real</td><td>zero or one boundary (single-phase phasic)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Failure-mode handling</h3>
+      <table>
+        <thead><tr><th>failure</th><th>sweep behavior</th><th>C8 behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Marker-rich workload median F1 below 0.67</td><td>row with <code>passes_acceptance=false</code></td><td>FAIL with why="median F1 0.&lt;x&gt; below floor for &lt;workload&gt;"</td></tr>
+          <tr><td>Steady workload median spurious count above 1</td><td>row with <code>passes_acceptance=false</code></td><td>FAIL with why="median spurious &lt;n&gt; above ceiling for &lt;workload&gt;"</td></tr>
+          <tr><td>Cell trajectory shorter than W</td><td>row with <code>status=skip:short</code>, excluded from aggregate</td><td>aggregate cites skip count if &gt; 5 % cells</td></tr>
+          <tr><td>Phase markers parse error</td><td>row with <code>status=skip:no_markers</code>, dispatched to plausibility branch</td><td>aggregate cites no_markers count per workload</td></tr>
+          <tr><td>Legacy regression guard fires (Δ-4, G4)</td><td>workload tagged <code>regression_vs_legacy=true</code>; recommendation falls back to <code>detect_boundaries_diff</code></td><td>FAIL with why="regression vs legacy for &lt;workload&gt; (delta &lt;x&gt;)"</td></tr>
+          <tr><td>Recommendation artifact missing or malformed</td><td>n/a</td><td>FAIL with why="recommendation artifact missing or schema mismatch"</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 10 · statistical design -->
+    <section class="card" id="stats">
+      <div class="num">SECTION 10</div>
+      <h2>Statistical design</h2>
+
+      <h3>Test framework</h3>
+      <ul>
+        <li><strong>Within-workload comparison of new vs legacy F1:</strong> Wilcoxon signed-rank, paired per cell. Non-parametric because F1 is bounded [0, 1] with mass at exactly 0 and 1; the stub and CUSUM both inherit the bimodal shape.</li>
+        <li><strong>Steady spurious-count comparison:</strong> Mann-Whitney U on the n_spurious vector vs the expected-zero null; one-sided (lower is better).</li>
+        <li><strong>Bootstrap CIs:</strong> BCa at 10 000 iterations, stratified resample within (iv, d) blocks. Reported as the headline metric in <code>recommendation.md</code>.</li>
+        <li><strong>Per-workload only.</strong> No pooling across families: F1 and spurious-count are not commensurable.</li>
+      </ul>
+
+      <h3>Sample size + power · honest accounting</h3>
+      <div class="callout warn">
+        <strong>Power is limited.</strong> v3 effective n per (workload, duration) after replicate consolidation: 4 cells. Pooled across durations: 12 cells per workload. Against an effect size of Cohen's d ≈ 0.40 (F1 delta of approximately 0.15), Wilcoxon power at α = 0.05 is approximately 31 % (per workload). Claims about CUSUM improving on the diff stub must therefore be stated as effect-size estimates with confidence intervals, not as significance tests; the recommendation's <code>delta_vs_legacy</code> field is the ranking statistic, with the BCa CI reported alongside.
+      </div>
+
+      <h3>Multiple-comparisons handling</h3>
+      <p>Holm-Bonferroni FWER control per workload, not pooled. Five marker-rich workloads with one comparison each (new vs legacy F1) = 5 tests; correction floor at <code>α / 5 = 0.01</code>. Steady workloads contribute six one-sided spurious-count tests against the null of zero; correction floor at <code>α / 6 ≈ 0.0083</code>. The C8 decision propagates downstream (false positives have physical cost in the thesis chapter), so FWER is the right control, not FDR.</p>
+
+      <h3>Replicate non-independence</h3>
+      <p>Four replicates per (workload, duration) share VM state and host time-of-day, the same constraint Plan 03 §10 documented. Mitigation: paired tests within (workload, duration) before aggregating; report per-cell F1 distributions, not pooled means; cell-level breakdowns kept in <code>segments.csv</code> for downstream audit.</p>
+
+      <h3>Bimodality-aware reporting</h3>
+      <p>F1 is bimodal in the v3 data: cells either match all markers (F1 = 1.0) or miss most (F1 ≤ 0.5). The mean is therefore misleading. Plan 04 reports the median AND P(F1 ≥ 0.67) AND the histogram (binned 0, [0, 0.25), [0.25, 0.50), [0.50, 0.75), [0.75, 1.0), 1.0) in the recommendation markdown.</p>
+
+      <h3>Bootstrap report format</h3>
+      <div class="diagram">Workload: sandbox_ransom_batched
+Detector: cusum_v1 (k=2.0)  vs  legacy: detect_boundaries_diff
+  n cells = 12
+  CUSUM:  median F1 = ?    [BCa 95 % CI: ?, ?]    P(F1 ≥ 0.67) = ?
+  Legacy: median F1 = ?    [BCa 95 % CI: ?, ?]    P(F1 ≥ 0.67) = ?
+  Delta:  ?                [BCa 95 % CI: ?, ?]
+  Wilcoxon signed-rank: W = ?, p = ? (Holm-corrected p = ?)
+Bootstrap: 10 000 iterations, BCa, stratified by (iv, d)</div>
+    </section>
+
+    <!-- 11 · risks -->
+    <section class="card" id="risks">
+      <div class="num">SECTION 11</div>
+      <h2>Risks + mitigations</h2>
+
+      <table>
+        <thead><tr><th>risk</th><th>severity</th><th>mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>Marker coverage is thin (5 / 11 workloads emit usable phase markers)</td><td><span class="chip blocked">high</span></td><td>per-workload reporting; G3 plausibility branch for marker-less phasic; explicit caveat in recommendation JSON</td></tr>
+          <tr><td>CUSUM produces window-index boundaries; F1 scorer wants snap indices</td><td><span class="chip next">medium</span></td><td>centring transform <code>snap_idx = window_idx × H + W // 2</code> in the detector; per-workload tolerance absorbs residual W/2 = 4-snap bias</td></tr>
+          <tr><td>Bimodal F1 distribution makes the mean misleading</td><td><span class="chip next">medium</span></td><td>report median + P(F1 ≥ 0.67) + histogram; BCa CIs not normal-approximation CIs</td></tr>
+          <tr><td>Legacy regression (Δ-4): CUSUM degrades a workload's F1 below the diff stub</td><td><span class="chip blocked">high</span></td><td>G4 regression guard; fall back to <code>detect_boundaries_diff</code> per workload when triggered; C8 fails to surface the regression</td></tr>
+          <tr><td>CUSUM <code>k</code> mis-calibrated</td><td><span class="chip next">medium</span></td><td>sweep <code>k ∈ {1.5, 2.0, 2.5}</code> in the test harness; default <code>k = 2.0</code> from the standard 2σ rule; per-workload override supported in the recommendation JSON</td></tr>
+          <tr><td>Window-blind boundaries on short trajectories (n_pairs &lt; W)</td><td><span class="chip next">medium</span></td><td>kernel returns <code>skip:short</code>; aggregator cites skip count when &gt; 5 % of cells for a workload</td></tr>
+          <tr><td>Cherry-picking on F1 across (W, H) sweeps</td><td><span class="chip done">low</span></td><td>not a concern at v3: Plan 03 fixed (W, H) = (8, 4) universally; only one combo per cell</td></tr>
+          <tr><td>Spurious-count for steady is one-sided; no symmetric error type</td><td><span class="chip done">low</span></td><td>documented; G2 PASS requires median ≤ 1 AND P(0) ≥ 0.5; no claim is made about the "missed boundary" rate (vacuous for steady)</td></tr>
+          <tr><td>Pipeline bugs in sweep driver</td><td><span class="chip done">low</span></td><td>synthetic + real fixtures + dry-run mode + CI reproducibility test</td></tr>
+          <tr><td>Future detector drift (BOCPD / PELT added later)</td><td><span class="chip done">low</span></td><td><code>detector</code> field in the schema; recommendation JSON schema-versioned at v1; downstream consumers MUST tolerate new detector strings</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 · PM final -->
+    <section class="card" id="pm">
+      <div class="num">SECTION 12</div>
+      <h2>PM final recommendation</h2>
+
+      <dl class="kv">
+        <dt>verdict</dt> <dd><span class="chip done">go · Plan 04 v1 frozen</span></dd>
+        <dt>scope</dt> <dd>~540 LOC across 7 files · 0 new deps · 0 new captures · backward compatible behind <code>--detector</code> flag</dd>
+        <dt>schedule</dt> <dd>1.5 dev-days to implement · 0.5 dev-day to test · 20 s to run full sweep · 1 h to write recommendation.md</dd>
+        <dt>detector</dt> <dd>windowed CUSUM on the W=8 H=4 APF rolling mean · k = 2.0 (2σ rule) · single tuning knob · per-workload tolerance</dd>
+        <dt>blocker</dt> <dd>operator says "go Plan 04 v1"</dd>
+        <dt>fallback</dt> <dd>if G4 regression guard fires on more than one marker-rich workload, fall back to <code>detect_boundaries_diff</code> for those workloads and document Plan 04 as "CUSUM explored, partial promotion"</dd>
+      </dl>
+
+      <h3>Per-agent vote</h3>
+      <div class="agent">
+        <div class="agent-id">SA</div>
+        <div class="agent-take">Process model is clean. Detector + dispatcher live in pure-function modules; sweep + aggregate own the I/O. Reuses <code>_classify_workload</code> as the dispatch source of truth. Zero impact on producer / consumer / Rust binary. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EN</div>
+        <div class="agent-take">CUSUM is approximately 30 LOC; the backward-compat <code>--detector legacy</code> flag is 5 LOC. Synthetic + real fixtures keep CI honest. Window-centre alignment is documented and tested. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">ML</div>
+        <div class="agent-take">Single-knob CUSUM is the right detector for our sample budget; BOCPD and PELT and learned detectors are over-parameterised against approximately 20 marker-rich cells per duration stratum. Robust MAD scale handles the bimodal APF distribution without re-tuning. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">XD</div>
+        <div class="agent-take">Per-workload boundary tolerance and per-family scoring fix the apples-to-oranges problem that the v2 stub had. Marker coverage is thin but documented; the G3 plausibility branch absorbs the marker-less cases. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DE</div>
+        <div class="agent-take">Schema versioned. Reproducibility hash chains segments.csv → summary.json → recommendation.json. Reuses Plan 03 windowing math without re-implementing it. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">DS</div>
+        <div class="agent-take">Wilcoxon paired + BCa bootstrap + Holm-Bonferroni FWER + bimodality-aware median + P(F1 ≥ 0.67) reporting are the right tools. n = 12 per workload limits absolute claims; effect-size estimates with CIs are honest. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">EE</div>
+        <div class="agent-take">C8 operational claim closes the boundary-detection loop. The G4 regression guard prevents silent degradation vs the legacy stub. Backward-compat flag means rollback is one CLI argument. Adopted.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+      <div class="agent">
+        <div class="agent-id">PM</div>
+        <div class="agent-take">8 / 8 go. Ship after explicit operator approval. Plan 04 v1 frozen.</div>
+        <div class="agent-vote go">go</div>
+      </div>
+
+      <div class="callout good" style="margin-top: 20px;">
+        <strong>Final recommendation.</strong> Ship Plan 04 v1 with the six deltas (windowed CUSUM detector; family-aware dispatch; C8 validator claim; backward-compat <code>--detector</code> flag; synthetic + real test fixtures; per-workload boundary tolerance). Zero new captures. Approximately 20 seconds end-to-end after merge. The output is a per-workload PASS / best-feasible / FAIL verdict that unblocks the thesis chapter on phase detection and closes the F1 lever that Plan 03 §06 identified as the "subtlety that mattered".
+      </div>
+
+      <div class="callout info">
+        <strong>What this does NOT unblock.</strong> Plan 04 does not enrich the marker ground truth for the six v3 workloads that lack <code>--phase-markers</code>. For those workloads, F1 remains uncomputable and acceptance falls back to spurious-count (steady) or predicted-count plausibility (marker-less phasic). Lifting that limitation is a workload-side change (a new <code>--phase-markers</code> implementation per binary), not a Plan 04 analyzer change. Adaptive <code>k</code> selection from the cepstral trajectory and online streaming segmentation, both listed as open follow-ups in the design doc, remain out of scope and are appropriate Plan-N research directions.</div>
+
+      <div class="callout info">
+        <strong>Dependencies surfaced.</strong> Plan 04 reads <code>plan03_recommendation.json</code> for the (W, H) per workload; if that file is absent or its schema differs from <code>plan03.window_hop_recommendations.v1</code>, the sweep refuses to run with a clear error. Plan 04 reads <code>workload_stderr.log</code> for phase markers; the marker emission contract (one line per boundary, with a snap-index field) must remain stable. Both contracts are unit-tested.
+      </div>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan03_window_hop_proposal.html">
+        <span class="label">previous proposal</span>
+        <span class="title">Plan 03 · window / hop · shipped</span>
+      </a>
+      <a href="plan03_overview.html">
+        <span class="label">background</span>
+        <span class="title">Plan 03 overview · v3 full family</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
