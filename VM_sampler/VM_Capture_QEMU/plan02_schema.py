@@ -146,6 +146,9 @@ class RunMeta:
     # validator's C7 claim reads them from plan03_recommendation.json.
     window_size: int | None = None
     step_size: int | None = None
+    # Plan 04 addition (optional, nullable, backward compat): path to the
+    # plan04_segmenter_results.json artifact consumed by C8. None pre-Plan-04.
+    plan04_results_path: str | None = None
 
 
 @dataclass
