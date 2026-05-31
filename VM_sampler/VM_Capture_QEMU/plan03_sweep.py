@@ -53,10 +53,18 @@ RHYTHM_S = {
 
 
 def _resolve_workload_type(workload: str) -> str:
+    """v3 D-81: classify all Phase-2 workloads (mirrors
+    plan02_run._classify_workload). Determines which metric the
+    kernel computes per cell: F1 for phasic, CV for steady."""
     w = (workload or "").lower()
-    if "ransom" in w:
+    phasic_keys = ("ransom", "scanner_metadata", "phase_boundary", "phasic")
+    steady_keys = ("workingset", "mmap_traversal", "pagefault_density",
+                   "rmw_intensity", "writemag_sweep", "hashtable_intensive",
+                   "compress_streaming", "compress_gzip", "decompress_gzip",
+                   "json_parse", "sqlite_oltp", "sqlite_analytical", "steady")
+    if any(k in w for k in phasic_keys):
         return "phasic"
-    if "workingset" in w:
+    if any(k in w for k in steady_keys):
         return "steady"
     return "unknown"
 
