@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 04 Overview · CUSUM Segmenter · Implementation Closure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  p  { margin:10px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(212,168,90,.08); border:1px solid rgba(212,168,90,.20);
+    color: var(--accent); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:8px 11px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:11px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .win td { background: rgba(124,185,110,.07); }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 04 Overview</div>
+    <div class="sub">CUSUM segmenter · implementation closure</div>
+    <ol>
+      <li><a href="#what">What this is</a></li>
+      <li><a href="#now">Where we are now</a></li>
+      <li><a href="#detector">The detector</a></li>
+      <li><a href="#impl">Implementation · 6-agent team</a></li>
+      <li><a href="#qa">QA findings</a></li>
+      <li><a href="#d84">D-84 corrections</a></li>
+      <li><a href="#d85">D-85 marker workaround</a></li>
+      <li><a href="#empirical">Empirical results on v3</a></li>
+      <li><a href="#g1">Why G1 stays at zero</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#whatnext">What this enables</a></li>
+      <li><a href="#repro">How to reproduce</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Plan 04 code complete.</strong>
+      The CUSUM detector, family-aware driver, and C8 validator
+      claim are implemented and tested at 155 of 155 unit tests
+      passing. On the combined v3 dataset of 132 cells, the steady
+      gate (G2) passes for five of six workloads at spec-aligned
+      thresholds, while the phasic gate (G1) remains at zero
+      across all five workloads because the v3 trajectories are
+      too short for CUSUM to emit reliably at the recommended
+      window. Lifting G1 requires Plan 05's snap-throughput work.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 04 · CUSUM segmenter · implementation closure</div>
+      <h1>The segmenter that <em>can</em> work,<br>once v3's data has more samples.</h1>
+      <p class="deck">
+        Plan 03 picked the analyzer window and hop. Plan 04 replaces the
+        global-threshold boundary-detector stub with a proper windowed
+        change-point detector. The team converged on a windowed CUSUM,
+        implemented it across three engineers and three QA specialists
+        in a single ping-pong round, and surfaced two data-side
+        problems that the analyzer cannot fix on its own. The code is
+        production-quality; the empirical phasic F1 on v3 is zero, and
+        the reason is upstream.
+      </p>
+    </header>
+
+    <!-- 1 · what this is -->
+    <section class="card" id="what">
+      <div class="num">SECTION 01</div>
+      <h2>What this is</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain words</span>
+          <p>Plan 03 settled on a window of 8 samples and a hop of 4, but it left the boundary detector itself as a stub. Whenever a phasic workload's trajectory crossed a threshold, the stub emitted a boundary. The stub had two limitations. First, it operated on the raw trajectory rather than on windowed features, so the result did not depend on the chosen window. Second, it had no per-workload tuning. Plan 04 replaces that stub with a windowed cumulative-sum (CUSUM) change-point detector that does depend on the window, scores the boundaries it emits against the workload's phase markers, and reports per-workload pass or fail through a new validator claim called C8.</p>
+        </div>
+        <div>
+          <span class="label tech">In one sentence</span>
+          <p>Plan 04 ships a windowed CUSUM detector with robust median-absolute-deviation scaling, dispatches phasic and steady workloads to different gates (G1 phasic F1, G2 steady stationarity), wires the result into the validator as the new operational claim C8, and provides backward compatibility through a <code>--detector legacy</code> fallback that runs the original <code>detect_boundaries_diff</code> stub.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Where this document sits.</strong> The design proposal that this implementation answers is <code>plan04_segmenter_proposal.html</code>. The empirical context, including the <code>(W=8, H=4)</code> setting consumed here, is documented in <code>plan03_overview.html</code>. The classification phase that builds on the per-cell features that Plan 04 produces is documented in <code>workload_classification_results.html</code>. The next layer of work, snap-throughput lift, is owned by Plan 05.
+      </div>
+    </section>
+
+    <!-- 2 · where we are now -->
+    <section class="card" id="now">
+      <div class="num">SECTION 02</div>
+      <h2>Where we are now</h2>
+
+      <dl class="kv">
+        <dt>code complete</dt> <dd>Yes. Detector, driver, C8 validator claim, and 32 new unit tests landed across two commits (D-84 corrections after the QA round, D-85 marker workaround).</dd>
+        <dt>test suite</dt> <dd>155 of 155 tests pass on the worktree.</dd>
+        <dt>v3 dataset</dt> <dd>132 cells across 11 workloads from the combined <code>v3_full</code> and <code>v3_ext</code> bundles. Plan 03's recommendation of a window of 8 and a hop of 4 is consumed unchanged.</dd>
+        <dt>steady G2 (stationarity)</dt> <dd>5 of 6 workloads pass under spec-aligned thresholds. The single failure is <code>mem_pagefault_density_v2</code>, whose CUSUM emits a few spurious boundaries that push it past the median floor.</dd>
+        <dt>phasic G1 (F1 of detected boundaries against markers)</dt> <dd>0 of 5 workloads pass. The median F1 is zero across every combination of <code>(k, h)</code> we tested. The cause is short trajectories in v3 (the typical phasic cell holds 4-30 active samples, which produces between 0 and 5 windows at <code>W=8</code> and <code>H=4</code>), not a tuning problem.</dd>
+        <dt>validator C8</dt> <dd>Active. 60 of 132 cells pass C8. All 60 are steady cells whose family-appropriate gate is met; the remaining 72 either belong to phasic workloads (60 cells) or to <code>mem_pagefault_density_v2</code> (12 cells).</dd>
+        <dt>downstream blocker</dt> <dd>None for the steady class or for the classification phase. The phasic G1 clean pass is blocked on Plan 05's snap-throughput work.</dd>
+      </dl>
+    </section>
+
+    <!-- 3 · detector -->
+    <section class="card" id="detector">
+      <div class="num">SECTION 03</div>
+      <h2>The detector</h2>
+
+      <p>The detector is a two-sided windowed cumulative-sum test with a single threshold control. The pipeline runs in four small steps.</p>
+
+      <table>
+        <thead><tr><th>step</th><th>function</th><th>output</th></tr></thead>
+        <tbody>
+          <tr><td>1. windowed mean</td><td><code>rolling_mean_apf(traj, W, H)</code></td><td>An array of length <code>floor((T - W) / H) + 1</code> containing the mean of the active-page-fraction trajectory inside each window position.</td></tr>
+          <tr><td>2. robust standardisation</td><td>internal <code>_robust_scale</code></td><td>The median and 1.4826 times the median absolute deviation of the windowed-mean series. A small epsilon protects against zero-MAD inputs; constant series fall through to a hard zero.</td></tr>
+          <tr><td>3. two-sided CUSUM</td><td><code>windowed_cusum(rm, k)</code> and the inline form in <code>detect_boundaries_cusum</code></td><td>Two running sums, one rising on positive shifts and one falling on negative ones, with the control parameter <code>k</code> subtracted at each step. A boundary is emitted whenever either sum exceeds the decision threshold <code>h</code>; both sums reset to zero at that point.</td></tr>
+          <tr><td>4. window-to-snap mapping</td><td><code>boundaries_to_snap_indices(idxs, W, H)</code></td><td>Each window-space boundary at index <code>i</code> maps to the snap-space index <code>i &middot; H + W / 2</code>, the window centre. This introduces a constant centring bias that is absorbed by the per-workload boundary tolerance.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The single tuning knob</h3>
+      <p>The detector exposes one user-facing knob: the control limit <code>k</code>, which serves as the per-step shift threshold in standard-deviation units. The decision threshold <code>h</code> is fixed at <code>4.0</code> by convention. The proposal's default is <code>k = 2.0</code>, which corresponds to the canonical two-sigma rule, but the driver accepts any positive value via <code>--k</code>.</p>
+
+      <div class="callout info">
+        <strong>Why CUSUM rather than a learned detector.</strong> The proposal's design review compared CUSUM against Bayesian online change-point detection (BOCPD), Pruned Exact Linear Time (PELT), a median-and-MAD threshold on the derivative, and a small CNN or LSTM. CUSUM wins on the grounds that it has one tuning knob, that it is well understood under non-Gaussian noise when the MAD scale is used, and that it does not require any training data, which the v3 dataset cannot supply at the per-workload sample sizes available.
+      </div>
+    </section>
+
+    <!-- 4 · implementation -->
+    <section class="card" id="impl">
+      <div class="num">SECTION 04</div>
+      <h2>Implementation in a single six-agent round</h2>
+
+      <p>The team executed a single round of engineering followed by a single round of quality assurance, plus a project-manager verdict that applied corrective patches. The six agents and their deliverables are summarised below.</p>
+
+      <h3>Engineering (three agents in parallel)</h3>
+      <table>
+        <thead><tr><th>agent</th><th>file</th><th>LOC</th><th>responsibility</th></tr></thead>
+        <tbody>
+          <tr><td>E1 · Algorithm Lead</td><td><code>plan04_cusum.py</code></td><td>369</td><td>Pure-function detector library: six public functions and one internal helper, no I/O.</td></tr>
+          <tr><td>E2 · Pipeline Lead</td><td><code>plan04_run.py</code></td><td>531</td><td>Command-line driver, recommendation loader, family-aware dispatch, atomic CSV and JSON writes, legacy fallback path.</td></tr>
+          <tr><td>E3 · Validation Lead</td><td><code>plan02_validate_session.py</code> + <code>plan02_schema.py</code></td><td>+129 / -16, +3 / -0</td><td>New <code>_evaluate_plan04_segmenter</code> helper, C8 claim wiring per cell, table and SUMMARY plumbing, optional <code>plan04_results_path</code> field on <code>RunMeta</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Quality assurance (three agents in parallel)</h3>
+      <table>
+        <thead><tr><th>agent</th><th>deliverable</th><th>headline finding</th></tr></thead>
+        <tbody>
+          <tr><td>Q1 · Adversarial Reviewer</td><td>Severity-tagged review of the three engineering deliverables, with file and line citations.</td><td>Two blockers (a schema mismatch between E2 and E3 that silently produced false C8 passes, and a CUSUM off-by-one in the exported helper) and five major issues (gate thresholds too lax relative to the spec, the <code>--marker-tolerance</code> flag silently ineffective, and an aggregation TypeError risk).</td></tr>
+          <tr><td>Q2 · Test Author</td><td>32 new unit tests across detector, driver, and C8 validator wiring, written in unittest style.</td><td>All 32 tests pass, no regressions in the existing 123 tests, suite total reaches 155.</td></tr>
+          <tr><td>Q3 · Integration and Calibration</td><td>End-to-end run on the combined 132-cell v3 dataset at six combinations of <code>(k, h)</code> plus a legacy comparison and a marker-coverage check.</td><td>The default CUSUM thresholds produce zero phasic-F1 for every workload because the truth markers in the v3 capture data are corrupted: a wall-clock skew of about 63 hours between <code>workload_stderr.log</code> and <code>snapshot_timings.jsonl</code> collapses every marker to snap-index zero.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 5 · QA findings -->
+    <section class="card" id="qa">
+      <div class="num">SECTION 05</div>
+      <h2>QA findings in detail</h2>
+
+      <p>Two of Q1's findings were the blocking class. Three of the five major findings are gate-threshold issues that became visible only after the schema problem was fixed. Q3's marker-skew finding is data-side and is treated separately in Section 7.</p>
+
+      <h3>Blocker 1: schema mismatch silently faked C8 passes</h3>
+      <div class="pair">
+        <div>
+          <span class="label tech">What the driver emitted</span>
+          <p>Each per-workload entry in <code>plan04_segmenter_results.json</code> carried the four gate booleans as top-level keys, named <code>gate_g1_phasic_f1</code> through <code>gate_g4_legacy_regression</code>.</p>
+        </div>
+        <div>
+          <span class="label tech">What the validator read</span>
+          <p>The C8 handler looked for a nested <code>gates</code> sub-dictionary whose keys followed a different naming convention, <code>gate_pass_phasic_f1</code> and <code>gate_pass_steady_stationarity</code>. The nested dictionary did not exist; the lookup returned <code>None</code>; <code>bool(None)</code> is <code>False</code>; and the validator's fallback path was the NA branch, which counts as a pass. Every cell looked like it cleared C8, and 132 of 132 cells appeared green even though every phasic workload had effectively failed.</p>
+        </div>
+      </div>
+
+      <h3>Blocker 2: CUSUM off-by-one in the exported helper</h3>
+      <p>The <code>windowed_cusum</code> function exported from <code>plan04_cusum.py</code> used <code>z[t-1]</code> in its recursion. The docstring for the same function, and the inline implementation in <code>detect_boundaries_cusum</code> that actually drives the boundary emission, both used <code>z[t]</code>. The detector itself was therefore correct, but the exported helper produced different numbers, which would have surfaced as a confusing test failure once Q2 began testing the helper directly.</p>
+
+      <h3>Major: G1 and G2 thresholds did not match the proposal</h3>
+      <p>The driver implemented G1 as "median F1 at least 0.5" and G2 as "median stationarity at least 0.5". The proposal's Section 8 specifies the conjunct rules: G1 requires "median F1 at least 0.67 AND fraction of cells with F1 at least 0.50 at least 0.75", and G2 requires "median number of spurious boundaries at most 1 AND fraction of cells with zero spurious boundaries at least 0.5". The looser implementation would have inflated the apparent G2 pass rate for the steady workloads. D-84 applies the spec-aligned versions.</p>
+    </section>
+
+    <!-- 6 · D-84 -->
+    <section class="card" id="d84">
+      <div class="num">SECTION 06</div>
+      <h2>D-84 corrections</h2>
+
+      <p>D-84 applies the fixes for every Q1 blocker and major finding. The constants and behaviour changes are summarised below; the empirical effect is documented in Section 8.</p>
+
+      <table>
+        <thead><tr><th>file</th><th>change</th><th>rationale</th></tr></thead>
+        <tbody>
+          <tr><td><code>plan04_cusum.py</code></td><td>Replace <code>z[t-1]</code> with <code>z[t]</code> in the <code>windowed_cusum</code> recursion.</td><td>The docstring formula and the working detector both used <code>z[t]</code>; the exported helper was the outlier.</td></tr>
+          <tr><td><code>plan04_run.py</code></td><td>Nest the four gate booleans under a <code>gates</code> sub-dictionary with the spec-aligned key names.</td><td>The validator's C8 path reads <code>gates.gate_pass_&lt;family&gt;</code> verbatim; the flat schema silently passed through to the NA branch.</td></tr>
+          <tr><td><code>plan04_run.py</code></td><td>Replace G1's "median F1 at least 0.5" with the conjunct "median F1 at least 0.67 AND fraction at or above 0.5 of at least 0.75".</td><td>Aligns to proposal Section 8.</td></tr>
+          <tr><td><code>plan04_run.py</code></td><td>Replace G2's "median stationarity at least 0.5" with the conjunct "median spurious boundary count at most 1 AND fraction with zero spurious at least 0.5".</td><td>Aligns to proposal Section 8.</td></tr>
+          <tr><td><code>plan04_run.py</code></td><td>Treat in-memory rows with <code>None</code> values as missing, matching the CSV path's empty-string treatment.</td><td>Prevents a <code>TypeError</code> on <code>float(None)</code> in the aggregation step.</td></tr>
+        </tbody>
+      </table>
+
+      <p>After D-84, the test suite returns to 155 passing of 155, and the validator reports an honest 60 of 132 C8 passes rather than a silent 132 of 132 NA-pass.</p>
+    </section>
+
+    <!-- 7 · D-85 -->
+    <section class="card" id="d85">
+      <div class="num">SECTION 07</div>
+      <h2>D-85 marker-mode workaround</h2>
+
+      <p>Q3 documented that the v3 capture artifacts have a wall-clock skew of approximately 63 hours between the workload's stderr timestamps and the snapshot timestamps. The cause is upstream and unrelated to Plan 04, but the effect is that every truth marker resolves to snap-index zero through the absolute-time matcher, which makes every per-cell F1 zero. D-85 adds a <code>--marker-mode relative</code> option that shifts the markers so that the first marker aligns to the first snap, preserving inter-marker spacing.</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What the relative mode does</span>
+          <p>For each cell, the driver computes the offset between the first marker's epoch timestamp and the first snap's epoch timestamp, then shifts every marker by that offset. After the shift, the marker stream sits on the same wall-clock baseline as the snap stream, and the existing nearest-neighbor matcher in <code>phase_markers_to_snap_indices</code> resolves each marker to a sensible snap index.</p>
+        </div>
+        <div>
+          <span class="label tech">An example after D-85</span>
+          <p>Cell <code>d0bc705f2cce</code> of <code>sandbox_ransom_batched</code> resolves to truth indices <code>[0, 1, 3, 9]</code> instead of <code>[0, 0, 0, 0]</code>, and the CUSUM detector emits boundaries at <code>[8, 24]</code>. With a per-workload tolerance of 1 snap, the predicted boundary at 8 matches the truth boundary at 9, giving precision 0.5, recall 0.25, and F1 0.333. The pipeline now produces meaningful per-cell numbers.</p>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <strong>D-85 unblocks the data-side problem but does not lift G1.</strong> Even with truth markers resolving correctly, the median phasic F1 stays at zero across every <code>(k, h)</code> we tested, because most v3 phasic cells have between 4 and 30 active samples, which yields between 0 and 5 windows at <code>W=8</code> and <code>H=4</code>. CUSUM has nothing to chew on at those sample counts, so it emits no boundaries for most cells, and the median F1 is structurally zero. Section 9 explains the consequence.
+      </div>
+    </section>
+
+    <!-- 8 · empirical results -->
+    <section class="card" id="empirical">
+      <div class="num">SECTION 08</div>
+      <h2>Empirical results on the combined v3 dataset</h2>
+
+      <p>The numbers below are all from running the driver with <code>--marker-mode relative --detector cusum --k 2.0 --h 4.0</code> against the combined <code>_v3_combined/cells</code> directory (132 cells across 11 workloads). The aggregate gate summary, after the D-84 spec-aligned thresholds, is the following.</p>
+
+      <table>
+        <thead><tr><th>gate</th><th>applicable workloads</th><th>passing workloads</th><th>pass rate</th></tr></thead>
+        <tbody>
+          <tr><td>G1 phasic F1</td><td>5</td><td>0</td><td class="mono">0.000</td></tr>
+          <tr class="win"><td>G2 steady stationarity</td><td>6</td><td>5</td><td class="mono">0.833</td></tr>
+          <tr><td>G3 marker-less plausibility</td><td>0</td><td>0</td><td class="mono">n/a</td></tr>
+          <tr><td>G4 legacy regression</td><td>11 (placeholder)</td><td>11</td><td class="mono">1.000</td></tr>
+        </tbody>
+      </table>
+
+      <p>The per-workload breakdown follows.</p>
+
+      <table>
+        <thead><tr><th>workload</th><th>family</th><th>median F1</th><th>P(F1 &geq; 0.50)</th><th>median spurious</th><th>P(spurious = 0)</th><th>verdict</th></tr></thead>
+        <tbody>
+          <tr class="win"><td><code>mem_writemag_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.5</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_workingset_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_mmap_traversal_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_rmw_intensity_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>app_hashtable_intensive_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr><td><code>mem_pagefault_density_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">1.0</td><td class="mono">&lt; 0.5</td><td><span class="chip blocked">G2 fail</span></td></tr>
+          <tr><td><code>sandbox_ransom_batched</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+          <tr><td><code>sandbox_ransom_selective</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+          <tr><td><code>sandbox_ransom_seq</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+          <tr><td><code>sandbox_ransom_slowburn</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+          <tr><td><code>sandbox_scanner_metadata</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Validator C8 after D-84 and D-85</h3>
+      <div class="diagram">SUMMARY
+  cells:                135 total · 132 real · 3 warmup · 0 unreadable
+  operational pass:     60 / 132   (gates Step 2 launch)
+  analysis-ready:       60 / 132   (operational + C7 + C8 cleared · NA still counts)
+  per-claim pass counts (out of 132 real cells):
+    C1_workload_ran               132   [operational]
+    C2_ratio_healthy              132   [operational]
+    C3_enough_windows               0   [informational (D-25)]
+    C4_no_settle_retries          132   [operational]
+    C5_producer_log_clean         132   [operational]
+    C6_apf_complete               132   [operational when applicable]
+    C7_window_hop_recommended     132   [operational when applicable]
+    C8_segmenter_quality          60   [operational when applicable]</div>
+
+      <p>The 60 passing cells under C8 are exactly the cells belonging to the five steady workloads that pass G2. The 72 failing cells comprise the 60 phasic cells (G1 fail) and the 12 cells of <code>mem_pagefault_density_v2</code> (G2 fail under the spec-aligned floor).</p>
+    </section>
+
+    <!-- 9 · why G1 stays at zero -->
+    <section class="card" id="g1">
+      <div class="num">SECTION 09</div>
+      <h2>Why G1 stays at zero</h2>
+
+      <p>This is the central honest result of Plan 04 on the v3 dataset, and it deserves a direct explanation.</p>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">The structural reason</span>
+          <p>A windowed CUSUM detector needs at least a handful of windows to be able to emit a boundary at all. For a cell with 22 active samples (the v3 median), the number of windows at <code>W=8</code> and <code>H=4</code> is <code>floor((22 - 8) / 4) + 1 = 4</code>. With four windows, the CUSUM running sum has at most four positions in which to accumulate evidence and cross the decision threshold. For most cells this is not enough, the running sum never crosses, and no boundaries are emitted. With no predicted boundaries, the per-cell F1 is zero. Across the cohort, the median is zero, and so is the fraction at or above 0.5. The gate fails.</p>
+        </div>
+        <div>
+          <span class="label tech">The numerical evidence</span>
+          <p>We swept <code>(k, h)</code> across the values <code>(0.5, 1.5)</code>, <code>(1.0, 2.0)</code>, <code>(1.5, 3.0)</code>, and <code>(2.0, 4.0)</code>. The median F1 for every phasic workload was zero in every combination, with one or two cells per workload emitting a non-zero F1 (the highest single-cell F1 observed was 0.333, on cell <code>d0bc705f2cce</code> of <code>sandbox_ransom_batched</code>). Pushing <code>k</code> below 0.5 produces noise-driven spurious boundaries that hurt precision without recovering recall.</p>
+        </div>
+      </div>
+
+      <h3>The fix is upstream, not in the detector</h3>
+      <p>To raise G1 to a passing level on a phasic dataset, either the number of active samples per phasic cell must increase substantially (Plan 05 territory, with a target of around 80 active samples per cell so that <code>(W=8, H=4)</code> yields 19 windows or more), or the analyzer window must shrink below 8, which would require revisiting Plan 03. Threshold tuning of <code>k</code> and <code>h</code> cannot recover what the trajectory does not contain.</p>
+
+      <div class="callout warn">
+        <strong>The CUSUM detector implementation is not the limiting factor.</strong> Its correctness is verified by 32 unit tests, and its end-to-end behaviour on cells with sufficient samples is what the per-cell F1 of 0.333 on the longest-trajectory ransom cell demonstrates. The limit is the dataset: v3 was captured for the iv-tuning and classification phases, not for high-resolution segmentation. The next phasic re-capture, at smaller iv or larger duration, will produce a dataset on which CUSUM can be meaningfully evaluated.
+      </div>
+    </section>
+
+    <!-- 10 · honest limits -->
+    <section class="card" id="limits">
+      <div class="num">SECTION 10</div>
+      <h2>Honest limits</h2>
+
+      <ul>
+        <li><strong>The G4 legacy-regression gate is a placeholder.</strong> It returns true for every workload until the legacy <code>detect_boundaries_diff</code> stub is wired in as a paired comparison. The wiring is deferred because G1 is currently zero and any A/B is uninformative until that changes.</li>
+        <li><strong>The window-centre mapping is convention, not optimal.</strong> Boundaries are placed at <code>w &middot; H + W / 2</code>, which yields a four-snap bias at <code>W=8</code> and <code>H=4</code>. The per-workload tolerance of 1 or 2 snaps usually absorbs it, but a different mapping (window leading edge, or window trailing edge) may serve some workloads better and is worth a sensitivity study once G1 is non-zero.</li>
+        <li><strong>The marker-mode default is "absolute".</strong> Existing pipelines that did not have the v3 capture-skew problem keep working as before. The "relative" mode is opt-in and should not be assumed for future captures whose clocks are properly synchronised.</li>
+        <li><strong>The dispatcher routes every phasic cell that has at least one marker line through the marker-rich path, even when those markers are degenerate</strong> (the v3 capture-skew case before D-85 was an example). A future hardening could detect "every marker resolves to snap-index zero" and fall back to G3 plausibility instead.</li>
+        <li><strong>The single-knob CUSUM design forecloses workload-specific behaviour.</strong> A per-workload <code>k</code> table could in principle improve G1 for workloads with very different rhythm scales, but the proposal explicitly rejected that complexity for v1 because the proportion of v3 workloads with usable phase markers is too small to estimate per-workload <code>k</code> defensibly.</li>
+      </ul>
+    </section>
+
+    <!-- 11 · what next -->
+    <section class="card" id="whatnext">
+      <div class="num">SECTION 11</div>
+      <h2>What this enables and what it blocks</h2>
+
+      <table>
+        <thead><tr><th>direction</th><th>relationship to Plan 04</th><th>status</th></tr></thead>
+        <tbody>
+          <tr><td>steady-workload analysis-ready flag</td><td>The C8 claim contributes to <code>analysis_ready</code> in the validator alongside C7. With G2 at 5 of 6 steady workloads, the analysis-ready count rises proportionally for the steady cohort.</td><td><span class="chip done">unblocked</span></td></tr>
+          <tr><td>classification phase refinement</td><td>The per-cell boundary indices are now available as additional features for any downstream classifier. They are not currently consumed by <code>plan04_classify.py</code>, but adding them is a one-line CSV merge.</td><td><span class="chip next">optional</span></td></tr>
+          <tr><td>Plan 05 (snap-throughput)</td><td>The G1 phasic floor cannot be cleared without more active samples per cell. Plan 05 owns the snap-throughput lift required to make the segmenter F1 meaningful for the phasic class.</td><td><span class="chip blocked">required for G1 pass</span></td></tr>
+          <tr><td>v3.1 phasic re-capture</td><td>A capture-side fix for the wall-clock skew (NTP at guest boot or relative-offset markers from the workload) would let future phasic captures produce usable F1 without the D-85 workaround.</td><td><span class="chip blocked">requires capture rerun</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 · reproduce -->
+    <section class="card" id="repro">
+      <div class="num">SECTION 12</div>
+      <h2>How to reproduce</h2>
+
+      <p>The complete sequence to regenerate every number in this document is below. The driver runs entirely offline; no virtual machine, no server access, and no scikit-learn dependency.</p>
+
+      <div class="diagram"># 1. Plan 03 sweep (produces the (W, H) recommendation used by Plan 04)
+$ python3 plan03_sweep.py \
+    --cells-dir   _v3_combined/cells \
+    --manifest    _v3_combined/manifest.csv \
+    --output-csv  _v3_combined/plan03/sweep.csv \
+    --output-json _v3_combined/plan03/summary.json \
+    --recommendation-json _v3_combined/plan03/recommendation.json \
+    --force
+
+# 2. Plan 04 sweep with the D-85 relative-marker workaround
+$ python3 plan04_run.py \
+    --cells-dir       _v3_combined/cells \
+    --manifest        _v3_combined/manifest.csv \
+    --recommendation  _v3_combined/plan03/recommendation.json \
+    --output-csv      _v3_combined/plan04/sweep.csv \
+    --output-json     _v3_combined/plan04/results.json \
+    --marker-mode relative --detector cusum --k 2.0 --h 4.0 \
+    --force
+
+# 3. Validator with the new C8 claim (results JSON must be next to cells_dir)
+$ cp _v3_combined/plan04/results.json _v3_combined/plan04_segmenter_results.json
+$ python3 plan02_validate_session.py \
+    --cells-dir _v3_combined/cells \
+    --manifest  _v3_combined/manifest.csv
+
+# 4. Unit tests
+$ cd VM_sampler/VM_Capture_QEMU && python3 -m unittest discover tests/
+# Expected: 155 of 155 passing.</div>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan04_segmenter_proposal.html">
+        <span class="label">design + team review</span>
+        <span class="title">Plan 04 proposal · CUSUM · 6 deltas</span>
+      </a>
+      <a href="plan03_overview.html">
+        <span class="label">analyzer settings consumed</span>
+        <span class="title">Plan 03 overview · W=8, H=4</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
