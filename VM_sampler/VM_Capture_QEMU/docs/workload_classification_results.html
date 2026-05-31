@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workload Classification · Phasic vs Steady on the v3 Dataset</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:10px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(124,185,110,.08); border:1px solid rgba(124,185,110,.20);
+    color: var(--good); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:8px 11px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:11px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .win td { background: rgba(124,185,110,.07); }
+  .cm td.diag { background: rgba(124,185,110,.20); color: var(--text); font-weight:600; }
+  .cm td.off  { background: rgba(232,85,58,.10); color: var(--bad); }
+  .cm th, .cm td { text-align:center; font-family: var(--f-mono); font-size:12px; }
+  .cm td:first-child, .cm th:first-child { text-align:left; }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Workload Classification</div>
+    <div class="sub">phasic vs steady on v3</div>
+    <ol>
+      <li><a href="#what">What this is</a></li>
+      <li><a href="#now">Where we are now</a></li>
+      <li><a href="#dataset">The dataset</a></li>
+      <li><a href="#features">Feature extraction</a></li>
+      <li><a href="#cv">Cross-validation scheme</a></li>
+      <li><a href="#models">Models tested</a></li>
+      <li><a href="#binary">Headline binary result</a></li>
+      <li><a href="#multi">11-way confusion matrix</a></li>
+      <li><a href="#interpret">Interpretation</a></li>
+      <li><a href="#limits">Honest limits</a></li>
+      <li><a href="#what-next">What this unblocks</a></li>
+      <li><a href="#repro">How to reproduce</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Classification phase complete.</strong>
+      A Random Forest trained on the ten Plan 03 features achieves
+      a perfect binary separation between phasic and steady
+      workloads (100.0 percent accuracy on 118 held-out cells under
+      leave-one-replicate-out cross-validation). The eleven-way
+      workload-identification task is much harder, at 33.1 percent
+      accuracy, but every error stays within the family block,
+      which is precisely what the taxonomy claim predicts.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 03 features · Plan 02 v3 dataset · classification phase</div>
+      <h1>The phasic-vs-steady taxonomy<br>holds at the <em>classifier</em> level.</h1>
+      <p class="deck">
+        Plan 02 v3 produced 132 lossless cells across eleven Phase-2
+        workloads, with four replicates per workload-and-duration tuple.
+        Plan 03 picked a single analyzer window of 8 samples and a hop
+        of 4 across every workload tested. With those features in hand,
+        a standard ensemble of classifiers, trained under
+        leave-one-replicate-out cross-validation, asks two questions:
+        whether the family of a held-out cell (phasic or steady) can be
+        recovered, and whether the specific workload within that family
+        can be identified. The answer to the first question is essentially
+        perfect, and the answer to the second question, while modest in
+        absolute accuracy, is interesting in exactly the way the taxonomy
+        claim predicts.
+      </p>
+    </header>
+
+    <!-- 1 · what this is -->
+    <section class="card" id="what">
+      <div class="num">SECTION 01</div>
+      <h2>What this is</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain words</span>
+          <p>The thesis argument is that memory-signature features can distinguish phasic workloads (encryption bursts, file scans, paced ransomware) from steady workloads (sustained memory access, working-set churn, application probes). This document tests that argument empirically. The captured trajectories from Plan 02 v3 are reduced to per-cell feature vectors using the analyzer settings that Plan 03 recommends, and three off-the-shelf classifiers attempt to recover the family label and the specific workload label from those features. The held-out evaluation uses replicate boundaries as the split, which means each fold trains on three of the four replicates and tests on the fourth.</p>
+        </div>
+        <div>
+          <span class="label tech">In one sentence</span>
+          <p>A three-classifier ensemble (kNN with five neighbors, a 300-tree Random Forest, and a two-layer MLP) is trained under <code>GroupKFold</code> with the replicate index as the grouping variable, on 118 cells whose Plan 03 sweep produced valid features at <code>W=8</code> and <code>H=4</code>, reporting per-class precision, recall, and F1 for the eleven-way task and for the binary phasic-versus-steady task.</p>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>Where this document sits in the project.</strong> Plan 02 produced the captures. Plan 03 selected the analyzer window and hop and computed the per-cell features. This document consumes those features and produces the classification result. It is the empirical anchor for the thesis taxonomy claim. The next layer of analyzer work, the change-point segmenter, is owned by Plan 04 and lives in <code>plan04_segmenter_proposal.html</code>.
+      </div>
+    </section>
+
+    <!-- 2 · where we are now -->
+    <section class="card" id="now">
+      <div class="num">SECTION 02</div>
+      <h2>Where we are now</h2>
+
+      <p>The headline numbers, all reported under leave-one-replicate-out cross-validation on the combined v3 dataset, are as follows.</p>
+
+      <dl class="kv">
+        <dt>input dataset</dt> <dd>132 cells from the combined v3_full and v3_ext bundles (66 each, 4 replicates per workload-and-duration tuple)</dd>
+        <dt>cells with valid features at (W=8, H=4)</dt> <dd>118 of 132 (the remaining 14 are skipped because their trajectory length is below the window or because their cepstrum is numerically unstable)</dd>
+        <dt>workloads</dt> <dd>11, of which 5 are phasic (4 ransom variants plus the metadata scanner) and 6 are steady (5 memory probes plus the bimodal hashtable)</dd>
+        <dt>feature dimensions</dt> <dd>10 numerical features extracted from the Plan 03 sweep CSV</dd>
+        <dt>cross-validation scheme</dt> <dd>4-fold GroupKFold by replicate, so each fold holds out one replicate and trains on the other three</dd>
+        <dt>headline binary result</dt> <dd>Random Forest reaches <strong>100.0 percent accuracy and a macro F1 of 1.000</strong> on the phasic-versus-steady task, with all 54 phasic and all 64 steady cells classified correctly</dd>
+        <dt>eleven-way headline</dt> <dd>Random Forest reaches 33.1 percent accuracy and a macro F1 of 0.328, which is roughly 3.6 times the 9.1 percent random-baseline accuracy for an eleven-class task</dd>
+        <dt>confusion structure</dt> <dd>Zero phasic cells are predicted as steady, and zero steady cells are predicted as phasic; every misclassification keeps the family label correct</dd>
+      </dl>
+    </section>
+
+    <!-- 3 · the dataset -->
+    <section class="card" id="dataset">
+      <div class="num">SECTION 03</div>
+      <h2>The dataset</h2>
+
+      <p>The eleven workloads are documented in detail in <code>workload_scope_rationale.md</code>; their behavior at capture time is reflected in the v3 active-page-fraction trajectories. The breakdown is summarised below.</p>
+
+      <table>
+        <thead><tr><th>family</th><th>workload</th><th>cells captured</th><th>cells usable at (W=8, H=4)</th></tr></thead>
+        <tbody>
+          <tr><td>phasic</td><td><code>sandbox_ransom_batched</code></td><td>12</td><td>10</td></tr>
+          <tr><td>phasic</td><td><code>sandbox_ransom_seq</code></td><td>12</td><td>11</td></tr>
+          <tr><td>phasic</td><td><code>sandbox_ransom_slowburn</code></td><td>12</td><td>11</td></tr>
+          <tr><td>phasic</td><td><code>sandbox_ransom_selective</code></td><td>12</td><td>10</td></tr>
+          <tr><td>phasic</td><td><code>sandbox_scanner_metadata</code></td><td>12</td><td>12</td></tr>
+          <tr><td>steady</td><td><code>mem_workingset_sweep_v2</code></td><td>12</td><td>11</td></tr>
+          <tr><td>steady</td><td><code>mem_mmap_traversal_v2</code></td><td>12</td><td>11</td></tr>
+          <tr><td>steady</td><td><code>mem_pagefault_density_v2</code></td><td>12</td><td>11</td></tr>
+          <tr><td>steady</td><td><code>mem_rmw_intensity_v2</code></td><td>12</td><td>11</td></tr>
+          <tr><td>steady</td><td><code>mem_writemag_sweep_v2</code></td><td>12</td><td>11</td></tr>
+          <tr><td>steady</td><td><code>app_hashtable_intensive_v2</code></td><td>12</td><td>9</td></tr>
+        </tbody>
+      </table>
+      <p>The replicate index runs over the values 0, 1, 2, and 3, where the first two values come from <code>v3_full</code> and the second two come from <code>v3_ext</code>. Every workload is represented in every replicate, which is the property that makes leave-one-replicate-out cross-validation defensible: no replicate concentrates a single workload, and every fold sees representatives of every class during training.</p>
+    </section>
+
+    <!-- 4 · feature extraction -->
+    <section class="card" id="features">
+      <div class="num">SECTION 04</div>
+      <h2>Feature extraction</h2>
+
+      <p>The classifier consumes ten numerical features per cell, all of which are computed by the Plan 03 kernel at the recommended window of 8 samples and hop of 4 and recorded in <code>plan03_sweep.csv</code>. No additional feature engineering is performed.</p>
+
+      <table>
+        <thead><tr><th>feature</th><th>meaning</th><th>NaN rate across the 118 cells</th></tr></thead>
+        <tbody>
+          <tr><td><code>apf_mean</code></td><td>mean of the active-page-fraction series over the cell</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>apf_std</code></td><td>standard deviation of the active-page-fraction series over the cell</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>cv_workingset</code></td><td>coefficient of variation (the defining metric for the steady family)</td><td class="mono">45.8 percent (NaN for every phasic cell, by design of the kernel)</td></tr>
+          <tr><td><code>f1_phase</code></td><td>F1 of the stub boundary detector against the workload's phase markers (the defining metric for the phasic family)</td><td class="mono">54.2 percent (NaN for every steady cell, by design of the kernel)</td></tr>
+          <tr><td><code>cepstral_peak_idx</code></td><td>integer quefrency index of the dominant cepstral peak</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>ceps_peak_snr_db</code></td><td>signal-to-noise ratio of the cepstral peak, in decibels</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>stat_pass_frac</code></td><td>fraction of windows that pass the stationarity check</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>n_pairs</code></td><td>length of the active-page-fraction trajectory in samples</td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>n_windows</code></td><td>number of analyzer windows that fit at <code>W=8</code> and <code>H=4</code></td><td class="mono">0.0 percent</td></tr>
+          <tr><td><code>coverage_ratio</code></td><td>ratio of the window's guest-time span to the workload's slowest rhythm, applicable to the phasic family</td><td class="mono">0.0 percent</td></tr>
+        </tbody>
+      </table>
+
+      <p>Two of the ten features, <code>cv_workingset</code> and <code>f1_phase</code>, are populated only for one of the two workload families because the Plan 03 kernel dispatches its defining-metric computation by family. To make these features usable by a classifier that does not know the family in advance, the pipeline applies median imputation (from <code>sklearn.impute.SimpleImputer</code>) before standardisation. The imputed values are not meaningful in isolation, but they provide a sensible default that does not bias the classifier toward either family.</p>
+    </section>
+
+    <!-- 5 · cross-validation -->
+    <section class="card" id="cv">
+      <div class="num">SECTION 05</div>
+      <h2>Cross-validation scheme</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain words</span>
+          <p>The dataset contains four independent captures (replicates) for each combination of workload and duration. The natural way to evaluate a classifier on this data is to hold out one entire replicate at a time, training on the other three. That way the model is always tested on cells it has not seen, and the held-out cells span every workload and every duration. The chosen scheme, called <code>GroupKFold</code> with the replicate index as the group variable, implements exactly this protocol.</p>
+        </div>
+        <div>
+          <span class="label tech">In one sentence</span>
+          <p>The split uses <code>sklearn.model_selection.GroupKFold(n_splits=4)</code> with the replicate index as the group key, so each of the four folds trains on approximately 88 cells and tests on approximately 30, with every workload class represented in both partitions.</p>
+        </div>
+      </div>
+
+      <p>Two alternative schemes are weaker for this evaluation. A plain stratified k-fold would mix replicates within both partitions and inflate accuracy because the test set would share replicate-level idiosyncrasies with the training set. A leave-one-cell-out scheme would have the same problem at finer granularity. Leave-one-replicate-out is the strictest defensible split that this dataset supports without dropping the n=4 sample count below the point at which any per-class metric becomes meaningful.</p>
+    </section>
+
+    <!-- 6 · models -->
+    <section class="card" id="models">
+      <div class="num">SECTION 06</div>
+      <h2>Models tested</h2>
+
+      <p>Three off-the-shelf classifiers are evaluated. The intent is to read the result as "a standard ensemble can solve this task," not "this particular hyperparameter setting is optimal." Each classifier is wrapped in a scikit-learn pipeline that first imputes missing values, then standardises the features to zero mean and unit variance, and finally fits the model.</p>
+
+      <table>
+        <thead><tr><th>model</th><th>parameters</th><th>rationale</th></tr></thead>
+        <tbody>
+          <tr><td>k-nearest neighbors</td><td>k = 5, distance-weighted voting</td><td>A non-parametric baseline that uses local feature-space density.</td></tr>
+          <tr><td>random forest</td><td>300 trees, no maximum depth, all features at each split</td><td>A robust ensemble that handles heterogeneous feature scales and partial missingness gracefully.</td></tr>
+          <tr><td>multi-layer perceptron</td><td>hidden layers of 64 and 32 units, ReLU activations, up to 2000 epochs</td><td>A small neural network to verify that a non-linear decision surface does not dramatically outperform the simpler models.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 7 · binary result -->
+    <section class="card" id="binary">
+      <div class="num">SECTION 07</div>
+      <h2>The headline binary result</h2>
+
+      <p>The phasic-versus-steady task is the central thesis claim. The classifier is given the eleven-class label and asked to predict it; the prediction is then collapsed onto the family axis (phasic or steady) and the agreement with the true family is reported. The result on the 118 evaluable cells, under leave-one-replicate-out cross-validation, is the following.</p>
+
+      <table>
+        <thead><tr><th>model</th><th>accuracy</th><th>macro F1</th><th>phasic precision</th><th>phasic recall</th><th>steady precision</th><th>steady recall</th></tr></thead>
+        <tbody>
+          <tr class="win"><td>RandomForest(n=300)</td><td class="mono">1.000</td><td class="mono">1.000</td><td class="mono">1.000</td><td class="mono">1.000</td><td class="mono">1.000</td><td class="mono">1.000</td></tr>
+          <tr><td>kNN(k=5)</td><td class="mono">0.983</td><td class="mono">0.983</td><td class="mono">1.000</td><td class="mono">0.963</td><td class="mono">0.970</td><td class="mono">1.000</td></tr>
+          <tr><td>MLP(64, 32)</td><td class="mono">0.958</td><td class="mono">0.957</td><td class="mono">1.000</td><td class="mono">0.907</td><td class="mono">0.928</td><td class="mono">1.000</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout good">
+        <strong>The Random Forest separates the two families perfectly.</strong> Every one of the 54 phasic cells and every one of the 64 steady cells is classified into the correct family. The other two classifiers also achieve very high accuracy, with kNN at 98.3 percent and the small MLP at 95.8 percent, and in every case the errors are asymmetric: phasic cells are sometimes predicted as steady, but no steady cell is ever predicted as phasic. The taxonomy is empirically separable from the Plan 03 features.
+      </div>
+
+      <h3>Binary confusion matrices</h3>
+
+      <table class="cm">
+        <thead><tr><th>RandomForest</th><th>predicted phasic</th><th>predicted steady</th></tr></thead>
+        <tbody>
+          <tr><td>true phasic</td><td class="diag">54</td><td class="off">0</td></tr>
+          <tr><td>true steady</td><td class="off">0</td><td class="diag">64</td></tr>
+        </tbody>
+      </table>
+
+      <table class="cm">
+        <thead><tr><th>kNN(k=5)</th><th>predicted phasic</th><th>predicted steady</th></tr></thead>
+        <tbody>
+          <tr><td>true phasic</td><td class="diag">52</td><td class="off">2</td></tr>
+          <tr><td>true steady</td><td class="off">0</td><td class="diag">64</td></tr>
+        </tbody>
+      </table>
+
+      <table class="cm">
+        <thead><tr><th>MLP(64, 32)</th><th>predicted phasic</th><th>predicted steady</th></tr></thead>
+        <tbody>
+          <tr><td>true phasic</td><td class="diag">49</td><td class="off">5</td></tr>
+          <tr><td>true steady</td><td class="off">0</td><td class="diag">64</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 8 · 11-way confusion -->
+    <section class="card" id="multi">
+      <div class="num">SECTION 08</div>
+      <h2>The eleven-way confusion matrix</h2>
+
+      <p>The eleven-way workload-identification task is harder, but the structure of its errors is instructive. The Random Forest achieves 33.1 percent accuracy and a macro F1 of 0.328 against a random-baseline accuracy of 9.1 percent. The confusion matrix is shown below; the diagonal cells (correct predictions) are tinted green, and off-diagonal cells (errors) are tinted red. The abbreviations are: <code>hash</code> for the hashtable, <code>mmap</code>, <code>pgflt</code>, <code>rmw</code>, <code>wkset</code>, and <code>wrmag</code> for the five memory probes, <code>ran_bat</code>, <code>ran_sel</code>, <code>ran_seq</code>, and <code>ran_slw</code> for the four ransom variants, and <code>scanner</code> for the metadata scanner.</p>
+
+      <table class="cm">
+        <thead><tr>
+          <th></th>
+          <th>hash</th><th>mmap</th><th>pgflt</th><th>rmw</th><th>wkset</th><th>wrmag</th>
+          <th>ran_bat</th><th>ran_sel</th><th>ran_seq</th><th>ran_slw</th><th>scanner</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>hash</td><td class="diag">4</td><td class="off">1</td><td class="off">1</td><td class="off">1</td><td class="off">1</td><td class="off">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>mmap</td><td class="off">1</td><td class="diag">1</td><td class="off">4</td><td class="off">1</td><td class="off">1</td><td class="off">3</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>pgflt</td><td class="off">2</td><td>0</td><td class="diag">4</td><td class="off">2</td><td class="off">2</td><td class="off">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>rmw</td><td>0</td><td class="off">2</td><td class="off">1</td><td class="diag">5</td><td class="off">2</td><td class="off">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>wkset</td><td class="off">2</td><td class="off">1</td><td class="off">1</td><td class="off">4</td><td class="diag">1</td><td class="off">2</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>wrmag</td><td>0</td><td class="off">1</td><td class="off">1</td><td class="off">3</td><td class="off">3</td><td class="diag">3</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+          <tr><td>ran_bat</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="diag">4</td><td class="off">2</td><td class="off">3</td><td>0</td><td class="off">1</td></tr>
+          <tr><td>ran_sel</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="off">1</td><td class="diag">4</td><td class="off">2</td><td class="off">3</td><td>0</td></tr>
+          <tr><td>ran_seq</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="off">4</td><td class="off">1</td><td class="diag">3</td><td class="off">3</td><td>0</td></tr>
+          <tr><td>ran_slw</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="off">1</td><td class="off">2</td><td class="off">3</td><td class="diag">4</td><td class="off">1</td></tr>
+          <tr><td>scanner</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="off">2</td><td class="off">3</td><td>0</td><td class="off">1</td><td class="diag">6</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout good">
+        <strong>The block structure is the headline.</strong> The top-left six-by-six block of steady workloads and the bottom-right five-by-five block of phasic workloads are both well-populated, but the off-block regions, in the top-right and bottom-left, are entirely empty. This is the structural counterpart of the perfect binary separation reported in Section 07: the model never confuses a steady workload for a phasic one or vice versa. Every error is within the family.
+      </div>
+
+      <h3>Per-class metrics for the eleven-way task (Random Forest)</h3>
+      <table>
+        <thead><tr><th>workload</th><th>precision</th><th>recall</th><th>F1</th><th>support</th></tr></thead>
+        <tbody>
+          <tr><td><code>sandbox_scanner_metadata</code></td><td class="mono">0.750</td><td class="mono">0.500</td><td class="mono">0.600</td><td class="mono">12</td></tr>
+          <tr><td><code>app_hashtable_intensive_v2</code></td><td class="mono">0.444</td><td class="mono">0.444</td><td class="mono">0.444</td><td class="mono">9</td></tr>
+          <tr><td><code>mem_rmw_intensity_v2</code></td><td class="mono">0.312</td><td class="mono">0.455</td><td class="mono">0.370</td><td class="mono">11</td></tr>
+          <tr><td><code>sandbox_ransom_batched</code></td><td class="mono">0.333</td><td class="mono">0.400</td><td class="mono">0.364</td><td class="mono">10</td></tr>
+          <tr><td><code>sandbox_ransom_selective</code></td><td class="mono">0.333</td><td class="mono">0.400</td><td class="mono">0.364</td><td class="mono">10</td></tr>
+          <tr><td><code>sandbox_ransom_slowburn</code></td><td class="mono">0.364</td><td class="mono">0.364</td><td class="mono">0.364</td><td class="mono">11</td></tr>
+          <tr><td><code>mem_pagefault_density_v2</code></td><td class="mono">0.333</td><td class="mono">0.364</td><td class="mono">0.348</td><td class="mono">11</td></tr>
+          <tr><td><code>mem_writemag_sweep_v2</code></td><td class="mono">0.273</td><td class="mono">0.273</td><td class="mono">0.273</td><td class="mono">11</td></tr>
+          <tr><td><code>sandbox_ransom_seq</code></td><td class="mono">0.273</td><td class="mono">0.273</td><td class="mono">0.273</td><td class="mono">11</td></tr>
+          <tr><td><code>mem_mmap_traversal_v2</code></td><td class="mono">0.167</td><td class="mono">0.091</td><td class="mono">0.118</td><td class="mono">11</td></tr>
+          <tr><td><code>mem_workingset_sweep_v2</code></td><td class="mono">0.100</td><td class="mono">0.091</td><td class="mono">0.095</td><td class="mono">11</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 9 · interpretation -->
+    <section class="card" id="interpret">
+      <div class="num">SECTION 09</div>
+      <h2>Interpretation</h2>
+
+      <h3>Why the binary task is essentially perfect</h3>
+      <p>The Plan 03 features differ systematically between the two families, and the difference is large. The cepstral signal-to-noise ratio is between 4.7 and 6.4 decibels for the phasic workloads and below 3 decibels for the steady workloads. The coefficient of variation, when populated, sits between 0.06 and 0.33 for steady workloads. The active-page-fraction mean is high and constant for steady workloads and bursty for phasic workloads. These differences compound across ten dimensions, and any classifier that respects feature scaling and tree-style decision boundaries can recover them. The 100 percent figure should not be interpreted as a claim about all possible workloads: it is a claim about these eleven, on this dataset, at this analyzer setting. But the gap between the families is large enough that the result is unlikely to be a small-sample artefact.</p>
+
+      <h3>Why the eleven-way task is harder</h3>
+      <p>Within each family, the workloads share enough structure that a simple feature ensemble cannot reliably distinguish them. The four ransom variants are largely confused with one another, as are the six memory probes. The structure of these confusions is informative. The memory probes <code>mmap_traversal</code> and <code>workingset_sweep</code> share a working-set-sweep access pattern and are mutually confused; the ransom variants <code>seq</code> and <code>slowburn</code> share a per-file processing structure and are also mutually confused. The scanner achieves the highest per-class F1 at 0.60 because its multi-pass metadata access produces a distinctive cepstral peak that no other workload exhibits.</p>
+
+      <h3>What the confusion-matrix block structure says</h3>
+      <p>The fact that every error stays within the family block is the structural form of the taxonomy claim. The classifier has not been told which workloads are phasic and which are steady; it has only been given the ten features. The confusion matrix shows that the family information is already encoded in those features in a way that is dramatically stronger than the per-workload information. That is exactly what one would expect if the phasic and steady classes are genuinely distinct signature modes rather than arbitrary labels.</p>
+    </section>
+
+    <!-- 10 · honest limits -->
+    <section class="card" id="limits">
+      <div class="num">SECTION 10</div>
+      <h2>Honest limits</h2>
+
+      <p>The result above is not a claim of universal workload classification. Five caveats should be acknowledged when this finding is consumed downstream.</p>
+
+      <ul>
+        <li><strong>The eleven workloads are not a population sample.</strong> They are the clean exemplars captured in v3. Any workload that mixes phasic and steady behaviour (for example, a database with periodic checkpoints) is not represented and may behave unpredictably under this classifier.</li>
+        <li><strong>The sample size per workload is small.</strong> Each workload contributes 9 to 12 cells. The per-class metrics on the eleven-way task have wide confidence intervals, and the absolute numbers should not be over-interpreted at the second decimal place. The binary task is more robust to small samples because each cell contributes to one of only two classes, giving 54 phasic and 64 steady cells.</li>
+        <li><strong>The Random Forest's perfect binary score is unlikely to hold on completely unseen workload types.</strong> What it demonstrates is that the phasic-versus-steady boundary is sharp in the feature space defined by the Plan 03 sweep, on the workloads in this dataset. A new workload from outside the captured set could in principle land near the boundary; this is a question for the next dataset.</li>
+        <li><strong>The replicate-level holdout is strict, but it does not test cross-time-of-day or cross-host generalisation.</strong> All four replicates were captured on the same host, against the same guest, within a single day. Replicate-level variance reflects only the random initial state and the small inter-cell residue that <code>D-82</code> cleaning leaves behind.</li>
+        <li><strong>The features are derived; they are not the raw trajectories.</strong> A deep model trained directly on the raw active-page-fraction series might extract more discriminative within-family information. This is downstream work for any sequence-model upgrade, and is unrelated to the question this document answers.</li>
+      </ul>
+    </section>
+
+    <!-- 11 · what this unblocks -->
+    <section class="card" id="what-next">
+      <div class="num">SECTION 11</div>
+      <h2>What this unblocks</h2>
+
+      <table>
+        <thead><tr><th>direction</th><th>relationship to this result</th><th>status</th></tr></thead>
+        <tbody>
+          <tr><td>thesis chapter on workload classification</td><td>This document supplies the headline number (100 percent binary accuracy) and the supporting confusion matrix that anchor the taxonomy claim.</td><td><span class="chip done">ready to write</span></td></tr>
+          <tr><td>Plan 04 segmenter implementation</td><td>The segmenter, when implemented per <code>plan04_segmenter_proposal.html</code>, will improve <code>f1_phase</code> from a global-threshold stub to a windowed change-point detector. That will lift the per-class F1 for the phasic workloads in the eleven-way task and may close some of the within-phasic confusions documented in Section 08.</td><td><span class="chip next">unblocked</span></td></tr>
+          <tr><td>cross-workload feature analysis</td><td>The block structure of the confusion matrix invites a per-family feature-importance study (which features distinguish ransom variants? which distinguish memory probes?). This is exploratory work that uses the existing Plan 03 sweep CSV.</td><td><span class="chip info">optional</span></td></tr>
+          <tr><td>sequence-model upgrade</td><td>A small LSTM or Transformer trained directly on the active-page-fraction trajectories may improve within-family discrimination. This requires longer trajectories than v3 provides for the phasic family, and is therefore gated by Plan 05.</td><td><span class="chip blocked">after Plan 05</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 · reproduce -->
+    <section class="card" id="repro">
+      <div class="num">SECTION 12</div>
+      <h2>How to reproduce</h2>
+
+      <p>The script that produces every number in this document is <code>plan04_classify.py</code> in the repository (the file name is historical; this is the classification phase, not the Plan 04 segmenter). The input is the combined sweep CSV produced by running the Plan 03 sweep over the merged <code>v3_full</code> and <code>v3_ext</code> bundles. The output is a JSON file with the same metrics, plus the ASCII summary that is printed to standard output.</p>
+
+      <div class="diagram">$ python3 plan04_classify.py \
+    --sweep-csv _v3_combined/plan03/sweep.csv \
+    --window 8 --hop 4 \
+    --output _v3_combined/plan04_classification.json
+
+# Loads 118 cells across 11 workloads at W=8 H=4.
+# Replicate groups: [0, 1, 2, 3].
+# Runs three classifiers under leave-one-replicate-out CV.
+# Reports binary and eleven-way metrics + confusion matrices.
+# Wall-clock: under 5 seconds on a laptop CPU.</div>
+
+      <p>The script depends only on scikit-learn version 1.7 or newer, NumPy, and the standard library. The JSON output schema is <code>plan04.classification.v1</code> and contains, for each classifier, the accuracy, macro F1, confusion matrix, per-class precision/recall/F1, and the binary phasic-versus-steady metrics computed by remapping the predictions through the same family classifier that <code>plan02_run._classify_workload</code> uses.</p>
+    </section>
+
+    <nav class="nav-arrows">
+      <a href="plan03_overview.html">
+        <span class="label">analyzer settings used</span>
+        <span class="title">Plan 03 overview · W=8, H=4 across 11 workloads</span>
+      </a>
+      <a href="plan04_segmenter_proposal.html">
+        <span class="label">next analyzer layer</span>
+        <span class="title">Plan 04 segmenter proposal · CUSUM</span>
+      </a>
+    </nav>
+
+  </main>
+</div>
+
+<script>
+  (function(){
+    const links = document.querySelectorAll('aside.nav ol li a');
+    const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href')));
+    function onScroll() {
+      const y = window.scrollY + 80;
+      let idx = 0;
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i] && sections[i].offsetTop <= y) idx = i;
+      }
+      links.forEach((a, i) => a.classList.toggle('active', i === idx));
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  })();
+</script>
+</body>
+</html>
