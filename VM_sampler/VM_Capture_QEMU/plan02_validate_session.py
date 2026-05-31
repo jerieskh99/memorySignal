@@ -4,7 +4,7 @@
 Owner: EE (Evaluation Engineer) + DE (Senior Data Engineer).
 Reference: docs/tuning_plans/experiment_audit.md Decisions D-41 / D-42.
 
-Verifies seven claims that 'ok' status alone does NOT prove.
+Verifies eight claims that 'ok' status alone does NOT prove.
 
 Operational claims (must pass · gate Step 2 launch):
   C1: workload binary actually ran (PHASE markers in workload_stderr.log)
@@ -14,6 +14,9 @@ Operational claims (must pass · gate Step 2 launch):
   C6: apf_trajectory.jsonl is complete (B+3.1 Δ-4 streaming sentinel)
   C7: plan03_recommendation.json schema-valid + per-workload winner
       passes G1-G5 (Plan 03 Δ-4 · NA when artifact absent)
+  C8: plan04_segmenter_results.json present + per-cell workload clears
+      its family-appropriate gate (Plan 04 Δ-3 · NA when artifact absent
+      or when the cell's workload was not evaluated by Plan 04)
 
 Informational claim (reported, does NOT gate Step 2 per D-25):
   C3: n_windows >= --min-windows under canonical Phase-1 (128, 64).
@@ -188,6 +191,58 @@ def _evaluate_plan03_recommendation(cells_dir: Path) -> dict:
             "recommendations": summary}
 
 
+def _evaluate_plan04_segmenter(cells_dir: Path) -> dict:
+    """C8 (Plan 04) · operational claim · gates analysis-ready once Plan 04
+    has run.
+
+    Looks for ``plan04_segmenter_results.json`` either alongside the cells
+    directory (typical layout) or inside it. NA when the artifact is
+    absent (pre-Plan-04 sessions still pass · same pattern as C6/C7 NA).
+
+    Returns a session-level descriptor consumed by ``evaluate_cell`` to
+    resolve the per-cell verdict against the cell's workload + family.
+    Schema-validates the top-level keys (``schema``, ``per_workload``)
+    and the per-workload dict shape (``workload``, ``family``, ``gates``).
+    """
+    candidates = [
+        cells_dir.parent / "plan04_segmenter_results.json",
+        cells_dir / "plan04_segmenter_results.json",
+    ]
+    res_path = next((p for p in candidates if p.is_file()), None)
+    if res_path is None:
+        return {"present": False, "artifact": None,
+                "per_workload": {},
+                "why": "no plan04_segmenter_results.json found "
+                       "(Plan 04 not run) · NA"}
+    try:
+        with res_path.open() as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"present": True, "artifact": str(res_path), "load_error": True,
+                "per_workload": {},
+                "why": f"failed to read {res_path}: {exc}"}
+    if "schema" not in payload or "per_workload" not in payload:
+        return {"present": True, "artifact": str(res_path), "load_error": True,
+                "per_workload": {},
+                "why": (f"unexpected schema in {res_path.name}: "
+                        f"missing top-level 'schema' or 'per_workload'")}
+    pw_list = payload.get("per_workload") or []
+    if not isinstance(pw_list, list):
+        return {"present": True, "artifact": str(res_path), "load_error": True,
+                "per_workload": {},
+                "why": f"'per_workload' in {res_path.name} is not a list"}
+    by_workload: dict[str, dict] = {}
+    for entry in pw_list:
+        if not isinstance(entry, dict):
+            continue
+        wl = entry.get("workload")
+        if not wl or "family" not in entry or "gates" not in entry:
+            continue
+        by_workload[wl] = entry
+    return {"present": True, "artifact": str(res_path),
+            "per_workload": by_workload, "schema": payload.get("schema")}
+
+
 def _evaluate_apf_completeness(cell_workdir: Path,
                                 min_ok_ratio: float = 0.95) -> tuple[bool, str, dict]:
     """B+3.1 Δ-4: C6 trajectory-completeness check.
@@ -233,7 +288,8 @@ def _evaluate_apf_completeness(cell_workdir: Path,
 def evaluate_cell(cell_path: Path, workdir_root: Path,
                   min_ratio: float, min_windows: int,
                   window: int, hop: int,
-                  c7_result: dict | None = None) -> dict:
+                  c7_result: dict | None = None,
+                  c8_result: dict | None = None) -> dict:
     """Return one health record for a cell. Six booleans + diagnostic ctx.
 
     B+3.1 Δ-4: adds C6 (apf trajectory completeness · operational gate
@@ -330,6 +386,44 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
     c7_reason = c7_data["why"]
     c7_applicable = bool(c7_data.get("operational"))
 
+    # C8 · Plan 04 segmenter quality. Session lookup is shared (c8_result);
+    # per-cell verdict depends on this cell's workload + family. NA when
+    # the artifact is missing OR when this cell's workload was not in
+    # per_workload[] (same NA contract as C6/C7).
+    c8_data = c8_result or {"present": False, "artifact": None,
+                            "per_workload": {},
+                            "why": "no plan04_segmenter_results.json found "
+                                   "(Plan 04 not run) · NA"}
+    c8_artifact = c8_data.get("artifact")
+    if not c8_data.get("present"):
+        c8, c8_reason, c8_applicable = True, c8_data["why"], False
+    elif c8_data.get("load_error"):
+        c8, c8_reason, c8_applicable = False, c8_data["why"], True
+    else:
+        pw_entry = c8_data["per_workload"].get(workload)
+        if pw_entry is None:
+            c8 = True
+            c8_reason = (f"workload {workload!r} not evaluated by Plan 04 · NA")
+            c8_applicable = False
+        else:
+            family = pw_entry.get("family")
+            gates = pw_entry.get("gates") or {}
+            if family == "phasic":
+                gate_key = "gate_pass_phasic_f1"
+            elif family == "steady":
+                gate_key = "gate_pass_steady_stationarity"
+            else:
+                gate_key = None
+            if gate_key is None:
+                c8 = True
+                c8_reason = (f"family={family!r} has no Plan 04 gate · NA")
+                c8_applicable = False
+            else:
+                c8 = bool(gates.get(gate_key))
+                c8_applicable = True
+                c8_reason = (f"{gate_key}={gates.get(gate_key)} "
+                             f"(family={family})")
+
     # Operational ok = the gates that actually block Step 2 launch.
     # C3 is informational (D-25): low n_windows is a duration-matrix
     # issue, not an orchestration regression. Plan 03 owns window/hop
@@ -337,7 +431,10 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
     # C6 (B+3.1) is operational when applicable; NA cells pass trivially.
     # C7 (Plan 03 Delta-4) is operational when applicable; NA when no
     # plan03_recommendation.json exists.
-    ok = c1 and c2 and c4 and c5 and c6 and c7
+    # C8 (Plan 04 Delta-3) is operational when applicable; NA when no
+    # plan04_segmenter_results.json exists or the cell's workload is not
+    # listed in per_workload.
+    ok = c1 and c2 and c4 and c5 and c6 and c7 and c8
     return {
         "cell_id": cid,
         "workload": workload,
@@ -365,38 +462,44 @@ def evaluate_cell(cell_path: Path, workdir_root: Path,
                                           "artifact": c7_data.get("artifact"),
                                           "recommendations":
                                               c7_data.get("recommendations") or []},
+            "C8_segmenter_quality": {"pass": c8, "why": c8_reason,
+                                      "operational": c8_applicable,
+                                      "artifact": c8_artifact},
         },
         "ok": ok,
-        # Day 10 D-25 wiring: C3 stays informational; C7 is the new
-        # operational gate (NA when Plan 03 has not run yet).
-        "analysis_ready": ok and c7,
+        # Day 10 D-25 wiring: C3 stays informational; C7 + C8 are the
+        # operational analysis-ready gates (each NA still counts as
+        # cleared so v1/v2/pre-Plan-04 sessions remain reportable).
+        "analysis_ready": ok and c7 and c8,
     }
 
 
 def _print_table(records: list[dict]) -> None:
     print(f"\n{'cell':<14} {'workload':<28} {'iv':>5} {'d':>5} "
           f"{'snaps':>6} {'win':>4} {'ratio':>5} "
-          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} {'C6':>3} {'C7':>3} "
+          f"{'C1':>3} {'C2':>3} {'C4':>3} {'C5':>3} {'C6':>3} {'C7':>3} {'C8':>3} "
           f"{'[C3]':>4} OPERATIONAL  ANALYSIS-READY")
-    print("─" * 144)
+    print("─" * 148)
     for r in records:
         if "claims" not in r:
             print(f"{r.get('cell_id', '?'):<14} ERROR: {r.get('error')}")
             continue
         c = r["claims"]
         # Operational claims first (these gate Step 2 launch)
-        # C6 + C7 may be NA when their gating artifact is absent.
+        # C6 + C7 + C8 may be NA when their gating artifact is absent.
         def mark(k: str) -> str:
             if k not in c:
                 return " "
-            if k in ("C6_apf_complete", "C7_window_hop_recommended") \
+            if k in ("C6_apf_complete", "C7_window_hop_recommended",
+                     "C8_segmenter_quality") \
                     and not c[k].get("operational"):
                 return "·"  # NA · trivially passes
             return "✓" if c[k]["pass"] else "✗"
         op_marks = " ".join(
             mark(k) for k in ("C1_workload_ran", "C2_ratio_healthy",
                               "C4_no_settle_retries", "C5_producer_log_clean",
-                              "C6_apf_complete", "C7_window_hop_recommended")
+                              "C6_apf_complete", "C7_window_hop_recommended",
+                              "C8_segmenter_quality")
         )
         # Informational claim in brackets (Plan-03 territory)
         info_mark = "[✓]" if c["C3_enough_windows"]["pass"] else "[✗]"
@@ -435,6 +538,10 @@ def _summarize(records: list[dict]) -> dict:
                 1 for r in real
                 if r["claims"].get("C7_window_hop_recommended", {}).get("pass")
             ),
+            "C8_segmenter_quality": sum(
+                1 for r in real
+                if r["claims"].get("C8_segmenter_quality", {}).get("pass")
+            ),
         },
         "all_real_cells_operational": all(r["ok"] for r in real) and not bad,
         "all_real_cells_pass": all(r["ok"] for r in real) and not bad,
@@ -471,6 +578,9 @@ def _main(argv: list[str] | None = None) -> int:
 
     # C7 · Plan 03 recommendation lookup is session-level; resolved once.
     c7_result = _evaluate_plan03_recommendation(cells_dir)
+    # C8 · Plan 04 segmenter results lookup is session-level too. Per-cell
+    # verdict is resolved inside evaluate_cell against the cell's workload.
+    c8_result = _evaluate_plan04_segmenter(cells_dir)
 
     records: list[dict] = []
     for path in sorted(cells_dir.glob("*.json")):
@@ -481,7 +591,8 @@ def _main(argv: list[str] | None = None) -> int:
         rec = evaluate_cell(path, workdir_root,
                             args.min_ratio, args.min_windows,
                             args.window, args.hop,
-                            c7_result=c7_result)
+                            c7_result=c7_result,
+                            c8_result=c8_result)
         records.append(rec)
 
     summary = _summarize(records)
@@ -498,8 +609,8 @@ def _main(argv: list[str] | None = None) -> int:
     print(f"  operational pass:     {summary['passing_real_cells']} / "
           f"{summary['real_cells']}   (gates Step 2 launch)")
     print(f"  analysis-ready:       {summary['analysis_ready_real_cells']} / "
-          f"{summary['real_cells']}   (operational + C7 cleared · "
-          f"C7 NA still counts as cleared)")
+          f"{summary['real_cells']}   (operational + C7 + C8 cleared · "
+          f"C7/C8 NA still counts as cleared)")
     print(f"  per-claim pass counts (out of {summary['real_cells']} real cells):")
     for claim, n in summary["claim_pass_counts"].items():
         if claim == "C3_enough_windows":
@@ -508,6 +619,8 @@ def _main(argv: list[str] | None = None) -> int:
             op = "operational when applicable (B+3.1 Δ-4)"
         elif claim == "C7_window_hop_recommended":
             op = "operational when applicable (Plan 03 Δ-4)"
+        elif claim == "C8_segmenter_quality":
+            op = "operational when applicable (Plan 04 Δ-3)"
         else:
             op = "operational"
         print(f"    {claim:<28}  {n:>2}   [{op}]")
@@ -515,8 +628,8 @@ def _main(argv: list[str] | None = None) -> int:
     op_status = "PASS" if summary["all_real_cells_operational"] else "FAIL"
     print(f"  operational status:   {op_status}")
     if op_status == "PASS" and summary["analysis_ready_real_cells"] < summary["real_cells"]:
-        print(f"  note: C7 has not cleared for some cells. C3 (low n_windows) is "
-              f"informational per D-25 and never blocks Step 2.")
+        print(f"  note: C7 or C8 has not cleared for some cells. C3 (low "
+              f"n_windows) is informational per D-25 and never blocks Step 2.")
     return 0 if summary["all_real_cells_operational"] else 1
 
 
