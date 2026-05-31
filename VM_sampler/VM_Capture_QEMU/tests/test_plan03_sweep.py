@@ -401,10 +401,11 @@ class Plan03AggregateTests(unittest.TestCase):
                                  f"G1 at spf={spf}: expected {expected}, got {grp}")
 
     def test_aggregate_gates_g3_ransom_snr_boundary(self):
-        # New G3 ransom: median ceps_peak_snr_db >= 5.0 dB. Test the
-        # boundary (5.0 -> pass; 4.99 -> fail). F1 is intentionally
-        # window-independent and is NOT part of the gate any more.
-        for snr, expected in [(5.0, True), (4.99, False), (10.0, True)]:
+        # G3 ransom: median ceps_peak_snr_db >= 4.5 dB (v3 D-83
+        # recalibration; was 5.0). Test the boundary (4.5 -> pass;
+        # 4.49 -> fail). F1 is intentionally window-independent and is
+        # NOT part of the gate any more.
+        for snr, expected in [(4.5, True), (4.49, False), (10.0, True)]:
             with tempfile.TemporaryDirectory() as td:
                 tdp = Path(td)
                 csv_path = tdp / "sweep.csv"
@@ -447,8 +448,9 @@ class Plan03AggregateTests(unittest.TestCase):
                             f"G3 ransom must ignore low-n_windows cells: {grp}")
 
     def test_aggregate_gates_g3_workingset_short_d(self):
-        # short_duration cell (duration_s <= 120). cv=0.05 -> pass; 0.06 -> fail.
-        for cv, expected in [(0.05, True), (0.06, False)]:
+        # short_duration cell (duration_s <= 120). v3 D-83 ceiling
+        # raised 0.05 -> 0.30: cv=0.30 -> pass; cv=0.31 -> fail.
+        for cv, expected in [(0.30, True), (0.31, False)]:
             with tempfile.TemporaryDirectory() as td:
                 tdp = Path(td)
                 csv_path = tdp / "sweep.csv"
