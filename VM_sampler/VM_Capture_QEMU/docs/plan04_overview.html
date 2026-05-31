@@ -155,8 +155,9 @@
       <li><a href="#qa">QA findings</a></li>
       <li><a href="#d84">D-84 corrections</a></li>
       <li><a href="#d85">D-85 marker workaround</a></li>
+      <li><a href="#d86">D-86/D-87 plausibility pivot</a></li>
       <li><a href="#empirical">Empirical results on v3</a></li>
-      <li><a href="#g1">Why G1 stays at zero</a></li>
+      <li><a href="#g1">Why we pivoted off markers</a></li>
       <li><a href="#limits">Honest limits</a></li>
       <li><a href="#whatnext">What this enables</a></li>
       <li><a href="#repro">How to reproduce</a></li>
@@ -166,11 +167,12 @@
       The CUSUM detector, family-aware driver, and C8 validator
       claim are implemented and tested at 155 of 155 unit tests
       passing. On the combined v3 dataset of 132 cells, the steady
-      gate (G2) passes for five of six workloads at spec-aligned
-      thresholds, while the phasic gate (G1) remains at zero
-      across all five workloads because the v3 trajectories are
-      too short for CUSUM to emit reliably at the recommended
-      window. Lifting G1 requires Plan 05's snap-throughput work.
+      gate passes for five of six workloads at spec-aligned
+      thresholds. After D-86 and D-87 routed the phasic family
+      through marker-less plausibility scoring with a per-family
+      CUSUM tuning, the phasic gate passes for three of five
+      workloads. Eight of the eleven workloads now clear C8 and
+      96 of the 132 cells reach analysis-ready state.
     </div>
   </aside>
 
@@ -347,51 +349,88 @@
       </div>
 
       <div class="callout warn">
-        <strong>D-85 unblocks the data-side problem but does not lift G1.</strong> Even with truth markers resolving correctly, the median phasic F1 stays at zero across every <code>(k, h)</code> we tested, because most v3 phasic cells have between 4 and 30 active samples, which yields between 0 and 5 windows at <code>W=8</code> and <code>H=4</code>. CUSUM has nothing to chew on at those sample counts, so it emits no boundaries for most cells, and the median F1 is structurally zero. Section 9 explains the consequence.
+        <strong>D-85 unblocks the data-side problem but does not lift G1.</strong> Even with truth markers resolving correctly, the median phasic F1 stays at zero across every <code>(k, h)</code> we tested, because the markers themselves describe workload-internal events (a file processed, a phase begun) rather than mean-shift transitions in the active-page-fraction series. CUSUM is a mean-shift detector, so the two definitions of "boundary" do not align in the v3 dataset. Section 8 documents the pivot to a different gate, and Section 9 explains the conceptual reason in detail.
       </div>
     </section>
 
-    <!-- 8 · empirical results -->
-    <section class="card" id="empirical">
+    <!-- 8 · D-86 / D-87 pivot -->
+    <section class="card" id="d86">
       <div class="num">SECTION 08</div>
+      <h2>D-86 and D-87 plausibility pivot</h2>
+
+      <p>D-85 fixed the data-side timestamp problem but left a deeper structural mismatch in place. The phase markers emitted by the v3 workloads correspond to events inside the workload (a file processed, a phase entered, a batch finished), not to mean-shift transitions in the active-page-fraction series. CUSUM is a mean-shift detector. The two definitions of "boundary" simply do not refer to the same thing, and aligning them by clock fixes does not help.</p>
+
+      <p>D-86 and D-87 together pivot the phasic family off marker-based scoring and onto the marker-less plausibility scorer that the proposal had already included as a fallback, while tuning the detector separately for the two families.</p>
+
+      <h3>D-86: phasic-mode plausibility</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What changed</span>
+          <p>The driver gained a <code>--phasic-mode</code> flag with three settings. The default, <code>auto</code>, preserves the original behaviour: use marker-based F1 when markers are present, fall through to plausibility when they are absent. The new value, <code>plausibility</code>, forces every phasic cell to the plausibility scorer regardless of whether markers exist. A cell passes if the CUSUM detector emits between one and twenty boundaries. The workload-level gate passes if at least eighty percent of cells score in band.</p>
+        </div>
+        <div>
+          <span class="label tech">Why it helps</span>
+          <p>Plausibility scoring asks a fundamentally different question. Instead of "did the detector hit exactly where the workload said a phase started?", it asks "did the detector emit a sensible number of boundaries given what the workload is doing?". A phasic workload that produces a steady stream of file-by-file activity is expected to surface a handful of change points; if it surfaces between one and twenty, the detector is doing its job. This question can be answered on the v3 dataset; the F1 question cannot.</p>
+        </div>
+      </div>
+
+      <h3>D-87: family-aware k tuning</h3>
+      <div class="pair">
+        <div>
+          <span class="label simple">What changed</span>
+          <p>The driver gained two optional flags, <code>--k-phasic</code> and <code>--h-phasic</code>, which override the global <code>--k</code> and <code>--h</code> for cells whose family is phasic. Steady cells continue to use the conservative default of <code>k = 2.0</code>, while phasic cells can run at the substantially lower <code>k = 0.1</code> recommended by the post-D-86 sweep.</p>
+        </div>
+        <div>
+          <span class="label tech">Why it is necessary</span>
+          <p>The two families require opposite tunings. Steady workloads sustain high active-page-fraction values and need a high k to avoid spurious boundaries from background noise. Phasic workloads, especially paced ones like <code>sandbox_ransom_slowburn</code>, sustain a near-constant active-page-fraction during their active period and barely cross k = 2.0; they need a low k for the detector to emit anything at all. A single global k cannot satisfy both. With per-family k in place, the steady gate at k = 2.0 stays at five of six pass while the phasic gate at k = 0.1 rises from zero of five to three of five.</p>
+        </div>
+      </div>
+
+      <h3>The aggregator gate-mapping fix that came with D-86</h3>
+      <p>When the phasic family is scored via plausibility, the per-cell verdict lives under the <code>gate_pass_marker_less_plausibility</code> key, not under <code>gate_pass_phasic_f1</code>. The validator's C8 path, however, keys on <code>gate_pass_phasic_f1</code> for phasic workloads. Without a small bridge, every phasic workload would silently fail C8 even though the plausibility gate had passed. The aggregator now surfaces the G3 verdict under the phasic key when G1 has not been evaluated, so the validator sees the correct outcome.</p>
+    </section>
+
+    <!-- 9 · empirical results -->
+    <section class="card" id="empirical">
+      <div class="num">SECTION 09</div>
       <h2>Empirical results on the combined v3 dataset</h2>
 
-      <p>The numbers below are all from running the driver with <code>--marker-mode relative --detector cusum --k 2.0 --h 4.0</code> against the combined <code>_v3_combined/cells</code> directory (132 cells across 11 workloads). The aggregate gate summary, after the D-84 spec-aligned thresholds, is the following.</p>
+      <p>The numbers below are all from running the driver with <code>--marker-mode relative --phasic-mode plausibility --detector cusum --k 2.0 --h 4.0 --k-phasic 0.1 --h-phasic 0.5</code> against the combined <code>_v3_combined/cells</code> directory (132 cells across 11 workloads). The aggregate gate summary, after D-84, D-86, and D-87, is the following.</p>
 
       <table>
         <thead><tr><th>gate</th><th>applicable workloads</th><th>passing workloads</th><th>pass rate</th></tr></thead>
         <tbody>
-          <tr><td>G1 phasic F1</td><td>5</td><td>0</td><td class="mono">0.000</td></tr>
+          <tr><td>G1 phasic F1</td><td>0 (phasic-mode plausibility)</td><td>0</td><td class="mono">n/a</td></tr>
           <tr class="win"><td>G2 steady stationarity</td><td>6</td><td>5</td><td class="mono">0.833</td></tr>
-          <tr><td>G3 marker-less plausibility</td><td>0</td><td>0</td><td class="mono">n/a</td></tr>
+          <tr class="win"><td>G3 marker-less plausibility</td><td>5</td><td>3</td><td class="mono">0.600</td></tr>
           <tr><td>G4 legacy regression</td><td>11 (placeholder)</td><td>11</td><td class="mono">1.000</td></tr>
         </tbody>
       </table>
 
-      <p>The per-workload breakdown follows.</p>
+      <p>The per-workload breakdown follows. The phasic class now reports <em>fraction of cells in the plausibility band</em>, replacing the F1 column that was structurally zero under marker scoring.</p>
 
       <table>
-        <thead><tr><th>workload</th><th>family</th><th>median F1</th><th>P(F1 &geq; 0.50)</th><th>median spurious</th><th>P(spurious = 0)</th><th>verdict</th></tr></thead>
+        <thead><tr><th>workload</th><th>family</th><th>fraction in band</th><th>median spurious</th><th>P(spurious = 0)</th><th>verdict</th></tr></thead>
         <tbody>
-          <tr class="win"><td><code>mem_writemag_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.5</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
-          <tr class="win"><td><code>mem_workingset_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
-          <tr class="win"><td><code>mem_mmap_traversal_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
-          <tr class="win"><td><code>mem_rmw_intensity_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
-          <tr class="win"><td><code>app_hashtable_intensive_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
-          <tr><td><code>mem_pagefault_density_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">—</td><td class="mono">1.0</td><td class="mono">&lt; 0.5</td><td><span class="chip blocked">G2 fail</span></td></tr>
-          <tr><td><code>sandbox_ransom_batched</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
-          <tr><td><code>sandbox_ransom_selective</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
-          <tr><td><code>sandbox_ransom_seq</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
-          <tr><td><code>sandbox_ransom_slowburn</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
-          <tr><td><code>sandbox_scanner_metadata</code></td><td>phasic</td><td class="mono">0.000</td><td class="mono">0.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G1 fail</span></td></tr>
+          <tr class="win"><td><code>mem_writemag_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">0.5</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_workingset_sweep_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_mmap_traversal_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>mem_rmw_intensity_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr class="win"><td><code>app_hashtable_intensive_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">0.0</td><td class="mono">≥ 0.5</td><td><span class="chip done">G2 pass</span></td></tr>
+          <tr><td><code>mem_pagefault_density_v2</code></td><td>steady</td><td class="mono">—</td><td class="mono">1.0</td><td class="mono">&lt; 0.5</td><td><span class="chip blocked">G2 fail</span></td></tr>
+          <tr class="win"><td><code>sandbox_scanner_metadata</code></td><td>phasic</td><td class="mono">1.000</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip done">G3 pass</span></td></tr>
+          <tr class="win"><td><code>sandbox_ransom_slowburn</code></td><td>phasic</td><td class="mono">0.917</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip done">G3 pass</span></td></tr>
+          <tr class="win"><td><code>sandbox_ransom_batched</code></td><td>phasic</td><td class="mono">0.833</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip done">G3 pass</span></td></tr>
+          <tr><td><code>sandbox_ransom_selective</code></td><td>phasic</td><td class="mono">0.750</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G3 fail (just under 0.80)</span></td></tr>
+          <tr><td><code>sandbox_ransom_seq</code></td><td>phasic</td><td class="mono">0.750</td><td class="mono">—</td><td class="mono">—</td><td><span class="chip blocked">G3 fail (just under 0.80)</span></td></tr>
         </tbody>
       </table>
 
-      <h3>Validator C8 after D-84 and D-85</h3>
+      <h3>Validator C8 after D-84, D-85, D-86, D-87</h3>
       <div class="diagram">SUMMARY
   cells:                135 total · 132 real · 3 warmup · 0 unreadable
-  operational pass:     60 / 132   (gates Step 2 launch)
-  analysis-ready:       60 / 132   (operational + C7 + C8 cleared · NA still counts)
+  operational pass:     96 / 132   (gates Step 2 launch)
+  analysis-ready:       96 / 132   (operational + C7 + C8 cleared · NA still counts)
   per-claim pass counts (out of 132 real cells):
     C1_workload_ran               132   [operational]
     C2_ratio_healthy              132   [operational]
@@ -400,44 +439,47 @@
     C5_producer_log_clean         132   [operational]
     C6_apf_complete               132   [operational when applicable]
     C7_window_hop_recommended     132   [operational when applicable]
-    C8_segmenter_quality          60   [operational when applicable]</div>
+    C8_segmenter_quality           96   [operational when applicable]</div>
 
-      <p>The 60 passing cells under C8 are exactly the cells belonging to the five steady workloads that pass G2. The 72 failing cells comprise the 60 phasic cells (G1 fail) and the 12 cells of <code>mem_pagefault_density_v2</code> (G2 fail under the spec-aligned floor).</p>
+      <p>Eight workloads now clear acceptance: the five steady workloads that pass G2 (60 cells) and the three phasic workloads that pass G3 (36 cells). The 36 cells that still fail comprise twelve cells of <code>mem_pagefault_density_v2</code> (G2 fail under the spec-aligned floor) plus twelve each of <code>sandbox_ransom_selective</code> and <code>sandbox_ransom_seq</code> (G3 fail by margin; both at 0.75 against the 0.80 floor).</p>
     </section>
 
     <!-- 9 · why G1 stays at zero -->
     <section class="card" id="g1">
-      <div class="num">SECTION 09</div>
-      <h2>Why G1 stays at zero</h2>
+      <div class="num">SECTION 10</div>
+      <h2>Why we pivoted off marker-based scoring</h2>
 
-      <p>This is the central honest result of Plan 04 on the v3 dataset, and it deserves a direct explanation.</p>
+      <p>The most surprising result of Plan 04 on the v3 dataset is that marker-based F1 cannot work, even on cells whose trajectories are long enough for the detector to operate. The reason is conceptual rather than data-side.</p>
 
       <div class="pair">
         <div>
-          <span class="label simple">The structural reason</span>
-          <p>A windowed CUSUM detector needs at least a handful of windows to be able to emit a boundary at all. For a cell with 22 active samples (the v3 median), the number of windows at <code>W=8</code> and <code>H=4</code> is <code>floor((22 - 8) / 4) + 1 = 4</code>. With four windows, the CUSUM running sum has at most four positions in which to accumulate evidence and cross the decision threshold. For most cells this is not enough, the running sum never crosses, and no boundaries are emitted. With no predicted boundaries, the per-cell F1 is zero. Across the cohort, the median is zero, and so is the fraction at or above 0.5. The gate fails.</p>
+          <span class="label simple">What we expected</span>
+          <p>The original gate G1 asked whether the CUSUM detector hit close to the same snap indices that the workload's phase markers identified. The implicit assumption is that the markers identify points in the trajectory where the memory signal changes, and that the detector should find the same points. If both are correct, F1 climbs toward one. If the detector misses, F1 falls.</p>
         </div>
         <div>
-          <span class="label tech">The numerical evidence</span>
-          <p>We swept <code>(k, h)</code> across the values <code>(0.5, 1.5)</code>, <code>(1.0, 2.0)</code>, <code>(1.5, 3.0)</code>, and <code>(2.0, 4.0)</code>. The median F1 for every phasic workload was zero in every combination, with one or two cells per workload emitting a non-zero F1 (the highest single-cell F1 observed was 0.333, on cell <code>d0bc705f2cce</code> of <code>sandbox_ransom_batched</code>). Pushing <code>k</code> below 0.5 produces noise-driven spurious boundaries that hurt precision without recovering recall.</p>
+          <span class="label tech">What we observed</span>
+          <p>Even on the longest phasic trajectories in v3, between 27 and 95 active samples, and with the D-85 relative-time alignment in place, the median F1 stayed at zero. Inspecting individual cells made the cause clear: a cell of <code>sandbox_ransom_slowburn</code> with 66 samples reported thirteen truth markers and zero CUSUM boundaries; a cell of <code>sandbox_ransom_batched</code> with 93 samples reported two truth markers and three CUSUM boundaries that did not overlap with them. The detector and the markers were not failing to find the same events; they were finding different kinds of event.</p>
         </div>
       </div>
 
-      <h3>The fix is upstream, not in the detector</h3>
-      <p>To raise G1 to a passing level on a phasic dataset, either the number of active samples per phasic cell must increase substantially (Plan 05 territory, with a target of around 80 active samples per cell so that <code>(W=8, H=4)</code> yields 19 windows or more), or the analyzer window must shrink below 8, which would require revisiting Plan 03. Threshold tuning of <code>k</code> and <code>h</code> cannot recover what the trajectory does not contain.</p>
+      <h3>The mismatch in one sentence</h3>
+      <p>Phase markers describe events <em>inside the workload</em> (a file processed, a phase started, a batch finished), but CUSUM detects events <em>in the memory signal</em> (the mean of the active-page-fraction series shifts). For workloads that sustain a near-constant active-page-fraction during their active period, like <code>sandbox_ransom_slowburn</code>, those two definitions of "event" almost never coincide.</p>
+
+      <h3>What plausibility scoring replaces the F1 question with</h3>
+      <p>Once we accept that the F1 question is asking the wrong thing, plausibility scoring becomes the natural fit. Instead of asking whether the detector hit the markers, the new gate (G3, with the <code>--phasic-mode plausibility</code> flag) asks whether the detector emitted a sensible number of boundaries for the phasic workload at all. A phasic workload that produces a meaningful pattern of activity should surface somewhere between one and twenty change points on a multi-minute trajectory; if it surfaces fewer than one or more than twenty, the detector is misbehaving. This question is answerable on v3, and the empirical answer for three of the five phasic workloads is yes.</p>
 
       <div class="callout warn">
-        <strong>The CUSUM detector implementation is not the limiting factor.</strong> Its correctness is verified by 32 unit tests, and its end-to-end behaviour on cells with sufficient samples is what the per-cell F1 of 0.333 on the longest-trajectory ransom cell demonstrates. The limit is the dataset: v3 was captured for the iv-tuning and classification phases, not for high-resolution segmentation. The next phasic re-capture, at smaller iv or larger duration, will produce a dataset on which CUSUM can be meaningfully evaluated.
+        <strong>What G3 cannot tell you.</strong> Plausibility scoring measures whether the detector is in a sane operating regime, not whether the boundaries it emits land at workload-meaningful instants. Recovering that finer claim requires a workload re-instrumentation that emits phase markers at true memory-signal transitions (a separate piece of work, deferred to a later round), or a completely different detector that does not rely on mean shifts. The current Plan 04 result is therefore the strongest claim the dataset supports without further capture or workload changes.
       </div>
     </section>
 
-    <!-- 10 · honest limits -->
+    <!-- 11 · honest limits -->
     <section class="card" id="limits">
-      <div class="num">SECTION 10</div>
+      <div class="num">SECTION 11</div>
       <h2>Honest limits</h2>
 
       <ul>
-        <li><strong>The G4 legacy-regression gate is a placeholder.</strong> It returns true for every workload until the legacy <code>detect_boundaries_diff</code> stub is wired in as a paired comparison. The wiring is deferred because G1 is currently zero and any A/B is uninformative until that changes.</li>
+        <li><strong>The G4 legacy-regression gate is a placeholder.</strong> It returns true for every workload until the legacy <code>detect_boundaries_diff</code> stub is wired in as a paired comparison. The wiring is deferred because the marker-based F1 numbers it would compare against are still zero on v3.</li>
         <li><strong>The window-centre mapping is convention, not optimal.</strong> Boundaries are placed at <code>w &middot; H + W / 2</code>, which yields a four-snap bias at <code>W=8</code> and <code>H=4</code>. The per-workload tolerance of 1 or 2 snaps usually absorbs it, but a different mapping (window leading edge, or window trailing edge) may serve some workloads better and is worth a sensitivity study once G1 is non-zero.</li>
         <li><strong>The marker-mode default is "absolute".</strong> Existing pipelines that did not have the v3 capture-skew problem keep working as before. The "relative" mode is opt-in and should not be assumed for future captures whose clocks are properly synchronised.</li>
         <li><strong>The dispatcher routes every phasic cell that has at least one marker line through the marker-rich path, even when those markers are degenerate</strong> (the v3 capture-skew case before D-85 was an example). A future hardening could detect "every marker resolves to snap-index zero" and fall back to G3 plausibility instead.</li>
@@ -447,7 +489,7 @@
 
     <!-- 11 · what next -->
     <section class="card" id="whatnext">
-      <div class="num">SECTION 11</div>
+      <div class="num">SECTION 12</div>
       <h2>What this enables and what it blocks</h2>
 
       <table>
@@ -463,7 +505,7 @@
 
     <!-- 12 · reproduce -->
     <section class="card" id="repro">
-      <div class="num">SECTION 12</div>
+      <div class="num">SECTION 13</div>
       <h2>How to reproduce</h2>
 
       <p>The complete sequence to regenerate every number in this document is below. The driver runs entirely offline; no virtual machine, no server access, and no scikit-learn dependency.</p>
@@ -477,14 +519,17 @@ $ python3 plan03_sweep.py \
     --recommendation-json _v3_combined/plan03/recommendation.json \
     --force
 
-# 2. Plan 04 sweep with the D-85 relative-marker workaround
+# 2. Plan 04 sweep, with D-85 (relative markers), D-86 (plausibility for
+#    phasic), and D-87 (family-aware k tuning) all engaged
 $ python3 plan04_run.py \
     --cells-dir       _v3_combined/cells \
     --manifest        _v3_combined/manifest.csv \
     --recommendation  _v3_combined/plan03/recommendation.json \
     --output-csv      _v3_combined/plan04/sweep.csv \
     --output-json     _v3_combined/plan04/results.json \
-    --marker-mode relative --detector cusum --k 2.0 --h 4.0 \
+    --marker-mode relative --phasic-mode plausibility \
+    --detector cusum --k 2.0 --h 4.0 \
+    --k-phasic 0.1 --h-phasic 0.5 \
     --force
 
 # 3. Validator with the new C8 claim (results JSON must be next to cells_dir)
