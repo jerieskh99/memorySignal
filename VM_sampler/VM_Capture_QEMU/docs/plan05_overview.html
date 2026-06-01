@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 05 Overview · Capture-Side Throughput Pilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0f0f12; --panel:#16161a; --panel-2:#1c1c22; --line:#2a2a32;
+    --text:#e6e6ea; --text-dim:#b4b4bc; --muted:#7a7a85;
+    --accent:#d4a85a; --accent-2:#b8884a; --good:#7cb96e;
+    --bad:#e8553a; --bad-2:#c8412e; --info:#6ea7d4;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:8px; --r-lg:12px;
+    --f-sans:"Inter", system-ui, -apple-system, sans-serif;
+    --f-display:"Fraunces", Georgia, serif;
+    --f-mono:"JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing:border-box; }
+  html,body { background:var(--bg); color:var(--text); }
+  body { margin:0; min-height:100vh; font-family:var(--f-sans);
+         font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { color:var(--accent-2); text-decoration:underline; }
+  code { font-family:var(--f-mono); font-size:.92em;
+         background:rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color:var(--text); }
+  h1,h2,h3,h4 { font-family:var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size:clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size:clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color:var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color:var(--text);
+       font-family:var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p { margin:10px 0; color:var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start; height:100vh;
+              overflow-y:auto; background:var(--panel);
+              border-right:1px solid var(--line); padding:24px 18px; }
+  aside.nav .brand { font-family:var(--f-display); font-size:16px;
+                     font-weight:600; color:var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color:var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color:var(--text-dim); font-size:13.5px;
+                       transition:background .15s, color .15s; }
+  aside.nav ol li a::before { content:counter(navitem, decimal-leading-zero);
+                              font-family:var(--f-mono); font-size:11px;
+                              color:var(--muted); width:22px; }
+  aside.nav ol li a:hover { background:var(--panel-2); color:var(--text);
+                            text-decoration:none; }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius:var(--r); font-size:12px; line-height:1.5;
+    background:rgba(124,185,110,.08); border:1px solid rgba(124,185,110,.20);
+    color:var(--good); }
+  main { padding:48px 40px 96px; max-width:900px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color:var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color:var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color:var(--text-dim); margin-top:14px;
+                max-width:700px; line-height:1.6; }
+  section.card { background:var(--panel); border:1px solid var(--line);
+                  border-radius:var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow:var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family:var(--f-mono); font-size:12px;
+                       color:var(--accent); font-weight:600; letter-spacing:.1em; }
+  .lead { font-size:16px; color:var(--text); margin:6px 0 4px;
+          font-weight:500; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background:var(--panel-2); border:1px solid var(--line);
+                 border-radius:var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background:rgba(110,167,212,.12); color:var(--info); }
+  .pair .label.tech { background:rgba(212,168,90,.12); color:var(--accent); }
+  .pair p, .pair ul { color:var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:10px 12px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:12px; letter-spacing:.04em;
+       text-transform:uppercase; color:var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color:var(--text-dim); }
+  td.mono { font-family:var(--f-mono); font-size:13px; color:var(--text); }
+  td strong { color:var(--text); }
+  tr:hover td { background:rgba(212,168,90,.03); }
+  .gate { display:grid; grid-template-columns:108px 1fr;
+           gap:16px; align-items:flex-start;
+           background:var(--panel-2); border:1px solid var(--line);
+           border-radius:var(--r); padding:14px 18px; margin:12px 0; }
+  @media (max-width:700px) { .gate { grid-template-columns:1fr; } }
+  .gate .gate-id { font-family:var(--f-mono); font-weight:600;
+                    color:var(--accent); font-size:13px; line-height:1.4;
+                    text-transform:uppercase; letter-spacing:.04em; }
+  .gate .gate-body { font-size:14.5px; color:var(--text-dim); line-height:1.55; }
+  .gate .gate-body .ask { color:var(--text); font-weight:500; }
+  .callout { border-left:3px solid var(--accent);
+              background:rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:18px 0; color:var(--text-dim); font-size:14.5px; }
+  .callout strong { color:var(--text); }
+  .callout.warn { border-color:var(--bad-2); background:rgba(232,85,58,.05); }
+  .callout.good { border-color:var(--good); background:rgba(124,185,110,.05); }
+  .callout.info { border-color:var(--info); background:rgba(110,167,212,.06); }
+  .diagram { font-family:var(--f-mono); font-size:12.5px;
+              background:var(--panel-2); border:1px solid var(--line);
+              border-radius:var(--r); padding:16px 20px; overflow-x:auto;
+              color:var(--text-dim); line-height:1.65; margin:14px 0;
+              white-space:pre; }
+  .diagram .hl-good { color:var(--good); }
+  .diagram .hl-acc { color:var(--accent); }
+  .diagram .hl-info { color:var(--info); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.wait { background:rgba(122,122,133,.16); color:var(--muted); }
+  .chip.info { background:rgba(110,167,212,.14); color:var(--info); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:10px 18px; font-size:14.5px; margin:14px 0; }
+  dl.kv dt { color:var(--accent); font-family:var(--f-mono); font-size:13px; }
+  dl.kv dd { color:var(--text-dim); margin:0; }
+  ul.tight { margin:8px 0; padding-left:20px; color:var(--text-dim);
+             font-size:14.5px; }
+  ul.tight li { margin:5px 0; }
+  .tldr { background:var(--panel-2); border:1px solid var(--line);
+          border-left:3px solid var(--info); border-radius:var(--r);
+          padding:16px 20px; margin:0 0 28px; font-size:15px;
+          color:var(--text-dim); }
+  .tldr b { color:var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 05 Overview</div>
+    <div class="sub">Faster snapshots, same signal</div>
+    <ol>
+      <li><a href="#problem">The problem</a></li>
+      <li><a href="#fix">The fix</a></li>
+      <li><a href="#gates">The three checks</a></li>
+      <li><a href="#matrix">What we test</a></li>
+      <li><a href="#actors">Who runs what</a></li>
+      <li><a href="#built">What's built</a></li>
+      <li><a href="#run">How to run it</a></li>
+      <li><a href="#waves">Where we are</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Wave 1 done.</strong><br>
+      All the offline code is written and tested (48 tests passing). The
+      analyzer was not touched. Next step is a live run on the server.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 05 &middot; capture-side throughput pilot</div>
+      <h1>Faster snapshots,<br><em>same signal.</em></h1>
+      <p class="deck">
+        Every few seconds we pause the virtual machine and copy its whole
+        memory to a file. That copy is slow, and it is slow that decides how
+        much data each experiment can collect. Plan 05 makes the copy cheaper
+        so we collect more, while proving the cheaper copy still measures the
+        same thing. We do not change the analyzer at all.
+      </p>
+    </header>
+
+    <div class="tldr">
+      <b>One-paragraph version.</b> Copying the VM's memory takes most of each
+      snapshot's time, so a short experiment only yields a few snapshots, and
+      our analysis needs more than a few to be reliable. Plan 05 speeds up the
+      copy three ways (smaller guest RAM, writing to a RAM-disk instead of an
+      SSD, deleting old copies as we go), and gates every change behind three
+      pass/fail checks: <b>is it at least 2&times; faster</b>, <b>does it still
+      record the same memory signal</b>, and <b>does it stay under a disk
+      budget</b>. Wave 1 (all the code) is finished and tested; the live run is
+      next.
+    </div>
+
+    <!-- 1 -->
+    <section class="card" id="problem">
+      <div class="num">01</div>
+      <h2>The problem</h2>
+      <p class="lead">The snapshot is slow because of one step: copying RAM.</p>
+      <p>
+        A single snapshot does several things (pause the VM, copy its memory,
+        resume it), but one step dominates everything else &mdash; writing a
+        full copy of guest memory to disk. Because that one step is so slow, a
+        fixed-length experiment fits only a handful of snapshots, and the
+        downstream analysis is left with too few data points to trust.
+      </p>
+      <div class="pair">
+        <div>
+          <span class="label simple">In plain words</span>
+          <p>
+            The memory copy eats roughly 4 out of every 5 seconds of a
+            snapshot. So a short run produces a short, choppy data series.
+            Our analyzer chops that series into overlapping windows and studies
+            them &mdash; but with so few snapshots, most windows are missing,
+            and the statistics built on them get shaky.
+          </p>
+        </div>
+        <div>
+          <span class="label tech">The measured numbers</span>
+          <p>
+            The RAM copy (<code>pmemsave</code>) is a median
+            <code>7.06&nbsp;s</code> of the <code>9.75&nbsp;s</code> snapshot
+            cycle &mdash; about <strong>81%</strong> (range 2&ndash;24&nbsp;s).
+            At the frozen analyzer setting <code>(W,H)=(8,4)</code>,
+            <strong>53 of 132</strong> cells end up with <code>&le;3</code>
+            analysis windows.
+          </p>
+        </div>
+      </div>
+      <div class="callout info">
+        <strong>The signal we care about is called APF</strong> (Active Page
+        Fraction): of all the memory pages, what fraction changed since the
+        last snapshot. It is our measure of how &ldquo;alive&rdquo; memory is
+        over time. A faster snapshot is only useful if APF still looks the same
+        &mdash; that is what the fidelity check defends.
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="card" id="fix">
+      <div class="num">02</div>
+      <h2>The fix</h2>
+      <p class="lead">Make the copy cheaper &rarr; more snapshots &rarr; more data.</p>
+      <p>
+        If the memory copy is cheaper, more snapshots fit in the same wall-clock
+        time. More snapshots means a longer data series, which means more
+        analysis windows of the same size &mdash; and the shaky statistics get
+        solid ground again. We have three independent ways to make the copy
+        cheaper:
+      </p>
+      <table>
+        <thead><tr><th>Lever</th><th>What it does</th><th>Risk</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">guest RAM</td>
+              <td>Give the VM less memory (1024 &rarr; 512 &rarr; 256 MiB), so
+                  there is simply less to copy each time.</td>
+              <td><strong>High.</strong> Needs a VM resize and a cold reboot, and
+                  the memory-heavy workloads run out of RAM below 1024 MiB.</td></tr>
+          <tr><td class="mono">dump target</td>
+              <td>Write the copy to a RAM-disk (<code>tmpfs</code>) instead of an
+                  SSD &mdash; memory is faster than disk.</td>
+              <td><strong>Low.</strong> Just a config path.</td></tr>
+          <tr><td class="mono">delete-as-you-go</td>
+              <td>Remove each old copy right after it has been used, so the disk
+                  never fills up with a backlog of dumps.</td>
+              <td><strong>Low</strong>, but it was tangled up with another
+                  setting; Plan 05 untangles it (see the matrix note).</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The RAM lever is the risky one (reboots, out-of-memory crashes), so we
+        set it aside as a separate side-experiment that never blocks the main
+        pilot. The pilot itself drives the two safe levers: where the copy is
+        written, and when old copies are deleted.
+      </p>
+      <div class="callout">
+        <strong>The bar for success:</strong> a lever must make the copy at
+        least <strong>2&times; faster</strong>, <strong>without changing the APF
+        signal</strong>, and <strong>without blowing a disk budget</strong>.
+        Those three are spelled out next.
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="card" id="gates">
+      <div class="num">03</div>
+      <h2>The three checks</h2>
+      <p>
+        Each candidate setting (a &ldquo;lever arm&rdquo;) is compared against
+        the current baseline &mdash; SSD, keep-the-dumps &mdash; and is accepted
+        only if it passes all three checks. Because each check tests one
+        separate thing, a failure tells you exactly what went wrong.
+      </p>
+
+      <div class="gate">
+        <div class="gate-id">G-T1<br>faster?</div>
+        <div class="gate-body">
+          <span class="ask">Is the copy at least 2&times; faster?</span> The
+          new setting's typical copy time must be at most half the baseline's.
+          This is the whole point of the pilot &mdash; if it is not faster, none
+          of the rest matters.
+        </div>
+      </div>
+
+      <div class="gate">
+        <div class="gate-id">G-T2<br>same signal?</div>
+        <div class="gate-body">
+          <span class="ask">Does APF still look the same?</span> We compare the
+          APF values from the two settings three ways, and all three must agree
+          that nothing meaningfully changed: the <strong>averages</strong> match
+          (within a small margin), the <strong>spread</strong> matches, and the
+          overall <strong>shape</strong> of the distribution is not detectably
+          different. We use an equivalence test, not an ordinary difference test
+          &mdash; the difference between &ldquo;we found no change&rdquo; and
+          &ldquo;we confirmed it is the same&rdquo; matters here, and only the
+          second one is good enough to trust a cheaper snapshot.
+        </div>
+      </div>
+
+      <div class="gate">
+        <div class="gate-id">G-T3<br>fits on disk?</div>
+        <div class="gate-body">
+          <span class="ask">Does it stay under the disk budget?</span> While the
+          run is live, a small background watcher records the largest the dump
+          folder ever gets. That peak must stay at or below <strong>3&nbsp;GiB</strong>.
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Why an equivalence test (and not just a t-test).</strong> An
+        ordinary test failing to find a difference is not proof there is none
+        &mdash; it could just be weak data. The equivalence test flips the
+        burden: it only passes when the data positively shows the two settings
+        land inside a small &ldquo;close enough&rdquo; margin. So
+        &ldquo;fidelity preserved&rdquo; has to be earned, not assumed.
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="card" id="matrix">
+      <div class="num">04</div>
+      <h2>What we actually test</h2>
+      <p class="lead">3 workloads &times; 2 durations &times; 4 settings &times; 3 repeats = 72 runs.</p>
+      <div class="pair">
+        <div>
+          <span class="label simple">The variations</span>
+          <ul>
+            <li><strong>3 workloads</strong> &mdash; one steady and busy, one
+                rhythmic with the strongest periodic signal, and one that uses
+                ~1&nbsp;GiB of memory (the stress case for the RAM lever).</li>
+            <li><strong>2 lengths</strong> &mdash; a short 120&nbsp;s run and a
+                long 600&nbsp;s run.</li>
+            <li><strong>4 settings</strong> &mdash; write to SSD or RAM-disk,
+                crossed with keep-the-dumps or delete-as-you-go.</li>
+            <li><strong>3 repeats</strong> of each, for stable numbers.</li>
+          </ul>
+        </div>
+        <div>
+          <span class="label tech">The four settings (arms)</span>
+          <ul>
+            <li><code>ssd_keep</code> &mdash; today's setup, the baseline
+                everything is compared against.</li>
+            <li><code>ssd_selfclean</code></li>
+            <li><code>tmpfs_keep</code></li>
+            <li><code>tmpfs_selfclean</code></li>
+          </ul>
+          <p style="margin-top:10px;">
+            All four record the APF signal. The big speed difference is expected
+            to come from SSD&nbsp;&rarr;&nbsp;RAM-disk.
+          </p>
+        </div>
+      </div>
+      <div class="callout warn">
+        <strong>The tangle we had to undo.</strong> In the production tool, one
+        switch (&ldquo;keep the dumps?&rdquo;) secretly controlled two things at
+        once: whether dumps were kept, <em>and</em> whether the APF signal was
+        even recorded. Turning dumps off also turned the signal off. The pilot
+        needs the APF signal on <em>every</em> setting, so we added an opt-in
+        switch that records APF no matter what. It is off by default, so if you
+        do not ask for it, the tool behaves exactly as it did before.
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="card" id="actors">
+      <div class="num">05</div>
+      <h2>Who runs what</h2>
+      <p>
+        The work splits cleanly in two, on purpose, so the risky live machine
+        never holds up the safe desk work.
+      </p>
+      <div class="pair">
+        <div>
+          <span class="label simple">Laptop (offline)</span>
+          <p>
+            All the code and analysis: the fidelity check, the results
+            aggregator, the driver changes, the runner that loops everything,
+            the tests, and this page. No live VM. This is everything Wave 1
+            delivered.
+          </p>
+        </div>
+        <div>
+          <span class="label tech">Server (live)</span>
+          <p>
+            All the real captures against the VM: the risky RAM-resize probe,
+            the pilot run, the follow-up runs on more workloads, and the final
+            campaign. The server runs <code>plan05_run.py</code>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="card" id="built">
+      <div class="num">06</div>
+      <h2>What's built (Wave 1)</h2>
+      <p>All written on the laptop, all unit-tested, none of it touches the analyzer.</p>
+      <dl class="kv">
+        <dt>plan05_fidelity.py</dt>
+        <dd>The &ldquo;same signal?&rdquo; check (G-T2): compares two APF series
+            by average, spread, and shape, and returns pass/fail.</dd>
+        <dt>plan05_aggregate.py</dt>
+        <dd>Takes all the runs, applies the three checks to each setting, and
+            writes a summary plus a recommendation of the best setting that
+            passes everything.</dd>
+        <dt>run_timing_&hellip;experiment.py</dt>
+        <dd>The single-run driver, now with off-by-default switches: record APF
+            (<code>--stream-apf</code>), watch peak disk
+            (<code>--instrument-peak-disk</code>), write to a RAM-disk
+            (<code>--image-dir</code>), and a safety check that refuses to run if
+            the configured RAM size does not match the real VM.</dd>
+        <dt>plan05_run.py</dt>
+        <dd>The runner that loops the driver across all 72 runs, starts the VM
+            once, does the safety check once, and gathers the results.</dd>
+        <dt>tests/</dt>
+        <dd>Four test files, 48 checks in total &mdash; including a proof that
+            with none of the new switches on, the tool behaves byte-for-byte
+            like before.</dd>
+      </dl>
+      <div class="callout good">
+        <strong>Nothing changes unless you ask.</strong> Every new capability is
+        behind a switch that defaults to off. With no switches, the old behavior
+        is preserved exactly &mdash; and that is one of the tested guarantees,
+        not just a claim.
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="card" id="run">
+      <div class="num">07</div>
+      <h2>How to run it (on the server)</h2>
+      <p>
+        The guest workload commands are specific to the server, so you pass them
+        in by hand (the runner refuses obvious placeholder text):
+      </p>
+      <div class="diagram">python3 plan05_run.py \
+  --workload-command app_hashtable_intensive_v2=<span class="hl-acc">'/usr/local/bin/app_hashtable_intensive --rounds 8'</span> \
+  --workload-command sandbox_scanner_metadata=<span class="hl-acc">'/usr/local/bin/sandbox_scanner_metadata'</span> \
+  --workload-command mem_workingset_sweep_v2=<span class="hl-acc">'/usr/local/bin/mem_workingset_sweep'</span> \
+  --ssh-target <span class="hl-info">kali@192.168.122.42</span> \
+  --tmpfs-dir <span class="hl-info">/dev/shm/plan05_dump</span> \
+  --aggregate</div>
+      <p>
+        Each run writes its own result file; the runner gathers them into one,
+        and <code>--aggregate</code> produces <code>plan05_summary.json</code>
+        with the three checks for every setting and a recommended winner. To
+        preview the exact commands without touching the VM, add
+        <code>--dry-run</code> (safe to run on the laptop).
+      </p>
+      <div class="callout">
+        <strong>Reading the result:</strong> start at the recommendation &mdash;
+        it names the winning setting. Then each setting's three blocks tell you
+        whether it earned the speed-up, kept the signal, and stayed under the
+        disk budget.
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="card" id="waves">
+      <div class="num">08</div>
+      <h2>Where we are</h2>
+      <table>
+        <thead><tr><th>Wave</th><th>Who</th><th>What</th><th>State</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">0</td><td>server</td>
+              <td>RAM-resize boot probe (the risky lever, kept on the side); the
+                  laptop already built the safety guard for it</td>
+              <td><span class="chip info">side-track</span></td></tr>
+          <tr><td class="mono">1</td><td>laptop</td>
+              <td>All the code: fidelity check, aggregator, driver switches,
+                  runner, tests, this page</td>
+              <td><span class="chip done">done</span></td></tr>
+          <tr><td class="mono">2</td><td>server</td>
+              <td>Run the 72-run pilot; collect timing, APF, and peak disk</td>
+              <td><span class="chip next">next</span></td></tr>
+          <tr><td class="mono">3</td><td>both</td>
+              <td>Read the results, fix whatever the pilot surfaces</td>
+              <td><span class="chip wait">after 2</span></td></tr>
+          <tr><td class="mono">4</td><td>server</td>
+              <td>Apply the winning setting to the wider workload family</td>
+              <td><span class="chip wait">after 3</span></td></tr>
+          <tr><td class="mono">5</td><td>server</td>
+              <td>Fold the winning setting into the full capture campaign</td>
+              <td><span class="chip wait">after 4</span></td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:18px; font-size:13.5px; color:var(--muted);">
+        Deeper companion document:
+        <a href="plan05_snap_throughput_proposal.html">Plan 05 Proposal &mdash;
+        Snap-Throughput Lift</a> (the full team review, every lever, and the
+        ideas parked for a follow-up).
+      </p>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

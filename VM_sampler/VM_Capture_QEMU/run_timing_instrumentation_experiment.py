@@ -60,6 +60,7 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -162,6 +163,26 @@ def build_argparser() -> argparse.ArgumentParser:
                         "touching the VM, the producer, or any dump file.")
     p.add_argument("--verbose", action="store_true",
                    help="Print extra status messages.")
+    # --- Plan 05 (capture-side throughput pilot) opt-in flags. All default
+    #     OFF so the env dict and config emitted with none of them present are
+    #     byte-identical to the pre-Plan-05 driver. ---
+    p.add_argument("--image-dir", type=str, default=None,
+                   help="Plan 05 dump-target lever: override imageDir in the "
+                        "config snapshot (e.g. a tmpfs path). Default: use the "
+                        "value already in --config.")
+    p.add_argument("--stream-apf", action="store_true",
+                   help="Plan 05 fidelity lever: run the producer's APF helper "
+                        "(TIMING_APF_STREAM) so an apf_trajectory.jsonl is "
+                        "written even on a self-clean / producer-only run. "
+                        "Default OFF (no APF trajectory, original behavior).")
+    p.add_argument("--instrument-peak-disk", action="store_true",
+                   help="Plan 05 disk gate (G-T3): sample the live-dump dir size "
+                        "during the run and record peak_dump_bytes in the "
+                        "summary. Default OFF.")
+    p.add_argument("--skip-ram-check", action="store_true",
+                   help="Plan 05 / Wave 0: skip the --ram-mb vs live-domain "
+                        "maxmem preflight. Default OFF (preflight aborts on a "
+                        "mismatch that would silently truncate the dump).")
     return p
 
 
@@ -175,12 +196,16 @@ def load_config(path: Path) -> dict:
 
 
 def write_overridden_config(orig: dict, workdir: Path, interval_ms: int | None,
-                             ram_mb: int | None) -> tuple[Path, dict]:
+                             ram_mb: int | None,
+                             image_dir: str | None = None) -> tuple[Path, dict]:
     cfg = json.loads(json.dumps(orig))  # deep copy
     if interval_ms is not None:
         cfg["intervalMsec"] = int(interval_ms)
     if ram_mb is not None:
         cfg["ramSizeMb"] = int(ram_mb)
+    # Plan 05 dump-target lever (default None => key untouched, byte-identical).
+    if image_dir is not None:
+        cfg["imageDir"] = str(image_dir)
     # Disable streaming + raw retention so Experiment 1 is producer-only.
     if "streaming" in cfg and isinstance(cfg["streaming"], dict):
         cfg["streaming"]["enabled"] = False
@@ -227,6 +252,54 @@ def virsh_start_if_needed(uri: str, domain: str, dry_run: bool) -> str:
             return state
         time.sleep(0.5)
     return state
+
+
+def virsh_max_memory_kib(uri: str, domain: str) -> int | None:
+    """Return the live domain's 'Max memory' in KiB from `virsh dominfo`.
+
+    Plan 05 / Wave 0. The pmemsave dump length is driven by config ramSizeMb,
+    but the actual guest RAM is the domain's max memory. When they disagree the
+    dump is silently truncated (or over-read) -> corrupt APF. This reads the
+    ground truth so the preflight can abort. Returns None if virsh is missing
+    or the field cannot be parsed (caller treats None as 'cannot verify').
+    """
+    try:
+        out = subprocess.run(
+            ["virsh", "-c", uri, "dominfo", domain],
+            capture_output=True, text=True, check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if out.returncode != 0:
+        return None
+    for raw in (out.stdout or "").splitlines():
+        line = raw.strip()
+        # virsh prints e.g. "Max memory:     1048576 KiB"
+        if line.lower().startswith("max memory:"):
+            parts = line.split(":", 1)[1].split()
+            if parts and parts[0].isdigit():
+                return int(parts[0])
+    return None
+
+
+def ram_size_matches_domain(uri: str, domain: str, ram_mb: int,
+                            tol: float = 0.02) -> tuple[bool | None, dict]:
+    """Check config ramSizeMb against the live domain's max memory.
+
+    Returns (ok, detail). ok is None when the domain max memory cannot be read
+    (virsh absent / unparseable) -> 'cannot verify', caller decides. ok is True
+    when |ram_mb - domain_mb| / domain_mb <= tol, else False. tol absorbs the
+    KiB-vs-MiB rounding (1048576 KiB == 1024 MiB exactly, but guests sometimes
+    report a few MiB of reserved memory).
+    """
+    dom_kib = virsh_max_memory_kib(uri, domain)
+    if dom_kib is None:
+        return None, {"domain_max_kib": None, "ram_mb": ram_mb,
+                      "note": "virsh dominfo unavailable; cannot verify RAM"}
+    dom_mb = dom_kib / 1024.0
+    rel = abs(ram_mb - dom_mb) / dom_mb if dom_mb > 0 else float("inf")
+    return (rel <= tol), {"domain_max_kib": dom_kib, "domain_max_mb": dom_mb,
+                          "ram_mb": ram_mb, "rel_diff": rel, "tol": tol}
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +404,92 @@ def stop_workload(proc: subprocess.Popen | None) -> None:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Plan 05 — APF streaming env + peak-disk instrumentation (all opt-in)
+# ---------------------------------------------------------------------------
+
+def configure_apf_env(workdir: Path, enabled: bool) -> tuple[dict, Path | None]:
+    """Return (env_updates, apf_jsonl_path) for the producer's APF helper.
+
+    Plan 05 fidelity lever. When ``enabled`` is False this returns ``({}, None)``
+    so the caller adds nothing to the environment and the producer behaves
+    exactly as before (no APF trajectory). When True it returns the four
+    ``TIMING_APF_*`` keys the producer gates the helper on and the trajectory
+    path, after clearing any stale trajectory / ack files in the workdir.
+
+    The producer (capture_producer_qemu_pmemsave.sh) runs plan02_apf_helper.py
+    only when ``TIMING_APF_STREAM`` is set; the helper deletes the previous dump
+    after differencing, so peak on-disk stays ~2-3 dumps regardless of run
+    length.
+    """
+    if not enabled:
+        return {}, None
+    apf_jsonl = workdir / "apf_trajectory.jsonl"
+    ack_dir = workdir / "apf_acks"
+    helper_log = workdir / "apf_helper.log"
+    # Clear stale state so a reused workdir does not pool old APF samples.
+    try:
+        if apf_jsonl.exists():
+            apf_jsonl.unlink()
+    except OSError:
+        pass
+    if ack_dir.exists():
+        for p in ack_dir.glob("*"):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+    ack_dir.mkdir(parents=True, exist_ok=True)
+    env = {
+        "TIMING_APF_STREAM": "1",
+        "TIMING_APF_JSONL": str(apf_jsonl),
+        "TIMING_APF_ACK_DIR": str(ack_dir),
+        "TIMING_APF_HELPER_LOG": str(helper_log),
+    }
+    return env, apf_jsonl
+
+
+class _PeakDiskSampler(threading.Thread):
+    """Daemon thread sampling the live-dump dir size, tracking the peak.
+
+    Plan 05 disk gate (G-T3). Polls ``image_dir/memory_dump-*.raw`` total bytes
+    every ``interval_s`` and keeps the maximum seen. Cheap (a glob + stat per
+    file); off by default — only started when --instrument-peak-disk is set.
+    """
+
+    def __init__(self, image_dir: Path, interval_s: float = 0.5) -> None:
+        super().__init__(daemon=True)
+        self.image_dir = image_dir
+        self.interval_s = interval_s
+        self.peak_bytes = 0
+        self._stop = threading.Event()
+
+    def _sample(self) -> int:
+        total = 0
+        if not self.image_dir.is_dir():
+            return 0
+        for p in self.image_dir.glob("memory_dump-*.raw"):
+            try:
+                total += p.stat().st_size
+            except OSError:
+                continue
+        return total
+
+    def run(self) -> None:
+        while not self._stop.is_set():
+            cur = self._sample()
+            if cur > self.peak_bytes:
+                self.peak_bytes = cur
+            self._stop.wait(self.interval_s)
+
+    def stop(self) -> None:
+        self._stop.set()
+        # One final sample in case the peak landed between ticks.
+        cur = self._sample()
+        if cur > self.peak_bytes:
+            self.peak_bytes = cur
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +752,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     orig_cfg = load_config(config_path)
-    cfg_path, eff_cfg = write_overridden_config(orig_cfg, workdir, args.interval_ms, args.ram_mb)
+    cfg_path, eff_cfg = write_overridden_config(orig_cfg, workdir, args.interval_ms,
+                                                args.ram_mb, args.image_dir)
     image_dir = Path(eff_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump")).expanduser()
     vm_domain = eff_cfg.get("domain", "")
     interval_ms = int(eff_cfg.get("intervalMsec", 100))
@@ -666,6 +826,32 @@ def main(argv: list[str] | None = None) -> int:
     else:
         notes.append("--no-vm-start: trusting caller to ensure VM is running")
 
+    # Plan 05 / Wave 0: RAM preflight. The pmemsave dump length is driven by
+    # config ramSizeMb; if it disagrees with the live domain's max memory the
+    # dump is silently truncated (or over-read) -> corrupt APF. Abort loudly
+    # rather than emit silent garbage. Skipped on --skip-ram-check or
+    # --no-vm-start (no trustworthy running domain to read); a note-only no-op
+    # when virsh cannot answer.
+    if not args.skip_ram_check and not args.no_vm_start and ram_mb > 0:
+        ok, ram_detail = ram_size_matches_domain(args.virsh_uri, vm_domain, ram_mb)
+        plan["config"]["ram_check"] = ram_detail
+        if ok is False:
+            dom_mb = ram_detail.get("domain_max_mb") or 0.0
+            msg = (f"RAM mismatch: config ramSizeMb={ram_mb} but live domain "
+                   f"{vm_domain!r} max memory={dom_mb:.0f} MiB. The pmemsave dump "
+                   f"would be {ram_mb} MiB and silently misread the guest -> "
+                   f"corrupt APF. Resize the domain first (virsh setmaxmem + cold "
+                   f"reboot) or pass --skip-ram-check to override.")
+            log(f"ERROR: {msg}")
+            notes.append(msg)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with out_path.open("w") as f:
+                json.dump(plan, f, indent=2)
+            log(f"wrote {out_path} (RAM-preflight abort)")
+            return 4
+        if ok is None:
+            notes.append(ram_detail.get("note", "RAM check skipped (cannot verify)"))
+
     if args.test_command and args.ssh_target:
         ok = wait_for_ssh(args.ssh_target, args.ssh_key, args.ssh_opts, timeout_s=120)
         if not ok:
@@ -697,6 +883,22 @@ def main(argv: list[str] | None = None) -> int:
     run_start_epoch = time.time()
     plan["config"]["run_start_epoch"] = run_start_epoch
 
+    # Plan 05 fidelity lever: optionally stream APF (default OFF => os.environ
+    # untouched, producer behaves exactly as before with no trajectory).
+    apf_env, apf_jsonl = configure_apf_env(workdir, args.stream_apf)
+    if apf_env:
+        os.environ.update(apf_env)
+        notes.append(f"plan-05: APF streaming ON; trajectory -> {apf_jsonl}")
+    plan["config"]["stream_apf"] = bool(args.stream_apf)
+
+    # Plan 05 disk gate (G-T3): optional peak live-dump sampler (default OFF).
+    disk_sampler: _PeakDiskSampler | None = None
+    if args.instrument_peak_disk:
+        disk_sampler = _PeakDiskSampler(image_dir)
+        disk_sampler.start()
+        notes.append("plan-05: peak-disk instrumentation ON")
+    plan["config"]["instrument_peak_disk"] = bool(args.instrument_peak_disk)
+
     producer_proc = start_producer(producer_script, cfg_path, jsonl_path, producer_log)
     workload_proc = start_workload(args.ssh_target, args.ssh_key, args.ssh_opts,
                                    args.test_command or "", workload_log)
@@ -709,6 +911,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         stop_workload(workload_proc)
         stop_producer(producer_proc, args.grace_stop_seconds)
+        if disk_sampler is not None:
+            disk_sampler.stop()
+            disk_sampler.join(timeout=5)
 
     snaps, bps = parse_jsonl(jsonl_path)
     if not snaps and not bps:
@@ -725,6 +930,13 @@ def main(argv: list[str] | None = None) -> int:
     plan["summary"]["producer_log"] = str(producer_log)
     if args.test_command:
         plan["summary"]["workload_log"] = str(workload_log)
+    # Plan 05: surface the two new measurements for the aggregator's gates.
+    if disk_sampler is not None:
+        plan["summary"]["peak_dump_bytes"] = disk_sampler.peak_bytes
+        plan["summary"]["peak_dump_gib"] = round(disk_sampler.peak_bytes / (1024 ** 3), 4)
+    if apf_jsonl is not None:
+        plan["summary"]["apf_trajectory"] = str(apf_jsonl)
+        plan["summary"]["apf_helper_log"] = str(workdir / "apf_helper.log")
 
     removed = cleanup_run_dumps(image_dir, run_start_epoch, args.keep_dumps)
     notes.append(f"cleanup: removed {removed} dump files newer than run start "
