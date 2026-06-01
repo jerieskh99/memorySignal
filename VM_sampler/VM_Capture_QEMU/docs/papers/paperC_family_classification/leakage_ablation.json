@@ -1,0 +1,99 @@
+{
+  "schema": "plan04.leakage_ablation.v1",
+  "sklearn_version": "1.7.2",
+  "protocol": "GroupKFold leave-one-replicate-out, RandomForest(n=300), median-impute+standardize",
+  "n_cells": 118,
+  "n_phasic": 54,
+  "n_steady": 64,
+  "majority_baseline": 0.5424,
+  "clopper_pearson_95_lower_for_full": 0.9692,
+  "runs": {
+    "FULL_10": {
+      "features": [
+        "apf_mean",
+        "apf_std",
+        "cv_workingset",
+        "f1_phase",
+        "cepstral_peak_idx",
+        "ceps_peak_snr_db",
+        "stat_pass_frac",
+        "n_pairs",
+        "n_windows",
+        "coverage_ratio"
+      ],
+      "n_features": 10,
+      "accuracy": 1.0,
+      "confusion": {
+        "tn_steady": 64,
+        "fp": 0,
+        "fn": 0,
+        "tp_phasic": 54
+      }
+    },
+    "AGNOSTIC_no_family_conditional": {
+      "features": [
+        "apf_mean",
+        "apf_std",
+        "cepstral_peak_idx",
+        "ceps_peak_snr_db",
+        "stat_pass_frac",
+        "n_pairs",
+        "n_windows"
+      ],
+      "n_features": 7,
+      "accuracy": 0.6441,
+      "confusion": {
+        "tn_steady": 45,
+        "fp": 19,
+        "fn": 23,
+        "tp_phasic": 31
+      }
+    },
+    "coverage_ratio_alone": {
+      "features": [
+        "coverage_ratio"
+      ],
+      "n_features": 1,
+      "accuracy": 1.0,
+      "confusion": {
+        "tn_steady": 64,
+        "fp": 0,
+        "fn": 0,
+        "tp_phasic": 54
+      }
+    },
+    "ceps_snr_alone": {
+      "features": [
+        "ceps_peak_snr_db"
+      ],
+      "n_features": 1,
+      "accuracy": 0.5085,
+      "confusion": {
+        "tn_steady": 36,
+        "fp": 28,
+        "fn": 30,
+        "tp_phasic": 24
+      }
+    },
+    "apf_mean_std_only": {
+      "features": [
+        "apf_mean",
+        "apf_std"
+      ],
+      "n_features": 2,
+      "accuracy": 0.5763,
+      "confusion": {
+        "tn_steady": 43,
+        "fp": 21,
+        "fn": 29,
+        "tp_phasic": 25
+      }
+    }
+  },
+  "family_conditional_features": [
+    "cv_workingset",
+    "f1_phase",
+    "coverage_ratio"
+  ],
+  "interpretation": "The reported 1.000 binary accuracy is fully reproduced by coverage_ratio alone (0.133 steady vs 0.2 phasic, assigned per family). Removing the three family-conditional features drops accuracy to the AGNOSTIC value, near the majority baseline. The clean separation is therefore largely feature-construction leakage, not behavioral discrimination."
+}

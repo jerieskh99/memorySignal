@@ -1,0 +1,159 @@
+%==============================================================================
+% Paper B -- skeleton (bullets, to be polished into prose)
+% Target venue: reproducibility / measurement-methodology track.
+% Core stance agreed by the team: the most defensible contribution here is the
+% GATE FRAMEWORK that separates "signal present" from "signal adequately
+% sampled", plus the honest negative result that phasic rhythm is detectable
+% but under-covered at the achievable cadence.
+%
+% Build: pdflatex skeleton.tex  (IEEEtran; swap to article if missing).
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{Acceptance-Gated Selection of Sampling Interval and Analysis Window\\
+for Short, Coarse Memory-Liveness Time Series}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% TODO polish. Bullet stub:
+\begin{itemize}
+  \item Tuning a windowed analyzer over a memory-liveness signal involves two
+        coupled knobs -- the sampling interval and the analysis window/hop.
+  \item We propose an acceptance-gated grid search that does not merely pick the
+        ``best'' window but \emph{certifies} whether each workload's defining
+        metric is both present and adequately sampled.
+  \item Applied to 11 workloads, the protocol selects a near-universal window
+        and yields a clean acceptance for 5; for the rest it pinpoints the exact
+        gate that fails, separating ``no signal'' from ``under-sampled signal.''
+\end{itemize}
+\end{abstract}
+
+\section{Introduction}
+\begin{itemize}
+  \item Once a memory-liveness signal exists (Paper A), two questions remain:
+        how often to sample, and over what window to analyze.
+  \item Naively, one sweeps both and reports the configuration that maximizes a
+        score. That hides \emph{why} a configuration is good or bad and invites
+        over-fitting to a single workload.
+  \item \textbf{Observation from the capture layer}: the effective cadence is a
+        floor set by the snapshot primitive (\SI{15}{}--\SI{21}{\second}/snap),
+        so the sampling-interval axis is largely inert below that floor. We
+        therefore fix a single requested interval (\SI{500}{\milli\second}) and
+        focus the search on the window/hop.
+  \item \textbf{Idea}: replace ``argmax score'' with a set of acceptance gates,
+        each testing a distinct, named property (stationarity, spectral
+        coverage, defining-metric strength, hop validity, window-count
+        sufficiency), plus a regression guard against a prior baseline.
+  \item \textbf{Contributions}:
+    \begin{itemize}
+      \item C1: a five-gate acceptance protocol (G1--G5) plus a baseline
+            regression guard, applied per workload over a window/hop grid.
+      \item C2: an empirical result -- a near-universal window choice with one
+            principled exception -- and a clean acceptance for the steady
+            non-bimodal family.
+      \item C3: a quantified negative result -- phasic periodicity is
+            \emph{detectable} (defining metric passes) yet \emph{under-sampled}
+            (coverage gate fails) at the achievable cadence.
+    \end{itemize}
+\end{itemize}
+
+\section{Method}
+\begin{itemize}
+  \item \textbf{Grid.} Windows $W \in \{8,16,32,64\}$; hop ratios
+        $\{0.25, 0.50, 1.00\}$ with $H = \max(1, \mathrm{round}(W \cdot r))$.
+  \item \textbf{Metric kernels} (per cell, per $(W,H)$):
+    \begin{itemize}
+      \item \emph{Stationarity}: fraction of windows whose mean lies within one
+            global standard deviation of the global mean
+            ($|\mu_{\text{win}}-\mu|/\sigma < 1.0$); a constant trajectory scores
+            1.0.
+      \item \emph{Spectral coverage}: a coverage ratio measuring how many
+            periods of the dominant rhythm fit in the observation window.
+      \item \emph{Cepstral SNR} (phasic defining metric): from the real cepstrum
+            (rFFT $\to$ log-magnitude $\to$ irFFT),
+            $\mathrm{SNR}_{\text{dB}} = 10\log_{10}\!\big(|c[\text{peak}]| /
+            \mathrm{median}(|c[\,q\!\ge\!q_{\min}]|)\big)$,
+            $q_{\min}=\max(1, T/8)$.
+      \item \emph{CV-workingset} (steady defining metric): coefficient of
+            variation of the trajectory.
+    \end{itemize}
+  \item \textbf{Gates} (numeric thresholds as calibrated):
+    \begin{itemize}
+      \item G1 stationarity: median pass-fraction $\ge 0.80$ over cells with
+            $\ge 5$ windows.
+      \item G2 spectral coverage: median coverage ratio $\ge 2.0$ (steady family
+            auto-passes -- no rhythm to cover).
+      \item G3 defining metric: phasic median cepstral SNR $\ge \SI{4.5}{\decibel}$;
+            steady median CV $\le 0.30$ (short, $d\le\SI{120}{\second}$) or
+            $\le 0.50$ (long, $d\ge\SI{300}{\second}$).
+      \item G4 hop validity: $2H \le W$.
+      \item G5 window-count sufficiency: $\ge 80\%$ of physically eligible cells
+            ($n_{\text{pairs}} \ge W+4H$) deliver $\ge 5$ windows.
+    \end{itemize}
+  \item \textbf{Regression guard ($\Delta$-5).} Independent of G1--G5: reject a
+        recommendation that degrades a prior (v2) baseline -- ransom F1 floor
+        0.95, working-set CV ceiling 0.30.
+  \item \textbf{Selection.} For each workload, choose the gate-passing $(W,H)$;
+        report no single joint winner unless one exists across all workloads.
+\end{itemize}
+
+\section{Evaluation}
+\begin{itemize}
+  \item \textbf{Sweep scale.} 132 cells $\times$ up to 12 $(W,H)$ combinations
+        $=$ 1584 rows; 900 scored \texttt{ok}, 684 \texttt{skip:short}
+        (too few pairs for the window).
+  \item \textbf{Window selection.} No universal joint winner. Ten of eleven
+        workloads select $(W,H)=(8,4)$; the bimodal
+        \texttt{app\_hashtable\_intensive\_v2} selects $(32,8)$.
+  \item \textbf{Clean acceptance: 5 of 11.} The five steady non-bimodal
+        workloads pass every gate (median CV: writemag 0.060, workingset 0.175,
+        mmap 0.193, pagefault 0.208, rmw 0.257; all $\le 0.30$; stationarity
+        $\approx 1.0$).
+  \item \textbf{Bimodal exception.} \texttt{hashtable} passes G1--G5 (CV 0.293,
+        window $32/8$) but is held back by the $\Delta$-5 regression guard
+        (\texttt{degrades\_v2\_baseline}); it is a near-miss, not a metric
+        failure.
+  \item \textbf{Phasic: detectable but under-sampled.} All five phasic workloads
+        pass the defining-metric gate G3 -- cepstral SNR
+        4.785 (seq), 5.254 (selective), 5.336 (slowburn), 6.054 (batched),
+        6.346\,dB (scanner), each $>\SI{4.5}{\decibel}$ -- yet \emph{fail G2}
+        (coverage $\approx 0.20 \ll 2.0$). The rhythm is real and detectable;
+        too few periods fit in the cell at the achievable cadence.
+  \item \textbf{Interpretation.} The framework's value is exactly this
+        separation: G3 says ``the signature is there,'' G2 says ``we did not
+        capture enough of it.'' A single max-score number would have conflated
+        the two.
+  \item TODO: table -- per-workload $(W,H)$, each gate verdict, defining-metric
+        value; figure -- coverage ratio vs.\ cell duration for the phasic family.
+\end{itemize}
+
+\section{Limitations}
+\begin{itemize}
+  \item Coverage is bounded by the cadence floor and the 600\,s workload cap;
+        clearing G2 for the phasic family requires faster snapshots or longer
+        observation, not a different window.
+  \item Gate thresholds (0.80, 2.0, \SI{4.5}{\decibel}, 0.30/0.50) were
+        hand-calibrated and revised once during the study; a sensitivity
+        analysis is future work.
+  \item The $\Delta$-5 guard encodes a specific prior baseline; its interaction
+        with G1--G5 (hashtable case) should be made explicit in the protocol.
+\end{itemize}
+
+\section{Conclusion}
+\begin{itemize}
+  \item Acceptance gates turn analyzer tuning into a certified, per-property
+        decision rather than an opaque score maximization.
+  \item Applied here, they certify the steady family, isolate one bimodal
+        near-miss, and convert the phasic ``failure'' into an actionable,
+        quantified statement: detectable rhythm, insufficient coverage.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

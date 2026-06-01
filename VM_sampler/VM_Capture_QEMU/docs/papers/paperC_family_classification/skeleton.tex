@@ -1,0 +1,186 @@
+%==============================================================================
+% Paper C -- skeleton (bullets, to be polished into prose)
+% REVISED after peer review (Reviewers A & B) and an in-house leakage ablation.
+%
+% What changed and why (recorded for the team):
+%   * The first draft led with "100% phasic-vs-steady accuracy" and explained it
+%     by "phasic SNR 4.7-6.4 dB vs steady <3 dB". BOTH were wrong:
+%       - steady cepstral SNR is actually 2.6-8.0 dB (4 of 6 steady workloads
+%         exceed the 4.5 dB phasic gate; hashtable tops the set at 8.0). SNR does
+%         NOT separate the families.
+%       - an ablation (leakage_ablation.py / .json) shows the 100% is fully
+%         reproduced by coverage_ratio ALONE -- a feature assigned per family
+%         (0.133 steady vs 0.2 phasic). Remove the three family-conditional
+%         features and accuracy falls to 0.644 (majority baseline 0.542).
+%   * The paper is therefore recast from a "security detector" to a
+%     "workload characterization + a cautionary leakage finding" paper.
+%
+% Target venue: ML-for-systems / measurement (NOT a security-detection venue
+%   on this evidence).
+% Build: pdflatex skeleton.tex  (IEEEtran; swap to article if missing).
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{How Much Workload Identity Survives in a Single-Scalar\\
+Memory-Liveness Trajectory? A Leakage-Controlled Study}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% TODO polish. Bullet stub:
+\begin{itemize}
+  \item Question: after collapsing per-page memory change to one scalar (APF),
+        how much workload identity remains?
+  \item A naive classifier reports perfect (100\%) phasic-vs-steady accuracy,
+        but we show this is an artifact: a single feature that the analyzer
+        computes \emph{per family} reproduces it exactly.
+  \item Under a leakage-controlled evaluation -- removing every
+        family-conditional feature -- the genuine family signal is weak: 0.644
+        accuracy against a 0.542 majority baseline.
+  \item The contribution is therefore a cautionary, quantified result about
+        feature-construction leakage in memory-signal classification, plus an
+        honest measurement of the residual signal.
+\end{itemize}
+\end{abstract}
+
+\section{Introduction}
+\begin{itemize}
+  \item APF discards per-page detail (Paper A). A fair question is whether the
+        surviving scalar still carries workload identity, at the family level
+        (bursty ``phasic'' vs.\ continuous ``steady'') or the instance level
+        (which of 11 workloads).
+  \item \textbf{A trap we fell into, then diagnosed.} Ten APF-derived features
+        plus a RandomForest separate the families perfectly under
+        leave-one-replicate-out cross-validation. That number is seductive and
+        \emph{wrong as a behavioral claim}: three of the ten features are
+        computed conditionally on the family the analyzer already assigned.
+  \item \textbf{Why this matters beyond this paper.} Memory-signal pipelines
+        routinely derive ``defining metrics'' per workload class; if those
+        metrics then feed a classifier, the classifier recovers the labelling
+        rule, not the phenomenon. We make this concrete and measurable.
+  \item \textbf{Contributions}:
+    \begin{itemize}
+      \item C1: a leakage-controlled evaluation protocol -- identify
+            family-conditional features, ablate them, and report against a
+            majority baseline with an exact confidence bound.
+      \item C2: a quantified leakage demonstration -- the headline 100\% is
+            reproduced by a single family-assigned feature
+            (\texttt{coverage\_ratio}); the leakage-free accuracy is 0.644.
+      \item C3: an honest measurement of residual identity -- a coarse scalar
+            carries a \emph{weak} family signal and essentially no instance
+            signal -- and the experiments needed before any security claim.
+    \end{itemize}
+\end{itemize}
+
+\section{Features, Protocol, and the Leakage Audit}
+\begin{itemize}
+  \item \textbf{Sample.} 118 cells usable at $(W,H)=(8,4)$, status \texttt{ok}
+        (54 phasic, 64 steady), from the 132-cell capture.
+  \item \textbf{Features (10).} \texttt{apf\_mean}, \texttt{apf\_std},
+        \texttt{cv\_workingset}, \texttt{f1\_phase}, \texttt{cepstral\_peak\_idx},
+        \texttt{ceps\_peak\_snr\_db}, \texttt{stat\_pass\_frac},
+        \texttt{n\_pairs}, \texttt{n\_windows}, \texttt{coverage\_ratio}.
+  \item \textbf{Three are family-conditional} (the leakage vector):
+    \begin{itemize}
+      \item \texttt{cv\_workingset} is computed \emph{only} for steady cells
+            (NaN for every phasic cell);
+      \item \texttt{f1\_phase} is computed \emph{only} for phasic cells (NaN for
+            every steady cell) -- complementary missingness that encodes the
+            label;
+      \item \texttt{coverage\_ratio} is assigned a constant per family: 0.133 to
+            every steady cell, 0.200 to every phasic cell.
+    \end{itemize}
+  \item \textbf{Protocol.} Median imputation $\to$ standardization $\to$
+        classifier; GroupKFold with the replicate index as group
+        (leave-one-replicate-out); models $k$-NN, RandomForest($n{=}300$), MLP.
+  \item \textbf{Audit.} Re-run binary classification on feature subsets:
+        full~10; family-agnostic (drop the three); each suspect feature alone;
+        and a majority baseline. (Script: \texttt{leakage\_ablation.py};
+        results: \texttt{leakage\_ablation.json}.)
+\end{itemize}
+
+\section{Results}
+\begin{itemize}
+  \item \textbf{The leakage is total.} Binary phasic-vs-steady accuracy
+        (leave-one-replicate-out, RandomForest):
+        \begin{center}
+        \begin{tabular}{lc}
+          \toprule
+          Feature set & Accuracy \\
+          \midrule
+          Full (10 features)              & \textbf{1.000} \\
+          \texttt{coverage\_ratio} alone  & \textbf{1.000} \\
+          Family-agnostic (drop cv, f1, coverage) & 0.644 \\
+          \texttt{ceps\_peak\_snr\_db} alone & 0.508 \\
+          \texttt{apf\_mean}+\texttt{apf\_std} only & 0.576 \\
+          Majority-class baseline         & 0.542 \\
+          \bottomrule
+        \end{tabular}
+        \end{center}
+  \item \textbf{Reading.} \texttt{coverage\_ratio} alone -- a feature the
+        analyzer sets to 0.133 (steady) or 0.200 (phasic) by construction --
+        reproduces the entire 100\%. The reported ``perfect family separation''
+        is feature-construction leakage.
+  \item \textbf{Residual (leakage-free) signal is weak.} With the three
+        family-conditional features removed, accuracy is 0.644 -- barely above
+        the 0.542 majority baseline. A coarse scalar carries some, but little,
+        genuine family information.
+  \item \textbf{Cepstral SNR does not separate families.} Alone it scores 0.508
+        (chance). Steady median SNR spans 2.65--7.99\,dB and overlaps the phasic
+        range 4.79--6.35\,dB; the steady hash-table workload has the highest SNR
+        of all. The first draft's ``phasic high / steady low SNR'' mechanism is
+        retracted.
+  \item \textbf{Confidence.} Even taken at face value, 118/118 has a
+        Clopper--Pearson 95\% lower bound of 0.969 -- ``perfect'' is not
+        defensible without an interval, and here it is not the right number
+        anyway.
+  \item \textbf{Instance (11-way).} RandomForest reaches 0.331 accuracy
+        (macro-F1 0.328); $k$-NN and MLP 0.237. Best class
+        \texttt{scanner\_metadata} F1 0.60; worst \texttt{workingset} 0.10,
+        \texttt{mmap} 0.12. The block-diagonal-by-family structure of the 11-way
+        matrix inherits the same leakage; the \emph{within}-family confusion is
+        the genuine (and weak) part.
+  \item TODO: figure -- accuracy vs.\ feature subset bar chart; table -- the
+        per-family medians showing SNR overlap and the coverage-ratio constants.
+\end{itemize}
+
+\section{Limitations and the Security Question}
+\begin{itemize}
+  \item \textbf{Not a detector.} The ``phasic'' workloads are synthetic
+        reversible-XOR sandboxes that emulate the memory-write \emph{rhythm} of
+        encryption, not real malware; the ``steady'' class is memory
+        micro-benchmarks, not benign applications. There is no benign-but-bursty
+        control class, which is exactly where false positives would live. No
+        security-detection claim is made or supported.
+  \item \textbf{Required before any security framing} (future work): an explicit
+        threat model and base rate; a real-malware corpus; a benign-phasic
+        control; open-set / unknown-workload evaluation; ROC at a
+        deployment-realistic base rate rather than balanced accuracy.
+  \item \textbf{Statistical power.} 118 cells, 4 replicates; report confidence
+        intervals and repeated, seeded grouped CV. Prefer leave-one-\emph{workload}-out
+        to leave-one-replicate-out, since replicate grouping does not break
+        duration/capture-geometry structure.
+  \item \textbf{Scope.} Instance identity is not recoverable from APF; a per-page
+        sub-signature (the 2-D pipeline of Paper A) would be required.
+\end{itemize}
+
+\section{Conclusion}
+\begin{itemize}
+  \item A single-scalar liveness trajectory carries a \emph{weak} genuine family
+        signal (0.644 vs.\ 0.542 baseline) and no usable instance signal; the
+        apparent perfect separation is an artifact of family-conditional feature
+        computation.
+  \item The transferable lesson is methodological: when a pipeline derives
+        per-class ``defining metrics,'' those metrics must be kept out of any
+        classifier that is meant to demonstrate discrimination -- otherwise the
+        model simply rediscovers the labelling rule.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

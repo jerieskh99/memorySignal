@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviewer Memo &middot; VM Memory-Signal Capture Thesis</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --ink:#e6edf3; --muted:#9da7b3;
+    --line:#2b3440; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;
+    background:var(--panel);border-right:1px solid var(--line);padding:22px 16px}
+  nav h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  nav a{display:block;color:var(--ink);text-decoration:none;padding:5px 8px;border-radius:6px;font-size:13.5px}
+  nav a:hover{background:var(--panel2);color:var(--accent)}
+  main{padding:38px 48px;max-width:980px}
+  h1{font-size:30px;margin:0 0 6px;line-height:1.2}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:15px}
+  h2.sec{font-size:21px;margin:38px 0 12px;padding-top:10px;border-top:1px solid var(--line)}
+  h3{font-size:16.5px;margin:22px 0 8px}
+  p{margin:10px 0}
+  code{font-family:var(--mono);background:var(--panel2);padding:1.5px 6px;border-radius:5px;font-size:12.8px}
+  a.link{color:var(--accent);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.6px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  tr:nth-child(even) td{background:#11161d}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.good{background:rgba(63,185,80,.15);color:var(--good);border:1px solid rgba(63,185,80,.4)}
+  .pill.warn{background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4)}
+  .pill.bad{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .pill.info{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.4)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .note{border-left:3px solid var(--accent);background:var(--panel2);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+  .neg{border-left-color:var(--warn)}
+  .rev{border-left:3px solid var(--bad);background:#181016;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .resp{border-left:3px solid var(--good);background:#0f1813;padding:12px 16px;border-radius:0 8px 8px 0;margin:8px 0 20px 22px}
+  .resp::before{content:"TEAM RESPONSE";display:block;font-size:10.5px;letter-spacing:.1em;color:var(--good);margin-bottom:4px;font-weight:700}
+  .who{display:flex;gap:14px;align-items:flex-start;margin:10px 0}
+  .who .av{flex:0 0 46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;background:var(--panel2);border:1px solid var(--line);color:var(--accent)}
+  footer{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  ul{margin:8px 0 8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .cid{font-family:var(--mono);font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:14px">Reviewer Memo</strong>
+  <h2>Sections</h2>
+  <a href="#frame">How to read this</a>
+  <a href="#panel">The review panel</a>
+  <a href="#a">Reviewer A &mdash; systems</a>
+  <a href="#b">Reviewer B &mdash; ML / security</a>
+  <a href="#joint">Joint recommendation</a>
+  <a href="#ledger">Critique &rarr; action ledger</a>
+  <h2>Portfolio</h2>
+  <a href="index.html">&larr; Portfolio index</a>
+  <a href="research_log.html">Research log</a>
+  <a href="synthesis_essay.tex">Synthesis essay</a>
+  <a href="paperA_apf_capture/skeleton.tex">Paper A</a>
+  <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
+  <a href="paperC_family_classification/skeleton.tex">Paper C</a>
+  <a href="paperD_cusum_segmentation/skeleton.tex">Paper D</a>
+</nav>
+<main>
+  <h1>Reviewer Memo</h1>
+  <p class="sub">Two independent IEEE-style reviews of the Phase-2 v3 results, with the team's point-by-point responses &middot; conducted under the project manager</p>
+
+  <section id="frame">
+    <h2 class="sec">How to read this</h2>
+    <p>Before the four paper skeletons were frozen, the project manager ran an internal peer review. Two senior
+    reviewers read the data audit, the draft skeletons, and the first-draft synthesis essay independently, with no
+    sight of each other's notes. Each returned a memo; the team answered every point and recorded the resulting file
+    change. This document pairs each critique with its response so the provenance of every revision is auditable.</p>
+    <p>One review round changed the headline result of the entire portfolio. We have not smoothed that over: the
+    most consequential critique (Reviewer&nbsp;B, <span class="cid">B-1</span>) is presented exactly as it landed,
+    including the number it demolished.</p>
+    <p>Severity legend:
+      <span class="pill bad">blocking</span> must be resolved before submission &middot;
+      <span class="pill warn">major</span> materially changes a claim &middot;
+      <span class="pill info">minor</span> presentation / positioning.
+    </p>
+  </section>
+
+  <section id="panel">
+    <h2 class="sec">The review panel</h2>
+    <div class="who">
+      <div class="av">A</div>
+      <div><strong>Reviewer&nbsp;A</strong> &mdash; senior academic, systems / virtualization and measurement.
+      Lens: is the capture method sound, is the cost model honest, is it reproducible? Treats superlatives as
+      claims that must be measured, not asserted.</div>
+    </div>
+    <div class="who">
+      <div class="av">B</div>
+      <div><strong>Reviewer&nbsp;B</strong> &mdash; senior academic, machine-learning-for-systems and security.
+      Lens: is the classification valid, is there leakage, does any security framing survive a threat model?
+      Distrusts accuracy figures that look too clean for the information in the signal.</div>
+    </div>
+    <p style="color:var(--muted);font-size:13px">Reviewers are named by role, not person. Their critiques are the
+    substantive ones the data invites; the team's responses are the actual revisions made to the files in this
+    directory.</p>
+  </section>
+
+  <!-- ===================== REVIEWER A ===================== -->
+  <section id="a">
+    <h2 class="sec">Reviewer A &mdash; systems / measurement</h2>
+    <p><em>Summary verdict.</em> The capture method (Paper&nbsp;A) is the strongest standalone contribution in the
+    set and is publishable at a measurement or virtualization venue after revisions. The cost claims are
+    real but are currently <em>stated</em> more strongly than they are <em>measured</em>. Tighten the numerator,
+    decompose the cadence budget, and the systems story is solid.</p>
+
+    <div class="rev">
+      <span class="cid">A-1</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The
+      &ldquo;10<sup>6</sup>&times;&rdquo; storage reduction mixes a measured number with a projection, and two
+      different campaign sizes.</strong>
+      The persistent footprint of <code>4.7&nbsp;MiB</code> is the measured APF-trajectory size for a
+      <em>90-cell</em> campaign. The <code>~5&nbsp;TiB</code> it is divided against is a <em>projection</em> of what
+      retaining the per-page dumps <em>would</em> have cost &mdash; that data was never fully retained &mdash; and the
+      v3 dataset is <em>132</em> cells, not 90. Dividing a measured 90-cell numerator by a projected
+      mixed-size denominator and leading with a bare &ldquo;million-fold&rdquo; superlative is not defensible as
+      written.
+    </div>
+    <div class="resp">
+      Accepted. A reviewer-honesty comment is now baked into Paper&nbsp;A's Evaluation section
+      (<code>paperA_apf_capture/skeleton.tex</code>): reconcile to a single campaign size, report a measured
+      numerator or explicitly label the 5&nbsp;TiB as a projection, and present the ratio as an order-of-magnitude
+      <em>estimate</em> rather than a headline. The portfolio index now footnotes the storage magnitudes as quoted
+      against the 90-cell framing and flags the 132-vs-90 reconciliation as a pre-submission task.
+    </div>
+
+    <div class="rev">
+      <span class="cid">A-2</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The cadence-floor finding
+      is the paper's best result but is asserted, not broken down.</strong>
+      &ldquo;15&ndash;21&nbsp;s/snap, pause fraction 0.96&ndash;0.97, <code>pmemsave</code> &asymp; 0.75&nbsp;s&rdquo;
+      is compelling, but a reader cannot see where the other ~14&ndash;20&nbsp;s goes. Give the per-duration
+      snapshot counts as a table and decompose the per-snapshot budget into suspend, <code>pmemsave</code> write,
+      resume, and asynchronous helper read-back. Otherwise &ldquo;the snapshot primitive dominates&rdquo; is a claim,
+      not a measurement.
+    </div>
+    <div class="resp">
+      Accepted. The per-duration counts are grounded (7&nbsp;/&nbsp;20&nbsp;/&nbsp;28 snapshots at
+      120&nbsp;/&nbsp;300&nbsp;/&nbsp;600&nbsp;s) and now appear as an explicit results table stub in Paper&nbsp;A;
+      a budget-decomposition figure (suspend&nbsp;/&nbsp;pmemsave&nbsp;/&nbsp;resume&nbsp;/&nbsp;helper read-back)
+      is listed as a required figure. The cadence floor remains the load-bearing systems result and motivates
+      Paper&nbsp;B's single-interval design.
+    </div>
+
+    <div class="rev">
+      <span class="cid">A-3</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>State plainly that this
+      is offline research capture.</strong> A 96% guest-pause fraction means the method as implemented is not a
+      production-latency introspector. Don't let a reader assume otherwise.
+    </div>
+    <div class="resp">
+      Already present in Paper&nbsp;A's Limitations; we strengthened the wording and named live dirty-bit tracking
+      as the natural production optimization.
+    </div>
+
+    <div class="rev">
+      <span class="cid">A-4</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>Position against the
+      right related work.</strong> The novelty of APF is that it is <em>content-derived</em> (a byte difference)
+      and <em>capture-external</em>, versus hypervisor dirty-bit / working-set estimators and live-migration
+      dirty-page tracking, which use hardware bits. Cite those explicitly; they are the honest baseline, not
+      generic VMI.
+    </div>
+    <div class="resp">
+      Accepted. <code>refs.bib</code> carries placeholders for working-set estimation / dirty-page tracking and
+      KSM / memory deduplication, and Paper&nbsp;A's Background section frames APF against them. These citations are
+      marked TODO-verify and must be filled before submission.
+    </div>
+  </section>
+
+  <!-- ===================== REVIEWER B ===================== -->
+  <section id="b">
+    <h2 class="sec">Reviewer B &mdash; ML-for-systems / security</h2>
+    <p><em>Summary verdict.</em> Paper&nbsp;C <em>as first drafted</em> &mdash; &ldquo;100% phasic-vs-steady, a
+    memory-signal ransomware-rhythm detector&rdquo; &mdash; is a reject. The number is an artifact and the security
+    framing is unsupported. <em>Recast</em> as a leakage-controlled measurement of how little workload identity
+    survives a coarse scalar, it becomes a genuinely useful, cautionary contribution. Paper&nbsp;D's observability
+    finding is correct and should be published as such, but it must not claim marker-validated segmentation.</p>
+
+    <div class="rev">
+      <span class="cid">B-1</span> &nbsp;<span class="pill bad">blocking</span> &nbsp;<strong>100% accuracy from a
+      single coarse scalar is not plausible. Audit for feature leakage before you publish it.</strong>
+      A RandomForest reporting a <code>[[54,0],[0,64]]</code> confusion matrix on a one-number-per-snapshot signal
+      is a red flag, not a triumph. My prior: one of your ten features is computed <em>conditionally on the family
+      label the analyzer already assigned</em> &mdash; a per-family constant, or complementary
+      not-a-number missingness. Ablate every family-conditional feature and re-report against a majority baseline
+      with a confidence interval. I expect the &ldquo;perfect&rdquo; separation to collapse.
+    </div>
+    <div class="resp">
+      Confirmed, in full. The engineering group wrote <code>paperC_family_classification/leakage_ablation.py</code>
+      and re-ran the binary task under the same leave-one-replicate-out protocol. Three of the ten features are
+      family-conditional: <code>cv_workingset</code> (computed only for steady cells, NaN for every phasic cell),
+      <code>f1_phase</code> (computed only for phasic cells, NaN for every steady cell &mdash; complementary
+      missingness that encodes the label), and <code>coverage_ratio</code> (assigned a per-family constant,
+      0.133 to steady and 0.200 to phasic). Results (<code>leakage_ablation.json</code>):
+      <table>
+        <tr><th>Feature set</th><th>Accuracy</th><th>Reading</th></tr>
+        <tr><td>Full (10 features)</td><td><strong>1.000</strong></td><td>the seductive headline</td></tr>
+        <tr><td><code>coverage_ratio</code> alone</td><td><strong>1.000</strong></td><td>one family-assigned constant reproduces it entirely</td></tr>
+        <tr><td>Family-agnostic (drop the 3)</td><td>0.644</td><td>the genuine, leakage-free signal</td></tr>
+        <tr><td><code>apf_mean</code>+<code>apf_std</code></td><td>0.576</td><td>barely above baseline</td></tr>
+        <tr><td>Majority-class baseline</td><td>0.542</td><td>reference</td></tr>
+      </table>
+      The headline is retracted. Paper&nbsp;C is recast (see <span class="cid">B-3</span>); the synthesis essay
+      now leads with the trade &ldquo;the 100% is feature construction, not behavior,&rdquo; and this is recorded as
+      the fourth honest finding of the project.
+    </div>
+
+    <div class="rev">
+      <span class="cid">B-2</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The stated mechanism
+      for separation is also wrong.</strong> The draft explained the 100% by &ldquo;phasic cepstral SNR high
+      (4.7&ndash;6.4&nbsp;dB), steady SNR low.&rdquo; That is false on your own data: steady SNR spans
+      2.65&ndash;7.99&nbsp;dB and overlaps the phasic range; the steady hash-table workload has the
+      <em>highest</em> SNR in the whole set. Cepstral SNR does not separate the families &mdash; it cannot be the
+      mechanism.
+    </div>
+    <div class="resp">
+      Accepted and verified. Cepstral SNR alone classifies at 0.508 (chance). The
+      &ldquo;phasic-high / steady-low SNR&rdquo; mechanism is explicitly retracted in Paper&nbsp;C's Results, and the
+      essay states that steady SNR overlaps phasic SNR with the hash-table workload on top.
+    </div>
+
+    <div class="rev">
+      <span class="cid">B-3</span> &nbsp;<span class="pill bad">blocking</span> &nbsp;<strong>There is no security
+      claim here, and the paper must stop implying one.</strong> The &ldquo;phasic&rdquo; class is synthetic
+      reversible-XOR sandboxes that emulate an encryption write-rhythm; the &ldquo;steady&rdquo; class is memory
+      micro-benchmarks. There is no benign-but-bursty control &mdash; exactly where false positives would live &mdash;
+      no threat model, no base rate, no open-set evaluation. Calling this a ransomware detector is not supportable.
+    </div>
+    <div class="resp">
+      Accepted. Paper&nbsp;C is retitled &ldquo;How Much Workload Identity Survives in a Single-Scalar
+      Memory-Liveness Trajectory? A Leakage-Controlled Study,&rdquo; retargeted to an ML-for-systems / measurement
+      venue, and its security claim removed. A Limitations &amp; Security section now lists what would be required
+      before <em>any</em> security framing: an explicit threat model and base rate, a real-malware corpus, a
+      benign-phasic control class, open-set / unknown-workload evaluation, and ROC at a deployment-realistic base
+      rate rather than balanced accuracy.
+    </div>
+
+    <div class="rev">
+      <span class="cid">B-4</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>Your
+      cross-validation grouping is too weak.</strong> Leave-one-replicate-out keeps four replicates of the same
+      workload-duration in play and does not break duration / capture-geometry structure. Prefer
+      leave-one-<em>workload</em>-out, and report confidence intervals from repeated, seeded grouped CV &mdash;
+      a single point accuracy on 118 cells is not enough.
+    </div>
+    <div class="resp">
+      Accepted into Paper&nbsp;C's Limitations as a required methodology change for the full paper. The
+      leakage ablation is the priority correction; leave-one-workload-out with seeded repeats and reported CIs is
+      the next experiment, not yet run.
+    </div>
+
+    <div class="rev">
+      <span class="cid">B-5</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>&ldquo;100%&rdquo; needs
+      an interval even when it is real.</strong> 118/118 has a Clopper&ndash;Pearson 95% lower bound of 0.969 &mdash;
+      &ldquo;perfect&rdquo; is never the honest single number.
+    </div>
+    <div class="resp">
+      Added; the bound is stated in Paper&nbsp;C's Results, alongside the note that on this task it is not the
+      relevant number anyway, because the 100% is leakage.
+    </div>
+
+    <div class="rev">
+      <span class="cid">B-6</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>Paper&nbsp;D: do not
+      claim you segment phases correctly.</strong> Validating phasic segmentation by boundary-count plausibility is
+      acceptable as a fallback, but it is not ground truth. Lead with the observability finding &mdash; the markers
+      do not survive into APF &mdash; and label the strong claim as deferred.
+    </div>
+    <div class="resp">
+      Already the team's stance and unchanged: Paper&nbsp;D's contribution is the robust family-aware detector plus
+      the documented finding that workload markers are not APF observables (zero marker-rich cells; compounded by a
+      capture-side wall-clock skew). The strong claim &mdash; &ldquo;we segment phases correctly&rdquo; &mdash; is
+      explicitly deferred to a capture that carries markers into the recorded signal.
+    </div>
+  </section>
+
+  <!-- ===================== JOINT ===================== -->
+  <section id="joint">
+    <h2 class="sec">Joint recommendation</h2>
+    <p>The reviewers converged on a consolidation that the team adopts as the working venue plan. The result map
+    (four results) need not be the venue map (four papers):</p>
+    <div class="card">
+      <h3 style="margin-top:0">Systems paper &mdash; A&nbsp;+&nbsp;B merged</h3>
+      <p style="margin:4px 0;color:var(--muted)">The capture method and cost model (A) and the acceptance-gated
+      tuning protocol (B) tell one systems story: a cheap single-scalar liveness signal, a measured cost floor set
+      by the snapshot primitive, and a gate framework that certifies &ldquo;present&rdquo; vs.&nbsp;&ldquo;adequately
+      sampled.&rdquo; Target: measurement / virtualization venue.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Characterization paper &mdash; C&nbsp;+&nbsp;D merged</h3>
+      <p style="margin:4px 0;color:var(--muted)">The leakage-controlled family/instance study (C) and the
+      family-aware segmenter (D) tell one workload-characterization story, with D as the &ldquo;what next.&rdquo;
+      Central message: a coarse scalar carries a weak family hint and no instance identity, and even the family hint
+      must be measured past feature-construction leakage. Target: ML-for-systems / measurement venue. Explicitly
+      <em>not</em> a security-detection venue on this evidence.</p>
+    </div>
+    <div class="note"><strong>PM decision.</strong> Keep all four skeletons as the analytical decomposition (they
+    isolate the four results cleanly), but write toward two submissions. Revisit the mapping once a target venue and
+    author list are fixed.</div>
+  </section>
+
+  <!-- ===================== LEDGER ===================== -->
+  <section id="ledger">
+    <h2 class="sec">Critique &rarr; action ledger</h2>
+    <table>
+      <tr><th>ID</th><th>Severity</th><th>Critique (short)</th><th>Action taken</th><th>File</th></tr>
+      <tr><td>A-1</td><td><span class="pill warn">major</span></td><td>10<sup>6</sup>&times; mixes measured + projected, 90 vs 132 cells</td><td>Honesty note; reconcile campaign size; label projection</td><td>paperA &middot; index</td></tr>
+      <tr><td>A-2</td><td><span class="pill warn">major</span></td><td>Cadence floor asserted, not decomposed</td><td>Per-duration table stub + budget figure required</td><td>paperA</td></tr>
+      <tr><td>A-3</td><td><span class="pill info">minor</span></td><td>Say it is offline research capture (96% pause)</td><td>Limitations strengthened</td><td>paperA</td></tr>
+      <tr><td>A-4</td><td><span class="pill info">minor</span></td><td>Position vs dirty-bit / working-set estimators</td><td>Background reframed; refs placeholders</td><td>paperA &middot; refs.bib</td></tr>
+      <tr><td>B-1</td><td><span class="pill bad">blocking</span></td><td>100% is implausible &mdash; audit for leakage</td><td>Ablation run; headline retracted; 0.644 leakage-free</td><td>leakage_ablation.py/.json &middot; paperC &middot; essay</td></tr>
+      <tr><td>B-2</td><td><span class="pill warn">major</span></td><td>SNR mechanism is false (steady overlaps phasic)</td><td>Mechanism retracted; SNR-alone = 0.508 reported</td><td>paperC &middot; essay</td></tr>
+      <tr><td>B-3</td><td><span class="pill bad">blocking</span></td><td>No security claim survives (no control, no threat model)</td><td>Recast to characterization; security future-work list</td><td>paperC</td></tr>
+      <tr><td>B-4</td><td><span class="pill warn">major</span></td><td>Grouping too weak; need leave-one-workload-out + CIs</td><td>Logged as required next experiment</td><td>paperC</td></tr>
+      <tr><td>B-5</td><td><span class="pill info">minor</span></td><td>100% needs a confidence interval</td><td>Clopper&ndash;Pearson lower bound 0.969 stated</td><td>paperC</td></tr>
+      <tr><td>B-6</td><td><span class="pill info">minor</span></td><td>Paper D must not claim marker-validated F1</td><td>Observability finding led; strong claim deferred</td><td>paperD</td></tr>
+    </table>
+    <p style="color:var(--muted);font-size:13px">All numbers in this memo are drawn from the on-disk artifacts:
+    <code>_v3_combined/plan03/recommendation.json</code>, <code>_v3_combined/plan04/</code>, and
+    <code>paperC_family_classification/leakage_ablation.json</code>. The leakage ablation is reproducible via
+    <code>leakage_ablation.py</code> (scikit-learn 1.7.2).</p>
+  </section>
+
+  <footer>
+    Review conducted on the v3 capture (<code>_v3_combined</code>: 132 cells, 11 workloads, durations
+    {120,&nbsp;300,&nbsp;600}s, 4 replicates, single 500&nbsp;ms requested interval). Classification figures use the
+    118 cells usable at window/hop (8,4); segmentation covers all 132. See the
+    <a class="link" href="research_log.html">research log</a> for the narrative of how these critiques arose.
+  </footer>
+</main>
+</div>
+</body>
+</html>

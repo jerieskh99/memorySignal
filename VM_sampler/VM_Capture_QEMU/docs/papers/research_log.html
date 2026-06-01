@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Log &middot; VM Memory-Signal Capture Thesis</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --ink:#e6edf3; --muted:#9da7b3;
+    --line:#2b3440; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;
+    background:var(--panel);border-right:1px solid var(--line);padding:22px 16px}
+  nav h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  nav a{display:block;color:var(--ink);text-decoration:none;padding:5px 8px;border-radius:6px;font-size:13.5px}
+  nav a:hover{background:var(--panel2);color:var(--accent)}
+  main{padding:38px 48px;max-width:980px}
+  h1{font-size:30px;margin:0 0 6px;line-height:1.2}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:15px}
+  h2.sec{font-size:21px;margin:38px 0 12px;padding-top:10px;border-top:1px solid var(--line)}
+  h3{font-size:16.5px;margin:22px 0 8px}
+  p{margin:10px 0}
+  code{font-family:var(--mono);background:var(--panel2);padding:1.5px 6px;border-radius:5px;font-size:12.8px}
+  a.link{color:var(--accent);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.6px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  tr:nth-child(even) td{background:#11161d}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.good{background:rgba(63,185,80,.15);color:var(--good);border:1px solid rgba(63,185,80,.4)}
+  .pill.warn{background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4)}
+  .pill.bad{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .pill.info{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.4)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .note{border-left:3px solid var(--accent);background:var(--panel2);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+  .neg{border-left-color:var(--warn)}
+  .week{border:1px solid var(--line);border-radius:12px;padding:6px 22px 18px;margin:18px 0;background:#10151c}
+  .week .tag{display:inline-block;margin:16px 0 0;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .dlg{margin:12px 0;border-left:2px solid var(--line);padding-left:14px}
+  .dlg .turn{margin:7px 0}
+  .dlg .spk{font-weight:700;color:var(--accent)}
+  .dlg .spk.lr{color:var(--good)}
+  .dlg .spk.ra{color:var(--warn)}
+  .dlg .spk.rb{color:var(--bad)}
+  .dlg .spk.eng{color:#b392f0}
+  .dlg .spk.pm{color:var(--ink)}
+  footer{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  ul{margin:8px 0 8px 0;padding-left:22px}
+  li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:14px">Research Log</strong>
+  <h2>Sections</h2>
+  <a href="#cast">The team</a>
+  <a href="#w1">Week 1 &mdash; data audit</a>
+  <a href="#w2">Week 2 &mdash; paper debate</a>
+  <a href="#w3">Week 3 &mdash; review round</a>
+  <a href="#w4">Week 4 &mdash; revision</a>
+  <a href="#ledger">Decision ledger</a>
+  <a href="#open">Open items</a>
+  <h2>Portfolio</h2>
+  <a href="index.html">&larr; Portfolio index</a>
+  <a href="reviewer_memo.html">Reviewer memo</a>
+  <a href="synthesis_essay.tex">Synthesis essay</a>
+  <a href="paperA_apf_capture/skeleton.tex">Paper A</a>
+  <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
+  <a href="paperC_family_classification/skeleton.tex">Paper C</a>
+  <a href="paperD_cusum_segmentation/skeleton.tex">Paper D</a>
+</nav>
+<main>
+  <h1>Research Log</h1>
+  <p class="sub">A compressed &ldquo;month&rdquo; of analysis that turned the Phase-2 v3 results into a paper portfolio &middot; run under the project manager</p>
+
+  <p>This log records how the portfolio was actually built: a data audit that re-grounded every number, a debate
+  about how many papers the results support, an independent review round that overturned the headline result, and a
+  revision pass that folded the critiques back in. The four phases are framed as four weeks for readability; the
+  exchanges are reconstructions of the substantive arguments, and every number cited is from the on-disk
+  artifacts.</p>
+
+  <section id="cast">
+    <h2 class="sec">The team</h2>
+    <table>
+      <tr><th>Role</th><th>Responsibility in this cycle</th></tr>
+      <tr><td><strong>Project Manager (PM)</strong></td><td>Sets the cadence, owns the decision ledger and the final venue plan, forces every claim back to an artifact.</td></tr>
+      <tr><td><strong>Lead Researcher (LR)</strong></td><td>Owns the synthesis essay and the four-result decomposition; argues the scientific story.</td></tr>
+      <tr><td><strong>Reviewer A</strong></td><td>Senior systems / measurement academic; independent critique of the capture method and cost model.</td></tr>
+      <tr><td><strong>Reviewer B</strong></td><td>Senior ML-for-systems / security academic; independent critique of the classifier and any security framing.</td></tr>
+      <tr><td><strong>Engineering group (Eng)</strong></td><td>Re-runs sweeps and validators on demand, writes the leakage ablation, keeps the numbers reproducible.</td></tr>
+    </table>
+  </section>
+
+  <!-- ===================== WEEK 1 ===================== -->
+  <section id="w1">
+    <h2 class="sec">Week 1 &mdash; kickoff and data audit</h2>
+    <div class="week">
+      <span class="tag">Goal</span>
+      <p>Before anyone writes a sentence, re-ground every headline number in the on-disk v3 artifacts. The PM's rule:
+      no figure enters a draft unless Eng can point to the file it came from.</p>
+
+      <span class="tag">What the audit found</span>
+      <ul>
+        <li><strong>Scale.</strong> <code>_v3_combined</code> holds 132 cells: 11 workloads &times; 3 durations
+        (120&nbsp;/&nbsp;300&nbsp;/&nbsp;600&nbsp;s) &times; 4 replicates, all at a single requested 500&nbsp;ms
+        interval.</li>
+        <li><strong>The interval knob is a fiction.</strong> Measured cadence is 15&ndash;21&nbsp;s per snapshot, so a
+        120&nbsp;s cell yields only 7 snapshots, 300&nbsp;s yields 20, 600&nbsp;s yields 28. Estimated guest-pause
+        fraction 0.96&ndash;0.97; <code>pmemsave</code> itself &asymp;&nbsp;0.75&nbsp;s. The cadence is set by the
+        snapshot primitive, not the 500&nbsp;ms request.</li>
+        <li><strong>Tuning (<code>plan03/recommendation.json</code>).</strong> Ten of eleven workloads select
+        window/hop (8,4); the bimodal hash-table selects (32,8). Five workloads clear every gate; the phasic family
+        passes the defining-metric gate (cepstral SNR 4.78&ndash;6.35&nbsp;dB) but fails spectral coverage
+        (&asymp;0.20 &laquo; 2.0).</li>
+        <li><strong>Segmentation (<code>plan04/</code>).</strong> 10 of 11 workloads accepted (120 of 132 cells);
+        one steady workload (<code>mem_pagefault_density_v2</code>) fails; phasic cells validated by plausibility,
+        not marker-F1.</li>
+        <li><strong>A provenance mismatch.</strong> The storage headline (4.7&nbsp;MiB trajectory vs ~5&nbsp;TiB
+        per-page projection) is quoted against a <em>90-cell</em> campaign, while the dataset is 132 cells. The PM
+        flags this immediately.</li>
+      </ul>
+
+      <span class="tag">Exchange</span>
+      <div class="dlg">
+        <div class="turn"><span class="spk pm">PM:</span> The 500&nbsp;ms interval is in every old slide. Is it true
+        in the data?</div>
+        <div class="turn"><span class="spk eng">Eng:</span> No. The timings say 15&ndash;21&nbsp;seconds a snapshot.
+        The guest is paused 96&ndash;97% of the time. The interval never gets a chance to matter.</div>
+        <div class="turn"><span class="spk lr">LR:</span> Then that is not a caveat, that is a finding. The cost
+        model, not the interval, sets temporal resolution. Write it down as finding number one.</div>
+        <div class="turn"><span class="spk pm">PM:</span> And the million-fold storage number &mdash; is the five
+        terabytes measured?</div>
+        <div class="turn"><span class="spk eng">Eng:</span> It is a projection. We never retained the full per-page
+        campaign; we could not, it would not fit. And the 4.7&nbsp;MiB is the 90-cell figure.</div>
+        <div class="turn"><span class="spk pm">PM:</span> Then we label it a projection and reconcile the campaign
+        size before anyone prints &ldquo;10<sup>6</sup>&times;.&rdquo;</div>
+      </div>
+
+      <span class="tag">Decisions</span>
+      <ul>
+        <li>Adopt the four honest findings as first-class results, starting with the cadence floor.</li>
+        <li>Keep both the 90-cell and 132-cell framings but label provenance everywhere; reconcile to one campaign
+        size before submission.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== WEEK 2 ===================== -->
+  <section id="w2">
+    <h2 class="sec">Week 2 &mdash; the paper-conception debate</h2>
+    <div class="week">
+      <span class="tag">Goal</span>
+      <p>Decide what the results <em>are</em>, as publications. One mega-paper, or several focused ones? The LR
+      argues the results split cleanly into four; the reviewers push back on the venue map.</p>
+
+      <span class="tag">The four candidate results</span>
+      <ul>
+        <li><strong>A &mdash; capture.</strong> The APF signal and its streaming delete-as-you-go pipeline, plus the
+        measured cost floor.</li>
+        <li><strong>B &mdash; tuning.</strong> The acceptance-gated grid search that certifies &ldquo;signal
+        present&rdquo; vs.&nbsp;&ldquo;adequately sampled.&rdquo;</li>
+        <li><strong>C &mdash; classification.</strong> What workload identity survives the coarse scalar.</li>
+        <li><strong>D &mdash; segmentation.</strong> Family-aware CUSUM that knows when to stay silent.</li>
+      </ul>
+
+      <span class="tag">Exchange</span>
+      <div class="dlg">
+        <div class="turn"><span class="spk lr">LR:</span> Four results, four papers. Each has its own method and its
+        own honest negative.</div>
+        <div class="turn"><span class="spk ra">Reviewer A:</span> Four results, yes. Four <em>venues</em>, no. The
+        capture method and the tuning protocol are one systems story &mdash; the cost floor in A is the reason B
+        fixes a single interval. Split them and each half looks thin.</div>
+        <div class="turn"><span class="spk rb">Reviewer B:</span> Same on the other side. The classifier and the
+        segmenter are one workload-characterization story; the segmenter is the &ldquo;what next&rdquo; of the
+        classifier. And do not even whisper &ldquo;security&rdquo; yet &mdash; there is no threat model in this
+        dataset.</div>
+        <div class="turn"><span class="spk lr">LR:</span> Then we keep four skeletons as the analytical
+        decomposition and write toward two submissions. The skeletons isolate the results; the venues bundle
+        them.</div>
+        <div class="turn"><span class="spk pm">PM:</span> Agreed. Author all four; recommend two venues; leave the
+        final mapping to where the work lands.</div>
+      </div>
+
+      <span class="tag">Decision</span>
+      <ul>
+        <li>Produce four skeletons (A, B, C, D), each with introduction / contributions / results as bullets.</li>
+        <li>Working venue plan: A+B &rarr; one systems paper, C+D &rarr; one characterization paper.</li>
+        <li>No security framing until a threat model, base rate, and benign-phasic control exist.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== WEEK 3 ===================== -->
+  <section id="w3">
+    <h2 class="sec">Week 3 &mdash; the independent review round</h2>
+    <div class="week">
+      <span class="tag">Goal</span>
+      <p>The two reviewers read the draft skeletons and the first-draft essay independently. The PM expects polish
+      notes. Instead, one critique overturns the portfolio's headline number. Full memos:
+      <a class="link" href="reviewer_memo.html">reviewer_memo.html</a>.</p>
+
+      <span class="tag">The bombshell <span class="pill bad">blocking &middot; B-1</span></span>
+      <p>The first-draft Paper&nbsp;C led with &ldquo;100% phasic-vs-steady accuracy, a confusion matrix of
+      [[54,0],[0,64]] without a single error.&rdquo; Reviewer&nbsp;B refused it on sight.</p>
+      <div class="dlg">
+        <div class="turn"><span class="spk rb">Reviewer B:</span> One hundred percent, from one number per snapshot?
+        That is not a result, that is a leak. Something you feed the classifier already knows the family. Ablate every
+        feature the analyzer computes per family and re-run it. I will wait.</div>
+        <div class="turn"><span class="spk eng">Eng:</span> (overnight) Three features are family-conditional.
+        <code>cv_workingset</code> is only computed for steady cells, <code>f1_phase</code> only for phasic &mdash;
+        complementary missingness that <em>is</em> the label. And <code>coverage_ratio</code> is a per-family
+        constant: 0.133 for steady, 0.200 for phasic.</div>
+        <div class="turn"><span class="spk eng">Eng:</span> <code>coverage_ratio</code> alone scores
+        <strong>1.000</strong>. It reproduces the entire headline by itself. Drop the three family-conditional
+        features and accuracy falls to <strong>0.644</strong>, against a 0.542 majority baseline.</div>
+        <div class="turn"><span class="spk lr">LR:</span> So the model was rediscovering our labelling rule, not
+        memory behavior. The hundred percent is feature construction.</div>
+        <div class="turn"><span class="spk rb">Reviewer B:</span> Correct. And your stated mechanism is wrong too &mdash;
+        you claimed phasic SNR is high and steady SNR is low. Steady SNR runs 2.65 to 7.99&nbsp;dB; your steady
+        hash-table workload has the highest SNR in the set. SNR alone classifies at 0.508. Chance.</div>
+        <div class="turn"><span class="spk pm">PM:</span> Then the headline is retracted, today. The question is what
+        the honest paper is.</div>
+      </div>
+
+      <span class="tag">The systems critique <span class="pill warn">major &middot; A-1/A-2</span></span>
+      <div class="dlg">
+        <div class="turn"><span class="spk ra">Reviewer A:</span> Paper&nbsp;A is your strongest standalone, but stop
+        leading with &ldquo;10<sup>6</sup>&times;.&rdquo; The numerator is a projection and the cells do not match.
+        And the cadence floor &mdash; your best finding &mdash; is asserted. Decompose the 15&ndash;21&nbsp;seconds:
+        suspend, <code>pmemsave</code>, resume, helper read-back. Show me where the time goes.</div>
+        <div class="turn"><span class="spk pm">PM:</span> Both accepted. Honesty note into Paper&nbsp;A, budget
+        decomposition onto the figure list, projection labelled.</div>
+      </div>
+
+      <span class="tag">What the room agreed</span>
+      <div class="note neg"><strong>The negatives are the contribution.</strong> By the end of the round the team
+      agreed that the four honest findings &mdash; cadence floor, coverage limit, feature-construction leakage, and
+      marker non-observability &mdash; are more publishable, and more useful to the next capture, than the positive
+      numbers beside them. Hiding any of them would weaken every claim.</div>
+    </div>
+  </section>
+
+  <!-- ===================== WEEK 4 ===================== -->
+  <section id="w4">
+    <h2 class="sec">Week 4 &mdash; revision and consolidation</h2>
+    <div class="week">
+      <span class="tag">Goal</span>
+      <p>Fold every accepted critique into the files and freeze the portfolio.</p>
+
+      <span class="tag">Changes made</span>
+      <ul>
+        <li><strong>Paper C recast.</strong> Retitled to a leakage-controlled study, retargeted to ML-for-systems /
+        measurement, security claim removed. New sections: the leakage audit (full / coverage-alone / agnostic /
+        baseline table), the retraction of the SNR mechanism, a Clopper&ndash;Pearson bound (0.969) on the
+        face-value 100%, and a security-future-work list (threat model, real-malware corpus, benign-phasic control,
+        open-set, ROC at base rate).</li>
+        <li><strong>Ablation committed as code.</strong> <code>paperC_family_classification/leakage_ablation.py</code>
+        and its <code>.json</code> output make the finding reproducible (scikit-learn 1.7.2).</li>
+        <li><strong>Synthesis essay rewritten.</strong> It now leads with the trade &mdash; the 100% is an
+        artifact, the leakage-free family signal is weak (0.644 vs 0.542) &mdash; and carries four honest findings,
+        not three.</li>
+        <li><strong>Paper A honesty notes.</strong> Storage projection labelled, campaign-size reconciliation
+        flagged, cadence-budget decomposition added to the figure list, offline-capture framing strengthened.</li>
+        <li><strong>Paper B confirmed.</strong> The gate framework stands; its value is exactly the G3-vs-G2 split
+        (rhythm present, coverage insufficient). No claim was overstated, so no retraction &mdash; a validated
+        result kept as-is.</li>
+        <li><strong>Paper D confirmed.</strong> Leads with the observability finding (zero marker-rich cells,
+        compounded by capture-side wall-clock skew); strong &ldquo;we segment correctly&rdquo; claim explicitly
+        deferred.</li>
+      </ul>
+
+      <span class="tag">Final shape</span>
+      <p>Four skeletons, one synthesis essay, a shared (placeholder) bibliography, and this log plus the reviewer
+      memo. Working venue plan: two submissions. The portfolio index summarizes the numbers; the
+      <a class="link" href="synthesis_essay.tex">essay</a> is the umbrella narrative; the skeletons are the
+      publishable decompositions.</p>
+    </div>
+  </section>
+
+  <!-- ===================== LEDGER ===================== -->
+  <section id="ledger">
+    <h2 class="sec">Decision ledger</h2>
+    <table>
+      <tr><th>#</th><th>Decision</th><th>Rationale</th><th>Phase</th></tr>
+      <tr><td>1</td><td>Cadence floor is a headline finding, not a caveat</td><td>Interval is inert below 15&ndash;21 s/snap; cost model sets resolution</td><td>Audit</td></tr>
+      <tr><td>2</td><td>Label storage provenance; reconcile 90 vs 132 cells</td><td>4.7 MiB is 90-cell; 5 TiB is a projection; dataset is 132 cells</td><td>Audit</td></tr>
+      <tr><td>3</td><td>Four skeletons, two target venues (A+B, C+D)</td><td>Results decompose into four; venues bundle into two coherent stories</td><td>Debate</td></tr>
+      <tr><td>4</td><td>No security framing on this evidence</td><td>No threat model, base rate, or benign-phasic control</td><td>Debate</td></tr>
+      <tr><td>5</td><td>Run a leakage ablation before freezing Paper C</td><td>100% from one scalar is implausible; suspect family-conditional features</td><td>Review</td></tr>
+      <tr><td>6</td><td>Retract the headline 100% and the SNR mechanism</td><td>coverage_ratio alone = 1.000; SNR alone = 0.508; steady SNR overlaps phasic</td><td>Review</td></tr>
+      <tr><td>7</td><td>Recast Paper C as a leakage-controlled measurement</td><td>The genuine residual family signal (0.644) and the leakage lesson are the contribution</td><td>Review</td></tr>
+      <tr><td>8</td><td>Paper D leads with observability; defers the strong claim</td><td>Markers are not APF-observable; plausibility is a fallback, not ground truth</td><td>Review</td></tr>
+      <tr><td>9</td><td>Treat all four negatives as the portfolio's thesis</td><td>Each is a direct instruction to the next capture iteration</td><td>Synthesis</td></tr>
+    </table>
+  </section>
+
+  <!-- ===================== OPEN ITEMS ===================== -->
+  <section id="open">
+    <h2 class="sec">Open items &mdash; instructions to the next capture</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Reconcile campaign size.</strong> Re-quote storage against the 132-cell campaign; report a
+        measured numerator or label the per-page figure a projection. (A-1)</li>
+        <li><strong>Decompose the cadence budget.</strong> Measure suspend / <code>pmemsave</code> / resume / helper
+        read-back per snapshot. (A-2)</li>
+        <li><strong>Lift coverage past G2.</strong> The phasic rhythm is real (SNR &gt; 4.5&nbsp;dB) but
+        under-sampled (coverage &asymp; 0.20). Buy more periods &mdash; faster snapshots or longer cells &mdash; not
+        a different window. (Plan&nbsp;05: producer throughput.)</li>
+        <li><strong>Make markers survive into the signal.</strong> Phase labels must manifest as APF mean shifts;
+        fix the capture-side wall-clock skew (guest time sync) so marker-aligned F1 becomes measurable. (B-6 / D)</li>
+        <li><strong>Strengthen Paper C's evaluation.</strong> Switch to leave-one-<em>workload</em>-out CV with
+        seeded repeats and reported confidence intervals. (B-4)</li>
+        <li><strong>Fix the steady outlier.</strong> <code>mem_pagefault_density_v2</code> injects spurious
+        boundaries and fails the steady gate (stationarity 0.67, median spurious 1.0, P<sub>0</sub>=0.33).</li>
+        <li><strong>Wire the G4 regression guard.</strong> Currently a placeholder that always passes.</li>
+        <li><strong>Verify the bibliography.</strong> Most of <code>refs.bib</code> is TODO placeholders.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Provenance: all figures from <code>_v3_combined</code> (132 cells, 11 workloads, durations {120,&nbsp;300,&nbsp;600}s,
+    4 replicates, single 500&nbsp;ms requested interval). Classification figures use the 118 cells usable at
+    window/hop (8,4); segmentation covers all 132. The companion <a class="link" href="reviewer_memo.html">reviewer
+    memo</a> records each critique and response in full.
+  </footer>
+</main>
+</div>
+</body>
+</html>

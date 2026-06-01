@@ -1,0 +1,207 @@
+%==============================================================================
+% Synthesis essay -- the umbrella analysis of the Phase-2 v3 results.
+% Written as prose (essay), not bullets. Compiles with a base TeX install.
+%   pdflatex synthesis_essay.tex
+% This is the team's month-of-analysis narrative; the four paper skeletons
+% (paperA..paperD) are the publishable decompositions of it.
+%==============================================================================
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\title{From Five Terabytes to a Single Scalar:\\
+What a Coarse Memory-Liveness Signal Can and Cannot Tell Us}
+\author{VM Memory-Signal Capture Project --- Research Team}
+\date{Synthesis of the Phase-2 v3 results}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This essay reports what we learned from a 132-cell campaign that observes a
+virtual machine's memory purely through a single scalar per snapshot, the
+Active Page Fraction (APF). We argue that the central result of the project is
+not any one classifier or detector score but a coherent trade: by collapsing a
+per-page, two-dimensional change signal into one number, we lose the ability to
+identify a workload instance and keep only a \emph{weak} signal of its
+\emph{family} (bursty vs.\ continuous) once leakage is controlled. An apparent
+perfect family separation, we show, is an artifact of features the pipeline
+computes per family; the leakage-free accuracy is barely above baseline. We
+trace this trade through four results -- capture cost, analyzer tuning, family
+classification, and phase segmentation -- and we are deliberate about the
+project's four honest negative findings, each of which we believe is more
+instructive than the positive number it sits beside.
+\end{abstract}
+
+\section{The premise and the price}
+
+The project asks a narrow question with broad consequences: how much can a
+hypervisor learn about a guest by watching only how much of its memory changes
+over time? The faithful way to watch memory change is per page. An earlier
+iteration of this project (``Pipeline A'') did exactly that, computing a cosine
+and a Hamming similarity for every 4\,KiB page between consecutive full-memory
+snapshots. For a 1\,GiB guest that is roughly $262{,}144$ pages per snapshot and
+a two-dimensional matrix of shape $[\,T \text{ snapshots} \times N \text{ pages}\,]$.
+The fidelity is real, and so is the bill: retaining the dumps needed to recompute
+that matrix costs on the order of 60\,GiB for a single long cell and approaches
+5\,TiB for a 90-cell campaign --- more than the host could hold.
+
+The Active Page Fraction is the project's answer to that bill. It is one number
+per snapshot pair: the fraction of guest pages whose bytes change at all,
+\[
+  \mathrm{APF} = \frac{1}{N}\sum_{p=1}^{N}\mathbf{1}\big[\exists j:\,a_{p,j}\neq b_{p,j}\big].
+\]
+A single-bit flip and a full-page rewrite count the same; that coarsening is the
+whole point. The streaming capture architecture computes each pair's APF in an
+asynchronous helper, appends it to a trajectory, and deletes the older dump, so
+the persistent footprint of a 90-cell campaign is about 4.7\,MiB --- a reduction
+on the order of a million-fold --- while transient disk never exceeds two or
+three gigabytes. The compute drops in step: a memory-mapped byte difference takes
+300--500\,ms against 1.5--3\,s for the per-page Rust kernel.
+
+Capturing the v3 dataset taught us something we did not design for, and it is the
+first honest finding. We requested a 500\,ms sampling interval, but the measured
+cadence was 15--21 seconds per snapshot: a 120-second cell yields 7 snapshots, a
+300-second cell yields 20, and a 600-second cell yields 28. The estimated
+VM-pause fraction is 0.96--0.97, and \texttt{pmemsave} itself runs in about
+0.75\,s, so the cadence is set almost entirely by the suspend/snapshot/resume
+cycle and the helper's read-back, not by the interval we asked for. The practical
+consequence reframes the entire ``how often should we sample'' question: below
+this cadence floor, the sampling interval is inert. The right question is not
+how often to sample but how cheaply one can snapshot.
+
+\section{Tuning as certification, not maximization}
+
+With a signal in hand, the analyzer needs a window and a hop. The tempting move
+is to sweep both and report the configuration with the best score. We resisted
+it. Instead we built an acceptance-gated search: each candidate window/hop is
+judged by five named gates --- stationarity, spectral coverage, a defining
+metric (cepstral signal-to-noise for the bursty workloads, coefficient of
+variation for the steady ones), a hop-validity condition, and a window-count
+floor --- plus a guard against regressing a prior baseline.
+
+The gates earn their keep precisely because they disagree with one another. Ten
+of the eleven workloads select a window/hop of $(8,4)$; only the bimodal
+hash-table workload prefers $(32,8)$. Five workloads --- the steady
+micro-benchmarks that are not bimodal --- pass every gate cleanly, with
+coefficients of variation between 0.06 and 0.26, comfortably under the ceiling.
+The hash-table workload passes all five gates but is held back by the regression
+guard, a near-miss rather than a metric failure. And then the bursty
+``phasic'' family produces the second honest finding. Every one of those five
+workloads \emph{passes} the defining-metric gate --- their cepstral SNR ranges
+from 4.79 to 6.35\,dB, all above the 4.5\,dB bar --- yet every one \emph{fails}
+the spectral-coverage gate, with coverage near 0.20 against a threshold of 2.0.
+The rhythm is unmistakably there; we simply did not capture enough periods of it
+at the achievable cadence. A single maximized score would have hidden this. The
+gate framework states it plainly: the signature is present, and it is
+under-sampled. That is an actionable sentence --- it tells the next capture to
+buy more periods, not a different window.
+
+\section{What survives the coarsening: less than it first appears}
+
+If APF throws away per-page detail, what workload information is left? We posed
+two tasks. The first is family classification: is the workload bursty
+(``phasic'', the synthetic reversible-XOR sandboxes that emulate the write
+rhythm of encryption in passes, plus a metadata scanner) or continuous
+(``steady'', the memory-pressure micro-benchmarks)? The second is instance
+identification: which of the eleven specific workloads is this? We answered both
+with ten APF-derived features and a cross-validation that leaves an entire
+replicate out.
+
+The first answer looked spectacular and was, on inspection, an illusion. A
+RandomForest separates phasic from steady with 100\% accuracy over 118 cells, a
+confusion matrix of $[[54,0],[0,64]]$ without a single error. But a leakage audit
+deflates it completely: a \emph{single} feature, \texttt{coverage\_ratio} ---
+which the analyzer assigns as a constant per family, 0.133 to steady cells and
+0.200 to phasic ones --- reproduces the same 100\% on its own. The model was
+rediscovering a labelling rule the pipeline had baked into the features, not a
+property of memory behavior. When we remove the three family-conditional
+features (\texttt{coverage\_ratio}, the steady-only \texttt{cv\_workingset}, and
+the phasic-only \texttt{f1\_phase}), accuracy falls to 0.644 against a 0.542
+majority baseline. The genuine, leakage-free family signal in a coarse scalar is
+real but weak. We also retract the first draft's stated mechanism: cepstral SNR
+does \emph{not} separate the families (alone it scores 0.508, chance), because
+steady SNR spans 2.6--8.0\,dB and overlaps the phasic range --- the steady
+hash-table workload in fact has the highest SNR of all.
+
+Instance identification is weaker still. Eleven-way accuracy plateaus at 33.1\%
+for the RandomForest --- and the right comparator is not the 9.1\% random rate
+but the majority-class and single-feature baselines, against which the margin is
+modest. The errors are almost entirely \emph{within} a family; the metadata
+scanner is the best-separated class (F1 0.60) while the working-set and mmap
+sweeps are nearly indistinguishable (F1 0.10--0.12). The block-diagonal-by-family
+structure inherits the same leakage, so the trustworthy part is the
+\emph{within}-family confusion, and it says APF cannot tell two continuous
+memory-pressure patterns apart. The honest summary: a single scalar carries a
+coarse, weak hint of workload family and essentially no instance identity.
+
+\section{Segmentation, and the limit of ground truth}
+
+The last result asks an online question: place phase boundaries where a workload
+changes regime, and, just as importantly, place none when it does not. We use a
+windowed CUSUM detector over window means, with a median-absolute-deviation
+robust scale and a single drift knob, specialized by the family label that the
+classifier provides. Steady workloads keep the conservative drift; phasic
+workloads use a smaller one to enter the detection band on a shallow rhythm.
+
+Ten of the eleven workloads pass acceptance, which is 120 of 132 cells. For the
+steady family the criterion is restraint: a workload passes if it stays
+stationary and emits essentially no spurious boundaries, and five of six do. The
+exception, the page-fault-density workload, injects spurious boundaries and
+fails. For the phasic family we intended to validate against the workloads'
+emitted phase markers --- and here we hit the project's sharpest honest finding.
+Not one phasic cell is marker-rich in the sense the detector needs: the markers
+describe workload-internal events, such as the encryption of an individual file,
+that never surface as a mean shift in APF at this cadence, a problem compounded
+by a wall-clock skew on the capture host. Marker-aligned F1 is therefore not
+merely low but structurally unavailable. We fall back to validating phasic
+segmentation by the plausibility of the boundary count --- it must land in a
+sensible band --- and on that basis all five phasic workloads pass. We are
+careful to label this for what it is: the strong claim, that we segment phases
+correctly, is not yet supported. What we have is a robust detector that knows
+when to stay silent, and a precise statement of what the next capture must fix
+so that ``correct'' can be measured at all.
+
+\section{Why four papers, and what they share}
+
+These four results decompose naturally into four focused papers --- the capture
+method and its cost model; the gated tuning protocol; the family classifier; and
+the family-aware segmenter --- and the accompanying skeletons lay each out as
+proposed introduction, contributions, and results in bullet form. We expect the
+final venue map to be coarser than the result map: the capture and tuning papers
+may merge into one systems contribution, and the segmenter may attach to the
+classifier as the ``what next'' of a single workload-characterization paper. We
+adopt that two-venue plan as the working recommendation and leave the final
+mapping to where the work lands.
+
+What unifies the portfolio is a single thesis that the data supports without
+strain. A deliberately impoverished signal --- one scalar where there were a
+quarter-million --- carries only a coarse, weak hint of workload family and
+nothing finer (instance identity, marker-aligned phase boundaries), and even the
+family hint must be measured carefully to avoid mistaking feature construction
+for behavior. The four honest findings are not caveats to be managed; they are
+the shape of that boundary. The cadence floor tells us the cost model, not the
+interval, governs temporal resolution. The coverage failure tells us the phasic
+rhythm is real but badly under-sampled. The leakage audit tells us that
+per-family ``defining metrics'' must never feed a classifier meant to prove
+discrimination. The marker non-observability tells us that ground-truth phase
+labels must be designed to survive into the signal we actually record. Each is a
+direct instruction to the next iteration of the capture, which is the most useful
+thing a result can be. We make no security-detection claim: the phasic class is
+synthetic write-rhythm emulation, the steady class is micro-benchmarks, and no
+benign-but-bursty control was tested.
+
+\section*{Note on data provenance}
+
+All figures in this essay are drawn from the v3 capture
+(\texttt{\_v3\_combined}): 132 cells over 11 workloads, 3 durations
+(120/300/600\,s), and 4 replicates, at a single requested 500\,ms interval.
+Classification figures use the 118 cells usable at window/hop $(8,4)$;
+segmentation figures cover all 132. Storage and compute magnitudes are quoted
+against the earlier 90-cell framing where noted and should be reconciled to a
+single campaign size before publication.
+
+\end{document}

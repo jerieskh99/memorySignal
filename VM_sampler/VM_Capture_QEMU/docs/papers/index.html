@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Portfolio &middot; VM Memory-Signal Capture Thesis</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --ink:#e6edf3; --muted:#9da7b3;
+    --line:#2b3440; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;
+    background:var(--panel);border-right:1px solid var(--line);padding:22px 16px}
+  nav h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  nav a{display:block;color:var(--ink);text-decoration:none;padding:5px 8px;border-radius:6px;font-size:13.5px}
+  nav a:hover{background:var(--panel2);color:var(--accent)}
+  main{padding:38px 48px;max-width:980px}
+  h1{font-size:30px;margin:0 0 6px;line-height:1.2}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:15px}
+  h2.sec{font-size:21px;margin:38px 0 12px;padding-top:10px;border-top:1px solid var(--line)}
+  h3{font-size:16.5px;margin:22px 0 8px}
+  p{margin:10px 0}
+  code{font-family:var(--mono);background:var(--panel2);padding:1.5px 6px;border-radius:5px;font-size:12.8px}
+  a.link{color:var(--accent);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.6px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  tr:nth-child(even) td{background:#11161d}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.good{background:rgba(63,185,80,.15);color:var(--good);border:1px solid rgba(63,185,80,.4)}
+  .pill.warn{background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4)}
+  .pill.bad{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .n{font-size:25px;font-weight:700;color:var(--accent)}
+  .kpi .l{color:var(--muted);font-size:12.8px;margin-top:2px}
+  .note{border-left:3px solid var(--accent);background:var(--panel2);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+  .neg{border-left-color:var(--warn)}
+  footer{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  ul{margin:8px 0 8px 0;padding-left:22px}
+  li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:14px">Paper Portfolio</strong>
+  <h2>Sections</h2>
+  <a href="#summary">Executive summary</a>
+  <a href="#glance">Results at a glance</a>
+  <a href="#papers">Paper roadmap</a>
+  <a href="#negatives">The four honest findings</a>
+  <a href="#team">Team &amp; process</a>
+  <a href="#files">Files &amp; build</a>
+  <h2>Deliverables</h2>
+  <a href="synthesis_essay.tex">Synthesis essay (.tex)</a>
+  <a href="research_log.html">Research log</a>
+  <a href="reviewer_memo.html">Reviewer memo</a>
+  <a href="paperA_apf_capture/skeleton.tex">Paper A</a>
+  <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
+  <a href="paperC_family_classification/skeleton.tex">Paper C</a>
+  <a href="paperD_cusum_segmentation/skeleton.tex">Paper D</a>
+</nav>
+<main>
+  <h1>Paper Portfolio</h1>
+  <p class="sub">Turning the Phase-2 v3 memory-signal results into publishable papers &middot; produced by the research team under the project manager</p>
+
+  <section id="summary">
+    <h2 class="sec">Executive summary</h2>
+    <p>The thesis observes a virtual machine through a single scalar per snapshot &mdash; the
+    <strong>Active Page Fraction (APF)</strong>, the fraction of 4&nbsp;KiB guest pages that change between
+    consecutive full-memory dumps. The Phase-2 <strong>v3</strong> campaign captured 132 cells across 11 workloads.
+    The team's central thesis, which every paper inherits, is a single trade:</p>
+    <div class="note"><strong>Collapsing a per-page 2-D change signal to one scalar destroys workload <em>instance</em>
+    identity and leaves only a weak, leakage-controlled hint of workload <em>family</em> (bursty vs. steady):
+    0.644 accuracy vs. a 0.542 baseline once family-conditional features are removed. The apparent perfect
+    separation is feature construction, not behavior.</strong></div>
+    <div class="grid">
+      <div class="kpi"><div class="n">~10<sup>6</sup>&times;</div><div class="l">persistent-storage reduction (order-of-magnitude estimate) vs. the 2-D per-page pipeline (~4.7&nbsp;MiB measured, 90-cell; ~5&nbsp;TiB projected)</div></div>
+      <div class="kpi"><div class="n">0.64</div><div class="l">leakage-controlled phasic-vs-steady accuracy (vs. 0.54 majority); the apparent 100% is one family-assigned feature &mdash; leakage, not behavior</div></div>
+      <div class="kpi"><div class="n">33.1%</div><div class="l">11-way instance accuracy (RF) &mdash; ~3.6&times; baseline; the information ceiling of one scalar</div></div>
+      <div class="kpi"><div class="n">10 / 11</div><div class="l">workloads accepted by the family-aware CUSUM segmenter (120 / 132 cells)</div></div>
+    </div>
+  </section>
+
+  <section id="glance">
+    <h2 class="sec">Results at a glance</h2>
+
+    <h3>Capture substrate (Paper A)</h3>
+    <table>
+      <tr><th>Quantity</th><th>Value</th><th>Note</th></tr>
+      <tr><td>Guest RAM / page / dump</td><td>1 GiB / 4096 B / 1 GiB RAW</td><td>262,144 pages per snapshot</td></tr>
+      <tr><td>Persistent footprint</td><td>~4.7 MiB / 90 cells</td><td>vs. ~5 TiB for the 2-D per-page pipeline</td></tr>
+      <tr><td>Transient disk</td><td>~2&ndash;3 GiB</td><td>streaming delete-as-you-go helper</td></tr>
+      <tr><td>Per-pair compute</td><td>300&ndash;500 ms</td><td>vs. 1.5&ndash;3 s for Rust cosine+Hamming</td></tr>
+      <tr><td>Effective cadence</td><td><strong>15&ndash;21 s/snap</strong></td><td>requested 500 ms is moot; pause fraction 0.96&ndash;0.97</td></tr>
+      <tr><td>Trajectory length</td><td>7 / 20 / 28 snaps</td><td>at 120 / 300 / 600 s durations</td></tr>
+    </table>
+
+    <h3>Analyzer tuning &mdash; acceptance gates (Paper B)</h3>
+    <p>No universal joint winner. Ten workloads select window/hop <code>(8,4)</code>; the bimodal hash-table selects <code>(32,8)</code>.
+    Clean acceptance: <strong>5 of 11</strong>.</p>
+    <table>
+      <tr><th>Family</th><th>Defining metric (median)</th><th>Verdict</th><th>Reason</th></tr>
+      <tr><td>Steady, non-bimodal (5)</td><td>CV 0.06&ndash;0.26 &le; 0.30</td><td><span class="pill good">accept</span></td><td>all gates pass</td></tr>
+      <tr><td>Hash-table (bimodal)</td><td>CV 0.293 (W=32)</td><td><span class="pill warn">near-miss</span></td><td>passes G1&ndash;G5; held by &Delta;-5 v2-regression guard</td></tr>
+      <tr><td>Phasic (5)</td><td>cepstral SNR 4.79&ndash;6.35 dB &gt; 4.5</td><td><span class="pill bad">G2 fail</span></td><td>rhythm detectable but coverage ~0.20 &laquo; 2.0 (under-sampled)</td></tr>
+    </table>
+
+    <h3>Family classification (Paper C)</h3>
+    <table>
+      <tr><th>Model</th><th>Binary (phasic vs. steady) <span style="font-weight:400;color:var(--bad)">&mdash; leaky, see note</span></th><th>11-way</th></tr>
+      <tr><td>RandomForest (n=300)</td><td><strong>1.000</strong> <span class="pill bad">leakage</span> &nbsp; CM [[54,0],[0,64]]</td><td>0.331 acc / 0.328 macro-F1</td></tr>
+      <tr><td>kNN (k=5)</td><td>0.983 acc</td><td>0.237 acc</td></tr>
+      <tr><td>MLP (64,32)</td><td>0.958 acc</td><td>0.237 acc</td></tr>
+    </table>
+    <p style="color:var(--muted);font-size:13px">118 usable cells (54 phasic / 64 steady), 10 APF-derived features, GroupKFold leave-one-replicate-out. 11-way errors are within-family; the matrices are block-diagonal by family.</p>
+    <div class="note neg"><strong>Leakage caveat (Reviewer B).</strong> The binary 100% is an artifact: <code>coverage_ratio</code> alone (a per-family constant, 0.133 steady / 0.200 phasic) reproduces it exactly. Removing the three family-conditional features (<code>coverage_ratio</code>, <code>cv_workingset</code>, <code>f1_phase</code>) gives the genuine signal &mdash; <strong>0.644</strong> vs. a 0.542 majority baseline. Details: <a class="link" href="reviewer_memo.html">reviewer memo</a> &middot; <code>paperC_family_classification/leakage_ablation.json</code>.</div>
+
+    <h3>Phase segmentation (Paper D)</h3>
+    <table>
+      <tr><th>Gate</th><th>Applicable</th><th>Pass</th><th>Note</th></tr>
+      <tr><td>G1 phasic marker-F1</td><td>0</td><td>&mdash;</td><td>markers not APF-observable (honest finding #3)</td></tr>
+      <tr><td>G2 steady stationarity</td><td>6</td><td>5 <span class="pill good">0.83</span></td><td>fail: <code>mem_pagefault_density_v2</code></td></tr>
+      <tr><td>G3 marker-less plausibility</td><td>5</td><td>5 <span class="pill good">1.0</span></td><td>phasic plausible-fraction 0.75&ndash;1.0</td></tr>
+      <tr><td>G4 legacy regression</td><td>11</td><td>11</td><td>placeholder; to wire</td></tr>
+    </table>
+  </section>
+
+  <section id="papers">
+    <h2 class="sec">Paper roadmap</h2>
+    <div class="card">
+      <h3 style="margin-top:0">Paper A &middot; Active Page Fraction: a single-scalar liveness signal at tractable cost</h3>
+      <p style="margin:4px 0;color:var(--muted)">Systems / measurement. The streaming APF capture method + a measured cost model showing the snapshot primitive, not the interval, governs cadence.</p>
+      <a class="link" href="paperA_apf_capture/skeleton.tex">paperA_apf_capture/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper B &middot; Acceptance-gated selection of interval and analysis window</h3>
+      <p style="margin:4px 0;color:var(--muted)">Reproducibility / methodology. Gates that certify "signal present" vs. "signal adequately sampled"; the phasic detectable-but-under-sampled result.</p>
+      <a class="link" href="paperB_gated_tuning/skeleton.tex">paperB_gated_tuning/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper C &middot; How much workload identity survives a single scalar? A leakage-controlled study</h3>
+      <p style="margin:4px 0;color:var(--muted)">ML-for-systems / measurement (not security on this evidence). The apparent 100% binary separation is feature-construction leakage; the genuine family signal is weak (0.644 vs. 0.542 baseline) and instance identity does not survive.</p>
+      <a class="link" href="paperC_family_classification/skeleton.tex">paperC_family_classification/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper D &middot; Family-aware CUSUM segmentation of coarse trajectories</h3>
+      <p style="margin:4px 0;color:var(--muted)">Signal processing / detection. Robust CUSUM that knows when to stay silent; the marker non-observability finding.</p>
+      <a class="link" href="paperD_cusum_segmentation/skeleton.tex">paperD_cusum_segmentation/skeleton.tex</a>
+    </div>
+    <div class="note"><strong>PM note on consolidation.</strong> The result map (four results) need not equal the venue map.
+    A&nbsp;and&nbsp;B may merge into one systems contribution; D may attach to C as the "what next" of a single
+    security-oriented paper. The reviewer memo records the professors' recommendation on this.</div>
+  </section>
+
+  <section id="negatives">
+    <h2 class="sec">The four honest findings</h2>
+    <p>The team agreed these negative results are more publishable than the positive numbers beside them, and that hiding them would weaken every claim.</p>
+    <div class="note neg"><strong>1. Cadence floor.</strong> The effective cadence (15&ndash;21 s/snap) is set by <code>pmemsave</code> + helper read-back, not the 500 ms knob. Below it, sampling-interval tuning is inert &mdash; "how cheap is a snapshot" replaces "how often to sample."</div>
+    <div class="note neg"><strong>2. Coverage limit.</strong> Phasic rhythm is detectable (cepstral SNR &gt; 4.5 dB) but under-sampled (coverage ~0.20 &laquo; 2.0). The signature exists; too few periods fit in a cell. The fix is more periods, not a different window.</div>
+    <div class="note neg"><strong>3. Feature-construction leakage.</strong> The "100%" phasic-vs-steady separation is an artifact: a single per-family-assigned feature (<code>coverage_ratio</code>) reproduces it alone. The leakage-free family signal is weak &mdash; 0.644 vs. a 0.542 baseline. Per-class "defining metrics" must never feed a classifier meant to prove discrimination.</div>
+    <div class="note neg"><strong>4. Marker non-observability.</strong> Workload phase markers describe internal events that never surface as APF mean shifts at this cadence, so marker-aligned segmentation F1 is structurally unavailable. Ground-truth phase labels must be designed to survive into the recorded signal.</div>
+  </section>
+
+  <section id="team">
+    <h2 class="sec">Team &amp; process</h2>
+    <p>The portfolio was produced under a project manager by a lead researcher, two IEEE reviewers, and the
+    engineering group, across a compressed analysis cycle. The workflow: a data audit that re-grounded every
+    headline number in the on-disk artifacts; a paper-conception debate; independent reviewer critiques; and a
+    revision pass that folded the critiques back into the skeletons. The narrative and the critiques are recorded in
+    the <a class="link" href="research_log.html">research log</a> and the <a class="link" href="reviewer_memo.html">reviewer memo</a>.</p>
+  </section>
+
+  <section id="files">
+    <h2 class="sec">Files &amp; build</h2>
+    <p>There is no LaTeX toolchain in this checkout. On a TeX&nbsp;Live machine: <code>pdflatex synthesis_essay.tex</code>
+    (base <code>article</code> class), and per paper <code>pdflatex skeleton.tex</code> (targets <code>IEEEtran</code>;
+    a comment in each file shows the swap to <code>article</code> if the class is missing). See <code>README.md</code>.</p>
+  </section>
+
+  <footer>
+    Data provenance: <code>_v3_combined</code> &mdash; 132 cells, 11 workloads, durations {120, 300, 600}s, 4 replicates, single 500 ms requested interval.
+    Classification uses the 118 cells usable at (W,H)=(8,4); segmentation covers all 132. Storage magnitudes are quoted against the 90-cell framing where noted.
+  </footer>
+</main>
+</div>
+</body>
+</html>
