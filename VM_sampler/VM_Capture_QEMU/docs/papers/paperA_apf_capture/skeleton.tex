@@ -1,0 +1,208 @@
+%==============================================================================
+% Paper A -- skeleton (bullets, to be polished into prose)
+% Target venue: systems / measurement (e.g., a virtualization or measurement
+%   workshop). Reviewers: the two IEEE professors flagged this as the strongest
+%   standalone systems contribution.
+%
+% Build: pdflatex skeleton.tex   (needs IEEEtran; if unavailable, change the
+%   \documentclass line below to \documentclass[11pt]{article} and delete the
+%   \IEEEauthorblock* macros.)
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{Active Page Fraction: A Single-Scalar Liveness Signal for\\
+Whole-VM Memory Introspection at Tractable Cost}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation\\
+\texttt{TODO@email}}}
+
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------
+\begin{abstract}
+% TODO: polish into 150-200 words of prose. Bullet stub:
+\begin{itemize}
+  \item Problem: per-page, two-dimensional memory-change signals (cosine and
+        Hamming over every 4\,KiB page) are information-rich but storage- and
+        compute-prohibitive for repeated whole-VM capture.
+  \item Idea: collapse the per-snapshot signal to a single scalar, the
+        \emph{Active Page Fraction} (APF) -- the fraction of guest pages whose
+        bytes change between consecutive full-memory snapshots.
+  \item Mechanism: a streaming capture architecture (``B+3.1'') in which an
+        asynchronous helper computes the diff and deletes the prior dump,
+        bounding transient disk while persisting only a 1-D trajectory.
+  \item Result: a roughly six-order-of-magnitude reduction in persistent
+        storage for a fixed capture campaign, with a characterized cost floor
+        set by hypervisor snapshotting rather than by the chosen sampling
+        interval.
+\end{itemize}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+% Proposed introduction (bullets):
+\begin{itemize}
+  \item Hypervisor-external memory introspection observes a guest without an
+        in-guest agent; it is attractive for security monitoring and workload
+        characterization because it is hard for the guest to evade.
+  \item A natural raw signal is the per-page change between successive
+        full-memory snapshots. Prior in-project work (``Pipeline A'') computed,
+        for each 4\,KiB page, both a cosine and a Hamming similarity, yielding a
+        two-dimensional matrix of shape $[T \text{ snapshots} \times N \text{ pages}]$
+        with $N \approx 262{,}144$ pages for a 1\,GiB guest.
+  \item This 2-D signal is faithful but heavy: retaining the dumps needed to
+        recompute it costs on the order of \SI{60}{\gibi\byte} per long cell and
+        roughly \SI{5}{\tebi\byte} for a 90-cell campaign -- infeasible on the
+        available host.
+  \item \textbf{Gap}: a memory-liveness signal that is cheap enough to capture
+        repeatedly across many workloads and durations, while preserving enough
+        structure to (a) distinguish active from idle phases and (b) feed
+        downstream tuning, classification, and segmentation.
+  \item \textbf{This paper} proposes the Active Page Fraction (APF): one scalar
+        per snapshot-pair, defined as the fraction of guest pages that changed
+        at all. We present a streaming capture architecture that makes APF
+        capture disk-bounded, and we characterize the true cost floor of the
+        method.
+  \item \textbf{Contributions} (expanded in Sec.~\ref{sec:contrib}):
+    \begin{itemize}
+      \item C1: the APF signal and its streaming, delete-as-you-go capture
+            pipeline;
+      \item C2: a measured cost model showing the dominant cost is the
+            hypervisor snapshot (suspend/\texttt{pmemsave}/resume), not the
+            requested sampling interval;
+      \item C3: an open, reproducible 132-cell dataset and the analysis tooling
+            built on it.
+    \end{itemize}
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Related Work}
+\begin{itemize}
+  \item VM introspection and memory forensics \cite{garfinkel2003vmi}: external
+        observation of guest memory. TODO: position against agentless
+        monitoring and live-migration dirty-page tracking.
+  \item Working-set estimation / dirty-bit sampling \cite{TODO_working_set_estimation}:
+        hypervisors already track dirtied pages for migration; APF differs by
+        being content-derived (byte difference) and capture-external rather than
+        relying on hardware dirty bits.
+  \item Memory deduplication / same-page merging \cite{TODO_ksm_dedup}:
+        content-similarity at page granularity; contrast with APF's coarser
+        ``changed-or-not'' bit.
+  \item TODO: cite snapshotting/checkpointing cost studies to frame the
+        \texttt{pmemsave} overhead.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{The Active Page Fraction Signal}
+\begin{itemize}
+  \item \textbf{Capture primitive.} Per snapshot cycle the producer issues
+        \texttt{virsh suspend}, waits for \texttt{domstate==paused}, invokes the
+        QEMU monitor \texttt{pmemsave(val:0, size:ramBytes, file)} to write a
+        flat RAW image of all guest physical memory, then \texttt{virsh resume}.
+        Guest RAM is \SI{1024}{\mebi\byte}; each dump is exactly \SI{1}{\gibi\byte};
+        page size is \SI{4096}{\byte} ($N = 262{,}144$ pages).
+  \item \textbf{APF definition.} For consecutive dumps $a$, $b$ mapped as
+        \texttt{uint8} via \texttt{numpy.memmap} and reshaped to
+        $[N, 4096]$:
+        \[
+          \mathrm{APF} \;=\; \frac{1}{N}\sum_{p=1}^{N}
+          \mathbf{1}\!\left[\exists j: a_{p,j} \neq b_{p,j}\right].
+        \]
+        That is, a page contributes 1 if any byte differs. A single-bit flip and
+        a full-page rewrite are weighted equally (a deliberate coarsening).
+  \item \textbf{Streaming architecture (B+3.1).} An asynchronous helper
+        (\texttt{ionice -c3 nice -n19}) computes each pair's APF, appends one
+        JSONL record via an atomic \texttt{O\_APPEND} write, emits an ack, and
+        \emph{deletes the older dump}. At most a small number of dumps coexist,
+        capping transient disk at roughly \SI{2}{}--\SI{3}{\gibi\byte}.
+  \item \textbf{Barrier.} A cell-end barrier waits for outstanding helper acks
+        (hard cap \SI{180}{\second}, \SI{15}{\second} idle quit) before metrics
+        are computed, guaranteeing the trajectory is complete.
+  \item TODO: figure -- timeline of suspend/pmemsave/resume overlapped with the
+        async diff+delete helper.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Contributions in Detail}
+\label{sec:contrib}
+\begin{itemize}
+  \item \textbf{C1 -- signal + pipeline}: APF reduces the per-snapshot signal
+        from a length-$N$ vector (2-D over time) to a single scalar (1-D over
+        time), and the streaming helper makes its capture disk-bounded.
+  \item \textbf{C2 -- cost model}: we show the effective cadence is set by the
+        snapshot primitive, not the configured interval (Sec.~\ref{sec:results}).
+  \item \textbf{C3 -- dataset}: 132 cells spanning 11 workloads $\times$ 3
+        durations $\times$ 4 replicates, captured at a single requested interval,
+        with the full tooling released.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Evaluation}
+\label{sec:results}
+% Proposed results (bullets with REAL numbers from the v3 run):
+\begin{itemize}
+  \item \textbf{Storage reduction.} For a 90-cell campaign the APF trajectory
+        persists $\approx$\SI{4.7}{\mebi\byte}; retaining the dumps needed for
+        the 2-D per-page pipeline would project to $\approx$\SI{5}{\tebi\byte}
+        -- a ratio of order $10^{6}$. Transient disk during capture stays at
+        \SI{2}{}--\SI{3}{\gibi\byte} due to delete-as-you-go.
+        % HONESTY (reviewer A): the 5 TiB numerator is a PROJECTION for a
+        % campaign never fully retained, and 4.7 MiB is the 90-cell figure
+        % while the dataset is 132 cells. Before publication: reconcile to one
+        % campaign size, report a MEASURED numerator (or label it a projection),
+        % and present the ratio as an estimate -- do not lead with a bare
+        % "10^6x" superlative.
+  \item \textbf{Compute reduction.} Per-pair APF via \texttt{memmap} byte-diff
+        takes \SI{300}{}--\SI{500}{\milli\second}, versus \SI{1.5}{}--\SI{3}{\second}
+        for the Rust per-page cosine+Hamming kernel -- lower host contention and
+        more snapshots per cell.
+  \item \textbf{Cost floor.} Although the requested guest interval was
+        \SI{500}{\milli\second}, the measured cadence was
+        \SI{15}{}--\SI{21}{\second} per snapshot: a 120\,s cell yields 7
+        snapshots, 300\,s yields 20, and 600\,s yields 28. The estimated
+        VM-pause fraction is 0.96--0.97; \texttt{pmemsave} itself is
+        $\approx$\SI{0.75}{\second}, so the cadence is dominated by snapshot
+        write plus helper read-back, \emph{not} by the interval knob.
+  \item \textbf{Implication.} Below this cadence floor, tuning the sampling
+        interval is essentially a no-op -- a result that motivates Paper B's
+        single-interval design and reframes ``how often to sample'' as ``how
+        cheaply can we snapshot.''
+  \item \textbf{Signal fidelity (forward reference).} Despite the coarsening,
+        APF retains a weak but measurable family signal (Paper C, after
+        controlling for feature-construction leakage) and steady workloads are
+        stationary under windowed analysis (Paper D). We claim no instance-level
+        fidelity.
+  \item TODO: table -- per-duration (snapshots, mean APF, pause fraction);
+        figure -- example APF trajectories for one phasic and one steady cell.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Limitations}
+\begin{itemize}
+  \item APF is intentionally coarse: a 1-bit change and a full rewrite are
+        indistinguishable. Per-page sub-signatures require re-introducing the
+        2-D pipeline (deferred future work).
+  \item The cadence floor (\SI{15}{}--\SI{21}{\second}/snap) limits temporal
+        resolution; trajectories are short (7--28 points), which constrains
+        spectral analysis (see Paper B's coverage limitation).
+  \item \texttt{pmemsave} suspends the guest ($\approx$96\% pause); the method as
+        implemented is an offline/research capture, not a production-latency
+        introspector. Live dirty-bit tracking is the natural optimization.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Conclusion}
+\begin{itemize}
+  \item APF turns whole-VM memory-change observation from a multi-terabyte,
+        per-page exercise into a megabyte-scale single-scalar trajectory.
+  \item The binding cost is the hypervisor snapshot, which both bounds temporal
+        resolution and frees the sampling-interval knob -- a finding that shapes
+        the rest of the portfolio.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

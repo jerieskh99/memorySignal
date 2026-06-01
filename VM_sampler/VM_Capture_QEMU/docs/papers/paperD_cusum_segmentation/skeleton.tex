@@ -1,0 +1,157 @@
+%==============================================================================
+% Paper D -- skeleton (bullets, to be polished into prose)
+% Target venue: signal processing / change-point detection, or a systems
+%   track. The team's caution: do NOT claim marker-validated phasic F1 -- the
+%   honest contribution is a robust detector PLUS a family-aware validation
+%   strategy PLUS the finding that workload markers are not APF-observable.
+%
+% Build: pdflatex skeleton.tex  (IEEEtran; swap to article if missing).
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{Family-Aware CUSUM Segmentation of Coarse\\
+Memory-Liveness Trajectories}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% TODO polish. Bullet stub:
+\begin{itemize}
+  \item Goal: place phase boundaries on a short, coarse APF trajectory and,
+        equally, refrain from placing them when the workload is steady.
+  \item Method: a windowed CUSUM detector with a median-absolute-deviation
+        robust scale and a single drift knob, specialized per workload family.
+  \item Finding: steady workloads are correctly left unsegmented (no spurious
+        boundaries) for 5 of 6; phasic workloads produce plausible boundary
+        counts for 5 of 5 -- but ground-truth marker validation is shown to be
+        \emph{unreachable} because the workload markers do not manifest as APF
+        mean shifts at this cadence.
+\end{itemize}
+\end{abstract}
+
+\section{Introduction}
+\begin{itemize}
+  \item Downstream of capture and tuning, an online monitor wants phase
+        boundaries: when does a workload transition between regimes?
+  \item The trajectory is hostile to classical detectors: it is short (7--28
+        points), coarse (a single scalar per \SI{15}{}--\SI{21}{\second}), and
+        heavy-tailed.
+  \item \textbf{Two failure modes to avoid}: missing real transitions in phasic
+        workloads, and hallucinating transitions in steady ones. A good
+        segmenter must do both.
+  \item \textbf{Approach}: a windowed cumulative-sum (CUSUM) detector with a
+        robust (MAD) scale, run on window means; specialized by workload family
+        (the family label comes from Paper C's classifier).
+  \item \textbf{An honesty-forcing observation}: the synthetic workloads emit
+        phase markers, but those markers describe workload-internal events
+        (e.g., per-file encryption) that are \emph{not} observable as APF mean
+        shifts at this cadence. Marker-aligned F1 is therefore structurally
+        unavailable; we validate phasic segmentation by boundary-count
+        plausibility instead and report this limitation as a result.
+  \item \textbf{Contributions}:
+    \begin{itemize}
+      \item C1: a windowed CUSUM detector tuned for short, coarse, heavy-tailed
+            liveness trajectories (robust scale, single drift knob, explicit
+            window-centre-to-snapshot mapping).
+      \item C2: a family-aware acceptance scheme -- steady validated by absence
+            of spurious boundaries, phasic by plausibility when markers are not
+            signal-observable.
+      \item C3: an empirical result (10 of 11 workloads accepted) plus the
+            documented negative finding that workload markers are not APF
+            observables.
+    \end{itemize}
+\end{itemize}
+
+\section{Detector}
+\begin{itemize}
+  \item \textbf{Pre-smoothing.} Compute window means
+        $\mu[w]$ over the trajectory with window $W$, hop $H$ (length
+        $\lfloor (T-W)/H \rfloor + 1$).
+  \item \textbf{Robust standardization.} $\sigma = 1.4826 \cdot \mathrm{MAD}(\mu)$
+        (fall back to $\mathrm{std}+10^{-9}$ if MAD $=0$);
+        $z[t] = (\mu[t] - \mathrm{median}(\mu))/\sigma$.
+  \item \textbf{CUSUM recursion.}
+        \[
+          s^{+}_t = \max(0,\; s^{+}_{t-1} + z[t] - k), \qquad
+          s^{-}_t = \min(0,\; s^{-}_{t-1} + z[t] + k).
+        \]
+        A boundary is emitted when $s^{+}_t > h$ or $s^{-}_t < -h$; both
+        accumulators reset to 0 after a detection.
+  \item \textbf{Defaults.} $k = 2.0$, $h = 4.0$, minimum separation 2 windows.
+  \item \textbf{Mapping.} A detection at window $w$ maps to snapshot index
+        $w \cdot H + \lfloor W/2 \rfloor$ (window centre).
+  \item \textbf{Family specialization.} Steady workloads keep $k=2.0$; phasic
+        workloads use a smaller drift ($k$ down to $\approx 0.1$) to enter the
+        detection band on a shallow, slow rhythm.
+\end{itemize}
+
+\section{Family-Aware Acceptance}
+\begin{itemize}
+  \item \textbf{Steady (no boundaries expected).} A cell passes if it is
+        stationary and produces few spurious boundaries. Workload-level gate:
+        median spurious count $\le 1$ \emph{and} $P(\text{spurious}=0)\ge 0.5$.
+  \item \textbf{Phasic, marker-rich (intended path).} Median marker-aligned F1
+        $\ge 0.67$ and $P(F1 \ge 0.5) \ge 0.75$. \emph{In this dataset no cell is
+        marker-rich} -- see below.
+  \item \textbf{Phasic, marker-less (fallback).} Score by plausibility: the
+        predicted boundary count must fall in a plausible band
+        ($1 \le n_{\text{pred}} \le 20$); workload passes if the plausible
+        fraction $\ge 0.70$.
+  \item \textbf{Regression guard (G4).} Placeholder in this version (always
+        passes); wiring it to a legacy baseline is future work.
+\end{itemize}
+
+\section{Results}
+\begin{itemize}
+  \item \textbf{Overall.} 10 of 11 workloads pass acceptance
+        (120 of 132 cells). Detector configuration: $k=2.0$, $h=4.0$,
+        plausibility mode for phasic.
+  \item \textbf{Steady (5 of 6 pass).} Stationary with zero spurious boundaries:
+        \texttt{hashtable} ($P_0=0.83$), \texttt{rmw} (0.83),
+        \texttt{workingset} (0.75), \texttt{mmap} (0.67), \texttt{writemag}
+        (0.50). \textbf{Failure}: \texttt{mem\_pagefault\_density\_v2} --
+        median stationarity 0.67, median spurious 1.0, $P_0=0.33$ -- it injects
+        spurious boundaries and fails the steady gate.
+  \item \textbf{Phasic (5 of 5 pass, by plausibility).} All 12 cells per phasic
+        workload are marker-less; plausible-fraction:
+        \texttt{scanner} 1.00, \texttt{slowburn} 0.92, \texttt{batched} 0.83,
+        \texttt{seq} 0.75, \texttt{selective} 0.75 -- each $\ge 0.70$.
+  \item \textbf{The negative finding (marker F1).} The marker-rich gate G1 has
+        \emph{zero} applicable cells: the workload markers do not appear as APF
+        mean shifts at this cadence (compounded by a capture-side wall-clock
+        skew), so marker-aligned F1 is unreachable. This is a statement about
+        \emph{observability}, not detector quality, and it motivates either
+        re-instrumentation or a finer signal.
+  \item TODO: figure -- CUSUM accumulators over an example phasic trajectory;
+        table -- per-workload (family, $W/H$, stationarity, spurious, plausible
+        fraction, verdict).
+\end{itemize}
+
+\section{Limitations}
+\begin{itemize}
+  \item Phasic acceptance rests on plausibility, not ground-truth F1; the
+        strong claim (``we segment phases correctly'') is not yet supported and
+        is explicitly deferred.
+  \item Short trajectories give CUSUM little warmup; the robust scale is
+        estimated from few windows.
+  \item The steady failure (\texttt{pagefault}) and the placeholder regression
+        guard (G4) are open items.
+\end{itemize}
+
+\section{Conclusion}
+\begin{itemize}
+  \item A robust, family-aware CUSUM cleanly distinguishes ``leave it alone''
+        (steady) from ``segment it'' (phasic) for 10 of 11 workloads.
+  \item The honest boundary of the result is observability: validating phasic
+        boundaries against ground truth needs markers that survive into the APF
+        signal -- the central lesson for the next capture iteration.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

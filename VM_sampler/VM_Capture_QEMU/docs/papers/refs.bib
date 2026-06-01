@@ -1,0 +1,91 @@
+% Shared starter bibliography for the VM memory-signal paper portfolio.
+% MOST ENTRIES ARE PLACEHOLDERS. Verify every field before submission.
+% Canonical entries are marked CANONICAL; their core facts are well known but
+% page numbers / volumes should still be confirmed against the original source.
+
+% ---------------------------------------------------------------------------
+% Change-point detection
+% ---------------------------------------------------------------------------
+@article{page1954cusum,
+  author  = {Page, E. S.},
+  title   = {Continuous Inspection Schemes},
+  journal = {Biometrika},
+  year    = {1954},
+  volume  = {41},
+  number  = {1/2},
+  pages   = {100--115},
+  note    = {CANONICAL: origin of the CUSUM procedure. Verify volume/pages.}
+}
+
+@book{basseviki1993detection,
+  author    = {Basseville, Mich\`{e}le and Nikiforov, Igor V.},
+  title     = {Detection of Abrupt Changes: Theory and Application},
+  publisher = {Prentice Hall},
+  year      = {1993},
+  note      = {CANONICAL reference text for CUSUM and change detection. Verify.}
+}
+
+% ---------------------------------------------------------------------------
+% Virtual machine introspection / memory forensics
+% ---------------------------------------------------------------------------
+@inproceedings{garfinkel2003vmi,
+  author    = {Garfinkel, Tal and Rosenblum, Mendel},
+  title     = {A Virtual Machine Introspection Based Architecture for Intrusion Detection},
+  booktitle = {Proc. Network and Distributed System Security Symposium (NDSS)},
+  year      = {2003},
+  note      = {CANONICAL: coined VM introspection. Verify pages.}
+}
+
+@misc{TODO_libvirt_pmemsave,
+  title = {TODO: libvirt / QEMU pmemsave monitor command documentation},
+  note  = {Cite the QEMU monitor / libvirt virsh reference for pmemsave and suspend/resume.}
+}
+
+% ---------------------------------------------------------------------------
+% Ransomware detection (behavioral / I/O / memory)
+% ---------------------------------------------------------------------------
+@misc{TODO_ransomware_io_detection,
+  title = {TODO: representative ransomware-detection-by-I/O-behavior paper},
+  note  = {e.g., entropy-of-writes / file-operation-rate detectors; place 2-3 here.}
+}
+
+@misc{TODO_ransomware_survey,
+  title = {TODO: ransomware detection survey},
+  note  = {Use to position the phasic-workload security angle of Paper C.}
+}
+
+% ---------------------------------------------------------------------------
+% Working-set estimation / memory deduplication / page-change tracking
+% ---------------------------------------------------------------------------
+@misc{TODO_working_set_estimation,
+  title = {TODO: working-set-size estimation / dirty-page tracking},
+  note  = {Position APF against hypervisor dirty-bit / working-set estimators.}
+}
+
+@misc{TODO_ksm_dedup,
+  title = {TODO: kernel same-page merging / memory deduplication},
+  note  = {Contrast page-granular change signal with content-similarity work.}
+}
+
+% ---------------------------------------------------------------------------
+% Time-series classification / ML-for-systems
+% ---------------------------------------------------------------------------
+@misc{TODO_tsc_review,
+  title = {TODO: time-series classification benchmark/review},
+  note  = {Position the single-scalar trajectory classifier of Paper C.}
+}
+
+@misc{TODO_scikit_learn,
+  title  = {Scikit-learn: Machine Learning in Python},
+  author = {Pedregosa, F. and others},
+  year   = {2011},
+  note   = {CANONICAL: scikit-learn JMLR paper. Verify and cite the version used (1.7.2).}
+}
+
+% ---------------------------------------------------------------------------
+% Spectral / cepstral analysis
+% ---------------------------------------------------------------------------
+@misc{TODO_cepstrum,
+  title = {TODO: cepstrum / periodicity-detection reference},
+  note  = {Support the cepstral-SNR defining metric for phasic rhythm.}
+}
