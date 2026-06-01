@@ -390,10 +390,19 @@ def main(argv: list[str] | None = None) -> int:
             result["notes"].append(detail.get("note", "RAM check could not verify"))
 
     if any(ARM_SPECS[a]["target"] == "tmpfs" for a in arms):
-        Path(args.tmpfs_dir).expanduser().mkdir(parents=True, exist_ok=True)
+        tmpfs_path = Path(args.tmpfs_dir).expanduser()
+        tmpfs_path.mkdir(parents=True, exist_ok=True)
+        # QEMU runs as an unprivileged libvirt user (not the runner), so the
+        # tmpfs dump dir must be world-writable or pmemsave fails with
+        # "Permission denied" and the cell captures zero snapshots (e1 exit 3).
+        try:
+            tmpfs_path.chmod(0o777)
+        except OSError as e:
+            result["notes"].append(f"could not chmod {tmpfs_path} to 0777: {e}")
         result["notes"].append(
-            f"tmpfs arms write to {args.tmpfs_dir}; verify it is a real tmpfs "
-            f"mount (df -T) before trusting the throughput delta.")
+            f"tmpfs arms write to {args.tmpfs_dir} (chmod 0777 so the libvirt "
+            f"QEMU user can write); verify it is a real tmpfs mount (df -T) "
+            f"before trusting the throughput delta.")
 
     records: list[dict] = []
     for i, c in enumerate(cells, 1):
