@@ -39,15 +39,19 @@ cd paperA_apf_capture && pdflatex skeleton.tex
 Each skeleton states its limitation alongside its claim, because the v3 results
 carry real tension that the team agreed must not be hidden:
 
-- The effective snapshot cadence is **~15-21 s/snapshot** (dominated by
-  `pmemsave` plus the asynchronous APF helper read-back), not the requested
-  500 ms guest interval. Trajectories are short (7-28 points per cell).
+- The effective snapshot cadence is **variable, median ~10 s/snapshot (range
+  2-24 s)**, dominated by `pmemsave` itself (median ~7 s, ~81% of the cycle),
+  not the requested 500 ms guest interval (the guest idles ~0.52 s between
+  snapshots). Trajectories run from a handful to ~100 points (median ~30); the
+  old "7-28 points" and "15-21 s" figures were near the per-duration minima.
 - Workload-family separation *looks* perfect at the **binary** level (phasic vs.
   steady, 100% with a RandomForest under leave-one-replicate-out), but this is
   **feature-construction leakage**: `coverage_ratio` alone -- a per-family
   constant (0.133 steady / 0.200 phasic) -- reproduces the 100%. With the three
   family-conditional features removed the genuine signal is weak: 0.644 vs. a
-  0.542 majority baseline. The **11-way** instance problem is only ~33% accurate;
+  0.542 majority baseline -- and that gap is **not significant** once the four
+  non-independent replicates are accounted for (~33 independent groups). The
+  **11-way** instance problem is only ~33% accurate;
   APF does not separate instances *within* a family. (See `reviewer_memo.html`
   and `paperC_family_classification/leakage_ablation.json`.)
 - Phasic periodicity is **detectable** (cepstral SNR 4.8-6.3 dB) but

@@ -62,7 +62,8 @@
   <h2>Deliverables</h2>
   <a href="synthesis_essay.tex">Synthesis essay (.tex)</a>
   <a href="research_log.html">Research log</a>
-  <a href="reviewer_memo.html">Reviewer memo</a>
+  <a href="reviewer_memo.html">Reviewer memo (round 1)</a>
+  <a href="reviewer_memo_round2.html">Reviewer memo (round 2)</a>
   <a href="paperA_apf_capture/skeleton.tex">Paper A</a>
   <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
   <a href="paperC_family_classification/skeleton.tex">Paper C</a>
@@ -79,12 +80,12 @@
     consecutive full-memory dumps. The Phase-2 <strong>v3</strong> campaign captured 132 cells across 11 workloads.
     The team's central thesis, which every paper inherits, is a single trade:</p>
     <div class="note"><strong>Collapsing a per-page 2-D change signal to one scalar destroys workload <em>instance</em>
-    identity and leaves only a weak, leakage-controlled hint of workload <em>family</em> (bursty vs. steady):
-    0.644 accuracy vs. a 0.542 baseline once family-conditional features are removed. The apparent perfect
-    separation is feature construction, not behavior.</strong></div>
+    identity and leaves at most a weak, leakage-controlled hint of workload <em>family</em> (bursty vs. steady):
+    0.644 accuracy vs. a 0.542 baseline once family-conditional features are removed &mdash; a gap not significant
+    at the replicate-group level. The apparent perfect separation is feature construction, not behavior.</strong></div>
     <div class="grid">
       <div class="kpi"><div class="n">~10<sup>6</sup>&times;</div><div class="l">persistent-storage reduction (order-of-magnitude estimate) vs. the 2-D per-page pipeline (~4.7&nbsp;MiB measured, 90-cell; ~5&nbsp;TiB projected)</div></div>
-      <div class="kpi"><div class="n">0.64</div><div class="l">leakage-controlled phasic-vs-steady accuracy (vs. 0.54 majority); the apparent 100% is one family-assigned feature &mdash; leakage, not behavior</div></div>
+      <div class="kpi"><div class="n">0.64</div><div class="l">leakage-controlled phasic-vs-steady accuracy (vs. 0.54 majority) &mdash; weak, not significant at the replicate-group level; the apparent 100% is one family-assigned feature</div></div>
       <div class="kpi"><div class="n">33.1%</div><div class="l">11-way instance accuracy (RF) &mdash; ~3.6&times; baseline; the information ceiling of one scalar</div></div>
       <div class="kpi"><div class="n">10 / 11</div><div class="l">workloads accepted by the family-aware CUSUM segmenter (120 / 132 cells)</div></div>
     </div>
@@ -97,11 +98,11 @@
     <table>
       <tr><th>Quantity</th><th>Value</th><th>Note</th></tr>
       <tr><td>Guest RAM / page / dump</td><td>1 GiB / 4096 B / 1 GiB RAW</td><td>262,144 pages per snapshot</td></tr>
-      <tr><td>Persistent footprint</td><td>~4.7 MiB / 90 cells</td><td>vs. ~5 TiB for the 2-D per-page pipeline</td></tr>
-      <tr><td>Transient disk</td><td>~2&ndash;3 GiB</td><td>streaming delete-as-you-go helper</td></tr>
-      <tr><td>Per-pair compute</td><td>300&ndash;500 ms</td><td>vs. 1.5&ndash;3 s for Rust cosine+Hamming</td></tr>
-      <tr><td>Effective cadence</td><td><strong>15&ndash;21 s/snap</strong></td><td>requested 500 ms is moot; pause fraction 0.96&ndash;0.97</td></tr>
-      <tr><td>Trajectory length</td><td>7 / 20 / 28 snaps</td><td>at 120 / 300 / 600 s durations</td></tr>
+      <tr><td>Persistent footprint</td><td>~4.7 MiB / 90 cells</td><td>vs. ~5 TiB <em>projected</em> for the 2-D per-page pipeline (ratio is an estimate)</td></tr>
+      <tr><td>Transient disk</td><td>~2&ndash;3 GiB <span class="pill warn">design target</span></td><td>v3 ran <code>keep_dumps=true</code> &mdash; dumps retained, peak scaled with trajectory length (cap not exercised)</td></tr>
+      <tr><td>Per-pair compute</td><td>300&ndash;500 ms</td><td>vs. 1.5&ndash;3 s for Rust cosine+Hamming (not separately logged in v3)</td></tr>
+      <tr><td>Effective cadence</td><td><strong>~10 s/snap median</strong> (2&ndash;24 s)</td><td>pmemsave-dominated (median 7 s, ~81% of cycle); 500 ms knob moot; pause median 0.95 (0.74&ndash;0.98)</td></tr>
+      <tr><td>Trajectory length</td><td>median 14 / 26 / 53 snaps</td><td>at 120 / 300 / 600 s (min 5 / 12 / 28; the old &ldquo;7/20/28&rdquo; were near minima)</td></tr>
     </table>
 
     <h3>Analyzer tuning &mdash; acceptance gates (Paper B)</h3>
@@ -111,7 +112,7 @@
       <tr><th>Family</th><th>Defining metric (median)</th><th>Verdict</th><th>Reason</th></tr>
       <tr><td>Steady, non-bimodal (5)</td><td>CV 0.06&ndash;0.26 &le; 0.30</td><td><span class="pill good">accept</span></td><td>all gates pass</td></tr>
       <tr><td>Hash-table (bimodal)</td><td>CV 0.293 (W=32)</td><td><span class="pill warn">near-miss</span></td><td>passes G1&ndash;G5; held by &Delta;-5 v2-regression guard</td></tr>
-      <tr><td>Phasic (5)</td><td>cepstral SNR 4.79&ndash;6.35 dB &gt; 4.5</td><td><span class="pill bad">G2 fail</span></td><td>rhythm detectable but coverage ~0.20 &laquo; 2.0 (under-sampled)</td></tr>
+      <tr><td>Phasic (5)</td><td>cepstral SNR 4.78&ndash;6.35 dB &gt; 4.5</td><td><span class="pill bad">G2 fail</span></td><td>rhythm detectable but coverage ~0.20 &laquo; 2.0 (under-sampled); SNR fragile where cells have &le;3 windows</td></tr>
     </table>
 
     <h3>Family classification (Paper C)</h3>
@@ -164,9 +165,9 @@
   <section id="negatives">
     <h2 class="sec">The four honest findings</h2>
     <p>The team agreed these negative results are more publishable than the positive numbers beside them, and that hiding them would weaken every claim.</p>
-    <div class="note neg"><strong>1. Cadence floor.</strong> The effective cadence (15&ndash;21 s/snap) is set by <code>pmemsave</code> + helper read-back, not the 500 ms knob. Below it, sampling-interval tuning is inert &mdash; "how cheap is a snapshot" replaces "how often to sample."</div>
+    <div class="note neg"><strong>1. Snapshot-dominated cadence.</strong> The effective cadence (median ~10 s/snap, variable 2&ndash;24 s) is set by <code>pmemsave</code> (median 7 s, ~81% of the cycle), not the 500 ms knob. Because the cycle dwarfs the interval, sampling-interval tuning is inert &mdash; "how cheap is a snapshot" replaces "how often to sample."</div>
     <div class="note neg"><strong>2. Coverage limit.</strong> Phasic rhythm is detectable (cepstral SNR &gt; 4.5 dB) but under-sampled (coverage ~0.20 &laquo; 2.0). The signature exists; too few periods fit in a cell. The fix is more periods, not a different window.</div>
-    <div class="note neg"><strong>3. Feature-construction leakage.</strong> The "100%" phasic-vs-steady separation is an artifact: a single per-family-assigned feature (<code>coverage_ratio</code>) reproduces it alone. The leakage-free family signal is weak &mdash; 0.644 vs. a 0.542 baseline. Per-class "defining metrics" must never feed a classifier meant to prove discrimination.</div>
+    <div class="note neg"><strong>3. Feature-construction leakage.</strong> The "100%" phasic-vs-steady separation is an artifact: <code>coverage_ratio</code> is a deterministic per-family constant (0.1333 steady / 0.200 phasic, zero within-family variance), so it reproduces the label by construction. The leakage-free signal is weak and <em>not significant</em> at the replicate-group level &mdash; 0.644 vs. a 0.542 baseline (~33 independent groups). Per-class "defining metrics" must never feed a classifier meant to prove discrimination.</div>
     <div class="note neg"><strong>4. Marker non-observability.</strong> Workload phase markers describe internal events that never surface as APF mean shifts at this cadence, so marker-aligned segmentation F1 is structurally unavailable. Ground-truth phase labels must be designed to survive into the recorded signal.</div>
   </section>
 

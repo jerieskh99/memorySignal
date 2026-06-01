@@ -41,11 +41,13 @@ for Short, Coarse Memory-Liveness Time Series}
   \item Naively, one sweeps both and reports the configuration that maximizes a
         score. That hides \emph{why} a configuration is good or bad and invites
         over-fitting to a single workload.
-  \item \textbf{Observation from the capture layer}: the effective cadence is a
-        floor set by the snapshot primitive (\SI{15}{}--\SI{21}{\second}/snap),
-        so the sampling-interval axis is largely inert below that floor. We
-        therefore fix a single requested interval (\SI{500}{\milli\second}) and
-        focus the search on the window/hop.
+  \item \textbf{Observation from the capture layer}: the effective cadence is
+        set by the snapshot primitive (a variable median
+        $\approx$\SI{10}{\second}/snap, range \SI{2}{}--\SI{24}{\second}; Paper
+        A), far slower than the \SI{500}{\milli\second} interval, so the
+        sampling-interval axis is largely inert. We therefore fix a single
+        requested interval (\SI{500}{\milli\second}) and focus the search on the
+        window/hop.
   \item \textbf{Idea}: replace ``argmax score'' with a set of acceptance gates,
         each testing a distinct, named property (stationarity, spectral
         coverage, defining-metric strength, hop validity, window-count
@@ -124,7 +126,9 @@ for Short, Coarse Memory-Liveness Time Series}
         4.785 (seq), 5.254 (selective), 5.336 (slowburn), 6.054 (batched),
         6.346\,dB (scanner), each $>\SI{4.5}{\decibel}$ -- yet \emph{fail G2}
         (coverage $\approx 0.20 \ll 2.0$). The rhythm is real and detectable;
-        too few periods fit in the cell at the achievable cadence.
+        too few periods fit in the cell at the achievable cadence. (These
+        medians aggregate cells with as few as 1--3 analysis windows, where the
+        SNR estimate is fragile; see Limitations.)
   \item \textbf{Interpretation.} The framework's value is exactly this
         separation: G3 says ``the signature is there,'' G2 says ``we did not
         capture enough of it.'' A single max-score number would have conflated
@@ -135,9 +139,15 @@ for Short, Coarse Memory-Liveness Time Series}
 
 \section{Limitations}
 \begin{itemize}
-  \item Coverage is bounded by the cadence floor and the 600\,s workload cap;
-        clearing G2 for the phasic family requires faster snapshots or longer
-        observation, not a different window.
+  \item Coverage is bounded by the (variable, snapshot-dominated) cadence and
+        the 600\,s workload cap; clearing G2 for the phasic family requires
+        faster snapshots or longer observation, not a different window.
+  \item \textbf{Cepstral SNR is estimated on very few windows.} At
+        $(W,H)=(8,4)$, 53 of 132 cells yield $\le 3$ analysis windows (14 yield
+        none), so the per-cell cepstral SNR feeding G3 has near-zero degrees of
+        freedom and its dB outliers are unreliable. G3 verdicts should be
+        recomputed on the subset with $\ge 8$ windows, or SNR dropped as a
+        per-cell feature.
   \item Gate thresholds (0.80, 2.0, \SI{4.5}{\decibel}, 0.30/0.50) were
         hand-calibrated and revised once during the study; a sensitivity
         analysis is future work.

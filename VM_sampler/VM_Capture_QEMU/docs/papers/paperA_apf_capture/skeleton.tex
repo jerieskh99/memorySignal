@@ -32,12 +32,15 @@ Whole-VM Memory Introspection at Tractable Cost}
         \emph{Active Page Fraction} (APF) -- the fraction of guest pages whose
         bytes change between consecutive full-memory snapshots.
   \item Mechanism: a streaming capture architecture (``B+3.1'') in which an
-        asynchronous helper computes the diff and deletes the prior dump,
-        bounding transient disk while persisting only a 1-D trajectory.
-  \item Result: a roughly six-order-of-magnitude reduction in persistent
-        storage for a fixed capture campaign, with a characterized cost floor
-        set by hypervisor snapshotting rather than by the chosen sampling
-        interval.
+        asynchronous helper computes the diff and, in its delete-as-you-go
+        mode, removes the prior dump to bound transient disk, while persisting
+        only a 1-D trajectory. (The v3 run retained dumps; see
+        Sec.~\ref{sec:results}.)
+  \item Result: an estimated reduction of order $10^{6}$ in persistent
+        storage for a fixed capture campaign (a projection; see
+        Sec.~\ref{sec:results}), with the dominant capture cost set by the
+        hypervisor snapshot (\texttt{pmemsave}) rather than by the chosen
+        sampling interval.
 \end{itemize}
 \end{abstract}
 
@@ -55,8 +58,8 @@ Whole-VM Memory Introspection at Tractable Cost}
         with $N \approx 262{,}144$ pages for a 1\,GiB guest.
   \item This 2-D signal is faithful but heavy: retaining the dumps needed to
         recompute it costs on the order of \SI{60}{\gibi\byte} per long cell and
-        roughly \SI{5}{\tebi\byte} for a 90-cell campaign -- infeasible on the
-        available host.
+        a projected $\approx$\SI{5}{\tebi\byte} for a 90-cell campaign (never
+        fully retained) -- infeasible on the available host.
   \item \textbf{Gap}: a memory-liveness signal that is cheap enough to capture
         repeatedly across many workloads and durations, while preserving enough
         structure to (a) distinguish active from idle phases and (b) feed
@@ -116,8 +119,16 @@ Whole-VM Memory Introspection at Tractable Cost}
   \item \textbf{Streaming architecture (B+3.1).} An asynchronous helper
         (\texttt{ionice -c3 nice -n19}) computes each pair's APF, appends one
         JSONL record via an atomic \texttt{O\_APPEND} write, emits an ack, and
-        \emph{deletes the older dump}. At most a small number of dumps coexist,
-        capping transient disk at roughly \SI{2}{}--\SI{3}{\gibi\byte}.
+        -- in its delete-as-you-go mode -- \emph{deletes the older dump}, so at
+        most a small number of dumps coexist and transient disk is capped at
+        roughly \SI{2}{}--\SI{3}{\gibi\byte}. \emph{Honesty note:} the v3
+        capture ran with \texttt{keep\_dumps} enabled, which \emph{disables} the
+        delete step. The helper still computed APF in stream, but every dump was
+        retained until a single end-of-cell sweep (cell notes record, e.g.,
+        ``removed 29 dumps''), so the \SI{2}{}--\SI{3}{\gibi\byte} cap is a
+        design target \emph{not} exercised in v3; measured peak transient disk
+        scaled with trajectory length (up to one \SI{1}{\gibi\byte} dump per
+        snapshot, i.e.\ tens of \si{\gibi\byte} for a 600\,s cell).
   \item \textbf{Barrier.} A cell-end barrier waits for outstanding helper acks
         (hard cap \SI{180}{\second}, \SI{15}{\second} idle quit) before metrics
         are computed, guaranteeing the trajectory is complete.
@@ -147,8 +158,12 @@ Whole-VM Memory Introspection at Tractable Cost}
   \item \textbf{Storage reduction.} For a 90-cell campaign the APF trajectory
         persists $\approx$\SI{4.7}{\mebi\byte}; retaining the dumps needed for
         the 2-D per-page pipeline would project to $\approx$\SI{5}{\tebi\byte}
-        -- a ratio of order $10^{6}$. Transient disk during capture stays at
-        \SI{2}{}--\SI{3}{\gibi\byte} due to delete-as-you-go.
+        -- an estimated ratio of order $10^{6}$ (projection, not a measured
+        numerator). In v3 the delete step was disabled
+        (\texttt{keep\_dumps}=true), so transient disk instead scaled with
+        trajectory length rather than holding at the
+        \SI{2}{}--\SI{3}{\gibi\byte} design target; validating that cap requires
+        a delete-as-you-go re-run.
         % HONESTY (reviewer A): the 5 TiB numerator is a PROJECTION for a
         % campaign never fully retained, and 4.7 MiB is the 90-cell figure
         % while the dataset is 132 cells. Before publication: reconcile to one
@@ -158,18 +173,28 @@ Whole-VM Memory Introspection at Tractable Cost}
   \item \textbf{Compute reduction.} Per-pair APF via \texttt{memmap} byte-diff
         takes \SI{300}{}--\SI{500}{\milli\second}, versus \SI{1.5}{}--\SI{3}{\second}
         for the Rust per-page cosine+Hamming kernel -- lower host contention and
-        more snapshots per cell.
-  \item \textbf{Cost floor.} Although the requested guest interval was
-        \SI{500}{\milli\second}, the measured cadence was
-        \SI{15}{}--\SI{21}{\second} per snapshot: a 120\,s cell yields 7
-        snapshots, 300\,s yields 20, and 600\,s yields 28. The estimated
-        VM-pause fraction is 0.96--0.97; \texttt{pmemsave} itself is
-        $\approx$\SI{0.75}{\second}, so the cadence is dominated by snapshot
-        write plus helper read-back, \emph{not} by the interval knob.
-  \item \textbf{Implication.} Below this cadence floor, tuning the sampling
-        interval is essentially a no-op -- a result that motivates Paper B's
+        more snapshots per cell. (This pair is not separately logged in v3;
+        before publication, measure it under controlled cache state.)
+  \item \textbf{Cost is the snapshot, and it is variable.} Although the
+        requested guest interval was \SI{500}{\milli\second} (and the guest
+        indeed ran in $\approx$\SI{0.52}{\second} bursts between snapshots), the
+        host snapshot cycle is far larger and \emph{not} a fixed floor: median
+        \SI{9.75}{\second} per snapshot, range \SI{2.0}{}--\SI{23.6}{\second}
+        over the 128 \texttt{ok} cells. Snapshot counts per cell are
+        correspondingly spread -- 120\,s: median 14 (range 5--43); 300\,s:
+        median 26 (12--148); 600\,s: median 53 (28--100) -- so the often-quoted
+        ``7/20/28'' are near the per-duration \emph{minima}, not typical values.
+        The cost is dominated by \texttt{pmemsave}: median \SI{7.06}{\second}, a
+        median 81\% of the cycle, with suspend ($\approx$\SI{0.35}{\second}) and
+        resume ($\approx$\SI{0.05}{\second}) negligible and the asynchronous
+        helper read-back off the critical path. The estimated VM-pause fraction
+        is high but not uniform: median 0.946 (range 0.74--0.98).
+  \item \textbf{Implication.} Because the host snapshot cycle dwarfs the
+        \SI{500}{\milli\second} interval -- the guest already idles
+        $\approx$\SI{0.52}{\second} between snapshots -- tuning the interval
+        below the cycle is essentially a no-op. This motivates Paper B's
         single-interval design and reframes ``how often to sample'' as ``how
-        cheaply can we snapshot.''
+        cheaply can we snapshot,'' i.e.\ how to shrink \texttt{pmemsave}.
   \item \textbf{Signal fidelity (forward reference).} Despite the coarsening,
         APF retains a weak but measurable family signal (Paper C, after
         controlling for feature-construction leakage) and steady workloads are
@@ -185,12 +210,14 @@ Whole-VM Memory Introspection at Tractable Cost}
   \item APF is intentionally coarse: a 1-bit change and a full rewrite are
         indistinguishable. Per-page sub-signatures require re-introducing the
         2-D pipeline (deferred future work).
-  \item The cadence floor (\SI{15}{}--\SI{21}{\second}/snap) limits temporal
-        resolution; trajectories are short (7--28 points), which constrains
-        spectral analysis (see Paper B's coverage limitation).
-  \item \texttt{pmemsave} suspends the guest ($\approx$96\% pause); the method as
-        implemented is an offline/research capture, not a production-latency
-        introspector. Live dirty-bit tracking is the natural optimization.
+  \item The cadence (median $\approx$\SI{10}{\second}/snap, up to
+        $\approx$\SI{24}{\second}) limits temporal resolution; trajectories are
+        short (median 30 points, range 4--99), which constrains spectral
+        analysis (see Paper B's coverage limitation).
+  \item \texttt{pmemsave} suspends the guest (median $\approx$95\% pause); the
+        method as implemented is an offline/research capture, not a
+        production-latency introspector. Live dirty-bit tracking is the natural
+        optimization.
 \end{itemize}
 
 %------------------------------------------------------------------
@@ -198,9 +225,9 @@ Whole-VM Memory Introspection at Tractable Cost}
 \begin{itemize}
   \item APF turns whole-VM memory-change observation from a multi-terabyte,
         per-page exercise into a megabyte-scale single-scalar trajectory.
-  \item The binding cost is the hypervisor snapshot, which both bounds temporal
-        resolution and frees the sampling-interval knob -- a finding that shapes
-        the rest of the portfolio.
+  \item The binding cost is the hypervisor snapshot (\texttt{pmemsave}), which
+        both bounds temporal resolution and frees the sampling-interval knob --
+        a finding that shapes the rest of the portfolio.
 \end{itemize}
 
 \bibliographystyle{IEEEtran}
