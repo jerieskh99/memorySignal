@@ -247,9 +247,24 @@ def main(argv: list[str] | None = None) -> int:
     try:
         prev_path.unlink()
     except OSError:
-        # Non-fatal: prev may have already been removed by a manual cleanup.
-        # The APF is already recorded; downstream doesn't care.
-        pass
+        # The dump dir may be owned by the libvirt-qemu user (the default
+        # imageDir is /var/lib/libvirt/qemu/dump), so an unprivileged unlink
+        # fails with EACCES and the dump accumulates until the disk fills.
+        # Opt-in privileged fallback gated on TIMING_SUDO_DELETE: without the
+        # env var this stays a silent non-fatal skip (default path unchanged);
+        # with it, mirror the producer's self-clean `sudo -n rm -f`.
+        if os.environ.get("TIMING_SUDO_DELETE") == "1":
+            try:
+                import subprocess
+                subprocess.run(
+                    ["sudo", "-n", "rm", "-f", str(prev_path)],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=15, check=False,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
+        # else non-fatal: prev may already have been removed by a manual
+        # cleanup; the APF is recorded and downstream doesn't care.
 
     # Step 5: write success ack
     record.helper_duration_ms = int((time.monotonic() - started) * 1000)

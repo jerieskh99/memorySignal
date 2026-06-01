@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import subprocess
 import sys
 import time
@@ -268,6 +269,25 @@ def _parse_list(s: str) -> list[str]:
     return [x.strip() for x in s.split(",") if x.strip()]
 
 
+def _cell_env(cell: Cell) -> dict:
+    """Environment for a cell's e1 subprocess.
+
+    SSD arms write to the config's default imageDir (on this server the
+    libvirt-QEMU-owned /var/lib/libvirt/qemu/dump). The APF helper that deletes
+    each previous dump runs as the unprivileged runner user and cannot unlink
+    there, so a keep arm would otherwise accumulate one dump per snapshot until
+    the disk fills. TIMING_SUDO_DELETE lets the helper fall back to a
+    non-interactive ``sudo -n rm -f`` (passwordless sudo, already required by the
+    producer's self-clean path). tmpfs arms own their 0777 dir and need no sudo,
+    so the flag is scoped to ssd targets; the env is inherited e1 -> producer ->
+    helper via os.environ.copy() in the e1 producer launch.
+    """
+    env = dict(os.environ)
+    if ARM_SPECS[cell.arm]["target"] == "ssd":
+        env["TIMING_SUDO_DELETE"] = "1"
+    return env
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_argparser().parse_args(argv)
 
@@ -304,6 +324,9 @@ def main(argv: list[str] | None = None) -> int:
     vm_domain = base_cfg.get("domain", "")
     ram_effective = int(args.ram_mb if args.ram_mb is not None
                         else base_cfg.get("ramSizeMb", 0))
+    # SSD arms write the config's default imageDir (libvirt-QEMU-owned on this
+    # server). Used both to scope the sudo-delete env and to purge between cells.
+    ssd_image_dir = Path(base_cfg.get("imageDir", "/var/lib/libvirt/qemu/dump")).expanduser()
 
     result: dict = {
         "experiment": "plan05_throughput_pilot",
@@ -421,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
             grace_stop_seconds=args.grace_stop_seconds)
         full = [args.python, str(E1_PATH), *cargv]
         log(f"[{i}/{len(cells)}] {c.cell_id} ({c.duration_s}s)")
-        proc = subprocess.run(full)
+        proc = subprocess.run(full, env=_cell_env(c))
         cell_rec = {"cell_id": c.cell_id, "workload": c.workload,
                     "duration_s": c.duration_s, "arm": c.arm,
                     "replicate": c.replicate, "returncode": proc.returncode,
@@ -439,17 +462,21 @@ def main(argv: list[str] | None = None) -> int:
         else:
             cell_rec["error"] = f"e1 exit {proc.returncode} or missing {run_json.name}"
         result["cells"].append(cell_rec)
-        # Bound tmpfs (/dev/shm) usage. A keep arm leaves its last dump (the
-        # APF helper only deletes a dump once it has a successor) and e1 skips
-        # cleanup when keep_dumps is set, so ~1 GiB residual per keep cell would
-        # accumulate across the matrix and could overflow the RAM-backed mount.
-        # Purge the tmpfs imageDir between cells; the dir is 0777 with no sticky
-        # bit, so the runner can unlink the libvirt-QEMU-owned dumps without
-        # sudo. SSD arms write to large disk and are left untouched.
-        if ARM_SPECS[c.arm]["target"] == "tmpfs":
+        # Bound dump residue between cells so a keep arm's last dump (the APF
+        # helper only deletes a dump once it has a successor; e1 skips end
+        # cleanup when keep_dumps is set) does not accumulate across the matrix
+        # or inflate the next cell's peak-disk sample (G-T3). tmpfs arms own a
+        # 0777 dir -> plain unlink. ssd arms write the libvirt-QEMU-owned
+        # imageDir -> reuse e1's sudo-capable purge (non-interactive `sudo -n`).
+        tgt = ARM_SPECS[c.arm]["target"]
+        if tgt == "tmpfs":
             purged = _purge_dumps(Path(args.tmpfs_dir).expanduser())
             if purged:
                 log(f"  purged {purged} residual dump(s) from {args.tmpfs_dir}")
+        elif tgt == "ssd":
+            purged = e1.purge_all_dumps(ssd_image_dir, use_sudo=True)
+            if purged:
+                log(f"  purged {purged} residual dump(s) from {ssd_image_dir} (sudo)")
         if i < len(cells) and args.inter_cell_cooldown > 0:
             time.sleep(args.inter_cell_cooldown)
 

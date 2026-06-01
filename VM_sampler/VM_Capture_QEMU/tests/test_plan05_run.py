@@ -16,6 +16,7 @@ Run with:
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 import tempfile
@@ -139,6 +140,26 @@ class TestPurgeDumps(unittest.TestCase):
 
     def test_missing_dir_is_zero(self):
         self.assertEqual(R._purge_dumps(pathlib.Path("/nonexistent/plan05/xyz")), 0)
+
+
+class TestCellEnv(unittest.TestCase):
+    def test_ssd_arms_get_sudo_delete(self):
+        for arm in ("ssd_keep", "ssd_selfclean"):
+            env = R._cell_env(R.Cell("w", 120, arm, 0))
+            self.assertEqual(env.get("TIMING_SUDO_DELETE"), "1")
+
+    def test_tmpfs_arms_no_sudo_delete(self):
+        for arm in ("tmpfs_keep", "tmpfs_selfclean"):
+            env = R._cell_env(R.Cell("w", 120, arm, 0))
+            self.assertNotIn("TIMING_SUDO_DELETE", env)
+
+    def test_inherits_base_environ(self):
+        os.environ["PLAN05_SENTINEL_XYZ"] = "1"
+        try:
+            env = R._cell_env(R.Cell("w", 120, "tmpfs_keep", 0))
+            self.assertEqual(env.get("PLAN05_SENTINEL_XYZ"), "1")
+        finally:
+            os.environ.pop("PLAN05_SENTINEL_XYZ", None)
 
 
 if __name__ == "__main__":
