@@ -1,0 +1,370 @@
+%==============================================================================
+% Paper E -- skeleton (bullets, to be polished into prose)
+% Target venue: systems / measurement (e.g., a virtualization or measurement
+%   workshop). This is the METHODS / INSTRUMENTATION paper of the portfolio:
+%   it establishes how per-snapshot timing was measured and supplies the
+%   snapshot-interval inertness finding the other papers (A, B, F, Plan 05)
+%   rely on.
+%
+% Build: pdflatex skeleton.tex   (needs IEEEtran; if unavailable, change the
+%   \documentclass line below to \documentclass[11pt]{article} and delete the
+%   \IEEEauthorblock* macros.)
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{Measure the Measurer: Per-Snapshot Timing Instrumentation and the\\
+Snapshot-Interval Inertness Finding for Whole-VM Memory Capture}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation\\
+\texttt{TODO@email}}}
+
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------
+\begin{abstract}
+% TODO: polish into 150-200 words of prose. Bullet stub:
+\begin{itemize}
+  \item Problem: a whole-VM memory-capture pipeline exposes a single
+        ``how often to sample'' knob (the requested guest sampling interval,
+        \texttt{intervalMsec}). It was unclear what that knob actually
+        controls, and whether tuning it changes capture behavior at all.
+  \item Method: we added additive, low-overhead per-snapshot timing
+        instrumentation -- six host \texttt{CLOCK\_REALTIME} timestamps per
+        snapshot (\texttt{t0}\dots\texttt{t5}) bracketing
+        \texttt{suspend}/\texttt{pmemsave}/\texttt{resume} -- and an
+        orchestrator that derives a per-run \texttt{producer\_stats} summary.
+  \item Central finding: the requested guest interval (\SI{500}{\milli\second}
+        in the production campaign) is essentially \emph{inert}. The host
+        snapshot cycle, dominated by QEMU \texttt{pmemsave}, dwarfs the
+        interval, so lowering the interval below the snapshot-cycle floor is
+        a no-op for capture throughput.
+  \item Consequence: ``how often should we sample?'' is reframed as ``how
+        cheaply can we snapshot?'' -- i.e.\ how to shrink \texttt{pmemsave}.
+        This is the methodological pivot that Paper A (APF signal), Paper B
+        (gated interval tuning), Paper F (streaming capture system), and the
+        Plan 05 snapshot-throughput proposal all build on.
+  \item Honesty: instrumentation also exposed two timing-correctness bugs (a
+        missing-\texttt{bc} sleep fallback; a silent dump-cleanup failure)
+        whose discovery is itself part of the contribution -- without the six
+        timestamps these would have silently mis-calibrated everything
+        downstream.
+\end{itemize}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+% Proposed introduction (bullets):
+\begin{itemize}
+  \item Hypervisor-external whole-VM memory capture (Paper A's APF pipeline)
+        works by repeatedly pausing the guest, dumping all of guest physical
+        RAM to disk via the QEMU monitor \texttt{pmemsave} command, and
+        resuming. A configured interval, \texttt{intervalMsec}, nominally
+        controls how often this happens.
+  \item Before any sampling-rate study can be trusted, one must know what the
+        interval knob actually sets. We argue there are \textbf{three distinct
+        time axes} the original design conflated:
+    \begin{itemize}
+      \item Axis A -- \emph{guest-running interval}: the wall-clock gap between
+            snapshots as measured by the guest's own monotonic clock (the VM
+            does not run during \texttt{pmemsave}). This is the analysis frame
+            spacing $\Delta t_{\mathrm{frame}}$.
+      \item Axis B -- \emph{host wall-clock per snapshot}: real host time to
+            produce one frame (suspend + \texttt{pmemsave} + resume).
+      \item Axis C/D -- \emph{experiment throughput}: total snapshots
+            $\times$ Axis B.
+    \end{itemize}
+  \item \texttt{intervalMsec} sets Axis A, \emph{not} Axis B. The post-resume
+        \texttt{sleep intervalMsec/1000} is the only point in the producer
+        loop where guest time advances; everything else happens with the VM
+        paused.
+  \item \textbf{Gap}: the pipeline shipped with no per-snapshot timing
+        instrumentation, so it was impossible to tell (a) whether
+        \texttt{intervalMsec} was honored, (b) how the per-snapshot host cost
+        decomposes, or (c) whether tuning the interval changes anything that
+        matters for capture throughput.
+  \item \textbf{This paper} (the measurement/methods paper of the portfolio)
+        builds that instrumentation, validates the three-axis model on real
+        runs, and reports the headline empirical result: the requested guest
+        interval is inert relative to the snapshot-cycle floor.
+  \item \textbf{Contributions} (expanded in Sec.~\ref{sec:contrib}):
+    \begin{itemize}
+      \item C1: additive per-snapshot timing instrumentation
+            (six host timestamps) and the \texttt{producer\_stats} run
+            summary derived from them.
+      \item C2: empirical separation of the three time axes, confirming
+            \texttt{intervalMsec} sets only the guest-running interval
+            (Axis A).
+      \item C3: the snapshot-interval \emph{inertness} finding -- the host
+            snapshot cycle (median \SI{9.75}{\second}, dominated by a median
+            \SI{7.06}{\second} \texttt{pmemsave}) dwarfs the
+            \SI{500}{\milli\second} request, so interval tuning below the
+            floor is a no-op -- and the reframing of the sampling question as
+            a snapshot-cost question.
+      \item C4: bug-discovery as validation -- two timing-correctness defects
+            surfaced only because the instrumentation existed.
+    \end{itemize}
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Related Work}
+\begin{itemize}
+  \item VM introspection and memory forensics \cite{garfinkel2003vmi}:
+        external observation of guest memory; the capture primitive here is a
+        full-RAM \texttt{pmemsave} per snapshot.
+  \item Checkpoint / snapshot cost \cite{TODO_libvirt_pmemsave}: the QEMU
+        monitor \texttt{pmemsave} command writes a flat RAW image of all guest
+        physical memory while the domain is paused. TODO: cite a
+        checkpoint/snapshot-cost or live-migration study to frame why a full
+        \SI{1}{\gibi\byte} dump dominates the per-snapshot cost.
+        % TODO: add a citation key (e.g. \cite{TODO_snapshot_cost}) to refs.bib
+        % for snapshot/checkpoint cost; none exists yet.
+  \item Working-set / dirty-page tracking \cite{TODO_working_set_estimation}:
+        hypervisors already track dirtied pages for migration. Position the
+        ``shrink the snapshot'' future direction (Plan 05) against
+        incremental dirty-bit capture, which would replace the full-RAM dump.
+  \item TODO: cite measurement-methodology work on separating logical sampling
+        rate from physical acquisition cost (the Axis-A vs Axis-B distinction
+        is the methodological core of this paper).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Timing Instrumentation}
+\label{sec:method}
+\begin{itemize}
+  \item \textbf{Capture primitive and loop.} Per snapshot the producer
+        (\texttt{capture\_producer\_qemu\_pmemsave.sh}) runs:
+        backpressure check $\rightarrow$ \texttt{virsh suspend} $\rightarrow$
+        poll \texttt{domstate==paused} $\rightarrow$
+        \texttt{pmemsave(0, ramBytes, file)} (VM frozen, writes a flat
+        \SI{1}{\gibi\byte} RAW image) $\rightarrow$ flush $\rightarrow$
+        enqueue $\rightarrow$ \texttt{virsh resume} $\rightarrow$ poll
+        \texttt{domstate==running} $\rightarrow$
+        \texttt{sleep intervalMsec/1000}. Guest RAM is \SI{1}{\gibi\byte}
+        ($262{,}144$ pages of \SI{4096}{\byte}); each \texttt{pmemsave} writes
+        exactly \SI{1}{\gibi\byte}.
+  \item \textbf{Six timestamps.} An additive patch records, per snapshot, six
+        host \texttt{CLOCK\_REALTIME} timestamps (nanosecond resolution via
+        \texttt{date +\%s.\%N}):
+        \texttt{t0} (before suspend), \texttt{t1} (after \texttt{paused}),
+        \texttt{t2} (before \texttt{pmemsave}), \texttt{t3} (after
+        \texttt{pmemsave} returns), \texttt{t4} (before resume), \texttt{t5}
+        (after \texttt{running}). With \texttt{TIMING\_JSONL\_PATH} set the
+        producer writes one JSONL record per snapshot (and a \texttt{seq:-1}
+        record per backpressure event); when unset, ordinary captures are
+        byte-for-byte unaffected. No new dependencies (Bash + GNU
+        \texttt{date}).
+  \item \textbf{Derived per-snapshot quantities.} From the six timestamps plus
+        the next snapshot's \texttt{t0}:
+        \[
+          \texttt{pmemsave\_sec} = t_3 - t_2,\quad
+          \texttt{suspend\_sec} = t_1 - t_0,
+        \]
+        \[
+          \texttt{resume\_sec} = t_5 - t_4,\quad
+          \texttt{host\_cycle\_sec} = t_0^{(n{+}1)} - t_0,
+        \]
+        \[
+          \texttt{guest\_run\_sec} = t_0^{(n{+}1)} - t_5 \;\; (\text{Axis A}).
+        \]
+        \texttt{host\_cycle\_sec} is Axis B; \texttt{guest\_run\_sec} is
+        Axis A; their ratio gives the per-snapshot VM-pause fraction.
+  \item \textbf{Run summary (\texttt{producer\_stats}).} The orchestrator
+        (\texttt{run\_timing\_instrumentation\_experiment.py}; CLI flags
+        \texttt{--ram-mb}, \texttt{--duration}, \texttt{--interval-ms},
+        \texttt{--keep-dumps}, \texttt{--output-json}) parses the JSONL and
+        emits one JSON file with fields:
+        \texttt{mean\_pmemsave\_sec},
+        \texttt{mean\_host\_snapshot\_cycle\_sec},
+        \texttt{mean\_suspend\_sec}, \texttt{mean\_resume\_sec},
+        \texttt{mean\_guest\_run\_interval\_sec},
+        \texttt{estimated\_vm\_pause\_fraction},
+        \texttt{backpressure\_events}, \texttt{queue\_max\_depth}.
+        Any field that cannot be measured is recorded as \texttt{null}, never
+        guessed.
+  \item \textbf{Producer-only by design.} Experiment~1 runs the producer with
+        no consumer / delta calculation / streaming, so the timestamps measure
+        pure capture cost. (The contended numbers in Sec.~\ref{sec:results}
+        come from runs where a consumer competed for disk.)
+  \item TODO: figure -- annotated timeline of one snapshot cycle showing
+        \texttt{t0}\dots\texttt{t5}, the paused window ($t_0\to t_5$), and the
+        single guest-running window (the post-resume sleep).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Contributions in Detail}
+\label{sec:contrib}
+\begin{itemize}
+  \item \textbf{C1 -- instrumentation}: six additive host timestamps and the
+        \texttt{producer\_stats} summary, with a \texttt{--dry-run} mode for
+        host-free validation of paths and JSON shape.
+  \item \textbf{C2 -- three-axis separation}: empirical confirmation that
+        \texttt{intervalMsec} controls Axis A (guest-running interval) and is
+        independent of Axis B (host wall-clock per snapshot).
+  \item \textbf{C3 -- inertness finding}: the requested
+        \SI{500}{\milli\second} interval is dominated by the host snapshot
+        cycle; tuning it below the floor changes nothing about capture
+        throughput. Reframes the sampling-rate question as a snapshot-cost
+        question (feeds Paper B and Plan 05).
+  \item \textbf{C4 -- validation by bug discovery}: the instrumentation caught
+        a missing-\texttt{bc} sleep fallback (\texttt{intervalMsec} silently
+        ignored) and a silent dump-cleanup failure (disk pressure inflating
+        \texttt{pmemsave}); both would otherwise have corrupted downstream
+        calibration invisibly.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Evaluation}
+\label{sec:results}
+% Proposed results (bullets with REAL numbers from the v3 campaign + the
+% timing experiments). All numbers below are from the verified ground-truth
+% block; do not recompute.
+\begin{itemize}
+  \item \textbf{Campaign context.} The production capture campaign (v3) is
+        132 cells = 11 workloads $\times$ 3 durations
+        $\{120, 300, 600\}\,\si{\second}$ $\times$ 4 replicates, all at a
+        single requested interval of \SI{500}{\milli\second}; 128 cells
+        completed with \texttt{exit\_status=="ok"}. Timing statistics below
+        are over those \texttt{ok} cells.
+  \item \textbf{Axis A is honored.} The guest indeed runs in
+        $\approx$\SI{0.52}{\second} bursts between snapshots, close to the
+        \SI{500}{\milli\second} request. So the \emph{guest} interval is
+        honored; the dominant cost lives entirely on the host side.
+  \item \textbf{The host snapshot cycle dwarfs the interval.} Per-snapshot
+        host cycle: min \SI{2.02}{\second} / median \SI{9.75}{\second} / max
+        \SI{23.57}{\second}. This is the binding cadence, $\sim$20$\times$ the
+        \SI{500}{\milli\second} request at the median.
+  \item \textbf{\texttt{pmemsave} dominates the cycle.} \texttt{pmemsave}
+        duration: min \SI{0.76}{\second} / median \SI{7.06}{\second} / max
+        \SI{21.57}{\second}; it is a median $81\%$ ($0.808$) of the host
+        cycle. Throughput is $\approx$\SI{1.36}{\gibi\byte\per\second} on a
+        quiet host, falling to
+        \SIrange{0.27}{0.71}{\gibi\byte\per\second} under disk contention.
+        Suspend ($\approx$\SI{0.35}{\second}) and resume
+        ($\approx$\SI{0.05}{\second}) are negligible.
+        % HONESTY (pmemsave-drift caveat): without a periodic flush /
+        % delete-as-you-go cleanup, pmemsave DRIFTS within a run from
+        % ~0.78 s to ~7.25 s as un-deleted 1 GiB dumps fill the imageDir and
+        % page-cache writeback stalls each write. The drift is a disk-pressure
+        % artifact, not an intrinsic pmemsave cost; the contended-throughput
+        % range above reflects it. Before publication, separate the quiet-host
+        % floor from the drift tail explicitly.
+  \item \textbf{The VM is paused almost all the time, but not uniformly.}
+        Estimated VM-pause fraction: min $0.74$ / median $0.946$ / max
+        $0.978$.
+        % HONESTY (pause-fraction spread): the pause fraction is NOT a single
+        % constant -- it ranges 0.74-0.978 across ok cells. Report the spread,
+        % not just the ~95% median, since pause fraction tracks pmemsave cost
+        % and therefore inherits the drift caveat above.
+  \item \textbf{Snapshots per cell scale with duration but are highly
+        variable.} Per-duration (min/median/max):
+        \SI{120}{\second} $\rightarrow$ 5 / 14 / 43;
+        \SI{300}{\second} $\rightarrow$ 12 / 26 / 148;
+        \SI{600}{\second} $\rightarrow$ 28 / 53 / 100.
+        % HONESTY (7/20/28 minima correction): the often-quoted "7/20/28"
+        % snapshot-count triplet is near the PER-DURATION MINIMA, not typical
+        % values. The medians are 14/26/53. State this correction explicitly
+        % in prose; do not cite 7/20/28 as representative.
+  \item \textbf{Inertness, stated precisely.} Because the host snapshot cycle
+        (median \SI{9.75}{\second}) dwarfs the \SI{500}{\milli\second}
+        interval, and the guest already idles only $\approx$\SI{0.52}{\second}
+        between snapshots, lowering \texttt{intervalMsec} below the
+        snapshot-cycle floor cannot increase snapshot density -- the host
+        cannot produce frames faster than \texttt{pmemsave} allows. The
+        interval knob is therefore inert for throughput; it only sets the
+        (already-honored) guest-time spacing. This motivates Paper B's
+        single-interval design and reframes ``how often to sample'' as ``how
+        cheaply can we snapshot.''
+  \item \textbf{Validation by bug discovery (forward to the methods value).}
+        \begin{itemize}
+          \item Missing \texttt{bc}: the producer's post-resume sleep fell
+                back to integer \texttt{sleep \$((intervalMsec/1000))} =
+                \texttt{sleep 0} for any \texttt{intervalMsec} $< 1000$,
+                yielding a measured guest gap of $\approx$\SI{6.6}{\milli\second}
+                instead of the configured value. After the fix, measured
+                guest gap $\approx$\texttt{intervalMsec} + \SI{25}{\milli\second}
+                bash bookkeeping (e.g.\ \SI{125}{\milli\second} at
+                \texttt{intervalMsec}=100).
+                % HONESTY: 6.6 ms and 125 ms are from the small timing
+                % experiments (3 and 19 snapshots), not the v3 campaign;
+                % label them as instrumentation-run measurements, not
+                % campaign statistics.
+          \item Silent dump-cleanup failure: \texttt{unlink} failed under a
+                root-owned \texttt{imageDir}, so every dump was retained and
+                disk pressure inflated \texttt{pmemsave} (up to
+                \SIrange{15}{31}{\second} on a near-full filesystem). Fixed
+                with a \texttt{sudo}-fallback purge and producer self-clean.
+          \item Methodological point: neither bug is visible without the six
+                timestamps. The instrumentation is load-bearing precisely
+                because it makes silent mis-calibration loud.
+        \end{itemize}
+  \item TODO: table -- \texttt{producer\_stats} aggregate (pmemsave, host
+        cycle, suspend, resume, guest-run interval, pause fraction) with
+        min/median/max columns over the 128 ok cells.
+  \item TODO: figure -- per-snapshot \texttt{pmemsave\_sec} vs snapshot index
+        for one quiet run and one drift-contaminated run, showing the
+        disk-pressure tail.
+  \item TODO: figure -- bar of mean cycle decomposition
+        (suspend / pmemsave / flush / resume / guest-run sleep) showing
+        pmemsave as the $\sim$81\% term and the \SI{500}{\milli\second}
+        interval as a sliver.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Limitations}
+\begin{itemize}
+  \item Single requested interval in production. The v3 campaign fixed
+        \texttt{intervalMsec} at \SI{500}{\milli\second}; the interval
+        \emph{sweep} (100/250/500/1000/2000 ms) was a separate sub-pilot, and
+        its analyzer-side metrics (F1, CV) were never produced because that
+        sweep ran without \texttt{--keep-dumps}. The inertness claim rests on
+        the cycle-vs-interval ratio, which is robust, but the per-family
+        interval recommendations are design-justified, not analyzer-grounded.
+        % HONESTY: the iv-recommendation table (iv_recommendations_v1.json) is
+        % explicitly "design-justified, not empirically grounded by analyzer
+        % output" -- C3 (n_windows >= 50) failed for every cell. Do not
+        % present those recommendations as validated.
+  \item Host-specific. All numbers are from a single capture host
+        (\texttt{pcrserral}); \texttt{pmemsave} throughput and the suspend
+        tail depend on the host's disk and libvirtd. The inertness direction
+        generalizes (a full-RAM dump always dwarfs a sub-second interval), but
+        the exact cycle distribution does not.
+  \item Suspend latency tail. Under concurrent consumer load the
+        instrumented ``suspend'' interval (which includes
+        \texttt{domstate}-confirmation polling, not just the VCPU pause)
+        spiked to tens of seconds in one run; the present instrumentation
+        cannot split RPC vs polling vs actual pause. The campaign medians
+        above are over producer-side runs, but the tail is real and
+        under-characterized.
+        % HONESTY: a single ~80 s suspend spike in one 19-snapshot run
+        % dominates that run's mean; do not quote suspend means without the
+        % median, and note the tail is sampled by too few events.
+  \item Pmemsave drift conflates two regimes. The contended throughput range
+        mixes the quiet-host floor with the disk-pressure drift; cleanly
+        separating them needs a delete-as-you-go (or KEEP\_LAST=N) re-run.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Conclusion}
+\begin{itemize}
+  \item Per-snapshot timing instrumentation turned an opaque ``sampling
+        interval'' knob into a measured, decomposed cost, and revealed that
+        the requested guest interval is inert relative to the
+        \texttt{pmemsave}-dominated host snapshot cycle.
+  \item The binding cost is the hypervisor snapshot (\texttt{pmemsave}, a
+        median $81\%$ of a median \SI{9.75}{\second} cycle), which both bounds
+        temporal resolution and frees the interval knob. ``How often to
+        sample'' is therefore the wrong question; ``how cheaply can we
+        snapshot'' is the right one.
+  \item This methods finding is the foundation the rest of the portfolio
+        stands on: Paper A's cost model, Paper B's single-interval (gated)
+        design, Paper F's streaming capture system, and the Plan 05
+        snapshot-throughput proposal all inherit the inertness result
+        established here.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

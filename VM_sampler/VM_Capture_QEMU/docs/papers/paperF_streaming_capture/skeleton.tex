@@ -1,0 +1,411 @@
+%==============================================================================
+% Paper F -- skeleton (bullets, to be polished into prose)
+% Working title: "B+3.1: A Streaming, Delete-as-You-Go Whole-VM
+%   Snapshot-Capture System"
+% Role: this is the SYSTEMS / architecture paper for the capture engine. It
+%   deliberately COMPLEMENTS Paper A (the signal paper): Paper A defines the
+%   Active Page Fraction (APF) signal and its cost model; Paper F goes deep on
+%   the capture machinery that produces it -- the asynchronous off-critical-path
+%   helper, the delete-as-you-go transient-disk bound, the cell-end completeness
+%   barrier, and the REJECTED concurrent multi-VM path.
+% Target venue: systems / virtualization (e.g., a VEE/middleware-style venue or
+%   a systems workshop).
+%
+% Build: pdflatex skeleton.tex   (needs IEEEtran; if unavailable, change the
+%   \documentclass line below to \documentclass[11pt]{article} and delete the
+%   \IEEEauthorblock* macros.)
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{B+3.1: A Streaming, Delete-as-You-Go\\
+Whole-VM Snapshot-Capture System}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation\\
+\texttt{TODO@email}}}
+
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------
+\begin{abstract}
+% TODO: polish into 150-200 words of prose. Bullet stub:
+\begin{itemize}
+  \item Problem: repeatedly snapshotting whole guest memory to compute a
+        page-change signal is storage- and latency-bound. A naive
+        ``snapshot-then-analyze-then-keep'' loop retains one \SI{1}{\gibi\byte}
+        dump per snapshot and blocks the producer while the diff runs.
+  \item System: \emph{B+3.1}, a capture engine in which the on-critical-path
+        work is only the hypervisor snapshot primitive (\texttt{virsh suspend}
+        $\rightarrow$ QEMU \texttt{pmemsave} $\rightarrow$ \texttt{virsh
+        resume}), while an \emph{asynchronous} helper computes the page-change
+        signal off the critical path, appends one trajectory record, and
+        deletes the prior dump (\emph{delete-as-you-go}).
+  \item Guarantees: a per-pair acknowledgement file plus a \emph{cell-end
+        barrier} guarantee trajectory completeness before any downstream metric
+        is computed; structured helper exit codes surface silent failures.
+  \item Design target: delete-as-you-go is intended to bound transient disk to
+        roughly \SI{2}{}--\SI{3}{\gibi\byte} regardless of trajectory length.
+        % HONESTY: the v3 campaign ran with keep_dumps enabled, which DISABLES
+        % the delete step. The 2-3 GiB cap is therefore a DESIGN TARGET, not a
+        % measured result. See Limitations and Sec. evaluation.
+  \item Negative result: concurrent multi-VM \texttt{pmemsave} was evaluated and
+        \emph{rejected} -- a single shared SSD serializes the dump writes, so
+        concurrency does not raise throughput and worsens \texttt{pmemsave}
+        drift while breaking cell independence.
+  \item Measured cost: \texttt{pmemsave} dominates the snapshot cycle (median
+        \SI{7.06}{\second}, a median \SI{81}{\percent} of the cycle); suspend
+        ($\approx$\SI{0.35}{\second}) and resume ($\approx$\SI{0.05}{\second})
+        are negligible.
+\end{itemize}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+% Proposed introduction (bullets):
+\begin{itemize}
+  \item Hypervisor-external whole-VM memory capture writes a flat image of all
+        guest physical memory per sample, then derives a change signal between
+        consecutive images. The signal itself is the subject of Paper A; this
+        paper is about the \emph{capture engine} that makes such repeated
+        capture feasible on a single commodity host.
+  \item Two pressures dominate the engine design:
+    \begin{itemize}
+      \item \textbf{Disk.} Each dump is \SI{1}{\gibi\byte}
+            (guest RAM \SI{1024}{\mebi\byte}; page size \SI{4096}{\byte};
+            $N = 262{,}144$ pages). Retaining every dump for even one long cell
+            costs tens of \si{\gibi\byte}; retaining a whole campaign is
+            multi-terabyte and infeasible on the available host
+            (see Paper A's storage argument and the keep-dumps audit).
+      \item \textbf{Latency.} A synchronous ``diff after each snapshot'' design
+            (the B+3 baseline) blocks the producer for $\approx$\SI{1}{\second}
+            per snapshot while it reads two \SI{1}{\gibi\byte} dumps; at small
+            requested intervals this multiplies the cycle and inflates the
+            guest pause fraction.
+    \end{itemize}
+  \item \textbf{This paper} presents B+3.1, which resolves both: the
+        page-change helper runs \emph{asynchronously} (off the critical path),
+        and a \emph{delete-as-you-go} mode is designed to hold only a small
+        number of dumps on disk at once. A \emph{cell-end barrier} (waits for
+        all helper acks) guarantees the trajectory is complete before metrics.
+  \item \textbf{Honesty up front.} The v3 production campaign ran with
+        \texttt{keep\_dumps} enabled, so the delete step was disabled and the
+        \SI{2}{}--\SI{3}{\gibi\byte} transient cap was \emph{not} exercised;
+        observed transient disk instead scaled with trajectory length. Closing
+        this gap is the paper's biggest open item (R-3), deferred to the
+        Plan~05 snapshot-throughput proposal.
+        % HONESTY (prominent): keep_dumps=true on 125/128 ok cells; delete-mode
+        % unexercised. The cap is a design target. Do not present it as measured.
+  \item \textbf{Contributions} (expanded in Sec.~\ref{sec:contrib}):
+    \begin{itemize}
+      \item C1: a streaming capture architecture whose on-critical-path cost is
+            only the hypervisor snapshot, with the change-signal helper moved
+            off-path (Δ-1, async helper + cell-end barrier).
+      \item C2: a delete-as-you-go transient-disk design (a \emph{target}
+            bound, not yet validated) plus a per-pair ack / structured
+            exit-code resilience layer (Δ-2) and a seq-numbered, sentinel-closed
+            trajectory with a completeness validator (Δ-3, Δ-4).
+      \item C3: a measured snapshot-cost characterization establishing
+            \texttt{pmemsave} as the binding cost, and a documented
+            \emph{negative result} rejecting concurrent multi-VM
+            \texttt{pmemsave}.
+    \end{itemize}
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Related Work}
+\begin{itemize}
+  \item Hypervisor snapshot / checkpoint primitives: the capture uses the QEMU
+        monitor \texttt{pmemsave} together with libvirt \texttt{virsh
+        suspend}/\texttt{resume}~\cite{TODO_libvirt_pmemsave}. TODO: cite
+        snapshot/checkpoint cost studies to frame the \texttt{pmemsave}
+        overhead.
+  \item VM introspection / memory forensics~\cite{garfinkel2003vmi}: external
+        observation of guest memory; this paper supplies the capture substrate
+        such introspection runs on. TODO: position against live-migration
+        dirty-page tracking.
+  \item Working-set estimation / dirty-bit sampling~\cite{TODO_working_set_estimation}:
+        hypervisors already track dirtied pages for migration; the present
+        engine is content-external (it diffs full dumps) rather than
+        dirty-bit-driven. Relevant as the natural future optimization that
+        would remove the guest pause.
+  \item Memory deduplication / same-page merging~\cite{TODO_ksm_dedup}: shares
+        the page-granular content view; cited only for contrast with the
+        capture model here.
+  \item Asynchronous producer/consumer and write-back / page-cache effects:
+        the engine's timing is sensitive to dirty-page writeback pressure.
+        % TODO: add citation for OS page-cache / writeback behavior. The
+        % flush <-> self-clean coupling (Paper E) is the in-project evidence.
+        Forward reference: Paper E (timing instrumentation) characterizes the
+        page-cache coupling and the interval-inertness of the snapshot cycle.
+  \item TODO: cite a representative prior streaming-/online-diff system if one
+        exists, to position delete-as-you-go.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Architecture}
+\label{sec:arch}
+\begin{itemize}
+  \item \textbf{Capture primitive (on the critical path).} Per snapshot cycle
+        the producer issues \texttt{virsh suspend}, waits for
+        \texttt{domstate==paused}, invokes the QEMU monitor
+        \texttt{pmemsave(val:0, size:ramBytes, file)} to write a flat RAW image
+        (\texttt{memory\_dump-<ts>.raw}, exactly \SI{1}{\gibi\byte}), then
+        \texttt{virsh resume}~\cite{TODO_libvirt_pmemsave}. This is the only
+        guest-visible (pausing) work in B+3.1.
+  \item \textbf{Asynchronous page-change helper (off the critical path).} After
+        \texttt{pmemsave} returns, the producer spawns
+        \texttt{plan02\_apf\_helper.py \&} in the background (the trailing
+        \texttt{\&} backgrounds it) and proceeds immediately to
+        \texttt{virsh resume} and the next sleep. The helper:
+    \begin{itemize}
+      \item maps both dumps as \texttt{uint8} via \texttt{numpy.memmap},
+            reshapes to $[N,4096]$, and computes the page-change signal as a
+            byte-wise per-page \emph{differ} reduction (XOR-equivalent
+            \texttt{(a != b).any(axis=1)}), $\approx$\SI{1}{\second} wall-clock
+            on the host SSD;
+      \item appends exactly one record to the shared
+            \texttt{apf\_trajectory.jsonl} via an atomic \texttt{O\_APPEND}
+            write (line $<$ \texttt{PIPE\_BUF}, so concurrent appends do not
+            interleave);
+      \item deletes the \emph{previous} \texttt{.raw} (delete-as-you-go);
+      \item writes a per-pair \texttt{.apf\_done} acknowledgement file via
+            tempfile + atomic \texttt{rename}.
+    \end{itemize}
+    % HONESTY: the delete step is the line that keep_dumps disables. With
+    % keep_dumps=true the helper still computes the signal and writes the
+    % record + ack, but DOES NOT delete prev; dumps are retained until a single
+    % end-of-cell sweep.
+  \item \textbf{Why async (Δ-1).} In the synchronous baseline (B+3) the producer
+        blocks $\approx$\SI{1}{\second}/snapshot on the helper. Async overlaps
+        the helper's compute with the next cycle's snapshot work, dropping the
+        effective per-cycle cost from $\approx$\SI{2.5}{\second} (sync) to
+        $\approx$\SI{1.5}{\second} (async) as reported in the B+3.1 proposal.
+        % HONESTY: 2.5 s -> 1.5 s is the proposal's reported on-path reduction
+        % for this design; cross-check against Paper E's measured cycle numbers
+        % before publication (the proposal's ~1 s helper and ~1.5 s host_dt are
+        % from the timing-instrumentation regime, not the production v3 run).
+  \item \textbf{Transient-disk model (delete-as-you-go).} Steady state holds
+        \texttt{prev}~+~\texttt{curr} ($\approx$\SI{2}{\gibi\byte}) plus at most
+        one in-flight helper's dump, i.e. a target peak of
+        $\approx$\SI{3}{\gibi\byte} \emph{independent of trajectory length}.
+        % HONESTY (R-3): this bound is a DESIGN TARGET. It was NOT exercised in
+        % v3 (keep_dumps on). At the host level the v3 run showed a 59.5 GiB
+        % free-disk swing because deletion was deferred to block-level sweeps.
+        % Validation of the cap belongs to the Plan 05 snapshot-throughput
+        % proposal.
+  \item \textbf{Resilience: ack files + structured exit codes (Δ-2).} The
+        helper returns one of five exit codes -- 0 ok, 1 transient io, 2 numpy
+        missing, 3 disk full, 4 corrupt/zero-byte dump -- and the ack file is
+        the last action before exit, so its presence is proof the pair
+        completed. A missing ack is recorded as a gap. (Producer reactions:
+        continue / log+continue / abort-cell after repeated code-2 / backpressure
+        / mark-gap.)
+  \item \textbf{Completeness: seq-numbered JSONL + final sentinel (Δ-3).} Each
+        record carries an integer \texttt{seq}; under async, helpers can finish
+        out of order, so the reader sorts by \texttt{seq} and checks for a
+        contiguous range. The producer appends a final sentinel
+        (\texttt{\{"final":true, "n\_pairs\_expected":N, "n\_ok":K, ...\}}) so a
+        truncated cell is distinguishable from a complete one by inspection.
+  \item \textbf{Cell-end barrier.} When the cell duration elapses the producer
+        waits for outstanding helper acks before declaring the cell done and
+        before any metric is computed. The shipped barrier uses a progressive
+        idle timeout: exit when all expected acks arrive, OR no new ack appears
+        for \SI{15}{\second} (idle quit), OR a \SI{180}{\second} hard cap fires.
+        This guarantees the trajectory is complete (or its gaps are explicitly
+        recorded) before downstream analysis.
+        % HONESTY: the original barrier was a flat 30 s wall-clock wait; it
+        % tail-missed 2/90 short ransom cells (the "trailing-helper barrier
+        % race", Bug O). The progressive idle/cap barrier above is the fix that
+        % brought the retry to 90/90 C6 pass.
+  \item \textbf{Completeness validator (Δ-4).} A post-cell claim (C6) opens the
+        trajectory, requires the final sentinel, and fails the cell if
+        $n_{ok}/n_{pairs}$ falls below \SI{95}{\percent}; cells failing C6 are
+        excluded from downstream aggregation. v1-era cells with no trajectory
+        are reported ``not applicable'' (backward compatible).
+  \item TODO: figure -- producer timeline (suspend / \texttt{pmemsave} / resume)
+        overlapped with the async diff+delete helper and the cell-end barrier.
+  \item TODO: figure -- disk-state diagram (prev/curr/in-flight) for
+        delete-as-you-go vs the keep\_dumps end-of-cell-sweep reality.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Contributions in Detail}
+\label{sec:contrib}
+\begin{itemize}
+  \item \textbf{C1 -- off-critical-path capture.} The only pausing work is the
+        snapshot primitive; the page-change helper is fully asynchronous and
+        joined by a cell-end barrier. Net: on-path cost reduced
+        $\approx$\SI{2.5}{\second}~$\rightarrow$~$\approx$\SI{1.5}{\second}
+        (proposal figure; verify vs Paper E).
+  \item \textbf{C2 -- bounded transient disk (by design) + provable
+        completeness.} Delete-as-you-go targets a $\approx$\SI{2}{}--\SI{3}{\gibi\byte}
+        cap; ack files + structured exit codes + a seq/sentinel trajectory +
+        the C6 validator make completeness an explicit, checkable property.
+        % HONESTY: the disk cap is a target (unexercised in v3); the
+        % completeness machinery IS exercised (C6 ran on all 90 cells).
+  \item \textbf{C3 -- cost characterization + negative result.}
+        \texttt{pmemsave} is the binding cost (Sec.~\ref{sec:eval}); concurrent
+        multi-VM \texttt{pmemsave} is rejected with rationale
+        (Sec.~\ref{sec:eval}, multi-VM).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Evaluation}
+\label{sec:eval}
+% Proposed results (bullets with REAL numbers from the v3 / timing runs):
+\begin{itemize}
+  \item \textbf{Snapshot cost dominates, and it is variable.} Over the v3 run
+        (128 \texttt{ok} cells), the host snapshot cycle has median
+        \SI{9.75}{\second} (range \SI{2.02}{}--\SI{23.57}{\second}).
+        \texttt{pmemsave} is the dominant term: min \SI{0.76}{\second}, median
+        \SI{7.06}{\second}, max \SI{21.57}{\second}, a median \SI{81}{\percent}
+        of the cycle. Suspend ($\approx$\SI{0.35}{\second}) and resume
+        ($\approx$\SI{0.05}{\second}) are negligible.
+        % HONESTY: these are the campaign-level cost numbers (verified block).
+        % Note Paper E's timing-instrumentation regime measured pmemsave at
+        % ~0.77 s on a clean disk; the median 7.06 s here reflects the
+        % production workload + disk-pressure conditions, not a clean-disk
+        % floor. State both and explain the gap.
+  \item \textbf{Async helper effect.} Moving the helper off-path removes the
+        synchronous $\approx$\SI{1}{\second}/snapshot penalty of the B+3
+        baseline; the proposal reports on-path
+        $\approx$\SI{2.5}{\second}~$\rightarrow$~$\approx$\SI{1.5}{\second}.
+        In the v3 run there were zero helper crashes (all
+        \texttt{apf\_helper.log} files \SI{0}{\byte}) and zero non-zero exit
+        codes.
+        % HONESTY: per-pair helper compute (~1 s) is not separately logged in
+        % v3; the 2.5->1.5 s figure is the design proposal's, not an isolated
+        % v3 measurement. Measure helper compute directly before publication.
+  \item \textbf{Trajectory completeness.} The C6 completeness gate passed on
+        all production cells after the barrier fix: the initial run had 2/90
+        cells fall below \SI{95}{\percent} (short ransom cells where the last
+        pair's helper missed the flat \SI{30}{\second} barrier -- the
+        helper did not crash; the sentinel recorded the gap honestly), and the
+        progressive idle/cap barrier brought the retry to 90/90.
+  \item \textbf{Trajectory length (points per cell).} min 4, median 30, max 99.
+        Short cells are the stress case for the barrier (one missing pair is a
+        large fraction of expected pairs).
+  \item \textbf{Storage outcome (campaign-level).} The persisted APF trajectory
+        is $\approx$\SI{4.7}{\mebi\byte} for a 90-cell campaign. Retaining all
+        dumps for the full 2-D per-page pipeline projects to
+        $\approx$\SI{5}{\tebi\byte} -- an estimated ratio of order $10^{6}$.
+        % HONESTY: the ~5 TiB numerator is a PROJECTION for a campaign that was
+        % never fully retained; the 4.7 MiB figure is for 90 cells. Present the
+        % ratio as an estimate, not a measured ~10^6x superlative. This mirrors
+        % Paper A's storage claim; keep the two papers consistent.
+  \item \textbf{Transient disk: target vs reality.} The delete-as-you-go cap is
+        $\approx$\SI{2}{}--\SI{3}{\gibi\byte}. In v3 (keep\_dumps on) deletion
+        was deferred to a single end-of-cell sweep (cell notes record, e.g.,
+        ``removed 29 dumps''), so transient disk scaled with trajectory length
+        -- up to one \SI{1}{\gibi\byte} dump per snapshot, tens of \si{\gibi\byte}
+        for a \SI{600}{\second} cell -- and the host-level free-disk swing for
+        the run was \SI{59.5}{\gibi\byte}.
+        % HONESTY (R-3, the paper's biggest open item): the 2-3 GiB cap was
+        % NEVER exercised. Validating it requires a delete-as-you-go re-run;
+        % that is the job of the Plan 05 snapshot-throughput proposal.
+  \item \textbf{Negative result: concurrent multi-VM \texttt{pmemsave} (rejected).}
+        Running multiple VMs and snapshotting them concurrently was evaluated
+        against speed-up, honesty (cell independence), and production-fidelity.
+        Rejected because:
+    \begin{itemize}
+      \item the host SSD is the bottleneck -- two simultaneous
+            \SI{1}{\gibi\byte} \texttt{pmemsave} writes contend for disk
+            bandwidth and serialize, so snapshot throughput does not improve and
+            \texttt{pmemsave} timing becomes non-stationary (drifts);
+      \item realistic wall-clock speed-up was only $\approx$\SI{30}{}--\SI{50}{\percent}
+            (not the naive $3\times$), because the work is disk-bound not
+            CPU-bound, and ``sampling-interleave'' saves nothing (same total
+            number of writes);
+      \item it breaks cell independence: overlapping cells share a
+            ``host-contended'' signal, biasing any cross-cell comparison
+            (correlated residuals), which is fatal for the per-cell measurements
+            this engine exists to produce;
+      \item it does not match the single-VM production/deployment model.
+    \end{itemize}
+        % Source: multi_vm_proposal.html (team verdict: DO NOT multi-VM for v2;
+        % conditional-yes only for a different question -- multi-tenant claims,
+        % 1000+ cell sweeps, or same-workload replicate parallelism with strict
+        % CPU pinning + non-overlapping pmemsave windows).
+  \item TODO: table -- snapshot-cycle decomposition (suspend / \texttt{pmemsave}
+        / resume; min / median / max; pause fraction).
+  \item TODO: table -- B+3 (sync) vs B+3.1 (async) on-path cost, disk peak, and
+        completeness guarantee.
+  \item TODO: figure -- transient-disk over a cell: delete-as-you-go target
+        (flat $\approx$\SI{2}{\gibi\byte}) vs measured keep\_dumps growth.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Limitations}
+\begin{itemize}
+  \item \textbf{Delete-as-you-go was not exercised (R-3, primary honesty
+        caveat).} The v3 campaign ran with \texttt{keep\_dumps} enabled on
+        125/128 ok cells, which disables the helper's delete step. The
+        $\approx$\SI{2}{}--\SI{3}{\gibi\byte} transient-disk cap is therefore a
+        \emph{design target}, not a measured result; observed transient disk
+        scaled with trajectory length and the host-level free swing reached
+        \SI{59.5}{\gibi\byte}. Validating the cap (and shrinking
+        \texttt{pmemsave}) is deferred to the Plan~05 snapshot-throughput
+        proposal.
+        % HONESTY: this is the paper's most important limitation -- keep it
+        % first and explicit. Do not let the abstract/intro imply the cap was
+        % measured.
+  \item \textbf{\texttt{pmemsave} pauses the guest.} The snapshot primitive
+        suspends the domain for the duration of the dump (median pause fraction
+        high), so the engine is an offline/research capture tool, not a
+        production-latency introspector. Live dirty-bit tracking is the natural
+        optimization (would also remove the per-snapshot \SI{1}{\gibi\byte}
+        write).
+  \item \textbf{Per-cell vs host-level disk accounting.} Even with
+        delete-as-you-go, the v3 evidence shows deletion can lag under
+        \texttt{ionice} and block-level sweeps, so a per-cell quota (not just a
+        per-cell steady-state argument) is needed before scaling to large or
+        multi-host runs.
+  \item \textbf{Barrier under short cells.} The completeness barrier is the
+        delicate part for short trajectories (median 30 points, min 4): one
+        late helper is a large fraction of expected pairs. The progressive
+        idle/cap barrier fixed the observed cases but a hard cap remains a
+        liveness fallback, not a correctness guarantee.
+  \item \textbf{Single-host, single-SSD characterization.} The cost numbers and
+        the multi-VM rejection are specific to one host with a single shared
+        SSD; a different storage topology (e.g., per-VM NVMe) could change the
+        multi-VM verdict (noted as a conditional re-evaluation).
+  \item \textbf{Helper observability gap.} On success the helper log is empty
+        (correct), but a crash signals only via a missing ack file; richer
+        helper telemetry is future work.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Conclusion}
+\begin{itemize}
+  \item B+3.1 reduces whole-VM capture to a thin on-critical-path snapshot plus
+        an asynchronous, delete-as-you-go signal helper, with a cell-end barrier
+        that makes trajectory completeness an explicit, validated property.
+  \item The binding cost is the hypervisor snapshot (\texttt{pmemsave}); the
+        engine's central future lever is shrinking that primitive and finally
+        exercising the delete-as-you-go disk bound -- both the subject of the
+        Plan~05 snapshot-throughput proposal.
+  \item Concurrent multi-VM \texttt{pmemsave} is rejected: on a single shared
+        SSD it buys no throughput and costs cell independence. The
+        signal-and-cost-model view of the same system is given in Paper A;
+        the timing-instrumentation and interval-inertness evidence is in
+        Paper E.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+% Citation keys used above and their status in ../refs.bib:
+%   garfinkel2003vmi            -- present (CANONICAL)
+%   TODO_libvirt_pmemsave       -- present (placeholder; needs real pmemsave/virsh ref)
+%   TODO_working_set_estimation -- present (placeholder)
+%   TODO_ksm_dedup              -- present (placeholder)
+% Still TO ADD to ../refs.bib before submission:
+%   - a snapshot/checkpoint cost-study citation (for the pmemsave-overhead framing)
+%   - an OS page-cache / write-back behavior citation (for the dirty-page coupling)
+%   - (optional) a prior streaming / online-diff capture system, to position
+%     delete-as-you-go.
+% ---------------------------------------------------------------------------
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

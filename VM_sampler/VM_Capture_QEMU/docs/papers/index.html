@@ -68,6 +68,10 @@
   <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
   <a href="paperC_family_classification/skeleton.tex">Paper C</a>
   <a href="paperD_cusum_segmentation/skeleton.tex">Paper D</a>
+  <a href="paperE_timing_instrumentation/skeleton.tex">Paper E</a>
+  <a href="paperF_streaming_capture/skeleton.tex">Paper F</a>
+  <a href="paperG_workload_design/skeleton.tex">Paper G</a>
+  <a href="paperH_offline_spectral/skeleton.tex">Paper H</a>
 </nav>
 <main>
   <h1>Paper Portfolio</h1>
@@ -157,6 +161,33 @@
       <p style="margin:4px 0;color:var(--muted)">Signal processing / detection. Robust CUSUM that knows when to stay silent; the marker non-observability finding.</p>
       <a class="link" href="paperD_cusum_segmentation/skeleton.tex">paperD_cusum_segmentation/skeleton.tex</a>
     </div>
+
+    <div class="note"><strong>Companion skeletons (E&ndash;H).</strong> Added to reflect the full
+    experiment record &mdash; the timing harness, the capture system, the workload design, and the
+    deferred 2-D pipeline. Scope and venue are deliberately open; several may merge back into A&ndash;D.
+    They are bullet skeletons grounded in the on-disk artifacts, with honesty caveats inline.</div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Paper E &middot; Measure the measurer: timing instrumentation and the snapshot-interval inertness finding</h3>
+      <p style="margin:4px 0;color:var(--muted)">Measurement / methods. The per-snapshot timing harness (six timestamps, <code>producer_stats</code>) and the central finding that the requested 500&nbsp;ms interval is inert below the <code>pmemsave</code>-dominated host cycle &mdash; the result Papers A and B inherit.</p>
+      <a class="link" href="paperE_timing_instrumentation/skeleton.tex">paperE_timing_instrumentation/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper F &middot; B+3.1: a streaming, delete-as-you-go whole-VM snapshot-capture system</h3>
+      <p style="margin:4px 0;color:var(--muted)">Systems. The async-helper capture architecture (off-critical-path diff, cell-end ack barrier) and the delete-as-you-go disk bound &mdash; a <em>design target not exercised in v3</em> (<code>keep_dumps=true</code>); includes the rejected concurrent multi-VM path. Validation is owned by the Plan&nbsp;05 proposal.</p>
+      <a class="link" href="paperF_streaming_capture/skeleton.tex">paperF_streaming_capture/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper G &middot; Reversible-XOR memory workloads: a synthetic sandbox taxonomy</h3>
+      <p style="margin:4px 0;color:var(--muted)">Benchmarks / methodology. The 11-workload phasic/steady taxonomy, the reversible-XOR safety model (no network, no persistence, bounded working set), and the honesty caveat that a designed-steady workload (<code>mem_pagefault_density_v2</code>) misbehaves under segmentation.</p>
+      <a class="link" href="paperG_workload_design/skeleton.tex">paperG_workload_design/skeleton.tex</a>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Paper H &middot; An offline spectral-stability metrics pipeline for whole-VM memory trajectories</h3>
+      <p style="margin:4px 0;color:var(--muted)">Signal processing. The deferred high-fidelity 2-D per-page pipeline APF was traded against &mdash; per-page PLV / baseline-PLV / MSC / cepstrum / streaming stats &mdash; <em>never run at campaign scale</em> (~5&nbsp;TiB projected); short trajectories (median 30 points) fundamentally limit the spectral read-out.</p>
+      <a class="link" href="paperH_offline_spectral/skeleton.tex">paperH_offline_spectral/skeleton.tex</a>
+    </div>
+
     <div class="note"><strong>PM note on consolidation.</strong> The result map (four results) need not equal the venue map.
     A&nbsp;and&nbsp;B may merge into one systems contribution; D may attach to C as the "what next" of a single
     security-oriented paper. The reviewer memo records the professors' recommendation on this.</div>

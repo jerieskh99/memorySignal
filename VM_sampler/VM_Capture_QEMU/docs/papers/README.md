@@ -20,6 +20,15 @@ to be polished into prose later.
 | `paperB_gated_tuning/skeleton.tex` | Paper B -- gated grid search for sampling-interval and analysis-window selection. |
 | `paperC_family_classification/skeleton.tex` | Paper C -- workload-family discrimination from a single-scalar liveness trajectory. |
 | `paperD_cusum_segmentation/skeleton.tex` | Paper D -- family-aware CUSUM segmentation of coarse liveness trajectories. |
+| `paperE_timing_instrumentation/skeleton.tex` | Paper E -- timing instrumentation and the snapshot-interval inertness finding (the measurement/methods paper). |
+| `paperF_streaming_capture/skeleton.tex` | Paper F -- the B+3.1 streaming, delete-as-you-go whole-VM snapshot-capture system (the systems paper). |
+| `paperG_workload_design/skeleton.tex` | Paper G -- the reversible-XOR synthetic-workload taxonomy (11 workloads, phasic/steady, the safety model). |
+| `paperH_offline_spectral/skeleton.tex` | Paper H -- the deferred high-fidelity offline 2-D per-page spectral/stability pipeline (PLV/MSC/cepstrum), traded away for APF. |
+
+**Companion skeletons E-H** were added to reflect the full experiment record (timing
+instrumentation, the capture system, the workload design, and the deferred 2-D pipeline).
+Scope and venue are deliberately deferred; they capture work the four headline papers
+(A-D) do not, and several may later merge into A-D rather than stand alone.
 
 ## How to build the PDFs
 

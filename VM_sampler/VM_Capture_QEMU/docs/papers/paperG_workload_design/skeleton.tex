@@ -1,0 +1,389 @@
+%==============================================================================
+% Paper G -- skeleton (bullets, to be polished into prose)
+% Target venue: systems / methodology (e.g., a benchmarking or virtualization
+%   workshop). This paper documents the SYNTHETIC GUEST WORKLOADS used by the
+%   rest of the portfolio: their design rationale, the safety argument, the
+%   tunable knobs, and how the two families map onto the downstream signal.
+%   It deliberately does NOT re-state Paper C's classification contribution --
+%   it only characterizes the workloads that Paper C consumes.
+%
+% Build: pdflatex skeleton.tex   (needs IEEEtran; if unavailable, change the
+%   \documentclass line below to \documentclass[11pt]{article} and delete the
+%   \IEEEauthorblock* macros.)
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{Reversible-XOR Memory Workloads: A Synthetic Sandbox\\
+Taxonomy for Introspection Benchmarks}
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation\\
+\texttt{TODO@email}}}
+
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------
+\begin{abstract}
+% TODO: polish into 150-200 words of prose. Bullet stub:
+\begin{itemize}
+  \item Problem: exercising whole-VM memory-change capture (Paper A's Active
+        Page Fraction, APF) needs controllable guest workloads that drive
+        memory at known intensities and rhythms, yet must be SAFE to run
+        repeatedly in a research sandbox -- no real malware, no network, no
+        persistence.
+  \item Idea: an 11-workload taxonomy split into two families -- \emph{phasic}
+        (rhythmic active/idle) and \emph{steady} (uniform) -- all built on
+        \emph{reversible XOR} memory operations over a bounded working-set
+        buffer, so every run is fully reversible and self-contained.
+  \item Knobs: each workload exposes a small set of tunable parameters --
+        working-set size (\texttt{--working-set-mb}), intensity, and (for
+        phasic) phase period/cadence -- documented as a workload~$\times$~knob
+        table.
+  \item Signal coupling: phasic workloads produce a rhythmic APF trajectory
+        (cepstral-SNR is the defining metric; phasic SNR floor \num{4.78}),
+        steady workloads produce a near-constant APF (low coefficient of
+        variation). Both families feed the downstream tuning (Paper B),
+        classification (Paper C), and segmentation (Paper D).
+  \item Honesty: one workload labeled \emph{steady}
+        (\texttt{mem\_pagefault\_density\_v2}) does \emph{not} behave as steady
+        under segmentation analysis -- a documented taxonomy caveat, not a
+        result we hide.
+\end{itemize}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+% Proposed introduction (bullets):
+\begin{itemize}
+  \item Hypervisor-external memory introspection (Paper A) observes a guest's
+        memory churn without an in-guest agent. To study and tune such a
+        capture pipeline, one needs guest workloads whose memory behavior is
+        \emph{known}, \emph{controllable}, and \emph{repeatable}.
+  \item Real malware (the motivating threat model:
+        ransomware-like encryption bursts) is unsafe to run repeatedly on a
+        shared research host and is not reproducible. We therefore build
+        \emph{synthetic} guest workloads that imitate the relevant
+        \emph{memory-access shapes} without any harmful effect.
+        % HONESTY: these are imitations of memory-access SHAPES, not validated
+        % behavioral replicas of real ransomware. The "ransom" naming is by
+        % analogy (discover -> read -> XOR -> write -> rename), not a claim of
+        % fidelity to any specific malware family. \cite{TODO_ransomware_survey}
+  \item \textbf{Design constraints} (the safety argument, Sec.~\ref{sec:safety}):
+        (a) memory mutation uses \emph{reversible XOR} over a working-set
+        buffer; (b) no network; (c) no persistence beyond a validated sandbox
+        directory; (d) bounded working-set (the binding knob is
+        \texttt{--working-set-mb}, e.g.\ the sweep goes up to \SI{1024}{\mebi\byte}
+        within a \SI{1}{\gibi\byte} guest).
+  \item \textbf{Two families.} We organize the catalog into \emph{phasic}
+        (rhythmic active/idle, e.g.\ bursty or paced file processing) and
+        \emph{steady} (uniform, continuous memory churn). The split is not
+        cosmetic: it predicts the \emph{shape} of the downstream APF signal
+        (Sec.~\ref{sec:coupling}) and is the axis the classifier recovers
+        (Paper C).
+  \item \textbf{This paper} documents the workload-design rationale, the safety
+        model, the tunable knobs, and the family$\to$signal mapping. It does
+        \emph{not} re-derive the classification result (Paper C) or the
+        segmentation method (Paper D); those are the \emph{downstream uses} of
+        these workloads and are forward-referenced.
+  \item \textbf{Contributions} (expanded in Sec.~\ref{sec:contrib}):
+    \begin{itemize}
+      \item C1: an 11-workload, two-family synthetic taxonomy for memory-change
+            introspection benchmarks;
+      \item C2: a safety argument (reversible XOR, no network, no persistence,
+            bounded working-set) making the workloads research-sandbox-safe;
+      \item C3: a tunable-knob specification and the family$\to$signal mapping,
+            including an honest caveat where a designed-steady workload
+            misbehaves (Sec.~\ref{sec:honesty}).
+    \end{itemize}
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Related Work}
+\begin{itemize}
+  \item Synthetic benchmarks / microbenchmarks for memory systems: the tradition
+        of driving a memory subsystem with parameterized synthetic loads rather
+        than opaque applications. TODO: cite a representative memory
+        microbenchmark suite. \cite{TODO_working_set_estimation}
+  \item Ransomware behavior and detection surveys: motivate the phasic
+        (encryption-burst / file-walk) shapes without running real malware.
+        \cite{TODO_ransomware_survey}
+        % HONESTY: we cite the threat model for MOTIVATION only; we make no
+        % detection claim here (that is Paper C). No real malware is executed.
+  \item Periodicity / cepstral analysis: support the cepstral-SNR metric used to
+        characterize phasic rhythm. \cite{TODO_cepstrum}
+  \item Working-set estimation / dirty-page tracking: context for what "memory
+        activity" means at the hypervisor boundary; APF (Paper A) is the
+        content-derived signal these workloads are designed to move.
+        \cite{TODO_working_set_estimation}
+  \item TODO: position against existing safe-execution / sandbox harnesses for
+        malware analysis (we differ by being SYNTHETIC and reversible rather
+        than containing/observing real samples).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Workload Taxonomy}
+\label{sec:taxonomy}
+\begin{itemize}
+  \item \textbf{Source of truth.} The catalog and per-workload one-line
+        behaviors are documented in \texttt{workload\_scope\_rationale.md}; the
+        v3 campaign that instantiated them is \texttt{PLAN02\_V3\_RUNBOOK.md}.
+        All binaries live under \texttt{VM\_executables\_phase2/} and are
+        reversible XOR synthetic probes (no real malware).
+  \item \textbf{Two families.} \emph{Phasic} = rhythmic active/idle;
+        \emph{steady} = uniform/continuous. The runbook also groups the same
+        binaries into design \emph{groups} (security-like, memory,
+        app-realistic, methodology); the family axis (phasic/steady) is the
+        \emph{signal-shape} axis used downstream and is what we report here.
+  \item \textbf{The 11 workloads} (confirmed against the sources; family =
+        phasic/steady):
+    \begin{itemize}
+      \item PHASIC -- \texttt{sandbox\_ransom\_batched}: all files in one batch
+            through 5 phases, then exits (one short burst). % bursty probe
+      \item PHASIC -- \texttt{sandbox\_ransom\_seq}: per-file loop
+            (stat $\to$ read $\to$ XOR $\to$ write $\to$ rename); sustained,
+            many phase boundaries.
+      \item PHASIC -- \texttt{sandbox\_ransom\_slowburn}: paced, one file every
+            \texttt{--interval-s} seconds (sustained + periodic cadence).
+      \item PHASIC -- \texttt{sandbox\_ransom\_selective}: extension-filtered
+            discovery then process (burst + discovery pre-phase).
+      \item PHASIC -- \texttt{sandbox\_scanner\_metadata}: metadata-only scan
+            (low, flat -- near-idle control; multi-pass produces a distinctive
+            cepstral peak per Paper C).
+      \item STEADY -- \texttt{mem\_workingset\_sweep\_v2}: cyclic working-set
+            churn (steady, continuous activity). The canonical steady probe.
+      \item STEADY -- \texttt{mem\_mmap\_traversal\_v2}: mmap region traversal.
+      \item STEADY -- \texttt{mem\_pagefault\_density\_v2}: page-fault-density
+            driver. % HONESTY: labeled steady but misbehaves -- see Sec. honesty.
+      \item STEADY -- \texttt{mem\_rmw\_intensity\_v2}: read-modify-write
+            intensity sweep.
+      \item STEADY -- \texttt{mem\_writemag\_sweep\_v2}: write-magnitude sweep.
+      \item STEADY -- \texttt{app\_hashtable\_intensive\_v2}: hashtable
+            build $\to$ probe (two-phase / bimodal trajectory). Labeled steady,
+            scored with CV primary plus incidental F1; a dedicated bimodal
+            metric is deferred.
+            % HONESTY: app_hashtable is BIMODAL (build->probe), not strictly
+            % uniform; it is filed under "steady" for metric dispatch, with a
+            % bimodal metric deferred (per PLAN02_V3_RUNBOOK notes).
+    \end{itemize}
+  % All 11 confirmed: 5 phasic + 6 steady (cross-checked against
+  % workload_scope_rationale.md S.2 and workload_classification_results.html S.3).
+  \item TODO: figure -- one example APF trajectory per family (a phasic
+        burst train vs.\ a steady plateau).
+  \item TODO: table -- the 11 workloads $\times$ knobs (working-set-mb,
+        intensity/mode, phase period/cadence, family). Skeleton below
+        (Table~\ref{tab:knobs}); fill remaining cells from the binaries'
+        \texttt{--help} -- mark any unconfirmed knob as TODO rather than
+        inventing a value.
+\end{itemize}
+
+% TODO: table -- 11 workloads x knobs. Values shown are the v3-campaign
+% instantiations from PLAN02_V3_RUNBOOK Step 3 (NOT the full knob ranges).
+% Empty/"--" cells need confirmation from each binary's --help.
+\begin{table}[t]
+  \centering
+  \caption{Workloads $\times$ tunable knobs (v3 instantiation; see
+           \texttt{PLAN02\_V3\_RUNBOOK.md} Step~3). ws-mb $=$
+           \texttt{--working-set-mb}. Blank $=$ % TODO: confirm from --help.}
+  \label{tab:knobs}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    Workload & Family & Key knob(s), v3 value & Notes \\
+    \midrule
+    ransom\_batched   & phasic & \texttt{--files 12000} & 1\,MiB files; one burst \\
+    ransom\_seq       & phasic & \texttt{--files 4000}  & 1\,MiB files; sustained \\
+    ransom\_slowburn  & phasic & \texttt{--files 200 --interval-s 3} & paced \\
+    ransom\_selective & phasic & \texttt{--files 1500}  & 1\,MiB files; filtered \\
+    scanner\_metadata & phasic & \texttt{--files 5000 --passes 40} & metadata only \\
+    workingset\_sweep & steady & \texttt{--working-set-mb 256} & \texttt{--stride 4096} \\
+    mmap\_traversal   & steady & \texttt{--variant rmw --file-size-mb 256} & \\
+    pagefault\_density& steady & \texttt{--variant mixed --working-set-mb 256} & see honesty \\
+    rmw\_intensity    & steady & \texttt{--mode rmw --working-set-mb 256} & \texttt{--stride 4096} \\
+    writemag\_sweep   & steady & \texttt{--working-set-mb 256 --bytes-per-page 64} & \\
+    hashtable\_intensive & steady & \texttt{--capacity-pow2 24} & bimodal; CV primary \\
+    \bottomrule
+  \end{tabular}
+  % HONESTY: the rationale doc states the working-set knob ranges UP TO
+  % --working-set-mb 1024 (full 1 GiB guest); the v3 campaign instantiated the
+  % steady probes at 256. The table reports the v3 value, not the max range.
+\end{table}
+
+%------------------------------------------------------------------
+\section{Safety Model}
+\label{sec:safety}
+\begin{itemize}
+  \item \textbf{Reversibility (XOR).} Memory mutation is XOR over a working-set
+        buffer; applying the same key twice restores the original bytes, so a
+        run leaves no irreversible state change in the touched buffer. This is
+        the core safety property: the workloads \emph{churn} memory without
+        \emph{destroying} data.
+        % TODO: confirm whether the file-processing ("ransom") probes XOR the
+        % sandbox files in place and rename, and whether that is reversed at
+        % exit, vs. operating on a throwaway working-set copy. State precisely.
+  \item \textbf{No network.} No workload opens a network connection; all
+        activity is local memory/file churn. (Asserted by
+        \texttt{PLAN02\_V3\_RUNBOOK.md}.)
+  \item \textbf{No persistence / validated sandbox.} File-touching probes
+        operate only inside a validated sandbox directory; nothing escapes it.
+        (Asserted by the runbook: "validated sandbox dir.")
+  \item \textbf{Bounded working-set.} The memory footprint is capped by
+        \texttt{--working-set-mb} (v3: \SI{256}{\mebi\byte}; rationale documents
+        the knob up to \SI{1024}{\mebi\byte} within the \SI{1}{\gibi\byte}
+        guest), so a workload cannot exhaust host or guest memory.
+  \item \textbf{Not real malware.} Every binary is a synthetic probe; the
+        "ransom" naming denotes an imitated \emph{access shape}
+        (discover/read/XOR/write/rename), not a malware sample.
+        % HONESTY: safety here is by CONSTRUCTION + assertion in the runbook,
+        % not an independent audit. Before publication: state how reversibility
+        % and sandbox-confinement were VERIFIED (test target? checksum
+        % round-trip?), not just intended. The runbook references `make smoke`.
+  \item TODO: figure/box -- the safety checklist (reversible / no-net /
+        no-persist / bounded) as a one-glance contract.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Contributions in Detail}
+\label{sec:contrib}
+\begin{itemize}
+  \item \textbf{C1 -- taxonomy}: 11 synthetic workloads in two families
+        (5 phasic, 6 steady) spanning bursty, paced, sustained, and uniform
+        memory-access shapes; the family axis is the signal-shape axis the rest
+        of the portfolio uses.
+  \item \textbf{C2 -- safety}: a reversible-XOR, no-network, no-persistence,
+        bounded-working-set construction that makes repeated whole-VM capture
+        safe on a shared research host.
+  \item \textbf{C3 -- knobs + coupling}: a workload$\times$knob specification
+        and the empirical family$\to$signal mapping (phasic $\Rightarrow$
+        rhythmic APF, cepstral SNR $\ge \num{4.78}$; steady $\Rightarrow$
+        near-constant APF, low CV), with one honest exception
+        (Sec.~\ref{sec:honesty}).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Family-to-Signal Coupling}
+\label{sec:coupling}
+\begin{itemize}
+  \item \textbf{The signal.} APF (Paper A) is the fraction of \SI{4}{\kibi\byte}
+        guest pages that changed between consecutive \SI{1}{\gibi\byte}
+        snapshots ($N = 262{,}144$ pages). A workload is "visible" through how
+        it moves APF over time.
+  \item \textbf{Phasic $\Rightarrow$ rhythmic APF.} Active/idle workloads
+        produce a periodic APF trajectory; the defining metric is the cepstral
+        signal-to-noise ratio (cepstral-SNR). Phasic SNR floor observed:
+        \num{4.78} (per-cell phasic SNR in the range $\approx$\num{4.7}--\num{6.4}
+        \si{\decibel} per Paper C). \cite{TODO_cepstrum}
+  \item \textbf{Steady $\Rightarrow$ near-constant APF.} Uniform workloads
+        produce a flat APF; the defining metric is the coefficient of variation
+        (CV), low for steady cells ($\approx$\num{0.06}--\num{0.33} when
+        populated, per Paper C).
+  \item \textbf{Downstream use (forward references).} These workloads are the
+        common substrate for: Paper B (single-interval gated tuning -- the
+        cadence-floor argument), Paper C (phasic-vs-steady classification, the
+        DOWNSTREAM use of this taxonomy; we do NOT duplicate its 100\%-binary
+        result here), and Paper D (CUSUM segmentation, where the steady gate is
+        applied -- and where one workload fails, Sec.~\ref{sec:honesty}).
+  \item TODO: table/figure -- per-family summary stat (phasic: cepstral-SNR;
+        steady: CV) aggregated over the v3 cells, with the pagefault row
+        flagged. Pull from the v3 metrics; do not duplicate Paper C's confusion
+        matrix.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{The v3 Campaign (Instantiation)}
+\label{sec:campaign}
+\begin{itemize}
+  \item \textbf{Design.} Campaign v3 instantiated all 11 workloads at a single
+        sampling interval (\SI{500}{\milli\second}; the snapshot cadence floor
+        makes finer intervals moot, per Paper A/B) across 3 durations
+        $\{120, 300, 600\}\,\si{\second}$.
+  \item \textbf{Cells.} \textbf{132 cells} $= 11$ workloads $\times 3$ durations
+        $\times 4$ replicates; \textbf{128 ok}.
+        % HONESTY: PLAN02_V3_RUNBOOK Step 3 runs --replicates 2 -> 66 production
+        % cells per bundle. The 4 replicates / 132 cells come from COMBINING two
+        % bundles (v3_full + v3_ext, 2 replicates each), as
+        % workload_classification_results.html S.02-03 documents. Report 132/4
+        % per the verified ground-truth; note the two-bundle merge.
+  \item \textbf{Per-workload yield (usable at the analyzer setting W=8,H=4).}
+        Most workloads yield 9--12 usable cells; 14 of 132 are dropped for short
+        trajectories or numerically unstable cepstra (per Paper C's dataset
+        table). This paper uses those yields only to characterize the workloads;
+        the classifier itself is Paper C.
+  \item TODO: confirm the 600\,s ceiling rationale -- the binaries reject
+        \texttt{--duration > 600} (runbook "Notes + caveats"); a longer sweep
+        must clamp in \texttt{\_augment\_workload\_command}.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Honesty: A Designed-Steady Workload That Misbehaves}
+\label{sec:honesty}
+\begin{itemize}
+  \item \texttt{mem\_pagefault\_density\_v2} is \emph{labeled} a steady-family
+        workload and \emph{passes} the Plan~03 stationarity/coverage gates, but
+        it \emph{fails} the Plan~04 steady segmentation gate (Paper D): its APF
+        is not truly stationary.
+  \item \textbf{Evidence (by duration).} Mean APF swings with capture duration:
+        $\approx$\num{0.016} at \SI{120}{\second}, $\approx$\num{0.497} at
+        \SI{300}{\second}, $\approx$\num{0.257} at \SI{600}{\second}. The
+        steady-metric CV is unstable too: \texttt{cv\_workingset} $\approx$
+        \num{0.88} at \SI{120}{\second} vs.\ $\approx$\num{0.10} at
+        \SI{300}{\second}.
+        % HONESTY (core caveat of this paper): a workload we DESIGNED to be
+        % steady does not behave as steady under segmentation. We surface this
+        % rather than relabel it. Likely cause to investigate: fault-density
+        % driver's footprint interacts with duration / first-touch population
+        % of the working set. Do NOT claim a mechanism we have not verified.
+  \item \textbf{Taxonomy implication.} The phasic/steady label is a
+        \emph{design intent}, validated downstream -- and it is not infallible.
+        We report one labeled-steady workload that the steady gate rejects, as
+        a caveat on the taxonomy's completeness, not as a hidden failure.
+  \item Note the related, separately-flagged case:
+        \texttt{app\_hashtable\_intensive\_v2} is bimodal (build$\to$probe) yet
+        filed as steady for metric dispatch; a dedicated bimodal metric is
+        deferred. (Distinct from the pagefault non-stationarity above.)
+  \item TODO: table -- pagefault APF/CV per duration (120/300/600), side by side
+        with a well-behaved steady probe (e.g.\ workingset\_sweep), to make the
+        misbehavior legible.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Limitations}
+\begin{itemize}
+  \item \textbf{Imitation, not fidelity.} The "ransom" probes imitate
+        memory-access \emph{shapes}; they are not validated replicas of any real
+        ransomware family, and no detection claim is made here (that is
+        Paper C). \cite{TODO_ransomware_survey}
+  \item \textbf{Clean exemplars, not a population.} The 11 workloads are
+        deliberately clean single-mode (or bimodal) exemplars. Mixed
+        phasic+steady behavior (e.g.\ a database with periodic checkpoints) is
+        not represented (echoing Paper C's "not a population sample" caveat).
+  \item \textbf{Label is intent, not guarantee.} As Sec.~\ref{sec:honesty}
+        shows, a designed-steady workload can fail a steady gate; the taxonomy
+        is a useful organizing axis, not a proof of behavior.
+  \item \textbf{Safety by construction, not audit.} Reversibility and
+        sandbox-confinement are asserted/constructed and exercised by a smoke
+        target, not independently audited; precise verification evidence is
+        TODO before publication.
+  \item \textbf{Single host/guest, single day.} All replicates share one host,
+        one guest, one capture day (per Paper C's generalization caveat); the
+        knob$\to$signal mapping is not yet shown to be host-invariant.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Conclusion}
+\begin{itemize}
+  \item A small, SAFE, reversible-XOR synthetic taxonomy -- 11 workloads in two
+        families (phasic, steady) -- is enough to exercise whole-VM
+        memory-change capture across bursty, paced, sustained, and uniform
+        access shapes, with bounded working-sets and no network or persistence.
+  \item The family axis predicts the APF signal shape (rhythmic vs.\ constant)
+        and is the substrate the rest of the portfolio tunes (Paper B),
+        classifies (Paper C), and segments (Paper D) on.
+  \item We keep the taxonomy honest: one labeled-steady workload
+        (\texttt{mem\_pagefault\_density\_v2}) is not stationary under
+        segmentation, a caveat we document rather than conceal.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

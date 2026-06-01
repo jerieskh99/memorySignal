@@ -1,0 +1,391 @@
+%==============================================================================
+% Paper H -- skeleton (bullets, to be polished into prose)
+% Working title: "An Offline Spectral-Stability Metrics Pipeline for Whole-VM
+%   Memory Trajectories"
+%
+% STATUS: thinnest / most speculative paper of the portfolio. Its sources are
+%   CODE, not narrative docs, so every claim below is grounded in a function we
+%   actually read. Where the code is ambiguous, a "% TODO: confirm definition"
+%   stub is left rather than a guess. Do NOT invent metric math or results here.
+%
+% Code read for this skeleton (all under the repo):
+%   VM_sampler/VM_Capture_QEMU/offline_step_metrics.py        (driver / orchestrator)
+%   VM_sampler/VM_Capture_QEMU/rebuild_matrices_and_rerun_offline.py (matrix rebuild)
+%   VM_sampler/VM_Capture_QEMU/batch_offline_step_metrics_zst.py     (zstd batch driver)
+%   coherence_temp_spec_stability/stability_validator.py      (StabilityValidator)
+%   coherence_temp_spec_stability/plv_calcolator.py           (PLVStability)
+%   coherence_temp_spec_stability/magnitude_squared_coherence.py (MSC)
+%   coherence_temp_spec_stability/cepstrum_stability.py       (Cepstrum)
+%   coherence_temp_spec_stability/streaming_metrics.py        (streaming accumulators)
+%
+% METRIC SCOPE NOTE (correcting the working title): the code computes FOUR
+%   metric families, all verified present -- PLV (phase-locking value),
+%   MSC (magnitude-squared coherence) with a coherence-peak SNR, a real
+%   CEPSTRUM with a cepstral-peak quefrency, and online/STREAMING running
+%   statistics (Welford mean/variance). The title says "spectral-stability";
+%   PLV+MSC+cepstrum+streaming-variance is the accurate enumeration. Update the
+%   title to reflect this set (or scope it explicitly) before submission.
+%
+% Build: pdflatex skeleton.tex   (needs IEEEtran; if unavailable, change the
+%   \documentclass line below to \documentclass[11pt]{article} and delete the
+%   \IEEEauthorblock* macros.)
+%==============================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,booktabs,siunitx,url}
+
+\title{An Offline Spectral-Stability Metrics Pipeline for\\
+Whole-VM Memory Trajectories}
+% TODO: retitle to name the actual metric set, e.g.
+%   "Per-Page PLV, Coherence, and Cepstral Stability Metrics for Whole-VM
+%    Memory Trajectories: The Deferred High-Fidelity Counterpart to APF."
+
+\author{\IEEEauthorblockN{TODO Author list}
+\IEEEauthorblockA{TODO Affiliation\\
+\texttt{TODO@email}}}
+
+\begin{document}
+\maketitle
+
+%------------------------------------------------------------------
+\begin{abstract}
+% TODO: polish into 150-200 words of prose. Bullet stub:
+% HONESTY (whole paper): this pipeline was NOT run at campaign scale. Retaining
+%   the per-page memory dumps it consumes is storage-prohibitive (projected
+%   ~5 TiB for the campaign; see Sec. on Limitations). Every quantitative
+%   "result" below is therefore either small-scale/illustrative or a TODO.
+%   Frame the paper as "on the record" deferred work, not a headline result.
+\begin{itemize}
+  \item Context: Paper A (APF) deliberately \emph{collapses} the per-snapshot
+        memory-change signal to a single scalar and \emph{defers} the heavier
+        two-dimensional, per-page pipeline. This paper documents that deferred,
+        richer offline pipeline -- the ``expensive but faithful'' counterpart
+        that motivated APF.
+  \item Input signal: a complex per-page delta matrix
+        $D \in \mathbb{C}^{[T \times N]}$ ($T$ snapshots, $N$ pages), built from
+        the two per-page similarities Paper A's kernel originally produced
+        (cosine and Hamming over every \SI{4096}{\byte} page). The code forms
+        $D = \mathrm{hamming}\cdot\exp(j\cdot s\cdot\pi\cdot\mathrm{cosine})$,
+        with $s$ (\texttt{phase\_scale}) defaulting to $2.0$.
+        % TODO: confirm/justify this complex encoding (magnitude=Hamming,
+        % phase=cosine) and the phase_scale=2.0 choice -- it is a modeling
+        % decision, not a derived quantity.
+  \item Metrics: from $D$ the pipeline computes, per page, (i) a PLV
+        (phase-locking value) and a baseline-aware PLV ``drop'' relative to a
+        clean idle baseline; (ii) MSC (magnitude-squared coherence) between
+        adjacent windows and a coherence-peak SNR (dB); (iii) a real cepstrum
+        and its dominant cepstral-peak quefrency; (iv) Welford online
+        mean/variance accumulated in a streaming pass. Median summaries are
+        emitted per run.
+  \item Cost framing: this pipeline is the high-fidelity, storage-prohibitive
+        path. Per snapshot pair the original Rust per-page cosine+Hamming kernel
+        cost $\approx$\SI{1.5}{}--\SI{3}{\second}, versus
+        $\approx$\SI{300}{}--\SI{500}{\milli\second} for the APF memmap
+        byte-diff -- which is \emph{why} APF was chosen for the main campaign.
+  \item Claim (honest): we put the deferred pipeline on record, specify exactly
+        what it computes from source, and characterize why short trajectories
+        (median \num{30}, range \numrange{4}{99} points) fundamentally limit any
+        spectral/cepstral/coherence read-out. We do \emph{not} claim
+        campaign-scale results.
+\end{itemize}
+\end{abstract}
+
+%------------------------------------------------------------------
+\section{Introduction}
+% Proposed introduction (bullets):
+\begin{itemize}
+  \item Hypervisor-external memory introspection yields, per snapshot pair, a
+        per-page change signal. Paper A's ``Pipeline A'' computed BOTH a cosine
+        and a Hamming similarity per \SI{4096}{\byte} page, a two-dimensional
+        matrix of shape $[T \times N]$ with $N \approx \num{262144}$ pages for a
+        \SI{1}{\gibi\byte} guest.
+  \item Paper A (APF) collapses that 2-D signal to one scalar per pair (the
+        Active Page Fraction) for tractable repeated capture. \textbf{This
+        paper} documents the complementary direction: keep the full per-page
+        structure and run a richer offline spectral/stability analysis on it.
+  \item \textbf{What the code actually does} (the spine of this paper):
+    \begin{itemize}
+      \item rebuilds a per-test complex delta matrix from rotated per-page
+            cosine/Hamming frame files (\texttt{rebuild\_matrices\_and\_rerun\_offline.py})
+            or consumes pre-built \texttt{.npy}/\texttt{.npy.zst} matrices
+            (\texttt{batch\_offline\_step\_metrics\_zst.py});
+      \item for a clean \emph{idle} step, fits and persists a per-page PLV
+            baseline (\texttt{baseline\_plv.npy});
+      \item for every step, runs a streaming PLV/MSC/cepstrum pass and a
+            baseline-aware PLV evaluation, writing per-step JSON/NPZ outputs
+            (\texttt{offline\_step\_metrics.py}).
+    \end{itemize}
+  \item \textbf{Honesty up front.} This pipeline was never executed at campaign
+        scale: it requires retaining the per-page dumps/frames, which projects
+        to $\approx$\SI{5}{\tebi\byte} for the campaign (a projection; the dumps
+        were never fully retained). It is presented as deferred, high-fidelity
+        work, recorded for completeness and to justify the APF trade.
+  \item \textbf{Contributions} (expanded in Sec.~\ref{sec:contrib}):
+    \begin{itemize}
+      \item C1: a precise, source-grounded specification of the offline
+            per-page metric pipeline (PLV / baseline-PLV / MSC / cepstrum /
+            streaming stats) and its data path.
+      \item C2: the cost/storage characterization that positions this pipeline
+            as the deferred counterpart of APF (Paper A).
+      \item C3: an explicit statement of the short-trajectory limit on spectral
+            inference (links to Paper B's coverage gate).
+    \end{itemize}
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Background and Related Work}
+\begin{itemize}
+  \item VM introspection / memory forensics \cite{garfinkel2003vmi}: external
+        per-page observation of guest memory; this pipeline is an offline
+        analysis layer over such captures.
+  \item Phase-locking value (PLV) as a phase-synchrony measure: the code uses
+        $\mathrm{PLV} = |\,\overline{\exp(j\,\angle D)}\,|$ over time.
+        % TODO: add a PLV reference (neuroscience/signal-processing origin).
+        \cite{TODO_plv} % NEEDS ADDING to refs.bib.
+  \item Magnitude-squared coherence (MSC) via Welch-style averaged
+        cross/auto spectra.
+        % TODO: add a coherence / Welch reference.
+        \cite{TODO_msc} % NEEDS ADDING to refs.bib.
+  \item Cepstral / periodicity analysis for rhythm detection
+        \cite{TODO_cepstrum}. % placeholder ALREADY present in refs.bib.
+  \item Relationship to Paper A (APF): APF is the cheap single-scalar liveness
+        signal this 2-D pipeline was traded against. Relationship to Paper B
+        (spectral-coverage gate): Paper B's coverage limitation is directly
+        relevant to the short trajectories analyzed here. Relationship to
+        Paper F (streaming capture): the capture front-end that produces the
+        dumps/frames this offline pass consumes.
+        % TODO: cross-cite these siblings once their keys/labels are fixed.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Pipeline Definition}
+\label{sec:pipeline}
+% This section must stay faithful to the code. Each bullet names the function
+% it is grounded in. Anything not directly visible -> "% TODO: confirm".
+\begin{itemize}
+  \item \textbf{Input matrix and orientation.} Matrices are stored on disk as
+        $[\text{pages}, \text{frames}]$ and transposed by
+        \texttt{load\_matrix()} to $[T, N] = [\text{frames}, \text{pages}]$
+        before any metric runs (\texttt{offline\_step\_metrics.py}). The dtype
+        is preserved; complex deltas are required because phase-aware metrics
+        call \texttt{np.angle} internally.
+  \item \textbf{Complex delta construction.}
+        \texttt{rebuild\_matrices\_and\_rerun\_offline.py} reconstructs, per
+        frame pair, $D = \mathrm{hamming}\cdot\exp(j\cdot s\cdot\pi\cdot\mathrm{cosine})$
+        with $s=\texttt{phase\_scale}$ (default $2.0$), pairing the per-page
+        \texttt{hamming}/\texttt{cosine} \texttt{.txt} frames by an embedded
+        timestamp (fallback: sorted order). Single-metric (cosine-only /
+        hamming-only) modes also exist.
+        % TODO: confirm definition -- magnitude=Hamming-similarity and
+        % phase=cosine-similarity is a design choice; document its rationale
+        % and units. Do NOT present it as a derived identity.
+  \item \textbf{Inputs are matrices, not raw dumps directly.} The offline pass
+        consumes rebuilt \texttt{.npy} matrices or, in the batch driver
+        (\texttt{batch\_offline\_step\_metrics\_zst.py}), \texttt{.npy.zst}
+        files that are decompressed one-at-a-time with the \texttt{zstd} CLI to
+        a temporary \texttt{.npy}, analyzed, then deleted. The compressed
+        originals are never modified.
+        % HONESTY: the per-page cosine/Hamming frames (and thus the dumps they
+        % derive from) must have been retained to build these matrices -- this
+        % is exactly the storage cost APF avoids.
+  \item \textbf{(1) Per-page PLV and baseline.}
+        \texttt{PLVStability.\_computePLV} computes, over the time axis,
+        \[
+          \mathrm{PLV}_p \;=\; \Bigl|\,\frac{1}{T}\sum_{t=1}^{T}
+          \exp\!\bigl(j\,\angle D_{t,p}\bigr)\Bigr|,
+          \qquad p = 1,\dots,N .
+        \]
+        For the idle (\texttt{--is-baseline}) step this vector is saved to
+        \texttt{baseline\_plv.npy} and reused by all other steps.
+  \item \textbf{(2) Baseline-aware PLV evaluation.}
+        \texttt{PLVStability.evaluate\_run} computes the current per-page PLV,
+        the per-page drop $\Delta\mathrm{PLV}_p = \mathrm{PLV}^{\text{cur}}_p -
+        \mathrm{PLV}^{\text{base}}_p$, and returns category counts:
+        \texttt{num\_anomalous\_drop} ($\Delta \le -0.2$),
+        \texttt{num\_very\_weak\_stability}, \texttt{num\_moderate\_stability},
+        \texttt{num\_high\_stability}, \texttt{num\_perfect\_stability}, with
+        default thresholds drop$=0.2$, normal$=0.7$, perfect$=1.0$.
+        % TODO: confirm the "moderate" mask -- the source has a duplicated
+        % (current_plv >= 0.4) condition that looks like a typo; verify intended
+        % bounds before publishing the category definitions.
+  \item \textbf{(3) MSC (magnitude-squared coherence).} On magnitudes
+        $|D|$, \texttt{MagnitudeSquaredCoherence} averages, over adjacent
+        overlapping windows $(x,y)$,
+        \[
+          \mathrm{MSC}(f) \;=\;
+          \frac{\bigl|\,\overline{S_{xy}(f)}\,\bigr|^{2}}
+               {\overline{S_{xx}(f)}\;\overline{S_{yy}(f)} + \varepsilon},
+        \]
+        via per-window rFFTs ($S_{xx}=|X|^2$, $S_{yy}=|Y|^2$,
+        $S_{xy}=X\overline{Y}$), $\varepsilon=10^{-10}$. The window pairing is
+        ``adjacent overlapping windows'' (\texttt{compute\_msc\_streamlined} /
+        \texttt{generate\_window\_slices}); the streaming path
+        (\texttt{WelchMSCAccumulator}) accumulates $S_{xx},S_{yy},S_{xy}$ across
+        windows before the final ratio.
+        % TODO: confirm whether averaging is over adjacent-window PAIRS (offline
+        % class) vs all windows against the previous window (streaming
+        % processor) -- the two code paths differ; state which the paper uses.
+  \item \textbf{Coherence-peak SNR.} Per page,
+        \[
+          \mathrm{SNR}_p^{\mathrm{dB}} = 10\log_{10}\!
+          \frac{\max_f \mathrm{MSC}(f,p) + \varepsilon}
+               {\operatorname{mean}_f \mathrm{MSC}(f,p) + \varepsilon},
+        \]
+        and \texttt{msc\_peak\_snr\_db\_median} is the median over pages
+        (\texttt{compute\_peak\_snr}; mirrored in
+        \texttt{StreamingDeltaRunProcessor.finalize}).
+  \item \textbf{(4) Cepstrum.} \texttt{CepstrumStability.compute\_cepstrum}
+        forms, per page, the real cepstrum
+        $\mathrm{irfft}\bigl(\log(|\mathrm{rfft}(|D|)| + \varepsilon)\bigr)$ and
+        \texttt{compute\_cepstral\_peak} returns the dominant quefrency index
+        $\arg\max_q |c_q|$ above \texttt{min\_quef\_idx} (default $10$ in the
+        offline class).
+        % TODO: confirm definition -- the STREAMING cepstrum
+        % (CepstrumWindowProcessor) uses log-POWER and ifft of |fft|^2 with
+        % min_quef_idx default 1, which is NOT identical to the offline
+        % log-MAGNITUDE / irfft form (min_quef_idx default 10). Reconcile, or
+        % report both explicitly; do not present one formula as "the" cepstrum.
+  \item \textbf{(5) Streaming running statistics.} \texttt{RunningStats}
+        implements a Welford online mean/variance (scalar or vector), used by
+        \texttt{CepstrumFeatureAccumulator} to accumulate per-window cepstral
+        features (e.g. \texttt{cepstral\_peak\_idx\_mean/\_var/\_median}). The
+        whole streaming pass (\texttt{run\_streaming\_on\_time\_series} ->
+        \texttt{StreamingDeltaRunProcessor}) consumes one delta row $D_{t,:}$ at
+        a time (memmap-friendly): PLV from $\angle D$, MSC/cepstrum from $|D|$.
+  \item \textbf{Outputs written.} Per step under
+        \texttt{<output\_root>/offline/<step\_name>/}:
+        \texttt{meta.json} (frame/page counts, window/step config);
+        \texttt{streaming.npz} + \texttt{streaming.json}
+        (\texttt{msc\_peak\_snr\_db\_median}, \texttt{plv\_median},
+        \texttt{cepstral\_peak\_idx\_median}, per-page arrays);
+        \texttt{plv\_baseline\_aware.json} (full-run + sliding-window PLV
+        category counts). The idle step additionally writes
+        \texttt{baseline\_plv.npy}. An optional \texttt{--segments} pass writes
+        \texttt{segments/seg\_NN/} plus a \texttt{segment\_meta.json}.
+  \item \textbf{Default windowing.} \texttt{window\_size}$=128$,
+        \texttt{step\_size}$=64$ frames throughout the drivers.
+        % HONESTY: these windows are LONGER than most trajectories (median
+        % 30 frames), so for typical cells NO full window exists -> streaming
+        % metrics raise/skip. See Limitations.
+  \item TODO: figure -- data-flow diagram: rotated cosine/Hamming frames ->
+        complex matrix rebuild -> [pages,frames] .npy(.zst) -> transpose ->
+        {PLV, baseline-PLV, MSC, cepstrum, streaming-stats} -> JSON/NPZ.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Contributions in Detail}
+\label{sec:contrib}
+\begin{itemize}
+  \item \textbf{C1 -- faithful specification.} A from-source description of the
+        deferred 2-D pipeline: the complex-delta encoding, the four metric
+        families (PLV, MSC+peak-SNR, cepstrum+peak-quefrency, streaming
+        Welford stats), the baseline-aware PLV categories, and the exact output
+        artifacts. This is the record Paper A points to when it says the 2-D
+        pipeline was deferred.
+  \item \textbf{C2 -- cost/storage positioning.} A statement of why this path
+        was not chosen for the campaign: per-pair compute
+        ($\approx$\SI{1.5}{}--\SI{3}{\second} Rust cosine+Hamming vs
+        $\approx$\SI{300}{}--\SI{500}{\milli\second} APF byte-diff) and the
+        $\approx$\SI{5}{\tebi\byte} retention projection (vs
+        $\approx$\SI{4.7}{\mebi\byte} for the APF trajectory).
+        % HONESTY: 5 TiB is a PROJECTION for a campaign whose dumps were never
+        % fully retained; label it as such. Do not lead with a bare ratio.
+  \item \textbf{C3 -- limits of inference.} An explicit characterization of how
+        short trajectories cap spectral/cepstral degrees of freedom, consistent
+        with Paper B's coverage gate and the segment-level
+        \texttt{limits\_of\_inference} block the code itself writes (segments
+        are NOT independent samples).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Evaluation}
+\label{sec:results}
+% HONESTY (this whole section): the pipeline was NOT run at campaign scale.
+%   There are no large-scale results to report yet. Everything here is either a
+%   small-scale/illustrative demonstration or a TODO. Do NOT fabricate numbers.
+\begin{itemize}
+  \item \textbf{Scope of any results.} If results are shown, they must come from
+        a handful of retained cells (or a synthetic/long trajectory) for which
+        full per-page frames still exist. State $T$, $N$, window, and step for
+        each, and flag that they are illustrative, not campaign statistics.
+        % TODO: identify which cells (if any) still have retained frames;
+        % otherwise present this section as purely definitional + worked example.
+  \item \textbf{Sanity checks to run (not yet results).}
+    \begin{itemize}
+      \item idle baseline vs idle run: baseline-aware PLV categories should sit
+            near ``high''/``perfect'' (low drop) -- a self-consistency check;
+      \item a phasic workload vs idle baseline: expect more
+            \texttt{num\_anomalous\_drop} pages and/or a distinct cepstral-peak
+            quefrency IF the trajectory is long enough to window.
+      % TODO: confirm definition of "expected" direction before asserting it;
+      % this is a hypothesis about the metric, not a measured outcome.
+    \end{itemize}
+  \item \textbf{Reproducibility note.} The exact commands are in the drivers'
+        \texttt{--help}/docstrings (matrix rebuild; batch over \texttt{.zst};
+        \texttt{--window-size}/\texttt{--step-size}/\texttt{--segments}). Pin
+        the \texttt{zstd} version and \texttt{phase\_scale}.
+  \item TODO: table -- per-step (\,$T$, $N$, num windows, PLV median, MSC
+        peak-SNR median, cepstral-peak-idx median\,) for the small illustrative
+        set, with a column flagging windows-available vs skipped.
+  \item TODO: figure -- one idle and one phasic per-page PLV distribution, or a
+        cepstrum for a single long-enough trajectory.
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Limitations}
+\begin{itemize}
+  \item \textbf{Storage-prohibitive (the headline limitation).} The pipeline
+        needs the per-page cosine/Hamming frames (hence the dumps) retained;
+        retaining them projects to $\approx$\SI{5}{\tebi\byte} for the campaign
+        (a projection; never fully retained). This is precisely why APF
+        (Paper A) was chosen and why this pipeline is ``on record'' rather than
+        run at scale.
+  \item \textbf{Short trajectories cap spectral resolution (prominent).}
+        Trajectory length per cell is min \num{4} / median \num{30} / max
+        \num{99} points. Any FFT/cepstrum/MSC on $\lesssim 30$ points has very
+        low spectral degrees of freedom; with the default
+        \texttt{window\_size}$=128 > T$ for typical cells, NO complete window
+        exists and the streaming MSC/cepstrum cannot form a pair (the code
+        raises ``Not enough windows''). Sliding-window PLV likewise yields zero
+        windows. See Paper B's spectral-coverage gate.
+  \item \textbf{Window/trajectory mismatch.} The defaults (window $128$, step
+        $64$) were inherited from longer-series assumptions; they must be
+        reduced (or trajectories lengthened) for these data, and shrinking the
+        window further reduces spectral DOF -- a fundamental tension, not a
+        tuning fix.
+  \item \textbf{Encoding is a modeling choice.} The complex delta
+        $D=\mathrm{hamming}\cdot\exp(j s\pi\,\mathrm{cosine})$ (with $s=2.0$)
+        binds two different similarities into one complex number; PLV then reads
+        only its phase (cosine) and MSC/cepstrum only its magnitude (Hamming).
+        % TODO: justify or ablate this split; it is not derived.
+  \item \textbf{Streaming vs offline metric definitions differ.} MSC window
+        pairing and the cepstrum (log-power/ifft, \texttt{min\_quef\_idx}$=1$ in
+        streaming vs log-magnitude/irfft, \texttt{min\_quef\_idx}$=10$ in the
+        offline class) are not identical across code paths. The paper must fix
+        ONE definition per metric or report both.
+  \item \textbf{Segments are not independent samples.} The optional
+        segment-level pass writes a \texttt{limits\_of\_inference} block stating
+        segments are contiguous sub-observations of one recording; they must not
+        be pooled to inflate $n$. Honor this in any statistics.
+  \item \textbf{No campaign-scale validation.} As stated, results here are
+        illustrative/TODO; no claim of family- or instance-level fidelity is
+        made (cf. Paper A's deferral and Paper C's leakage-controlled findings).
+\end{itemize}
+
+%------------------------------------------------------------------
+\section{Conclusion}
+\begin{itemize}
+  \item This paper records the deferred, high-fidelity per-page pipeline that
+        Paper A's APF scalar was traded against: a faithful, source-grounded
+        specification of PLV, baseline-aware PLV, MSC with coherence-peak SNR,
+        a real cepstrum with peak quefrency, and streaming Welford statistics
+        over a complex per-page delta matrix.
+  \item It is presented honestly as the expensive path -- storage-prohibitive
+        ($\approx$\SI{5}{\tebi\byte} retention projection) and, for the actual
+        short trajectories (median \num{30} points), spectrally underpowered --
+        which is exactly why APF was chosen for the campaign. The value here is
+        completeness and a precise target for any future high-fidelity re-run.
+\end{itemize}
+
+\bibliographystyle{IEEEtran}
+\bibliography{../refs}
+\end{document}

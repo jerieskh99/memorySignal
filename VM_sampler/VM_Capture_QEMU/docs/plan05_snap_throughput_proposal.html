@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 05 Proposal · Snap-Throughput Lift · Team Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0f0f12;
+    --panel:     #16161a;
+    --panel-2:   #1c1c22;
+    --line:      #2a2a32;
+    --text:      #e6e6ea;
+    --text-dim:  #b4b4bc;
+    --muted:     #7a7a85;
+    --accent:    #d4a85a;
+    --accent-2:  #b8884a;
+    --good:      #7cb96e;
+    --bad:       #e8553a;
+    --bad-2:     #c8412e;
+    --info:      #6ea7d4;
+    --shadow:    0 1px 0 rgba(255,255,255,.03), 0 8px 32px rgba(0,0,0,.4);
+    --r:         8px;
+    --r-lg:      12px;
+    --f-sans:    "Inter", system-ui, -apple-system, sans-serif;
+    --f-display: "Fraunces", Georgia, serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Monaco, monospace;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html,body { background: var(--bg); color: var(--text); }
+  body { margin:0; min-height:100vh; font-family: var(--f-sans);
+         font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent-2); text-decoration: underline; }
+  code { font-family: var(--f-mono); font-size:.92em;
+         background: rgba(212,168,90,.07); padding:1px 6px;
+         border-radius:4px; color: var(--text); }
+  h1,h2,h3,h4 { font-family: var(--f-display); font-weight:500;
+                letter-spacing:-.015em; margin:0; }
+  h1 { font-size: clamp(28px,4vw,44px); line-height:1.1; }
+  h2 { font-size: clamp(20px,2.5vw,28px); margin:0 0 16px; }
+  h3 { font-size:18px; margin:24px 0 10px; color: var(--text); }
+  h4 { font-size:15px; margin:18px 0 6px; color: var(--text);
+       font-family: var(--f-sans); font-weight:600; letter-spacing:.02em; }
+  p  { margin:8px 0; color: var(--text-dim); }
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  @media (max-width:800px) { .app { grid-template-columns:1fr; }
+    aside.nav { position:static; height:auto;
+                border-right:none; border-bottom:1px solid var(--line); } }
+  aside.nav { position:sticky; top:0; align-self:start;
+              height:100vh; overflow-y:auto;
+              background: var(--panel); border-right:1px solid var(--line);
+              padding:24px 18px; }
+  aside.nav .brand { font-family: var(--f-display); font-size:16px;
+                     font-weight:600; color: var(--text); margin-bottom:4px; }
+  aside.nav .sub { font-size:11px; color: var(--muted); margin-bottom:22px;
+                   letter-spacing:.05em; text-transform:uppercase; }
+  aside.nav ol { list-style:none; padding:0; margin:0; counter-reset:navitem; }
+  aside.nav ol li { counter-increment:navitem; padding:0; margin:2px 0; }
+  aside.nav ol li a { display:flex; gap:10px; align-items:baseline;
+                       padding:7px 10px; border-radius:6px;
+                       color: var(--text-dim); font-size:13.5px;
+                       transition: background .15s, color .15s; }
+  aside.nav ol li a::before { content: counter(navitem, decimal-leading-zero);
+                              font-family: var(--f-mono); font-size:11px;
+                              color: var(--muted); width:22px; }
+  aside.nav ol li a:hover { background: var(--panel-2); color: var(--text);
+                            text-decoration:none; }
+  aside.nav ol li a.active { background: rgba(212,168,90,.10);
+                              color: var(--accent); }
+  aside.nav .status-pill { margin-top:18px; padding:10px 12px;
+    border-radius: var(--r); font-size:12px; line-height:1.45;
+    background: rgba(212,168,90,.08); border:1px solid rgba(212,168,90,.20);
+    color: var(--accent); }
+  main { padding:48px 40px 96px; max-width:940px; overflow-x:hidden; }
+  @media (max-width:800px) { main { padding:32px 20px 64px; } }
+  .hero { margin:0 0 36px 0; }
+  .hero .eyebrow { font-size:11px; letter-spacing:.15em; text-transform:uppercase;
+                   color: var(--accent); font-weight:600; margin-bottom:12px; }
+  .hero h1 em { font-style:italic; color: var(--accent); font-weight:500; }
+  .hero .deck { font-size:17px; color: var(--text-dim); margin-top:14px;
+                max-width:720px; line-height:1.55; }
+  section.card { background: var(--panel); border:1px solid var(--line);
+                  border-radius: var(--r-lg); padding:28px 30px;
+                  margin:0 0 22px; box-shadow: var(--shadow);
+                  scroll-margin-top:16px; }
+  section.card .num { font-family: var(--f-mono); font-size:12px;
+                       color: var(--accent); font-weight:600; letter-spacing:.1em; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:18px 0; }
+  @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
+  .pair > div { background: var(--panel-2); border:1px solid var(--line);
+                 border-radius: var(--r); padding:16px 18px; }
+  .pair .label { font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+                  font-weight:600; margin-bottom:8px; display:inline-block;
+                  padding:3px 8px; border-radius:4px; }
+  .pair .label.simple { background: rgba(110,167,212,.12); color: var(--info); }
+  .pair .label.tech   { background: rgba(212,168,90,.12); color: var(--accent); }
+  .pair p, .pair ul { color: var(--text-dim); font-size:14.5px; }
+  .pair ul { padding-left:18px; margin:6px 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; margin:12px 0; }
+  th, td { padding:9px 12px; text-align:left; vertical-align:top; }
+  th { font-weight:600; font-size:12px; letter-spacing:.04em;
+       text-transform:uppercase; color: var(--muted);
+       border-bottom:1px solid var(--line); }
+  td { border-bottom:1px solid var(--line); color: var(--text-dim); }
+  td.mono { font-family: var(--f-mono); font-size:13px; color: var(--text); }
+  tr:hover td { background: rgba(212,168,90,.03); }
+  .agent { display:grid; grid-template-columns:90px 1fr 90px;
+            gap:14px; align-items:flex-start;
+            background: var(--panel-2); border:1px solid var(--line);
+            border-radius: var(--r); padding:12px 16px; margin:10px 0; }
+  @media (max-width:700px) { .agent { grid-template-columns:1fr; } }
+  .agent .agent-id { font-family: var(--f-mono); font-weight:600;
+                      color: var(--accent); font-size:13px;
+                      text-transform:uppercase; letter-spacing:.06em; }
+  .agent .agent-take { font-size:14px; color: var(--text-dim); line-height:1.5; }
+  .agent .agent-vote { align-self:center; font-size:11px; font-weight:600;
+                        letter-spacing:.04em; text-transform:uppercase;
+                        padding:4px 10px; border-radius:11px; text-align:center; }
+  .agent .agent-vote.go      { background:rgba(124,185,110,.14); color:var(--good); }
+  .agent .agent-vote.partial { background:rgba(212,168,90,.14); color:var(--accent); }
+  .agent .agent-vote.stop    { background:rgba(232,85,58,.12);  color:var(--bad-2); }
+  .callout { border-left:3px solid var(--accent);
+              background: rgba(212,168,90,.05);
+              padding:14px 18px; border-radius:4px;
+              margin:16px 0; color: var(--text-dim); font-size:14.5px; }
+  .callout.warn { border-color: var(--bad-2); background: rgba(232,85,58,.05); }
+  .callout.good { border-color: var(--good);  background: rgba(124,185,110,.05); }
+  .callout.info { border-color: var(--info);  background: rgba(110,167,212,.06); }
+  .diagram { font-family: var(--f-mono); font-size:12px;
+              background: var(--panel-2); border:1px solid var(--line);
+              border-radius: var(--r); padding:16px 20px; overflow-x:auto;
+              color: var(--text-dim); line-height:1.6; margin:12px 0; }
+  .diagram .hl-good { color: var(--good); }
+  .diagram .hl-bad  { color: var(--bad-2); }
+  .diagram .hl-acc  { color: var(--accent); }
+  .diagram .hl-info { color: var(--info); }
+  .chip { display:inline-block; padding:3px 9px; border-radius:11px;
+           font-size:11px; font-weight:600;
+           letter-spacing:.04em; text-transform:uppercase; }
+  .chip.done    { background:rgba(124,185,110,.14); color:var(--good); }
+  .chip.next    { background:rgba(212,168,90,.16); color:var(--accent); }
+  .chip.blocked { background:rgba(232,85,58,.12); color:var(--bad-2); }
+  .chip.info    { background:rgba(110,167,212,.14); color:var(--info); }
+  .day { background: var(--panel-2); border:1px solid var(--line);
+          border-radius: var(--r); padding:16px 18px; margin:10px 0; }
+  .day .day-head { display:flex; gap:12px; align-items:baseline;
+                    margin-bottom:8px; }
+  .day .day-tag { font-family: var(--f-mono); font-size:11px;
+                   font-weight:600; color: var(--accent);
+                   letter-spacing:.08em; text-transform:uppercase; }
+  .day .day-title { font-family: var(--f-display); font-size:16px;
+                     font-weight:500; color: var(--text); }
+  .day .day-meta { margin-left:auto; font-size:11px; color: var(--muted);
+                    font-family: var(--f-mono); }
+  .day ul { padding-left:20px; margin:6px 0; font-size:14px; color: var(--text-dim); }
+  dl.kv { display:grid; grid-template-columns:max-content 1fr;
+          gap:6px 18px; font-size:14px; margin:12px 0; }
+  dl.kv dt { color: var(--muted); font-family: var(--f-mono); font-size:13px; }
+  dl.kv dd { color: var(--text); margin:0; }
+  .nav-arrows { display:flex; gap:12px; margin-top:24px; }
+  .nav-arrows a { flex:1; padding:14px 16px; border-radius: var(--r);
+                  background: var(--panel-2); border:1px solid var(--line);
+                  color: var(--text-dim); text-decoration:none;
+                  transition: border-color .15s, color .15s; }
+  .nav-arrows a:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-arrows a .label { font-size:11px; letter-spacing:.1em;
+                          text-transform:uppercase; color: var(--muted);
+                          display:block; margin-bottom:4px; }
+  .nav-arrows a .title { font-size:14px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="nav">
+    <div class="brand">Plan 05 Proposal</div>
+    <div class="sub">Snap-throughput lift · team review</div>
+    <ol>
+      <li><a href="#summary">Executive summary</a></li>
+      <li><a href="#team">Team roles</a></li>
+      <li><a href="#baseline">Baseline design doc</a></li>
+      <li><a href="#topdown">Top-down analysis</a></li>
+      <li><a href="#bottomup">Bottom-up analysis</a></li>
+      <li><a href="#week">Week-long audit</a></li>
+      <li><a href="#disputes">Key disputes + decisions</a></li>
+      <li><a href="#improved">Improved Plan 05 spec</a></li>
+      <li><a href="#validation">Validation strategy</a></li>
+      <li><a href="#stats">Statistical design</a></li>
+      <li><a href="#risks">Risks + mitigations</a></li>
+      <li><a href="#pm">PM final recommendation</a></li>
+    </ol>
+    <div class="status-pill">
+      <strong>Proposal.</strong><br>
+      Target: <code>&ge;2&times;</code> median <code>pmemsave</code>
+      reduction at preserved APF fidelity. Tier-1 levers: guest-RAM,
+      tmpfs target, delete-as-you-go validation. Tier-2
+      (dirty-bit / multifd / compress) scoped to a follow-up.
+      6 deltas. 7 GO / 1 partial.
+    </div>
+  </aside>
+
+  <main>
+
+    <header class="hero">
+      <div class="eyebrow">Plan 05 · snap-throughput lift · v1 proposal</div>
+      <h1>Stop tuning the interval.<br><em>Shrink the snapshot.</em></h1>
+      <p class="deck">
+        Plan 02 proved the requested sampling interval is inert: the guest
+        idles its requested <code>~0.52&nbsp;s</code> while the host snapshot
+        cycle runs an order of magnitude longer. The v3 timing audit then
+        localized the cost: <code>pmemsave</code> is a median
+        <code>7.06&nbsp;s</code>, about <strong>81%</strong> of the
+        <code>9.75&nbsp;s</code> median cycle (range 2&ndash;24&nbsp;s). The
+        cadence that governs every trajectory length is set by one full-RAM
+        dump, not by any knob we have been turning. Plan 05 attacks that dump
+        directly with a factorial of capture-side levers &mdash; guest-RAM
+        size, dump-target filesystem, and the delete-as-you-go path &mdash;
+        guarded by an <em>APF-fidelity</em> gate so a cheaper snapshot still
+        measures the same signal. No analyzer changes. The Tier-2,
+        capture-semantics-changing levers (dirty-bit incremental capture,
+        multifd, compression) are deliberately scoped to a separate track.
+      </p>
+    </header>
+
+    <!-- 1 · summary -->
+    <section class="card" id="summary">
+      <div class="num">SECTION 01</div>
+      <h2>Executive summary</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What Plan 05 is</span>
+          <p>A capture-side throughput experiment. Hold the analyzer fixed
+          (Plan 03 <code>W=8, H=4</code>; Plan 04 segmenter) and sweep the
+          variables that actually move <code>pmemsave</code>: guest RAM size
+          <code>{1024, 512, 256}&nbsp;MiB</code>, dump target
+          <code>{SSD, tmpfs}</code>, and <code>keep_dumps&nbsp;{true, false}</code>.
+          Measure the per-phase timing already emitted by the instrumented
+          producer (<code>mean_pmemsave_sec</code>,
+          <code>mean_host_snapshot_cycle_sec</code>, pause fraction) and, for
+          every fast-arm cell, verify the resulting APF trajectory is
+          statistically indistinguishable from the 1024&nbsp;MiB/SSD baseline
+          on the <em>same</em> workload. Output: <code>plan05_throughput.csv</code>,
+          <code>plan05_summary.json</code>, a new validator claim
+          <code>C9</code>, and the first measured delete-as-you-go peak-disk
+          number.</p>
+        </div>
+        <div>
+          <span class="label tech">What changes vs the naive baseline</span>
+          <ul>
+            <li>&Delta;-1 &middot; target <strong><code>pmemsave</code>, not the interval</strong> &mdash; the interval is proven inert (Plan 02), so it is held fixed</li>
+            <li>&Delta;-2 &middot; <strong>factorial</strong> RAM &times; target &times; keep_dumps, not a one-variable sweep</li>
+            <li>&Delta;-3 &middot; add an <strong>APF-fidelity gate</strong>: a faster dump must reproduce the baseline APF distribution, else it is measuring a different signal</li>
+            <li>&Delta;-4 &middot; <strong>scale working-set with RAM</strong> (or exclude <code>mem_workingset_sweep_v2</code> from the sub-1024 arm) to avoid the binding-constraint confound</li>
+            <li>&Delta;-5 &middot; <strong>validate delete-as-you-go</strong> (<code>keep_dumps=false</code>) peak transient disk in the same campaign &mdash; closes round-2 finding R-3</li>
+            <li>&Delta;-6 &middot; <strong>scope out Tier-2</strong> (dirty-bit / multifd / compression) to a follow-up: they change capture semantics or the novelty claim (see &sect;07 dispute 3)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout good">
+        <strong>Net effect.</strong> Plan 05 is a capture re-run, not new
+        analysis code. Reusing <code>run_timing_instrumentation_experiment.py
+        --ram-mb</code> and the existing <code>producer_stats</code> schema, it
+        adds a fidelity comparator (~120 LOC) and one validator claim. If the
+        reduced-RAM arm holds, it both halves the cadence bottleneck and
+        retires two round-2 open items at once (the storage-ratio numerator and
+        the delete-as-you-go cap).
+      </div>
+
+      <div class="callout warn">
+        <strong>Bound surfaced.</strong> The headline risk is not speed but
+        <em>meaning</em>. Shrinking guest RAM changes how much memory a workload
+        can touch; a 256&nbsp;MiB <code>mem_workingset_sweep_v2</code> is a
+        different experiment, not a faster one. Plan 05 therefore cannot report
+        a <code>pmemsave</code> speedup without simultaneously proving the APF
+        signal is preserved &mdash; the fidelity gate (&Delta;-3) is a
+        first-class acceptance condition, not a footnote.
+      </div>
+    </section>
+
+    <!-- 2 · team roles -->
+    <section class="card" id="team">
+      <div class="num">SECTION 02</div>
+      <h2>Team roles · simulated week</h2>
+      <table>
+        <thead><tr><th>agent</th><th>code</th><th>focus during this review</th></tr></thead>
+        <tbody>
+          <tr><td>Project Manager</td><td>PM</td><td>scope control, Tier-1 vs Tier-2 boundary, vote tally on day 5</td></tr>
+          <tr><td>Senior Architect</td><td>SA</td><td>where <code>pmemsave</code> sits on the critical path, tmpfs/host-RAM budget</td></tr>
+          <tr><td>Engineering Skills</td><td>EN</td><td><code>--ram-mb</code> wiring, dump-target config, delete-as-you-go re-enable</td></tr>
+          <tr><td>Senior ML Engineer</td><td>ML</td><td>APF-fidelity equivalence test, dirty-bit novelty tension</td></tr>
+          <tr><td>Experiment Designer</td><td>XD</td><td>workload subset, RAM/working-set coupling, matrix cost</td></tr>
+          <tr><td>Senior Data Engineer</td><td>DE</td><td><code>producer_stats</code> schema reuse, plan05 output artifacts</td></tr>
+          <tr><td>Senior Data Scientist</td><td>DS</td><td>paired before/after CIs, contention confound, TOST equivalence</td></tr>
+          <tr><td>Evaluation Engineer</td><td>EE</td><td><code>C9</code> claim definition, success gates, transient-disk cap check</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3 · baseline -->
+    <section class="card" id="baseline">
+      <div class="num">SECTION 03</div>
+      <h2>Baseline · the design doc as written</h2>
+
+      <div class="pair">
+        <div>
+          <span class="label simple">What docs/tuning_plans/02_interval_tuning_experiment.md sketched</span>
+          <p>A factorial pilot over interval, guest RAM, and the dirty-page
+          flush, intended to find a faster sampling configuration. The original
+          framing still treated the <em>interval</em> as a primary knob and RAM
+          as one secondary axis among several. The
+          <code>SNAPSHOT_INTERVAL_TUNING_STUDY</code> later identified reduced
+          guest RAM as &ldquo;the structural lever for &lsquo;experiment feels
+          slow&rsquo;&rdquo; (a 512 or 256&nbsp;MiB VM cuts dump time roughly in
+          half or a quarter), but no campaign has yet swept it.</p>
+        </div>
+        <div>
+          <span class="label tech">The naive spec, and why it is not enough</span>
+          <ul>
+            <li>Independent variables: <code>interval_ms</code>, <code>ram_mb</code>, flush on/off</li>
+            <li>Metric: <code>mean_pmemsave_sec</code>, <code>mean_host_snapshot_cycle_sec</code></li>
+            <li><span class="chip blocked">flaw</span> the interval is inert &mdash; sweeping it wastes the budget</li>
+            <li><span class="chip blocked">flaw</span> RAM reduction is confounded with workload behavior; no fidelity check</li>
+            <li><span class="chip blocked">flaw</span> no tmpfs arm, though the dump target is the actual write path</li>
+            <li><span class="chip blocked">flaw</span> delete-as-you-go (the disk-cap claim) is never validated</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout info">
+        <strong>Anchor.</strong> The cost mechanism is settled:
+        <code>pmemsave</code> is a synchronous <em>full-RAM</em> serialization
+        &mdash; a flat RAW file of size <code>ramSizeMb</code>, a single
+        ~1&nbsp;GiB sequential write to <code>/var/lib/libvirt/qemu/dump</code>
+        on SSD. At ~1.36&nbsp;GiB/s on a quiet host this is ~0.76&nbsp;s; under
+        I/O contention bandwidth drops to 0.27&ndash;0.71&nbsp;GiB/s, and as
+        dirty pages accumulate without a flush the dump drifts from 0.78&nbsp;s
+        toward 7.25&nbsp;s. Plan 05's job is to make that write cheaper or move
+        it off the SSD, not to sample more often.
+      </div>
+    </section>
+
+    <!-- 4 · top-down -->
+    <section class="card" id="topdown">
+      <div class="num">SECTION 04</div>
+      <h2>Top-down analysis · pipeline level</h2>
+
+      <h4>Process model · where the cost lives</h4>
+      <div class="diagram">
+host snapshot cycle (Axis B, median 9.75 s)
+&nbsp;&nbsp;|
+&nbsp;&nbsp;+-- suspend ......... <span class="hl-good">~0.35 s</span>   (negligible)
+&nbsp;&nbsp;+-- <span class="hl-bad">pmemsave (full-RAM RAW dump) ... ~7.06 s  &lt;== 81% OF CYCLE</span>
+&nbsp;&nbsp;+-- resume .......... <span class="hl-good">~0.05 s</span>   (negligible)
+&nbsp;&nbsp;+-- guest run ....... <span class="hl-info">~0.52 s</span>   (the "interval" -- inert)
+&nbsp;&nbsp;|
+&nbsp;&nbsp;+~~ <span class="hl-acc">async APF helper (B+3.1) ... ~1 s, OFF critical path</span>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;memmap XOR -&gt; append jsonl -&gt; delete prev.raw -&gt; .apf_done ack
+
+Plan 05 target: the one red line. Levers either shrink the bytes
+(reduce RAM) or move the write off the SSD (tmpfs), holding APF fixed.
+      </div>
+
+      <h4>Objective alignment</h4>
+      <p>Cadence is not a comfort metric; it sets the science.
+      <code>pmemsave</code> dominance means trajectory length is governed by the
+      dump cost, and trajectory length is exactly what starves the analyzer:
+      53 of 132 v3 cells yield &le;3 analysis windows at <code>(8,4)</code>,
+      which is what makes gate <code>G2</code> (spectral coverage) fail for the
+      phasic family and <code>G3</code> (cepstral-SNR) fragile. Halving
+      <code>pmemsave</code> roughly doubles the snapshot count at fixed
+      wall-clock, directly feeding G2/G3 degrees of freedom. The lever and the
+      analyzer's open problems are the same lever.</p>
+
+      <h4>Scope boundary</h4>
+      <p>Plan 05 is capture-side only. The APF definition, the window/hop grid,
+      the gates, the classifier, and the segmenter are all frozen. The single
+      new analysis artifact is a <em>comparator</em> that asks &ldquo;is the
+      fast-arm APF the same distribution as the baseline APF?&rdquo; Anything
+      that changes what a snapshot <em>contains</em> (incremental/dirty-bit
+      capture) is out of scope by construction &mdash; see dispute 3.</p>
+
+      <h4>Structural risks</h4>
+      <ul>
+        <li><strong>Semantic drift.</strong> RAM size and dump target must not
+        change the APF a workload produces. This is the load-bearing risk and
+        the reason for the fidelity gate.</li>
+        <li><strong>Host-state confound.</strong> <code>pmemsave</code> is
+        non-stationary under I/O contention; before/after arms must run on a
+        quiescent host with randomized arm order.</li>
+        <li><strong>tmpfs pressure.</strong> A RAM-backed dump target competes
+        with guest RAM and page cache; only safe with delete-as-you-go bounding
+        the live dump count.</li>
+      </ul>
+    </section>
+
+    <!-- 5 · bottom-up -->
+    <section class="card" id="bottomup">
+      <div class="num">SECTION 05</div>
+      <h2>Bottom-up analysis · file-by-file</h2>
+
+      <table>
+        <thead><tr><th>file</th><th>role in Plan 05</th><th>change</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">run_timing_instrumentation_experiment.py</td><td>per-run timing harness; already exposes <code>--ram-mb</code>, <code>--duration</code>, <code>--interval-ms</code>, <code>--keep-dumps</code>, <code>--output-json</code></td><td>driver script wraps it over the matrix; no edit</td></tr>
+          <tr><td class="mono">plan02_run.py</td><td>enables the streaming APF path only when <code>keep_dumps=True</code> (exports <code>TIMING_APF_STREAM=1</code>)</td><td>decouple streaming-APF from keep_dumps so the <code>keep_dumps=false</code> arm still streams</td></tr>
+          <tr><td class="mono">plan02_apf_helper.py</td><td>off-path helper: memmap XOR, append jsonl, <strong>delete prev.raw</strong>, write ack</td><td>re-enable the delete branch; instrument peak live-dump count</td></tr>
+          <tr><td class="mono">capture config (<code>imageDir</code>)</td><td>dump target dir, default <code>/var/lib/libvirt/qemu/dump</code> on SSD</td><td>add a tmpfs mount option for the tmpfs arm</td></tr>
+          <tr><td class="mono">plan05_fidelity.py <span class="chip next">new</span></td><td>compare fast-arm APF trajectory to baseline on matched workload (TOST equivalence on APF mean/std + KS on the distribution)</td><td>~120 LOC, new</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Output schema</h4>
+      <dl class="kv">
+        <dt>plan05_throughput.csv</dt><dd>one row per (workload, duration, ram_mb, target, keep_dumps, replicate): the <code>producer_stats</code> timing fields + snapshots_completed + peak_live_dumps</dd>
+        <dt>plan05_summary.json</dt><dd>per-arm median <code>pmemsave_sec</code>, cycle, pause fraction, snapshots-per-duration, and the fidelity verdict vs baseline</dd>
+        <dt>plan05_recommendation.json</dt><dd>the winning (ram_mb, target) per workload that passes the fidelity gate, consumed by validator claim <code>C9</code></dd>
+      </dl>
+    </section>
+
+    <!-- 6 · week -->
+    <section class="card" id="week">
+      <div class="num">SECTION 06</div>
+      <h2>Week-long team audit · daily meetings</h2>
+
+      <div class="day">
+        <div class="day-head"><span class="day-tag">Day 1</span><span class="day-title">Confirm the target</span><span class="day-meta">SA · DE</span></div>
+        <ul>
+          <li>Re-derive <code>pmemsave</code> dominance from v3 <code>producer_stats</code>: median 7.06&nbsp;s, 81% of cycle. Settled; this is the only thing worth optimizing.</li>
+          <li>Confirm suspend/resume negligible and the interval inert. Drop both from the sweep.</li>
+        </ul>
+      </div>
+      <div class="day">
+        <div class="day-head"><span class="day-tag">Day 2</span><span class="day-title">Enumerate the levers</span><span class="day-meta">EN · ML</span></div>
+        <ul>
+          <li>Tier-1 (cheap, semantics-preserving, untried): reduce guest RAM; tmpfs dump target.</li>
+          <li>Tier-1 (already adopted, validate): async B+3.1, ionice; delete-as-you-go.</li>
+          <li>Tier-2 (semantics- or novelty-changing): dirty-bit incremental, multifd, compression, migrate-to-file.</li>
+          <li>Rejected: concurrent multi-VM <code>pmemsave</code> &mdash; contention halves bandwidth (Plan 02 verdict).</li>
+        </ul>
+      </div>
+      <div class="day">
+        <div class="day-head"><span class="day-tag">Day 3</span><span class="day-title">The fidelity fight</span><span class="day-meta">ML · XD</span></div>
+        <ul>
+          <li>ML: a faster dump that changes the APF is worthless. Demand an equivalence test, not just a speed delta.</li>
+          <li>XD: <code>mem_workingset_sweep_v2</code> defaults to <code>--working-set-mb 1024</code> &mdash; it cannot run at 256&nbsp;MiB unchanged. Either scale the working set with RAM or exclude it from the low-RAM arm.</li>
+        </ul>
+      </div>
+      <div class="day">
+        <div class="day-head"><span class="day-tag">Day 4</span><span class="day-title">tmpfs and the disk cap</span><span class="day-meta">SA · EE</span></div>
+        <ul>
+          <li>SA: tmpfs only safe if live dumps are bounded &mdash; couples the tmpfs arm to delete-as-you-go.</li>
+          <li>EE: fold the round-2 R-3 open item in &mdash; run <code>keep_dumps=false</code> and record peak live-dump bytes to validate the 2&ndash;3&nbsp;GiB design cap.</li>
+        </ul>
+      </div>
+      <div class="day">
+        <div class="day-head"><span class="day-tag">Day 5</span><span class="day-title">Scope and vote</span><span class="day-meta">PM</span></div>
+        <ul>
+          <li>PM: ship Tier-1 as Plan 05; defer Tier-2 to Plan 05b. Dirty-bit is not just complexity &mdash; it changes the paper's novelty claim. Vote.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 7 · disputes -->
+    <section class="card" id="disputes">
+      <div class="num">SECTION 07</div>
+      <h2>Key disputes + decisions</h2>
+
+      <h4>Dispute 1 · Does reduced RAM preserve the signal?</h4>
+      <p><strong>Tension.</strong> Reducing guest RAM linearly shrinks the dump
+      (the whole point) but also shrinks how much memory a workload can dirty.
+      <strong>Decision.</strong> RAM reduction is admitted <em>only</em> behind
+      the APF-fidelity gate (&Delta;-3): a fast arm passes only if its APF
+      trajectory is statistically equivalent (TOST) to the 1024&nbsp;MiB
+      baseline on the same workload. A speedup without equivalence is recorded
+      as a <em>different experiment</em>, not a win.</p>
+
+      <h4>Dispute 2 · Working-set workloads have a RAM floor</h4>
+      <p><strong>Tension.</strong> <code>mem_workingset_sweep_v2</code> and the
+      mmap sweep need ~1&nbsp;GiB to exhibit their behavior.
+      <strong>Decision.</strong> Two-track: scale <code>--working-set-mb</code>
+      with <code>ram_mb</code> where the workload supports it (preserving the
+      <em>fraction</em> of RAM touched), and exclude workloads that cannot scale
+      from the sub-1024 arm rather than reporting a confounded number.</p>
+
+      <h4>Dispute 3 · Dirty-bit incremental capture &mdash; the big lever we will not pull (yet)</h4>
+      <p><strong>Tension.</strong> APF needs only the <em>changed</em> pages, and
+      QEMU's migration dirty-bitmap could dump just those &mdash; potentially the
+      largest speedup on the table, since APF means are ~0.13&ndash;0.20.
+      <strong>But</strong> Paper&nbsp;A's novelty is that APF is
+      <em>content-derived</em> (a byte difference) and <em>capture-external</em>,
+      positioned explicitly against hardware dirty-bit estimators. Building APF
+      <em>on</em> the dirty bitmap collapses that distinction.
+      <strong>Decision.</strong> Scope dirty-bit capture out of Plan 05 into a
+      separate Plan 05b, framed honestly as a different method with a different
+      novelty claim. This is the one <span class="chip info">partial</span> vote.</p>
+
+      <h4>Dispute 4 · Compression / multifd</h4>
+      <p><strong>Tension.</strong> Compression trades CPU for write bytes (sparse
+      low-APF dumps compress well); multifd parallelizes the write.
+      <strong>Decision.</strong> Both put work on or near the critical path and
+      need a <code>migrate &ldquo;file:&rdquo;</code> target rather than
+      <code>pmemsave</code> &mdash; an architecture change. Defer to Tier-2;
+      Plan 05 keeps the <code>pmemsave</code> primitive.</p>
+
+      <h4>Dispute 5 · Validate the disk cap now or never</h4>
+      <p><strong>Decision.</strong> Unanimous: include the
+      <code>keep_dumps=false</code> arm. It is nearly free (the delete branch
+      already exists) and it closes round-2 R-3 &mdash; the 2&ndash;3&nbsp;GiB
+      streaming cap that v3 never exercised &mdash; and supplies the measured
+      numerator the storage-reduction claim currently lacks.</p>
+
+      <h4>Dispute 6 · Matrix cost</h4>
+      <p><strong>Decision.</strong> A full 11&times;3&times;3&times;2&times;4
+      grid is wasteful. Run a representative subset: 3 workloads (one steady
+      high-APF, one phasic, one RAM-floor case), 2 durations (120/600&nbsp;s),
+      the RAM&times;target&times;keep_dumps cells, 3 replicates. Expand only if
+      the pilot shows a fidelity-preserving win.</p>
+    </section>
+
+    <!-- 8 · improved spec -->
+    <section class="card" id="improved">
+      <div class="num">SECTION 08</div>
+      <h2>Improved Plan 05 specification</h2>
+
+      <h4>Capture matrix (pilot)</h4>
+      <table>
+        <thead><tr><th>axis</th><th>levels</th><th>note</th></tr></thead>
+        <tbody>
+          <tr><td>workload</td><td class="mono">{ rmw_intensity, scanner_metadata, workingset_sweep }</td><td>steady-highAPF / phasic / RAM-floor</td></tr>
+          <tr><td>duration_s</td><td class="mono">{ 120, 600 }</td><td>short + long trajectory</td></tr>
+          <tr><td>ram_mb</td><td class="mono">{ 1024, 512, 256 }</td><td>1024 = baseline; workingset scales or drops</td></tr>
+          <tr><td>target</td><td class="mono">{ ssd, tmpfs }</td><td>tmpfs requires keep_dumps=false</td></tr>
+          <tr><td>keep_dumps</td><td class="mono">{ true, false }</td><td>false validates the disk cap</td></tr>
+          <tr><td>replicate</td><td class="mono">{ 1, 2, 3 }</td><td>randomized arm order, quiescent host</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Success gates</h4>
+      <dl class="kv">
+        <dt>G-T1 throughput</dt><dd>median <code>pmemsave_sec</code> reduced <code>&ge;2&times;</code> vs the 1024/SSD baseline on the same workload</dd>
+        <dt>G-T2 fidelity</dt><dd>fast-arm APF equivalent to baseline: TOST on APF mean and std within a pre-registered margin, KS test not rejecting</dd>
+        <dt>G-T3 disk cap</dt><dd>under <code>keep_dumps=false</code>, peak live-dump bytes &le; the 2&ndash;3&nbsp;GiB design target</dd>
+      </dl>
+
+      <h4>Decision rule</h4>
+      <p>A (ram_mb, target) configuration is <em>recommended</em> for a workload
+      iff it passes G-T1 <strong>and</strong> G-T2. tmpfs configurations
+      additionally require G-T3. A speedup that fails G-T2 is reported as a
+      semantic-drift finding, not a recommendation.</p>
+
+      <h4>Output artifacts</h4>
+      <p><code>plan05_throughput.csv</code>, <code>plan05_summary.json</code>,
+      <code>plan05_recommendation.json</code>, and a short
+      <code>plan05_overview.html</code> results page mirroring the plan02/03/04
+      overviews.</p>
+    </section>
+
+    <!-- 9 · validation -->
+    <section class="card" id="validation">
+      <div class="num">SECTION 09</div>
+      <h2>Validation strategy</h2>
+
+      <h4>New operational claim · C9</h4>
+      <p><strong>C9.</strong> &ldquo;There exists a capture configuration that
+      reduces median <code>pmemsave</code> by <code>&ge;2&times;</code> while
+      preserving APF fidelity (G-T2) on at least the steady high-APF and phasic
+      representatives.&rdquo; C9 is <em>operational</em>: it gates whether a
+      faster cadence is available for a future full re-capture, not whether any
+      scientific result changes.</p>
+
+      <h4>PASS condition</h4>
+      <p>C9 passes iff &ge;2 of the 3 pilot workloads have a configuration
+      clearing G-T1 and G-T2, and the tmpfs arm clears G-T3. A
+      fidelity-preserving win on the RAM-floor workload is a bonus, not
+      required.</p>
+
+      <h4>Sub-pilot vs full sweep</h4>
+      <p>Sub-pilot first: one workload (<code>rmw_intensity</code>), 256 vs
+      1024&nbsp;MiB, SSD, keep_dumps=true, 3 replicates &mdash; a 6-cell smoke
+      test that the fidelity comparator works and the speedup is real before
+      spending the full matrix.</p>
+
+      <h4>Fidelity test fixtures</h4>
+      <p>Reuse a known-stationary steady cell as a positive control (baseline vs
+      baseline replicate must pass equivalence) and a deliberately RAM-starved
+      cell as a negative control (must <em>fail</em> equivalence), so the gate's
+      sensitivity is itself validated.</p>
+
+      <h4>Failure-mode handling</h4>
+      <p>If no arm passes G-T2, Plan 05's deliverable is the negative result
+      &mdash; &ldquo;<code>pmemsave</code> cannot be cheapened without changing
+      the signal at this RAM range&rdquo; &mdash; which itself justifies the
+      Tier-2 (dirty-bit) follow-up.</p>
+    </section>
+
+    <!-- 10 · stats -->
+    <section class="card" id="stats">
+      <div class="num">SECTION 10</div>
+      <h2>Statistical design</h2>
+
+      <h4>Test framework</h4>
+      <p>Paired before/after per workload: each fast arm is compared to its own
+      1024/SSD baseline at matched (workload, duration). Report the median
+      <code>pmemsave</code> reduction with a grouped bootstrap CI over
+      replicates, not a single ratio.</p>
+
+      <h4>Equivalence, not difference</h4>
+      <p>Fidelity (G-T2) uses a <strong>TOST</strong> (two one-sided tests)
+      equivalence test on APF mean and std against a pre-registered margin,
+      because the goal is to <em>fail to reject difference is small</em> &mdash;
+      a plain t-test that fails to reject the null would wrongly reward an
+      underpowered comparison.</p>
+
+      <h4>Confound control</h4>
+      <p><code>pmemsave</code> is non-stationary under host I/O contention
+      (Experiment 1 showed suspend/dump drift). Mitigations: quiescent host,
+      randomized arm order within a replicate, and recording
+      <code>backpressure_events</code> / <code>queue_max_depth</code> to flag
+      any contaminated cell.</p>
+
+      <h4>Sample size</h4>
+      <p>3 replicates per cell for the pilot, sufficient for a 2&times; effect
+      with low within-arm variance; escalate to leave-one-replicate-style CIs
+      only if the effect is marginal (&lt;1.5&times;).</p>
+    </section>
+
+    <!-- 11 · risks -->
+    <section class="card" id="risks">
+      <div class="num">SECTION 11</div>
+      <h2>Risks + mitigations</h2>
+      <table>
+        <thead><tr><th>risk</th><th>severity</th><th>mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>Reduced RAM changes APF (semantic drift)</td><td><span class="chip blocked">high</span></td><td>G-T2 fidelity gate is mandatory; negative control proves the gate bites</td></tr>
+          <tr><td>tmpfs exhausts host RAM</td><td><span class="chip next">med</span></td><td>tmpfs arm only with delete-as-you-go; cap live dumps; monitor host free RAM</td></tr>
+          <tr><td>Dirty-bit lever would break Paper A novelty</td><td><span class="chip next">med</span></td><td>scoped out to Plan 05b as a distinct method/claim</td></tr>
+          <tr><td>Host-contention confound on timing</td><td><span class="chip next">med</span></td><td>quiescent host, randomized arm order, backpressure logging</td></tr>
+          <tr><td>Working-set workloads cannot scale down</td><td><span class="chip info">low</span></td><td>scale working-set with RAM or exclude from low-RAM arm</td></tr>
+          <tr><td>Long captures tie up the host</td><td><span class="chip info">low</span></td><td>pilot subset first; run in background; this is the "leave it running" track</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 12 · pm -->
+    <section class="card" id="pm">
+      <div class="num">SECTION 12</div>
+      <h2>PM final recommendation</h2>
+
+      <div class="callout good">
+        <strong>GO on Tier-1.</strong> Run the Plan 05 pilot: guest-RAM
+        reduction and tmpfs target, fidelity-gated, with the
+        <code>keep_dumps=false</code> disk-cap arm folded in. It attacks the
+        project's single largest cost finding, feeds the analyzer's open G2/G3
+        degrees-of-freedom problem, and retires two round-2 open items (R-3 disk
+        cap, storage-ratio numerator) for almost no new code.
+      </div>
+      <div class="callout warn">
+        <strong>Defer Tier-2.</strong> Dirty-bit incremental, multifd, and
+        compression are real speedups but change either capture semantics or
+        Paper A's novelty claim. They get their own scoped proposal (Plan 05b)
+        and must not contaminate the Tier-1 fidelity story.
+      </div>
+
+      <h4>Per-agent vote</h4>
+      <div class="agent"><div class="agent-id">PM</div><div class="agent-take">Tier-1/Tier-2 split keeps the scope honest and the novelty intact. Ship the pilot.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">SA</div><div class="agent-take">Critical-path model is clear; tmpfs coupled to delete-as-you-go is the right safety constraint.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">EN</div><div class="agent-take"><code>--ram-mb</code> and the delete branch already exist; this is wiring plus one comparator. Low cost.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">ML</div><div class="agent-take">Agree on Tier-1, but I want dirty-bit on record as the real lever; partial because deferring it leaves the biggest speedup unmeasured.</div><div class="agent-vote partial">PARTIAL</div></div>
+      <div class="agent"><div class="agent-id">XD</div><div class="agent-take">Working-set coupling handled by the two-track rule; representative subset is sound.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">DE</div><div class="agent-take"><code>producer_stats</code> schema already carries every field I need; output artifacts mirror plan02-04.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">DS</div><div class="agent-take">TOST equivalence + grouped bootstrap is the correct framing; confound controls adequate.</div><div class="agent-vote go">GO</div></div>
+      <div class="agent"><div class="agent-id">EE</div><div class="agent-take">C9 is cleanly operational and the disk-cap arm finally validates R-3. Gates are testable.</div><div class="agent-vote go">GO</div></div>
+
+      <div class="callout info" style="margin-top:18px">
+        <strong>Tally: 6 deltas &middot; 7 GO / 1 PARTIAL.</strong> Proceed with
+        the Tier-1 pilot. The single PARTIAL (ML) is not an objection to Plan 05
+        but a reservation that the largest lever (dirty-bit) is deferred &mdash;
+        recorded as the motivation for Plan 05b.
+      </div>
+
+      <div class="nav-arrows">
+        <a href="plan04_segmenter_proposal.html"><span class="label">Previous</span><span class="title">&larr; Plan 04 · segmenter proposal</span></a>
+        <a href="papers/index.html"><span class="label">Portfolio</span><span class="title">Paper portfolio index &rarr;</span></a>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>
