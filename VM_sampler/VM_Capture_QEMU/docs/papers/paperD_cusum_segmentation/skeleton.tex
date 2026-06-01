@@ -38,8 +38,9 @@ Memory-Liveness Trajectories}
 \begin{itemize}
   \item Downstream of capture and tuning, an online monitor wants phase
         boundaries: when does a workload transition between regimes?
-  \item The trajectory is hostile to classical detectors: it is short (7--28
-        points), coarse (a single scalar per \SI{15}{}--\SI{21}{\second}), and
+  \item The trajectory is hostile to classical detectors: it is short (median 30
+        points, range 4--99), coarse (a single scalar per
+        $\approx$\SI{10}{\second} median, up to $\approx$\SI{24}{\second}), and
         heavy-tailed.
   \item \textbf{Two failure modes to avoid}: missing real transitions in phasic
         workloads, and hallucinating transitions in steady ones. A good
@@ -101,7 +102,13 @@ Memory-Liveness Trajectories}
   \item \textbf{Phasic, marker-less (fallback).} Score by plausibility: the
         predicted boundary count must fall in a plausible band
         ($1 \le n_{\text{pred}} \le 20$); workload passes if the plausible
-        fraction $\ge 0.70$.
+        fraction $\ge 0.70$. \emph{This is a weak gate}: on trajectories of
+        $\le 30$ windows a resetting CUSUM lands 1--20 boundaries for nearly any
+        non-degenerate input, so the band's acceptance probability under a
+        stationary null is close to 1. ``5 of 5 phasic pass'' therefore carries
+        little evidential weight; the band must be calibrated against a
+        permutation / stationary-null distribution and its false-accept rate
+        reported (see Limitations).
   \item \textbf{Regression guard (G4).} Placeholder in this version (always
         passes); wiring it to a legacy baseline is future work.
 \end{itemize}
@@ -136,7 +143,9 @@ Memory-Liveness Trajectories}
 \begin{itemize}
   \item Phasic acceptance rests on plausibility, not ground-truth F1; the
         strong claim (``we segment phases correctly'') is not yet supported and
-        is explicitly deferred.
+        is explicitly deferred. The plausibility band ($1 \le n \le 20$) is
+        moreover near-unfalsifiable at these trajectory lengths and needs a
+        null-calibrated false-accept rate before it counts as validation.
   \item Short trajectories give CUSUM little warmup; the robust scale is
         estimated from few windows.
   \item The steady failure (\texttt{pagefault}) and the placeholder regression

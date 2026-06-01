@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviewer Memo &mdash; Round 2 (Data-Provenance Audit) &middot; VM Memory-Signal Capture Thesis</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --ink:#e6edf3; --muted:#9da7b3;
+    --line:#2b3440; --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;
+    background:var(--panel);border-right:1px solid var(--line);padding:22px 16px}
+  nav h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  nav a{display:block;color:var(--ink);text-decoration:none;padding:5px 8px;border-radius:6px;font-size:13.5px}
+  nav a:hover{background:var(--panel2);color:var(--accent)}
+  main{padding:38px 48px;max-width:980px}
+  h1{font-size:30px;margin:0 0 6px;line-height:1.2}
+  .sub{color:var(--muted);margin:0 0 26px;font-size:15px}
+  h2.sec{font-size:21px;margin:38px 0 12px;padding-top:10px;border-top:1px solid var(--line)}
+  h3{font-size:16.5px;margin:22px 0 8px}
+  p{margin:10px 0}
+  code{font-family:var(--mono);background:var(--panel2);padding:1.5px 6px;border-radius:5px;font-size:12.8px}
+  a.link{color:var(--accent);text-decoration:none}
+  a.link:hover{text-decoration:underline}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.6px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted);font-weight:600}
+  tr:nth-child(even) td{background:#11161d}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.good{background:rgba(63,185,80,.15);color:var(--good);border:1px solid rgba(63,185,80,.4)}
+  .pill.warn{background:rgba(210,153,34,.15);color:var(--warn);border:1px solid rgba(210,153,34,.4)}
+  .pill.bad{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .pill.info{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid rgba(88,166,255,.4)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .note{border-left:3px solid var(--accent);background:var(--panel2);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0}
+  .neg{border-left-color:var(--warn)}
+  .rev{border-left:3px solid var(--bad);background:#181016;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .resp{border-left:3px solid var(--good);background:#0f1813;padding:12px 16px;border-radius:0 8px 8px 0;margin:8px 0 20px 22px}
+  .resp::before{content:"ACTION TAKEN";display:block;font-size:10.5px;letter-spacing:.1em;color:var(--good);margin-bottom:4px;font-weight:700}
+  .resp.open::before{content:"STILL OPEN";color:var(--warn)}
+  .resp.open{border-left-color:var(--warn);background:#181307}
+  .who{display:flex;gap:14px;align-items:flex-start;margin:10px 0}
+  .who .av{flex:0 0 46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;background:var(--panel2);border:1px solid var(--line);color:var(--accent)}
+  footer{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  ul{margin:8px 0 8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .cid{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .up{color:var(--bad);font-weight:600}
+  .ok{color:var(--good);font-weight:600}
+  td.num{font-family:var(--mono);font-size:12.6px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:14px">Reviewer Memo &mdash; Round 2</strong>
+  <h2>Sections</h2>
+  <a href="#frame">How to read this</a>
+  <a href="#method">What round 2 checked</a>
+  <a href="#table">Claim vs. on-disk data</a>
+  <a href="#findings">Findings &amp; actions</a>
+  <a href="#ledger">Corrected-this-round ledger</a>
+  <a href="#open">Open items (need a re-run)</a>
+  <a href="#survives">What did not change</a>
+  <h2>Portfolio</h2>
+  <a href="index.html">&larr; Portfolio index</a>
+  <a href="reviewer_memo.html">Reviewer memo (round 1)</a>
+  <a href="research_log.html">Research log</a>
+  <a href="synthesis_essay.tex">Synthesis essay</a>
+  <a href="paperA_apf_capture/skeleton.tex">Paper A</a>
+  <a href="paperB_gated_tuning/skeleton.tex">Paper B</a>
+  <a href="paperC_family_classification/skeleton.tex">Paper C</a>
+  <a href="paperD_cusum_segmentation/skeleton.tex">Paper D</a>
+</nav>
+<main>
+  <h1>Reviewer Memo &mdash; Round 2</h1>
+  <p class="sub">A data-provenance audit: every quantitative claim in the frozen portfolio re-derived from the
+  on-disk capture artifacts &middot; conducted read-only over <code>_v3_combined</code></p>
+
+  <section id="frame">
+    <h2 class="sec">How to read this</h2>
+    <p>Round&nbsp;1 (<a class="link" href="reviewer_memo.html">reviewer_memo.html</a>) was a <em>reasoning</em> review: two
+    reviewers read the draft and caught a leakage artifact that demolished the 100% classification headline. Round&nbsp;2
+    is a <em>provenance</em> review of a different kind. It does not argue about method; it re-computes every number the
+    portfolio quotes directly from the per-cell capture JSON and checks whether the figure printed in the paper is the
+    figure on disk.</p>
+    <p>It mostly is not. The capture-cost section of Paper&nbsp;A, the cadence paragraph of the essay, and the
+    capture-substrate table of the index all quoted the <em>minimum</em> of a wide, skewed distribution as if it were the
+    typical value, and described one architectural feature (delete-as-you-go) that the v3 run did not actually exercise.
+    The qualitative thesis survives intact &mdash; in one place it is now <em>stronger</em> &mdash; but the specific
+    numbers were wrong and have been corrected throughout. This memo records each correction against the measurement that
+    forced it.</p>
+    <p>Severity legend:
+      <span class="pill bad">blocking</span> a claimed contribution or result was not supported by the run &middot;
+      <span class="pill warn">major</span> a printed number was materially wrong &middot;
+      <span class="pill info">minor</span> rounding / tightening.
+    </p>
+    <div class="note"><strong>Provenance of this round.</strong> The audit was run with read-only tooling
+    (file reads and <code>jq</code> aggregations) scoped to the papers directory and <code>_v3_combined</code>. No
+    capture was re-run, no workload was launched, nothing was written outside this <code>docs/papers</code> tree. Every
+    number below is reproducible from <code>_v3_combined/cells/*.json</code> and <code>_v3_combined/plan03/sweep.csv</code>.</div>
+  </section>
+
+  <section id="method">
+    <h2 class="sec">What round 2 checked</h2>
+    <p>The v3 capture wrote one JSON record per cell with a <code>producer_stats</code> block (per-snapshot timing) and a
+    <code>run_meta</code> block (duration, workload, <code>keep_dumps</code>, exit status). Round&nbsp;2 aggregated those
+    blocks across the <strong>128 cells with <code>exit_status == "ok"</code></strong> (of 136 records / 132 nominal
+    cells) and compared the resulting distributions to the figures printed in the portfolio. The classification numbers
+    were re-checked against <code>plan03/sweep.csv</code> (the analyzer's per-cell feature table) and the leakage ablation
+    JSON.</p>
+    <p>The single recurring error: the portfolio reported <em>per-duration minima</em> &mdash; the fastest, shortest
+    cells &mdash; as representative. The capture cost is heavy-tailed and snapshot-dominated, so the minimum and the
+    median differ by an order of magnitude.</p>
+  </section>
+
+  <section id="table">
+    <h2 class="sec">Claim vs. on-disk data</h2>
+    <p>All "verified" columns are over the 128 <code>ok</code> cells unless noted. Where the portfolio printed a single
+    figure, the verified column gives <code>min&nbsp;/&nbsp;median&nbsp;/&nbsp;max</code>.</p>
+    <table>
+      <tr>
+        <th>Quantity</th><th>Portfolio said</th><th>On disk (128&nbsp;ok cells)</th><th>What the old figure was</th>
+      </tr>
+      <tr>
+        <td><code>pmemsave</code> per snapshot</td>
+        <td class="num">&asymp; 0.75 s</td>
+        <td class="num">0.76 / <strong>7.06</strong> / 21.57 s</td>
+        <td>the distribution <span class="up">minimum</span></td>
+      </tr>
+      <tr>
+        <td><code>pmemsave</code> share of cycle</td>
+        <td>implied negligible</td>
+        <td class="num"><strong>median 81%</strong> (0.808)</td>
+        <td>inverted &mdash; it <em>dominates</em></td>
+      </tr>
+      <tr>
+        <td>host snapshot cycle</td>
+        <td class="num">15&ndash;21 s "floor"</td>
+        <td class="num">2.02 / <strong>9.75</strong> / 23.57 s</td>
+        <td>a high-side band, and not a floor</td>
+      </tr>
+      <tr>
+        <td>snapshots per cell (120/300/600 s)</td>
+        <td class="num">7 / 20 / 28</td>
+        <td class="num">14 / 26 / 53 <span style="color:var(--muted)">(median)</span></td>
+        <td>near the per-duration <span class="up">minima</span></td>
+      </tr>
+      <tr>
+        <td>trajectory length (analysis points)</td>
+        <td class="num">7&ndash;28</td>
+        <td class="num">4 / <strong>30</strong> / 99</td>
+        <td>near the minima; tail reaches ~100</td>
+      </tr>
+      <tr>
+        <td>VM-pause fraction</td>
+        <td class="num">0.96&ndash;0.97</td>
+        <td class="num">0.74 / <strong>0.946</strong> / 0.978</td>
+        <td>a too-narrow high band</td>
+      </tr>
+      <tr>
+        <td>guest run interval (the 500 ms knob)</td>
+        <td>500 ms requested</td>
+        <td class="num">median <strong>0.52 s</strong> <span class="ok">&#10003;</span></td>
+        <td>correct &mdash; the knob did fire</td>
+      </tr>
+      <tr>
+        <td>suspend / resume per snapshot</td>
+        <td>negligible</td>
+        <td class="num">0.35 s / 0.05 s <span class="ok">&#10003;</span></td>
+        <td>correct &mdash; both negligible</td>
+      </tr>
+      <tr>
+        <td>transient disk (delete-as-you-go)</td>
+        <td class="num">2&ndash;3 GiB cap</td>
+        <td><code>keep_dumps=true</code> on <strong>125/128</strong></td>
+        <td>a design target, <span class="up">not exercised</span></td>
+      </tr>
+      <tr>
+        <td>storage reduction</td>
+        <td class="num">10<sup>6</sup>&times; (as measured)</td>
+        <td>projection vs. never-retained 5 TiB</td>
+        <td>measured numerator &times; projected denom.</td>
+      </tr>
+      <tr>
+        <td>analysis windows at (8,4)</td>
+        <td>implied adequate</td>
+        <td><strong>53/132 cells &le; 3 windows</strong> (14 = 0)</td>
+        <td>G3 SNR rests on &lt;3 DOF for 40% of cells</td>
+      </tr>
+      <tr>
+        <td><code>coverage_ratio</code></td>
+        <td>"leakage to audit"</td>
+        <td class="num">0.1333 / 0.200, zero variance</td>
+        <td>definitional &mdash; the label re-encoded</td>
+      </tr>
+      <tr>
+        <td>family residual (leakage-free)</td>
+        <td>0.644 "genuine signal"</td>
+        <td class="num">0.644 vs 0.542; p&asymp;0.12 @ n<sub>eff</sub>&asymp;33</td>
+        <td>not significant at the group level</td>
+      </tr>
+      <tr>
+        <td>phasic cepstral SNR floor</td>
+        <td class="num">4.79 dB</td>
+        <td class="num">4.78 dB (4.7847)</td>
+        <td>rounding</td>
+      </tr>
+    </table>
+  </section>
+
+  <section id="findings">
+    <h2 class="sec">Findings &amp; actions</h2>
+    <p>The audit was conducted by two reviewers reprising their round-1 lenses, now reading the data rather than the
+    prose.</p>
+    <div class="who">
+      <div class="av">A</div>
+      <div><strong>Reviewer&nbsp;A</strong> &mdash; systems / measurement. Re-derived the capture-cost distribution from
+      <code>producer_stats</code>.</div>
+    </div>
+    <div class="who">
+      <div class="av">B</div>
+      <div><strong>Reviewer&nbsp;B</strong> &mdash; ML / statistics. Re-checked the residual-signal significance and the
+      gate degrees-of-freedom.</div>
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-1</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The capture-cost numbers
+      are the distribution's minimum, quoted as if typical.</strong>
+      Every headline capture figure &mdash; <code>pmemsave</code> &asymp; 0.75&nbsp;s, "7/20/28" snapshots, a
+      "15&ndash;21&nbsp;s floor", "7&ndash;28-point" trajectories, pause "0.96&ndash;0.97" &mdash; is at or near the
+      fast/short end of a wide, right-skewed distribution. The medians are roughly an order of magnitude away:
+      <code>pmemsave</code> median 7.06&nbsp;s, snapshots 14/26/53, cycle median 9.75&nbsp;s (range 2&ndash;24),
+      trajectory median 30 (range 4&ndash;99).
+    </div>
+    <div class="resp">
+      Corrected in all five documents. Paper&nbsp;A's cost bullet is rewritten to lead with
+      "the cost is the snapshot, and it is variable" and quotes the medians with ranges; the essay's cadence paragraph
+      and the index's capture-substrate table now print median-and-range, with an explicit note that the old 7/20/28
+      and 15&ndash;21&nbsp;s figures were per-duration minima. README's honesty bullet says the same.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-2</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The per-snapshot cost
+      decomposition was inverted.</strong> The draft implied the ~14&ndash;20&nbsp;s of "missing" cycle time was
+      spread across the budget. In fact <code>pmemsave</code> alone is a median 81% of the cycle (median 7.06&nbsp;s),
+      with suspend (0.35&nbsp;s), resume (0.05&nbsp;s), and the asynchronous read-back off the critical path all
+      negligible. The earlier 0.75&nbsp;s figure made <code>pmemsave</code> look like the cheap part.
+    </div>
+    <div class="resp">
+      Corrected, and it <em>strengthens</em> the paper's central qualitative claim. "The snapshot primitive sets the
+      cadence, not the 500&nbsp;ms knob" is now a measurement, not an assertion: the guest idles its requested
+      0.52&nbsp;s while the host cycle, dominated by <code>pmemsave</code>, runs 2&ndash;24&nbsp;s. Paper&nbsp;A and the
+      essay now state the cost is <code>pmemsave</code>-dominated and frame the open question as "how to shrink
+      <code>pmemsave</code>," not "how often to sample." The required budget-decomposition figure (round-1
+      <span class="cid">A-2</span>) is now grounded by these medians.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-3</span> &nbsp;<span class="pill bad">blocking</span> &nbsp;<strong>Delete-as-you-go
+      (Paper&nbsp;A contribution C1) was not exercised in v3.</strong> The 2&ndash;3&nbsp;GiB transient-disk cap is the
+      headline of the streaming-capture contribution, but <code>run_meta.keep_dumps</code> is <code>true</code> on
+      125 of 128 <code>ok</code> cells. With <code>keep_dumps</code> set, the delete step is disabled: dumps were
+      retained and removed in a single end-of-cell sweep (cell notes show e.g. "removed 29 dumps" after a 28-snapshot
+      cell), so peak transient disk scaled with the trajectory rather than holding to the 2&ndash;3&nbsp;GiB design
+      target.
+    </div>
+    <div class="resp">
+      Retracted to a design target, per author decision. Paper&nbsp;A's abstract and evaluation, the essay, the index
+      table, and README now state that v3 ran with <code>keep_dumps</code> enabled, that the streaming
+      delete-as-you-go cap is an architectural target the campaign did not validate, and that confirming the cap
+      requires a delete-as-you-go re-run. The "B+3.1 streaming helper active" note is kept (the helper did run) but is
+      no longer presented as having bounded transient disk.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-4</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The 10<sup>6</sup>&times;
+      storage reduction is a projection, not a measurement.</strong> Re-confirms round-1 <span class="cid">A-1</span>
+      and adds the mechanism: with dumps never retained at campaign scale (and, per R-3, the delete path off), the
+      5&nbsp;TiB denominator is a projection of what the 2-D pipeline <em>would</em> have cost, divided into a
+      measured 4.7&nbsp;MiB trajectory numerator from a differently-sized (90-cell) framing.
+    </div>
+    <div class="resp">
+      Corrected. Every instance of the ratio is now labelled an order-of-magnitude <em>estimate / projection</em> with
+      the 5&nbsp;TiB called "never fully retained," and the index footnotes the 90-vs-132 campaign-size reconciliation
+      as a pre-submission task.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-5</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The leakage-free residual
+      (0.644 vs 0.542) was presented as a genuine signal without a significance test, and it does not survive one.</strong>
+      The four replicates per workload-duration are not independent, leaving &asymp;33 independent groups. A one-sided
+      proportion test gives <code>p&asymp;0.12</code> at <code>n_eff&asymp;33</code> (vs. the <code>p&asymp;0.013</code>
+      one would get by wrongly treating all 118 cells as independent). The gap is not significant at the group level.
+    </div>
+    <div class="resp">
+      Downgraded everywhere. Paper&nbsp;C, the essay, the index KPI, and README now read "at most a weak family hint,
+      statistically indistinguishable from baseline at the replicate-group level," and Paper&nbsp;C's Limitations call
+      for a paired McNemar test and a grouped-bootstrap CI before any "genuine signal" claim. <em>No</em> significance
+      was claimed beyond what the test supports.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-6</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong><code>coverage_ratio</code>
+      is not "leakage to audit" &mdash; it is the label re-encoded.</strong> It takes <em>exactly</em> 0.1333 for every
+      steady cell and 0.200 for every phasic cell, with zero within-family variance (verified in
+      <code>plan03/sweep.csv</code>). Its 1.000 accuracy is definitional, not an empirical leak to be measured.
+    </div>
+    <div class="resp">
+      Sharpened in Paper&nbsp;C and the index: <code>coverage_ratio</code> is described as a constant injective function
+      of the family label, so reproducing the 100% from it alone is tautological. The framing now separates this
+      definitional feature from the two genuinely-leaky family-conditional features (<code>cv_workingset</code>,
+      <code>f1_phase</code>).
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-7</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The G3 cepstral-SNR gate
+      rests on too few analysis windows for much of the dataset.</strong> At window/hop (8,4), 53 of 132 cells yield
+      &le;3 analysis windows and 14 yield none. The defining-metric SNR &mdash; the gate that admits the phasic family
+      &mdash; is estimated on 1&ndash;3 windows for ~40% of cells, where it is fragile.
+    </div>
+    <div class="resp">
+      Documented. Paper&nbsp;B's Limitations gain a bullet stating the DOF problem and recommending G3 be recomputed on
+      a &ge;8-window subset (or the SNR gate dropped where DOF is too low); the index and essay both note the SNR
+      "rests on one to three windows" on some cells. This is flagged as a required re-analysis, not silently corrected.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-8</span> &nbsp;<span class="pill warn">major</span> &nbsp;<strong>The CUSUM phasic
+      plausibility band is near-unfalsifiable.</strong> "5 of 5 phasic workloads pass" rests on the predicted boundary
+      count landing in <code>1 &le; n &le; 20</code>. On trajectories of &le;30 windows a resetting CUSUM lands in that
+      band for almost any non-degenerate input, so the band's acceptance probability under a stationary null is close
+      to 1. The result carries little evidential weight as stated.
+    </div>
+    <div class="resp">
+      Documented in Paper&nbsp;D's Acceptance and Limitations sections: the band is called a weak gate, "5 of 5 pass" is
+      explicitly down-weighted, and the fix &mdash; calibrate the band against a permutation / stationary-null
+      distribution and report its false-accept rate &mdash; is named as required before this counts as validation.
+    </div>
+
+    <div class="rev">
+      <span class="cid">R-9</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>The phasic SNR floor was
+      printed as 4.79&nbsp;dB.</strong> The on-disk minimum is 4.7847&nbsp;dB, which rounds to 4.78.
+    </div>
+    <div class="resp open">
+      Corrected to 4.78 in Paper&nbsp;C, the essay, and the index. <em>Caveat:</em> this value was confirmed by the
+      audit agents reading <code>recommendation.json</code> but not independently re-extracted in the final pass
+      (a structural grep came back empty); verify the 4.78 floor against the analyzer output before final submission.
+    </div>
+  </section>
+
+  <section id="ledger">
+    <h2 class="sec">Corrected-this-round ledger</h2>
+    <table>
+      <tr><th>ID</th><th>Severity</th><th>Finding (short)</th><th>Correction applied</th><th>Files</th></tr>
+      <tr><td>R-1</td><td><span class="pill warn">major</span></td><td>Cost figures were distribution minima</td><td>Median + range printed everywhere; minima labelled as such</td><td>paperA &middot; essay &middot; index &middot; README</td></tr>
+      <tr><td>R-2</td><td><span class="pill warn">major</span></td><td>Cost decomposition inverted</td><td>pmemsave-dominated (median 7 s, 81%); thesis now measured</td><td>paperA &middot; essay &middot; index</td></tr>
+      <tr><td>R-3</td><td><span class="pill bad">blocking</span></td><td>delete-as-you-go (C1) not exercised</td><td>Retracted to design target; keep_dumps=true stated</td><td>paperA &middot; essay &middot; index &middot; README</td></tr>
+      <tr><td>R-4</td><td><span class="pill warn">major</span></td><td>10<sup>6</sup>&times; mixes measured + projected</td><td>Labelled projection/estimate; 90-vs-132 flagged</td><td>paperA &middot; essay &middot; index</td></tr>
+      <tr><td>R-5</td><td><span class="pill warn">major</span></td><td>0.644 residual not significance-tested</td><td>Downgraded to "not significant at group level" (p&asymp;0.12)</td><td>paperC &middot; essay &middot; index &middot; README</td></tr>
+      <tr><td>R-6</td><td><span class="pill info">minor</span></td><td>coverage_ratio is definitional, not "leakage"</td><td>Reframed as label re-encoded (zero within-family variance)</td><td>paperC &middot; index</td></tr>
+      <tr><td>R-7</td><td><span class="pill warn">major</span></td><td>G3 SNR on &le;3 windows for 53/132 cells</td><td>DOF caveat added; G3 re-analysis required</td><td>paperB &middot; essay &middot; index</td></tr>
+      <tr><td>R-8</td><td><span class="pill warn">major</span></td><td>CUSUM band near-unfalsifiable</td><td>Weak-gate caveat; null calibration required</td><td>paperD</td></tr>
+      <tr><td>R-9</td><td><span class="pill info">minor</span></td><td>SNR floor 4.79 &rarr; 4.78</td><td>Rounded to 4.78 (re-verify before submission)</td><td>paperC &middot; essay &middot; index</td></tr>
+    </table>
+  </section>
+
+  <section id="open">
+    <h2 class="sec">Open items (need a capture re-run or a test, not an edit)</h2>
+    <p>These cannot be fixed by rewording. Each needs the author to run something. They are the round-2 backlog and
+    should be tracked alongside the surviving round-1 items.</p>
+    <ul>
+      <li><strong>Delete-as-you-go re-run.</strong> Re-capture at least one long cell with <code>keep_dumps=false</code>
+      and record peak transient disk, to validate (or correct) the 2&ndash;3&nbsp;GiB streaming cap that R-3 retracted.
+      This also supplies the measured numerator the storage-ratio claim (R-4) currently lacks.</li>
+      <li><strong>Proper significance test for the family residual.</strong> Run a paired McNemar test and a
+      grouped-bootstrap CI on the 0.644-vs-0.542 comparison at the replicate-group level (R-5) before any "genuine
+      signal" language is used.</li>
+      <li><strong>Recompute G3 on adequate DOF.</strong> Restrict the cepstral-SNR gate to cells with &ge;8 analysis
+      windows, or drop SNR where DOF is too low, then re-report the phasic gate outcomes (R-7).</li>
+      <li><strong>Calibrate the CUSUM plausibility band.</strong> Estimate the band's false-accept rate against a
+      permutation / stationary-null distribution; report it next to "5 of 5 phasic pass" (R-8).</li>
+      <li><strong>Leave-one-workload-out CV with CIs.</strong> Carried unrun from round-1 <span class="cid">B-4</span>:
+      replace leave-one-replicate-out with leave-one-workload-out, seeded repeats, reported confidence intervals.</li>
+      <li><strong>Reconcile campaign size.</strong> All storage and compute magnitudes are quoted against a 90-cell
+      framing while the dataset is 132 cells; pick one and restate (round-1 <span class="cid">A-1</span>, reaffirmed).</li>
+      <li><strong>refs.bib is mostly placeholders.</strong> 8 of 11 entries are <code>TODO</code> stubs needing real
+      citations. Two of them (<code>TODO_ransomware_io_detection</code>, <code>TODO_ransomware_survey</code>) exist only
+      to support the security angle that round-1 <span class="cid">B-3</span> removed &mdash; drop or repurpose them.</li>
+      <li><strong>Re-verify the SNR floor.</strong> Independently re-extract the 4.78&nbsp;dB phasic SNR minimum from the
+      analyzer output (R-9); this round confirmed it only via the audit agents' read.</li>
+    </ul>
+  </section>
+
+  <section id="survives">
+    <h2 class="sec">What did not change</h2>
+    <p>The audit did not touch the load-bearing conclusions, because they were already correct or are now better
+    supported:</p>
+    <ul>
+      <li><strong>The central thesis holds and is stronger.</strong> "A deliberately impoverished single scalar carries
+      only a coarse, weak hint of workload family and nothing finer." R-5 makes the family hint weaker, not stronger,
+      which the thesis already anticipated.</li>
+      <li><strong>The cadence finding is now a measurement.</strong> R-2 turns "the snapshot primitive dominates" from an
+      assertion into a measured 81%-of-cycle fact; the 500&nbsp;ms knob is confirmed inert because the guest idled its
+      requested 0.52&nbsp;s while the cycle ran an order of magnitude longer.</li>
+      <li><strong>Round-1's leakage finding stands.</strong> The 100% classification headline is still an artifact; R-6
+      only sharpens <em>why</em> (<code>coverage_ratio</code> is the label, not a leak to be measured).</li>
+      <li><strong>Paper&nbsp;D's observability finding stands.</strong> Workload markers still do not survive into APF at
+      this cadence; R-8 weakens the plausibility fallback but not the central negative result.</li>
+    </ul>
+    <div class="note neg"><strong>Net.</strong> Nine numeric corrections, one retracted contribution
+    (delete-as-you-go &rarr; design target), eight open items requiring a re-run. The thesis is unchanged; the numbers
+    now match the disk.</div>
+  </section>
+
+  <footer>
+    Round-2 audit over the v3 capture (<code>_v3_combined</code>: 132 nominal cells, 128 with
+    <code>exit_status&nbsp;==&nbsp;"ok"</code>, 11 workloads, durations {120,&nbsp;300,&nbsp;600}s, 4 replicates, single
+    500&nbsp;ms requested interval). All figures reproducible from <code>cells/*.json</code> (<code>producer_stats</code>,
+    <code>run_meta</code>) and <code>plan03/sweep.csv</code>. See the
+    <a class="link" href="reviewer_memo.html">round-1 memo</a> for the leakage review that preceded this, and the
+    <a class="link" href="index.html">portfolio index</a> for the corrected summary tables.
+  </footer>
+</main>
+</div>
+</body>
+</html>

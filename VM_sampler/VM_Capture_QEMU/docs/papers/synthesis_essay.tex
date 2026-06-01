@@ -46,8 +46,9 @@ and a Hamming similarity for every 4\,KiB page between consecutive full-memory
 snapshots. For a 1\,GiB guest that is roughly $262{,}144$ pages per snapshot and
 a two-dimensional matrix of shape $[\,T \text{ snapshots} \times N \text{ pages}\,]$.
 The fidelity is real, and so is the bill: retaining the dumps needed to recompute
-that matrix costs on the order of 60\,GiB for a single long cell and approaches
-5\,TiB for a 90-cell campaign --- more than the host could hold.
+that matrix costs on the order of 60\,GiB for a single long cell and a projected
+$\approx$5\,TiB for a 90-cell campaign (never fully retained) --- more than the
+host could hold.
 
 The Active Page Fraction is the project's answer to that bill. It is one number
 per snapshot pair: the fraction of guest pages whose bytes change at all,
@@ -56,22 +57,34 @@ per snapshot pair: the fraction of guest pages whose bytes change at all,
 \]
 A single-bit flip and a full-page rewrite count the same; that coarsening is the
 whole point. The streaming capture architecture computes each pair's APF in an
-asynchronous helper, appends it to a trajectory, and deletes the older dump, so
-the persistent footprint of a 90-cell campaign is about 4.7\,MiB --- a reduction
-on the order of a million-fold --- while transient disk never exceeds two or
-three gigabytes. The compute drops in step: a memory-mapped byte difference takes
-300--500\,ms against 1.5--3\,s for the per-page Rust kernel.
+asynchronous helper, appends it to a trajectory, and---in its delete-as-you-go
+mode---removes the older dump, so the persistent footprint of a 90-cell campaign
+is about 4.7\,MiB, an estimated reduction of order a million-fold (a projection
+against the never-retained 2-D campaign). One honest caveat belongs here: the v3
+run was captured with \texttt{keep\_dumps} enabled, which disables the delete
+step, so dumps were retained until a single end-of-cell sweep and transient disk
+scaled with the trajectory rather than holding to the two-to-three-gigabyte
+design target; validating that cap needs a delete-as-you-go re-run. The compute
+drops in step: a memory-mapped byte difference takes 300--500\,ms against
+1.5--3\,s for the per-page Rust kernel.
 
 Capturing the v3 dataset taught us something we did not design for, and it is the
-first honest finding. We requested a 500\,ms sampling interval, but the measured
-cadence was 15--21 seconds per snapshot: a 120-second cell yields 7 snapshots, a
-300-second cell yields 20, and a 600-second cell yields 28. The estimated
-VM-pause fraction is 0.96--0.97, and \texttt{pmemsave} itself runs in about
-0.75\,s, so the cadence is set almost entirely by the suspend/snapshot/resume
-cycle and the helper's read-back, not by the interval we asked for. The practical
-consequence reframes the entire ``how often should we sample'' question: below
-this cadence floor, the sampling interval is inert. The right question is not
-how often to sample but how cheaply one can snapshot.
+first honest finding. We requested a 500\,ms sampling interval, and the guest did
+idle for about that long ($\approx$0.52\,s) between snapshots --- but the host
+snapshot cycle dwarfs it and is highly variable: a median of about 9.75\,s per
+snapshot, ranging from 2 to 24\,s across the 128 usable cells. The per-duration
+snapshot counts are spread to match --- 120-second cells a median of 14 (range
+5--43), 300-second cells 26 (12--148), 600-second cells 53 (28--100) --- so the
+tidy ``7/20/28'' we first quoted are near the per-duration minima, not typical
+values. The cost is dominated by \texttt{pmemsave} itself, a median of 7.06\,s
+and about 81\% of the cycle, with suspend ($\approx$0.35\,s) and resume
+($\approx$0.05\,s) negligible and the asynchronous read-back off the critical
+path; the VM-pause fraction is correspondingly high but not uniform, a median of
+0.946 (as low as 0.74). The practical consequence reframes the entire ``how often
+should we sample'' question: because the snapshot cycle dwarfs the 500\,ms knob,
+tuning the interval below it is inert. The right question is not how often to
+sample but how cheaply one can snapshot --- that is, how to shrink
+\texttt{pmemsave}.
 
 \section{Tuning as certification, not maximization}
 
@@ -92,7 +105,9 @@ The hash-table workload passes all five gates but is held back by the regression
 guard, a near-miss rather than a metric failure. And then the bursty
 ``phasic'' family produces the second honest finding. Every one of those five
 workloads \emph{passes} the defining-metric gate --- their cepstral SNR ranges
-from 4.79 to 6.35\,dB, all above the 4.5\,dB bar --- yet every one \emph{fails}
+from 4.78 to 6.35\,dB, all above the 4.5\,dB bar (though on some cells that SNR
+rests on only one to three analysis windows, where the estimate is fragile) ---
+yet every one \emph{fails}
 the spectral-coverage gate, with coverage near 0.20 against a threshold of 2.0.
 The rhythm is unmistakably there; we simply did not capture enough periods of it
 at the achievable cadence. A single maximized score would have hidden this. The
@@ -121,8 +136,11 @@ rediscovering a labelling rule the pipeline had baked into the features, not a
 property of memory behavior. When we remove the three family-conditional
 features (\texttt{coverage\_ratio}, the steady-only \texttt{cv\_workingset}, and
 the phasic-only \texttt{f1\_phase}), accuracy falls to 0.644 against a 0.542
-majority baseline. The genuine, leakage-free family signal in a coarse scalar is
-real but weak. We also retract the first draft's stated mechanism: cepstral SNR
+majority baseline. That residual gap is weak and, to be candid, not established:
+with only about 33 independent workload-duration groups (the four replicates are
+not independent), it does not reach significance, so the honest reading is ``at
+most a weak hint, indistinguishable from baseline at the group level'' rather
+than a demonstrated signal. We also retract the first draft's stated mechanism: cepstral SNR
 does \emph{not} separate the families (alone it scores 0.508, chance), because
 steady SNR spans 2.6--8.0\,dB and overlaps the phasic range --- the steady
 hash-table workload in fact has the highest SNR of all.
@@ -183,8 +201,9 @@ quarter-million --- carries only a coarse, weak hint of workload family and
 nothing finer (instance identity, marker-aligned phase boundaries), and even the
 family hint must be measured carefully to avoid mistaking feature construction
 for behavior. The four honest findings are not caveats to be managed; they are
-the shape of that boundary. The cadence floor tells us the cost model, not the
-interval, governs temporal resolution. The coverage failure tells us the phasic
+the shape of that boundary. The snapshot-dominated cadence tells us the cost
+model, not the interval, governs temporal resolution. The coverage failure tells
+us the phasic
 rhythm is real but badly under-sampled. The leakage audit tells us that
 per-family ``defining metrics'' must never feed a classifier meant to prove
 discrimination. The marker non-observability tells us that ground-truth phase

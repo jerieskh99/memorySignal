@@ -40,8 +40,10 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         but we show this is an artifact: a single feature that the analyzer
         computes \emph{per family} reproduces it exactly.
   \item Under a leakage-controlled evaluation -- removing every
-        family-conditional feature -- the genuine family signal is weak: 0.644
-        accuracy against a 0.542 majority baseline.
+        family-conditional feature -- the residual family signal is weak and not
+        shown to beat chance: 0.644 accuracy against a 0.542 majority baseline,
+        a gap that is not significant once the four non-independent replicates
+        per workload-duration are accounted for.
   \item The contribution is therefore a cautionary, quantified result about
         feature-construction leakage in memory-signal classification, plus an
         honest measurement of the residual signal.
@@ -92,8 +94,11 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
       \item \texttt{f1\_phase} is computed \emph{only} for phasic cells (NaN for
             every steady cell) -- complementary missingness that encodes the
             label;
-      \item \texttt{coverage\_ratio} is assigned a constant per family: 0.133 to
-            every steady cell, 0.200 to every phasic cell.
+      \item \texttt{coverage\_ratio} is a constant injective function of the
+            family label: \emph{exactly} 0.1333 for every steady cell and 0.200
+            for every phasic cell, zero within-family variance (verified in
+            \texttt{plan03/sweep.csv}). It is the label re-encoded as a feature,
+            so its 1.000 accuracy is definitional, not ``leakage to audit.''
     \end{itemize}
   \item \textbf{Protocol.} Median imputation $\to$ standardization $\to$
         classifier; GroupKFold with the replicate index as group
@@ -126,13 +131,21 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         analyzer sets to 0.133 (steady) or 0.200 (phasic) by construction --
         reproduces the entire 100\%. The reported ``perfect family separation''
         is feature-construction leakage.
-  \item \textbf{Residual (leakage-free) signal is weak.} With the three
-        family-conditional features removed, accuracy is 0.644 -- barely above
-        the 0.542 majority baseline. A coarse scalar carries some, but little,
-        genuine family information.
+  \item \textbf{Residual (leakage-free) signal is weak -- and not shown to beat
+        baseline.} With the three family-conditional features removed, accuracy
+        is 0.644 against the 0.542 majority baseline (76 vs.\ 64 of 118 cells).
+        No significance test is reported, and the gap does not survive the
+        non-independence of the design: the four replicates per
+        workload-duration are not independent, leaving $\approx 33$ independent
+        groups, at which a one-sided proportion test gives $p \approx 0.12$
+        (vs.\ $p \approx 0.013$ if the 118 cells were independent). The honest
+        statement: a coarse scalar carries \emph{at most} a weak family hint,
+        statistically indistinguishable from baseline at the replicate-group
+        level. A paired test (e.g.\ McNemar) and a grouped-bootstrap CI are
+        required before any ``genuine signal'' claim.
   \item \textbf{Cepstral SNR does not separate families.} Alone it scores 0.508
         (chance). Steady median SNR spans 2.65--7.99\,dB and overlaps the phasic
-        range 4.79--6.35\,dB; the steady hash-table workload has the highest SNR
+        range 4.78--6.35\,dB; the steady hash-table workload has the highest SNR
         of all. The first draft's ``phasic high / steady low SNR'' mechanism is
         retracted.
   \item \textbf{Confidence.} Even taken at face value, 118/118 has a
@@ -165,15 +178,23 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         intervals and repeated, seeded grouped CV. Prefer leave-one-\emph{workload}-out
         to leave-one-replicate-out, since replicate grouping does not break
         duration/capture-geometry structure.
+  \item \textbf{Imputation is a second family-conditional channel.} Because
+        \texttt{cv\_workingset} and \texttt{f1\_phase} are missing by family
+        (complementary NaN), median imputation injects a family-correlated
+        constant and the missingness pattern itself standardizes differently per
+        family. The family-agnostic run must \emph{drop} these columns entirely
+        rather than impute-then-use; report a missingness-indicator ablation to
+        confirm the channel is closed.
   \item \textbf{Scope.} Instance identity is not recoverable from APF; a per-page
         sub-signature (the 2-D pipeline of Paper A) would be required.
 \end{itemize}
 
 \section{Conclusion}
 \begin{itemize}
-  \item A single-scalar liveness trajectory carries a \emph{weak} genuine family
-        signal (0.644 vs.\ 0.542 baseline) and no usable instance signal; the
-        apparent perfect separation is an artifact of family-conditional feature
+  \item A single-scalar liveness trajectory carries \emph{at most} a weak family
+        hint (leakage-free 0.644 vs.\ a 0.542 baseline, a gap not significant at
+        the replicate-group level) and no usable instance signal; the apparent
+        perfect separation is an artifact of family-conditional feature
         computation.
   \item The transferable lesson is methodological: when a pipeline derives
         per-class ``defining metrics,'' those metrics must be kept out of any
