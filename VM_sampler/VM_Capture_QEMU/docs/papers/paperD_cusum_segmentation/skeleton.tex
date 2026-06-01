@@ -102,13 +102,21 @@ Memory-Liveness Trajectories}
   \item \textbf{Phasic, marker-less (fallback).} Score by plausibility: the
         predicted boundary count must fall in a plausible band
         ($1 \le n_{\text{pred}} \le 20$); workload passes if the plausible
-        fraction $\ge 0.70$. \emph{This is a weak gate}: on trajectories of
-        $\le 30$ windows a resetting CUSUM lands 1--20 boundaries for nearly any
-        non-degenerate input, so the band's acceptance probability under a
-        stationary null is close to 1. ``5 of 5 phasic pass'' therefore carries
-        little evidential weight; the band must be calibrated against a
-        permutation / stationary-null distribution and its false-accept rate
-        reported (see Limitations).
+        fraction $\ge 0.70$. \emph{This is a weak gate, now quantified as such.}
+        On trajectories of $\le 30$ windows a resetting CUSUM lands 1--20
+        boundaries for nearly any non-degenerate input, so the band's acceptance
+        probability under a stationary null is close to 1. A null calibration
+        (\texttt{null\_calibration.py}, 1000 surrogates) confirms it: against the
+        phasic detector ($k{=}0.1$, $h{=}0.5$; see family specialization), a
+        temporal shuffle of each real phasic trajectory and an IID-Gaussian
+        surrogate matched to its mean and variance \emph{both} pass at 0.85 --
+        exactly the real-phasic pass rate (gap 0.000) -- and steady trajectories
+        pushed through the same phasic detector pass at 0.806. Acceptance is
+        governed entirely by $P(n_{\text{pred}}{=}0)=0.15$ (i.e.\ trajectory
+        length), not by phase structure, and the upper bound never binds
+        (max $n_{\text{pred}}=10$ across all phasic cells). ``5 of 5 phasic
+        pass'' therefore carries no phase-discriminative weight: the band is a
+        liveness/length screen, not a phase detector.
   \item \textbf{Regression guard (G4).} Placeholder in this version (always
         passes); wiring it to a legacy baseline is future work.
 \end{itemize}
@@ -142,10 +150,13 @@ Memory-Liveness Trajectories}
 \section{Limitations}
 \begin{itemize}
   \item Phasic acceptance rests on plausibility, not ground-truth F1; the
-        strong claim (``we segment phases correctly'') is not yet supported and
-        is explicitly deferred. The plausibility band ($1 \le n \le 20$) is
-        moreover near-unfalsifiable at these trajectory lengths and needs a
-        null-calibrated false-accept rate before it counts as validation.
+        strong claim (``we segment phases correctly'') is not supported and is
+        explicitly deferred. The plausibility band ($1 \le n \le 20$) is
+        near-unfalsifiable at these trajectory lengths -- now confirmed by null
+        calibration: temporal-shuffle and IID-Gaussian surrogates pass at 0.85,
+        identical to the 0.85 real-phasic rate (gap 0.000), so the band's
+        false-accept rate equals its true-accept rate and it certifies liveness,
+        not phase structure (\texttt{null\_calibration.py}).
   \item Short trajectories give CUSUM little warmup; the robust scale is
         estimated from few windows.
   \item The steady failure (\texttt{pagefault}) and the placeholder regression

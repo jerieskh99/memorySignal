@@ -1,0 +1,1112 @@
+{
+  "schema": "paperD.cusum_null_calibration.v1",
+  "numpy_version": "2.2.6",
+  "data_dir": "/Users/jeries/Desktop/projects/thesis/memorySignal/mem_sig/.claude/worktrees/clever-pasteur-a388b5/_v3_combined",
+  "detector": {
+    "name": "cusum",
+    "min_separation": 2,
+    "steady": {
+      "k": 2.0,
+      "h": 4.0
+    },
+    "phasic": {
+      "k": 0.1,
+      "h": 0.5
+    },
+    "phasic_regime_window_hop": [
+      8,
+      4
+    ],
+    "note": "family-aware: plan04_run.py applies k_phasic=0.1, h_phasic=0.5 to phasic cells (D-87, 'to surface sustained activity into the plausibility band'); steady cells use k=2.0, h=4.0. The result JSON records only the steady pair."
+  },
+  "plausibility_band": {
+    "min": 1,
+    "max": 20,
+    "note": "phasic G3 passes iff n_boundaries in [1,20]; short trajectories never reach 20, so the gate is effectively n_boundaries >= 1."
+  },
+  "n_phasic_cells": 60,
+  "n_steady_cells": 72,
+  "reproduction_check": {
+    "note": "real_phasic.per_workload.plausibility_pass_fraction matches plan04_segmenter_results.json per_workload (batched 0.8333, selective 0.75, seq 0.75, slowburn 0.9167, scanner 1.0).",
+    "phasic_per_workload": {
+      "sandbox_ransom_batched": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.8333,
+        "n_pred_median": 3.5
+      },
+      "sandbox_ransom_selective": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.75,
+        "n_pred_median": 2.0
+      },
+      "sandbox_ransom_seq": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.75,
+        "n_pred_median": 2.0
+      },
+      "sandbox_ransom_slowburn": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.9167,
+        "n_pred_median": 3.0
+      },
+      "sandbox_scanner_metadata": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 1.0,
+        "n_pred_median": 3.0
+      }
+    },
+    "steady_per_workload_own_WH": {
+      "app_hashtable_intensive_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.1667,
+        "n_pred_median": 0.0
+      },
+      "mem_mmap_traversal_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.3333,
+        "n_pred_median": 0.0
+      },
+      "mem_pagefault_density_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.6667,
+        "n_pred_median": 1.0
+      },
+      "mem_rmw_intensity_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.1667,
+        "n_pred_median": 0.0
+      },
+      "mem_workingset_sweep_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.25,
+        "n_pred_median": 0.0
+      },
+      "mem_writemag_sweep_v2": {
+        "n_cells": 12,
+        "plausibility_pass_fraction": 0.5,
+        "n_pred_median": 0.5
+      }
+    }
+  },
+  "real": {
+    "phasic": {
+      "n": 60,
+      "band_pass_fraction": 0.85,
+      "p_n_eq_zero": 0.15,
+      "p_n_ge_1": 0.85,
+      "p_n_gt_20": 0.0,
+      "n_pred_min": 0,
+      "n_pred_median": 3.0,
+      "n_pred_mean": 2.85,
+      "n_pred_max": 10,
+      "per_workload": {
+        "sandbox_ransom_batched": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.8333,
+          "n_pred_median": 3.5
+        },
+        "sandbox_ransom_selective": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.75,
+          "n_pred_median": 2.0
+        },
+        "sandbox_ransom_seq": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.75,
+          "n_pred_median": 2.0
+        },
+        "sandbox_ransom_slowburn": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.9167,
+          "n_pred_median": 3.0
+        },
+        "sandbox_scanner_metadata": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 1.0,
+          "n_pred_median": 3.0
+        }
+      }
+    },
+    "steady_own_WH": {
+      "n": 72,
+      "band_pass_fraction": 0.3472,
+      "p_n_eq_zero": 0.6528,
+      "p_n_ge_1": 0.3472,
+      "p_n_gt_20": 0.0,
+      "n_pred_min": 0,
+      "n_pred_median": 0.0,
+      "n_pred_mean": 0.5833,
+      "n_pred_max": 4,
+      "per_workload": {
+        "app_hashtable_intensive_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.1667,
+          "n_pred_median": 0.0
+        },
+        "mem_mmap_traversal_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.3333,
+          "n_pred_median": 0.0
+        },
+        "mem_pagefault_density_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.6667,
+          "n_pred_median": 1.0
+        },
+        "mem_rmw_intensity_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.1667,
+          "n_pred_median": 0.0
+        },
+        "mem_workingset_sweep_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.25,
+          "n_pred_median": 0.0
+        },
+        "mem_writemag_sweep_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.5,
+          "n_pred_median": 0.5
+        }
+      }
+    },
+    "steady_through_phasic_gate": {
+      "n": 72,
+      "band_pass_fraction": 0.8056,
+      "p_n_eq_zero": 0.1944,
+      "p_n_ge_1": 0.8056,
+      "p_n_gt_20": 0.0,
+      "n_pred_min": 0,
+      "n_pred_median": 3.0,
+      "n_pred_mean": 2.9444,
+      "n_pred_max": 9,
+      "per_workload": {
+        "app_hashtable_intensive_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.75,
+          "n_pred_median": 2.0
+        },
+        "mem_mmap_traversal_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.9167,
+          "n_pred_median": 2.5
+        },
+        "mem_pagefault_density_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.8333,
+          "n_pred_median": 3.0
+        },
+        "mem_rmw_intensity_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.8333,
+          "n_pred_median": 4.0
+        },
+        "mem_workingset_sweep_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.75,
+          "n_pred_median": 1.5
+        },
+        "mem_writemag_sweep_v2": {
+          "n_cells": 12,
+          "plausibility_pass_fraction": 0.75,
+          "n_pred_median": 3.0
+        }
+      }
+    }
+  },
+  "nulls": {
+    "A_steady_as_null": {
+      "description": "real steady-workload trajectories scored by the phasic detector (k=0.1, h=0.5, (8,4)); pass iff n_boundaries in [1,20]",
+      "band_pass_fraction": 0.8056,
+      "p_n_eq_zero": 0.1944,
+      "n_pred_median": 3.0
+    },
+    "B_temporal_shuffle": {
+      "n_cells": 60,
+      "n_surrogates_per_cell": 1000,
+      "detector": {
+        "window": 8,
+        "hop": 4,
+        "k": 0.1,
+        "h": 0.5
+      },
+      "pooled_band_pass_fraction": 0.85,
+      "pooled_p_n_eq_zero": 0.15,
+      "n_pred_median": 2.0,
+      "n_pred_mean": 2.7791,
+      "mean_surrogate_pass_among_real_passing_cells": 1.0,
+      "per_cell": [
+        {
+          "cell_id": "c933f265b72c",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "eddc7342cf31",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "894ad1b874ee",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5a4504b81972",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "7be0b19b1574",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e2d735f7bdc2",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "6d1345b4a1eb",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "8f7ba89d62fc",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e4a85b5d0d99",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "0bb4ae88d54a",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2292bfc5dd4c",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "4409d93d153d",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "eb7003cbfd22",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "78863a653d2e",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2f62b86c8bc1",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "a1ea1335c44c",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d0bc705f2cce",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "bcc9ff30d38f",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d84c750f0590",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "bc97d391fbfa",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5f804715ffb9",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "95d930880502",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "b05ff697d3e8",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "05a20692a025",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "29d1a681c974",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5b75f80b2ceb",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "0729046a8e79",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "228146a9be79",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "7e90c7d37fc5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e0ab2d3b39ab",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e413d66b88e6",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "c98321915f16",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "f27f8d4d8b1d",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "9bb3d7549fd8",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2ad7a3043b23",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d6d474902aff",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "c329d0bc2777",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "011407b9724c",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "1cc15af0bbc9",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "86356b8ef5c7",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "089a790420f9",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "729d223f1507",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "54159960477b",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "1115cffea431",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "478047883cf5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "0136dddadad5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "8fcdc1818c91",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e2835d7e5bda",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "fc802d648606",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "201e8322fe63",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3e8ed1f2daba",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3a6ee6a0b17c",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "52d372d38cce",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "54cec30077b5",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "32a2317978f4",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "3fe1ad0dfc55",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3c0df5d126e6",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "455f8361f207",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "76369559b38d",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "aa9a8c4f87da",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        }
+      ]
+    },
+    "C_iid_gaussian": {
+      "n_cells": 60,
+      "n_surrogates_per_cell": 1000,
+      "detector": {
+        "window": 8,
+        "hop": 4,
+        "k": 0.1,
+        "h": 0.5
+      },
+      "pooled_band_pass_fraction": 0.85,
+      "pooled_p_n_eq_zero": 0.15,
+      "n_pred_median": 2.0,
+      "n_pred_mean": 2.7862,
+      "mean_surrogate_pass_among_real_passing_cells": 1.0,
+      "per_cell": [
+        {
+          "cell_id": "c933f265b72c",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "eddc7342cf31",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "894ad1b874ee",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5a4504b81972",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "7be0b19b1574",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e2d735f7bdc2",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "6d1345b4a1eb",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "8f7ba89d62fc",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e4a85b5d0d99",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "0bb4ae88d54a",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2292bfc5dd4c",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "4409d93d153d",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "eb7003cbfd22",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "78863a653d2e",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2f62b86c8bc1",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "a1ea1335c44c",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d0bc705f2cce",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "bcc9ff30d38f",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d84c750f0590",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "bc97d391fbfa",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5f804715ffb9",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "95d930880502",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "b05ff697d3e8",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "05a20692a025",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "29d1a681c974",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "5b75f80b2ceb",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "0729046a8e79",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "228146a9be79",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "7e90c7d37fc5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e0ab2d3b39ab",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e413d66b88e6",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "c98321915f16",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "f27f8d4d8b1d",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "9bb3d7549fd8",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "2ad7a3043b23",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "d6d474902aff",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "c329d0bc2777",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "011407b9724c",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "1cc15af0bbc9",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "86356b8ef5c7",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "089a790420f9",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "729d223f1507",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "54159960477b",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "1115cffea431",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "478047883cf5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "0136dddadad5",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "8fcdc1818c91",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "e2835d7e5bda",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "fc802d648606",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "201e8322fe63",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3e8ed1f2daba",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3a6ee6a0b17c",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "52d372d38cce",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "54cec30077b5",
+          "workload": "sandbox_ransom_slowburn",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "32a2317978f4",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": false,
+          "surrogate_band_pass": 0.0,
+          "surrogate_p_n0": 1.0
+        },
+        {
+          "cell_id": "3fe1ad0dfc55",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "3c0df5d126e6",
+          "workload": "sandbox_ransom_batched",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "455f8361f207",
+          "workload": "sandbox_scanner_metadata",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "76369559b38d",
+          "workload": "sandbox_ransom_selective",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        },
+        {
+          "cell_id": "aa9a8c4f87da",
+          "workload": "sandbox_ransom_seq",
+          "real_in_band": true,
+          "surrogate_band_pass": 1.0,
+          "surrogate_p_n0": 0.0
+        }
+      ]
+    }
+  },
+  "discrimination": {
+    "real_phasic_band_pass": 0.85,
+    "null_steady_as_null_band_pass": 0.8056,
+    "null_temporal_shuffle_band_pass": 0.85,
+    "null_iid_gaussian_band_pass": 0.85,
+    "gaps_real_minus_null": {
+      "vs_steady_as_null": 0.0444,
+      "vs_temporal_shuffle": 0.0,
+      "vs_iid_gaussian": 0.0
+    },
+    "band_near_unfalsifiable": true,
+    "interpretation": "The phasic detector is tuned to k=0.1 specifically to enter the [1,20] band, which passes a cell whenever CUSUM fires at least once. If the null pass-rates (steady-as-null, temporal-shuffle, IID) are close to the real phasic pass-rate, the gate does not certify detected PHASE STRUCTURE -- it only certifies the trajectory is not flat. A small real-minus-null gap means the marker-less G3 acceptance is near-unfalsifiable and should be reported as a plausibility screen, not a phase-detection result."
+  }
+}

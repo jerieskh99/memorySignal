@@ -141,8 +141,11 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         (vs.\ $p \approx 0.013$ if the 118 cells were independent). The honest
         statement: a coarse scalar carries \emph{at most} a weak family hint,
         statistically indistinguishable from baseline at the replicate-group
-        level. A paired test (e.g.\ McNemar) and a grouped-bootstrap CI are
-        required before any ``genuine signal'' claim.
+        level. The paired test and grouped bootstrap are now in hand: an exact
+        McNemar (agnostic vs.\ majority) gives $p=0.119$, and a 33-group cluster
+        bootstrap puts agnostic accuracy at 0.645 with 95\% CI $[0.541, 0.746]$,
+        whose lower bound coincides with the baseline -- so no ``genuine signal''
+        claim is warranted (\texttt{robustness\_reanalysis.py}).
   \item \textbf{Cepstral SNR does not separate families.} Alone it scores 0.508
         (chance). Steady median SNR spans 2.65--7.99\,dB and overlaps the phasic
         range 4.78--6.35\,dB; the steady hash-table workload has the highest SNR
@@ -174,10 +177,18 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         threat model and base rate; a real-malware corpus; a benign-phasic
         control; open-set / unknown-workload evaluation; ROC at a
         deployment-realistic base rate rather than balanced accuracy.
-  \item \textbf{Statistical power.} 118 cells, 4 replicates; report confidence
-        intervals and repeated, seeded grouped CV. Prefer leave-one-\emph{workload}-out
-        to leave-one-replicate-out, since replicate grouping does not break
-        duration/capture-geometry structure.
+  \item \textbf{Statistical power -- now measured.} The leakage-free gap does not
+        survive replicate non-independence. An exact McNemar test (family-agnostic
+        vs.\ majority rule) gives $p=0.119$; a cluster bootstrap over the 33
+        independent (workload, duration) groups puts agnostic accuracy at 0.645
+        with 95\% CI $[0.541, 0.746]$, whose lower bound sits at the 0.542
+        baseline. Under leave-one-\emph{workload}-out CV -- the harder test of
+        generalizing to an unseen workload -- agnostic accuracy falls to 0.466,
+        \emph{below} the majority baseline, while the leaky full set stays at
+        1.000. This confirms both that \texttt{coverage\_ratio} is a per-family
+        constant invariant to which workload is held out, and that the modest
+        leave-one-replicate-out signal is partly workload memorization
+        (\texttt{robustness\_reanalysis.py}).
   \item \textbf{Imputation is a second family-conditional channel.} Because
         \texttt{cv\_workingset} and \texttt{f1\_phase} are missing by family
         (complementary NaN), median imputation injects a family-correlated

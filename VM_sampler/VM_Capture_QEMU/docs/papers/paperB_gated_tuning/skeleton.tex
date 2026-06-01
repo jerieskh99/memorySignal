@@ -142,12 +142,18 @@ for Short, Coarse Memory-Liveness Time Series}
   \item Coverage is bounded by the (variable, snapshot-dominated) cadence and
         the 600\,s workload cap; clearing G2 for the phasic family requires
         faster snapshots or longer observation, not a different window.
-  \item \textbf{Cepstral SNR is estimated on very few windows.} At
-        $(W,H)=(8,4)$, 53 of 132 cells yield $\le 3$ analysis windows (14 yield
-        none), so the per-cell cepstral SNR feeding G3 has near-zero degrees of
-        freedom and its dB outliers are unreliable. G3 verdicts should be
-        recomputed on the subset with $\ge 8$ windows, or SNR dropped as a
-        per-cell feature.
+  \item \textbf{Cepstral SNR is estimated on very few windows -- G3 rechecked on
+        adequate DOF.} At $(W,H)=(8,4)$, 53 of 132 cells yield $\le 3$ analysis
+        windows (14 yield none), so the per-cell cepstral SNR feeding G3 has
+        near-zero degrees of freedom and its dB outliers are unreliable.
+        Restricting to the 26 of 54 phasic cells with $\ge 8$ windows, the G3
+        verdict holds and in fact strengthens: the phasic median SNR rises from
+        5.78 to 6.92\,dB, and all five per-workload medians stay above the
+        4.5\,dB gate (seq 5.77, slowburn 6.78, selective 6.86, scanner 6.98,
+        batched 9.85\,dB). The gate passes on a defensible-DOF subset, not only
+        on the fragile full set; the residual caveat is that 52\% of phasic cells
+        are dropped for want of windows, so G3 is evidenced on half the phasic
+        family (\texttt{robustness\_reanalysis.py}).
   \item Gate thresholds (0.80, 2.0, \SI{4.5}{\decibel}, 0.30/0.50) were
         hand-calibrated and revised once during the study; a sensitivity
         analysis is future work.

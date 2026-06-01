@@ -304,6 +304,12 @@
       statistically indistinguishable from baseline at the replicate-group level," and Paper&nbsp;C's Limitations call
       for a paired McNemar test and a grouped-bootstrap CI before any "genuine signal" claim. <em>No</em> significance
       was claimed beyond what the test supports.
+      <p style="margin-top:10px"><strong>Closed offline (2026-06-01)</strong> &mdash; <code>paperC_family_classification/robustness_reanalysis.py</code>.
+      The two tests were run. Exact two-sided McNemar (AGNOSTIC vs. always-predict-majority) gives <code>p&nbsp;=&nbsp;0.1189</code>
+      on 31 vs. 19 discordant cells. The cluster-bootstrap 95% CI for AGNOSTIC accuracy &mdash; resampling the 33
+      <code>(workload,&nbsp;duration)</code> groups, the genuinely independent unit &mdash; is <code>[0.5413,&nbsp;0.7458]</code>,
+      whose lower bound sits <em>on</em> the 0.5424 majority baseline. The residual is confirmed not significant at the
+      group level; the round-2 wording was correct and is now backed by the test.</p>
     </div>
 
     <div class="rev">
@@ -329,6 +335,12 @@
       Documented. Paper&nbsp;B's Limitations gain a bullet stating the DOF problem and recommending G3 be recomputed on
       a &ge;8-window subset (or the SNR gate dropped where DOF is too low); the index and essay both note the SNR
       "rests on one to three windows" on some cells. This is flagged as a required re-analysis, not silently corrected.
+      <p style="margin-top:10px"><strong>Closed offline (2026-06-01)</strong> &mdash; <code>paperC_family_classification/robustness_reanalysis.py</code>.
+      G3 was recomputed on the adequate-DOF subset. Of 54 phasic cells only 26 (48%) carry &ge;8 analysis windows; on that
+      subset the median cepstral SNR <em>rises</em> 5.78&nbsp;&rarr;&nbsp;6.92&nbsp;dB and every one of the five phasic
+      per-workload medians stays above the 4.5&nbsp;dB line (subset min 5.77&nbsp;dB at <code>sandbox_ransom_seq</code>, vs.
+      4.78&nbsp;dB on the full set). The SNR ordering survives the DOF restriction: the gate is fragile <em>per cell</em>,
+      but the family-level periodicity signal holds. The fragility caveat stands; the family conclusion is unchanged.</p>
     </div>
 
     <div class="rev">
@@ -342,16 +354,31 @@
       Documented in Paper&nbsp;D's Acceptance and Limitations sections: the band is called a weak gate, "5 of 5 pass" is
       explicitly down-weighted, and the fix &mdash; calibrate the band against a permutation / stationary-null
       distribution and report its false-accept rate &mdash; is named as required before this counts as validation.
+      <p style="margin-top:10px"><strong>Closed offline (2026-06-01)</strong> &mdash; <code>paperD_cusum_segmentation/null_calibration.py</code>.
+      The band was calibrated against three nulls using the exact phasic detector. (Note: the detector is family-tuned to
+      <code>k=0.1, h=0.5</code> for phasic cells &mdash; 20&times; more sensitive than the steady <code>k=2.0</code>,
+      "to surface activity into the band", applied per-cell and <em>not</em> recorded in the result JSON, which prints only
+      the steady <code>k=2.0</code>.) Real phasic cells pass the <code>[1,20]</code> band at <strong>0.85</strong>; a
+      temporal shuffle of the same trajectories passes at <strong>0.85</strong> (gap <code>0.000</code>), an IID-Gaussian
+      surrogate at <strong>0.85</strong> (gap <code>0.000</code>), and real steady cells pushed through the phasic detector
+      at <strong>0.806</strong>. Among the cells the real detector accepts, <em>every</em> shuffle is also accepted. The
+      verdict is governed entirely by <code>P(n&nbsp;=&nbsp;0)&nbsp;=&nbsp;0.15</code> &mdash; whether the trajectory is long
+      enough to fire at all &mdash; not by phase structure (max predicted boundaries = 10, so the upper bound 20 never
+      binds). The band is confirmed near-unfalsifiable: it is a liveness / trajectory-length screen, <em>not</em> a
+      phase-detection result, and Paper&nbsp;D now reports it as such.</p>
     </div>
 
     <div class="rev">
       <span class="cid">R-9</span> &nbsp;<span class="pill info">minor</span> &nbsp;<strong>The phasic SNR floor was
       printed as 4.79&nbsp;dB.</strong> The on-disk minimum is 4.7847&nbsp;dB, which rounds to 4.78.
     </div>
-    <div class="resp open">
-      Corrected to 4.78 in Paper&nbsp;C, the essay, and the index. <em>Caveat:</em> this value was confirmed by the
-      audit agents reading <code>recommendation.json</code> but not independently re-extracted in the final pass
-      (a structural grep came back empty); verify the 4.78 floor against the analyzer output before final submission.
+    <div class="resp">
+      Corrected to 4.78 in Paper&nbsp;C, the essay, and the index, and now independently re-extracted &mdash;
+      <code>paperC_family_classification/robustness_reanalysis.py</code> recomputes the phasic cepstral SNR directly from
+      <code>plan03/sweep.csv</code>. The per-workload median SNR ranges 4.7847&nbsp;dB (<code>sandbox_ransom_seq</code>) to
+      6.3464&nbsp;dB, so the printed 4.78&nbsp;dB floor is exactly the seq-workload median and reconciles with the value on
+      disk. (The per-<em>cell</em> minimum is far lower &mdash; 0.046&nbsp;dB on a single-window cell &mdash; so the 4.78
+      figure is a per-workload-median floor, now labelled as such, not a per-cell minimum.)
     </div>
   </section>
 
@@ -374,27 +401,47 @@
   <section id="open">
     <h2 class="sec">Open items (need a capture re-run or a test, not an edit)</h2>
     <p>These cannot be fixed by rewording. Each needs the author to run something. They are the round-2 backlog and
-    should be tracked alongside the surviving round-1 items.</p>
+    should be tracked alongside the surviving round-1 items. <strong>Five of the original eight have since been closed
+    offline</strong> (2026-06-01) against the existing <code>_v3_combined</code> data &mdash; no capture re-run needed,
+    only analysis &mdash; using two new reproducible scripts. The remaining three genuinely need a capture re-run or an
+    editorial pass.</p>
+
+    <h3 style="color:var(--good)">Closed offline since round 2</h3>
+    <p>Read-only reanalysis over <code>_v3_combined</code>, scripts committed beside the papers they support.</p>
+    <ul>
+      <li><strong>Family-residual significance (R-5) &mdash; <span class="ok">done</span>.</strong> Exact McNemar
+      <code>p&nbsp;=&nbsp;0.1189</code> and a 33-group cluster-bootstrap 95% CI <code>[0.5413,&nbsp;0.7458]</code> (lower
+      bound on the 0.5424 baseline) confirm the 0.644-vs-0.542 gap is not significant at the group level.
+      <span class="cid">paperC_family_classification/robustness_reanalysis.py</span></li>
+      <li><strong>Leave-one-workload-out CV (B-4) &mdash; <span class="ok">done</span>.</strong> Grouping by workload,
+      AGNOSTIC accuracy falls to <strong>0.466</strong> &mdash; below the 0.542 majority baseline &mdash; while the leaky
+      FULL model holds at 1.000. The modest leave-one-replicate-out hint (0.644) is largely workload memorization; the
+      family signal does <em>not</em> generalize to an unseen workload, and FULL's invariance confirms
+      <code>coverage_ratio</code> is a per-family constant. <span class="cid">robustness_reanalysis.py</span></li>
+      <li><strong>G3 cepstral-SNR on adequate DOF (R-7) &mdash; <span class="ok">done</span>.</strong> Restricted to the
+      26/54 phasic cells with &ge;8 windows, the median SNR rises 5.78&nbsp;&rarr;&nbsp;6.92&nbsp;dB and all five
+      per-workload medians stay &gt;&nbsp;4.5&nbsp;dB. Per-cell fragility stands; the family signal survives the DOF cut.
+      <span class="cid">robustness_reanalysis.py</span></li>
+      <li><strong>CUSUM plausibility-band null calibration (R-8) &mdash; <span class="ok">done</span>.</strong> Against
+      temporal-shuffle and IID nulls the <code>[1,20]</code> band's accept rate is <strong>0.85</strong> &mdash; identical
+      to the real-phasic 0.85 (gap 0.000); real steady cells pass at 0.806. The band is near-unfalsifiable: a
+      length/liveness screen, not phase detection. <span class="cid">paperD_cusum_segmentation/null_calibration.py</span></li>
+      <li><strong>Re-verify the SNR floor (R-9) &mdash; <span class="ok">done</span>.</strong> Re-extracted from
+      <code>plan03/sweep.csv</code>: 4.7847&nbsp;dB is the <code>sandbox_ransom_seq</code> per-workload median, reconciling
+      the printed 4.78&nbsp;dB floor. <span class="cid">robustness_reanalysis.py</span></li>
+    </ul>
+
+    <h3 style="color:var(--warn)">Still open (need a capture re-run or an editorial pass)</h3>
     <ul>
       <li><strong>Delete-as-you-go re-run.</strong> Re-capture at least one long cell with <code>keep_dumps=false</code>
       and record peak transient disk, to validate (or correct) the 2&ndash;3&nbsp;GiB streaming cap that R-3 retracted.
-      This also supplies the measured numerator the storage-ratio claim (R-4) currently lacks.</li>
-      <li><strong>Proper significance test for the family residual.</strong> Run a paired McNemar test and a
-      grouped-bootstrap CI on the 0.644-vs-0.542 comparison at the replicate-group level (R-5) before any "genuine
-      signal" language is used.</li>
-      <li><strong>Recompute G3 on adequate DOF.</strong> Restrict the cepstral-SNR gate to cells with &ge;8 analysis
-      windows, or drop SNR where DOF is too low, then re-report the phasic gate outcomes (R-7).</li>
-      <li><strong>Calibrate the CUSUM plausibility band.</strong> Estimate the band's false-accept rate against a
-      permutation / stationary-null distribution; report it next to "5 of 5 phasic pass" (R-8).</li>
-      <li><strong>Leave-one-workload-out CV with CIs.</strong> Carried unrun from round-1 <span class="cid">B-4</span>:
-      replace leave-one-replicate-out with leave-one-workload-out, seeded repeats, reported confidence intervals.</li>
+      This also supplies the measured numerator the storage-ratio claim (R-4) currently lacks. <em>Requires server
+      capture time.</em></li>
       <li><strong>Reconcile campaign size.</strong> All storage and compute magnitudes are quoted against a 90-cell
       framing while the dataset is 132 cells; pick one and restate (round-1 <span class="cid">A-1</span>, reaffirmed).</li>
       <li><strong>refs.bib is mostly placeholders.</strong> 8 of 11 entries are <code>TODO</code> stubs needing real
       citations. Two of them (<code>TODO_ransomware_io_detection</code>, <code>TODO_ransomware_survey</code>) exist only
       to support the security angle that round-1 <span class="cid">B-3</span> removed &mdash; drop or repurpose them.</li>
-      <li><strong>Re-verify the SNR floor.</strong> Independently re-extract the 4.78&nbsp;dB phasic SNR minimum from the
-      analyzer output (R-9); this round confirmed it only via the audit agents' read.</li>
     </ul>
   </section>
 
@@ -415,8 +462,11 @@
       this cadence; R-8 weakens the plausibility fallback but not the central negative result.</li>
     </ul>
     <div class="note neg"><strong>Net.</strong> Nine numeric corrections, one retracted contribution
-    (delete-as-you-go &rarr; design target), eight open items requiring a re-run. The thesis is unchanged; the numbers
-    now match the disk.</div>
+    (delete-as-you-go &rarr; design target), and eight round-2 open items &mdash; <strong>five since closed offline</strong>
+    against the existing data (R-5, R-7, R-8, R-9, B-4 leave-one-workload-out), three still requiring a capture re-run or
+    an editorial pass. The thesis is unchanged; the numbers now match the disk, and the three load-bearing weak findings
+    (no significant family residual, near-unfalsifiable CUSUM band, no cross-workload generalization) are now backed by
+    explicit tests rather than flagged as future work.</div>
   </section>
 
   <footer>

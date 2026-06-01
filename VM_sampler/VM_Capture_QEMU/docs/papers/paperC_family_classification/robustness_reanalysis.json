@@ -1,0 +1,200 @@
+{
+  "schema": "paperC.robustness_reanalysis.v1",
+  "sklearn_version": "1.7.2",
+  "sweep_path": "/Users/jeries/Desktop/projects/thesis/memorySignal/mem_sig/.claude/worktrees/clever-pasteur-a388b5/_v3_combined/plan03/sweep.csv",
+  "n_cells": 118,
+  "n_phasic": 54,
+  "n_steady": 64,
+  "majority_baseline": 0.5424,
+  "n_replicate_groups": 4,
+  "n_workload_duration_clusters": 33,
+  "R5_significance": {
+    "leave_one_replicate_out": {
+      "agnostic": {
+        "accuracy": 0.6441,
+        "confusion": {
+          "tn_steady": 45,
+          "fp": 19,
+          "fn": 23,
+          "tp_phasic": 31
+        }
+      },
+      "full_leaky": {
+        "accuracy": 1.0,
+        "confusion": {
+          "tn_steady": 64,
+          "fp": 0,
+          "fn": 0,
+          "tp_phasic": 54
+        }
+      }
+    },
+    "mcnemar_agnostic_vs_majority": {
+      "b_phasic_caught_by_agnostic": 31,
+      "c_steady_lost_by_agnostic": 19,
+      "exact_two_sided_p": 0.1189,
+      "note": "b = cells AGNOSTIC gets right that the majority rule gets wrong (phasic); c = cells AGNOSTIC gets wrong that the majority rule gets right (steady). p>0.05 means the net gain over always-predict-steady is not significant."
+    },
+    "cluster_bootstrap_accuracy_ci": {
+      "mean": 0.6447,
+      "ci95_lower": 0.5413,
+      "ci95_upper": 0.7458,
+      "n_clusters": 33,
+      "n_boot": 20000
+    },
+    "interpretation": "If the cluster-bootstrap CI lower bound sits at or below the majority baseline, the leakage-free family signal is not significant once replicate non-independence is respected."
+  },
+  "R7_g3_cepstral_snr_recompute": {
+    "min_windows_required": 8,
+    "snr_threshold_db": 4.5,
+    "n_phasic_total": 54,
+    "n_phasic_with_ge8_windows": 26,
+    "frac_phasic_dropped": 0.5185,
+    "all_phasic": {
+      "n_cells": 54,
+      "snr_min_floor": 0.0462,
+      "snr_median": 5.7774,
+      "snr_max": 14.686,
+      "median_gt_4p5": true,
+      "min_gt_4p5": false,
+      "n_windows_min": 1,
+      "n_windows_median": 7.0
+    },
+    "phasic_ge8_windows": {
+      "n_cells": 26,
+      "snr_min_floor": 0.0462,
+      "snr_median": 6.9199,
+      "snr_max": 14.686,
+      "median_gt_4p5": true,
+      "min_gt_4p5": false,
+      "n_windows_min": 8,
+      "n_windows_median": 10.0
+    },
+    "per_workload_medians_all_phasic": {
+      "by_workload": {
+        "sandbox_ransom_batched": {
+          "n": 10,
+          "snr_median": 6.054
+        },
+        "sandbox_ransom_selective": {
+          "n": 10,
+          "snr_median": 5.2537
+        },
+        "sandbox_ransom_seq": {
+          "n": 11,
+          "snr_median": 4.7847
+        },
+        "sandbox_ransom_slowburn": {
+          "n": 11,
+          "snr_median": 5.3361
+        },
+        "sandbox_scanner_metadata": {
+          "n": 12,
+          "snr_median": 6.3464
+        }
+      },
+      "min_of_workload_medians": 4.7847,
+      "max_of_workload_medians": 6.3464
+    },
+    "per_workload_medians_ge8_windows": {
+      "by_workload": {
+        "sandbox_ransom_batched": {
+          "n": 6,
+          "snr_median": 9.851
+        },
+        "sandbox_ransom_selective": {
+          "n": 5,
+          "snr_median": 6.8587
+        },
+        "sandbox_ransom_seq": {
+          "n": 3,
+          "snr_median": 5.7725
+        },
+        "sandbox_ransom_slowburn": {
+          "n": 7,
+          "snr_median": 6.7844
+        },
+        "sandbox_scanner_metadata": {
+          "n": 5,
+          "snr_median": 6.9812
+        }
+      },
+      "min_of_workload_medians": 5.7725,
+      "max_of_workload_medians": 9.851
+    }
+  },
+  "LOWO_leave_one_workload_out": {
+    "protocol": "LeaveOneGroupOut by workload (11 folds)",
+    "agnostic_overall_acc": 0.4661,
+    "full_overall_acc": 1.0,
+    "per_workload": {
+      "app_hashtable_intensive_v2": {
+        "family": "steady",
+        "n": 9,
+        "agnostic_acc": 0.3333,
+        "full_acc": 1.0
+      },
+      "mem_mmap_traversal_v2": {
+        "family": "steady",
+        "n": 11,
+        "agnostic_acc": 0.1818,
+        "full_acc": 1.0
+      },
+      "mem_pagefault_density_v2": {
+        "family": "steady",
+        "n": 11,
+        "agnostic_acc": 0.5455,
+        "full_acc": 1.0
+      },
+      "mem_rmw_intensity_v2": {
+        "family": "steady",
+        "n": 11,
+        "agnostic_acc": 0.8182,
+        "full_acc": 1.0
+      },
+      "mem_workingset_sweep_v2": {
+        "family": "steady",
+        "n": 11,
+        "agnostic_acc": 0.7273,
+        "full_acc": 1.0
+      },
+      "mem_writemag_sweep_v2": {
+        "family": "steady",
+        "n": 11,
+        "agnostic_acc": 0.4545,
+        "full_acc": 1.0
+      },
+      "sandbox_ransom_batched": {
+        "family": "phasic",
+        "n": 10,
+        "agnostic_acc": 0.4,
+        "full_acc": 1.0
+      },
+      "sandbox_ransom_selective": {
+        "family": "phasic",
+        "n": 10,
+        "agnostic_acc": 0.5,
+        "full_acc": 1.0
+      },
+      "sandbox_ransom_seq": {
+        "family": "phasic",
+        "n": 11,
+        "agnostic_acc": 0.4545,
+        "full_acc": 1.0
+      },
+      "sandbox_ransom_slowburn": {
+        "family": "phasic",
+        "n": 11,
+        "agnostic_acc": 0.0,
+        "full_acc": 1.0
+      },
+      "sandbox_scanner_metadata": {
+        "family": "phasic",
+        "n": 12,
+        "agnostic_acc": 0.6667,
+        "full_acc": 1.0
+      }
+    },
+    "interpretation": "AGNOSTIC accuracy under leave-one-workload-out tests generalization to an UNSEEN workload. A large drop vs. the leave-one-replicate-out number means the modest family signal is partly workload memorization. FULL staying ~1.0 here would confirm the leakage feature (coverage_ratio) is a per-family constant invariant to which workload is held out."
+  }
+}
