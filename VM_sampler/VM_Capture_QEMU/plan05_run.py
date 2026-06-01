@@ -439,6 +439,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             cell_rec["error"] = f"e1 exit {proc.returncode} or missing {run_json.name}"
         result["cells"].append(cell_rec)
+        # Bound tmpfs (/dev/shm) usage. A keep arm leaves its last dump (the
+        # APF helper only deletes a dump once it has a successor) and e1 skips
+        # cleanup when keep_dumps is set, so ~1 GiB residual per keep cell would
+        # accumulate across the matrix and could overflow the RAM-backed mount.
+        # Purge the tmpfs imageDir between cells; the dir is 0777 with no sticky
+        # bit, so the runner can unlink the libvirt-QEMU-owned dumps without
+        # sudo. SSD arms write to large disk and are left untouched.
+        if ARM_SPECS[c.arm]["target"] == "tmpfs":
+            purged = _purge_dumps(Path(args.tmpfs_dir).expanduser())
+            if purged:
+                log(f"  purged {purged} residual dump(s) from {args.tmpfs_dir}")
         if i < len(cells) and args.inter_cell_cooldown > 0:
             time.sleep(args.inter_cell_cooldown)
 
@@ -454,6 +465,25 @@ def main(argv: list[str] | None = None) -> int:
         log(f"wrote {summary_path} (aggregated {len(records)} records)")
 
     return 0
+
+
+def _purge_dumps(image_dir: Path) -> int:
+    """Unlink memory_dump-*.raw in image_dir; return the count removed.
+
+    Best-effort, no sudo. The tmpfs imageDir is created mode 0777 with no
+    sticky bit, so the runner can remove the libvirt-QEMU-owned dump files
+    even though QEMU (not the runner) wrote them. Non-dump files are ignored.
+    """
+    if not image_dir.is_dir():
+        return 0
+    n = 0
+    for p in image_dir.glob("memory_dump-*.raw"):
+        try:
+            p.unlink()
+            n += 1
+        except OSError:
+            pass
+    return n
 
 
 def _write_json(path: Path, obj: dict) -> None:

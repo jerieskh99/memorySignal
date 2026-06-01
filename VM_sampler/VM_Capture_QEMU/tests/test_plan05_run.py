@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -123,6 +124,21 @@ class TestRecordFromRunJson(unittest.TestCase):
         rec = R.record_from_run_json(R.Cell("w", 120, "ssd_keep", 0), {})
         self.assertIsNone(rec["mean_pmemsave_sec"])
         self.assertIsNone(rec["apf_jsonl"])
+
+
+class TestPurgeDumps(unittest.TestCase):
+    def test_removes_only_dumps(self):
+        with tempfile.TemporaryDirectory() as d:
+            wd = pathlib.Path(d)
+            (wd / "memory_dump-0.raw").write_bytes(b"x")
+            (wd / "memory_dump-1.raw").write_bytes(b"x")
+            (wd / "apf_trajectory.jsonl").write_bytes(b"keep")  # must survive
+            self.assertEqual(R._purge_dumps(wd), 2)
+            self.assertEqual(list(wd.glob("memory_dump-*.raw")), [])
+            self.assertTrue((wd / "apf_trajectory.jsonl").exists())
+
+    def test_missing_dir_is_zero(self):
+        self.assertEqual(R._purge_dumps(pathlib.Path("/nonexistent/plan05/xyz")), 0)
 
 
 if __name__ == "__main__":
