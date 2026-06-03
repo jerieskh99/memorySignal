@@ -193,13 +193,15 @@
       <li><a href="#risks">Risks + mitigations</a></li>
       <li><a href="#pm">PM final recommendation</a></li>
     </ol>
-    <div class="status-pill">
-      <strong>Proposal.</strong><br>
-      Target: <code>&ge;2&times;</code> median <code>pmemsave</code>
-      reduction at preserved APF fidelity. Tier-1 levers: guest-RAM,
-      tmpfs target, delete-as-you-go validation. Tier-2
-      (dirty-bit / multifd / compress) scoped to a follow-up.
-      6 deltas. 7 GO / 1 partial.
+    <div class="status-pill" style="background:rgba(212,168,90,.08);
+         border-color:rgba(212,168,90,.22); color:var(--accent);">
+      <strong>Proposal &mdash; pilot: goal met, gate mis-read.</strong><br>
+      The <code>&ge;2&times;</code> gate &ldquo;failed,&rdquo; but only because the
+      pilot streamed-and-deleted on <em>every</em> arm, so the baseline already had
+      the cure. The real win is <strong>delete-as-you-go</strong>: it cut the dump
+      <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong> and lifted snapshots
+      <strong>14&rarr;79 / 120&nbsp;s</strong>. See
+      <a href="plan05_overview.html#mystery">The 7-second mystery</a>.
     </div>
   </aside>
 
@@ -230,6 +232,28 @@
     <section class="card" id="summary">
       <div class="num">SECTION 01</div>
       <h2>Executive summary</h2>
+
+      <div class="callout warn">
+        <strong>Outcome (Wave&nbsp;2, 72-run pilot).</strong> Run at
+        <code>1024&nbsp;MiB</code>, SSD vs tmpfs &times; keep vs self-clean. The
+        throughput gate <strong>&ldquo;failed&rdquo; across the board</strong>
+        &mdash; but the chase for <em>why</em> overturned the reading. The old
+        <code>7.06&nbsp;s</code> was not the dump's true cost; it was the median of
+        a right-skewed spread
+        (<code>0.76&nbsp;/&nbsp;7.06&nbsp;/&nbsp;21.57&nbsp;s</code>) inflated by
+        <strong>never deleting dumps</strong> (<code>keep_dumps=true</code> on
+        125/128 cells). The pilot streamed-and-deleted on <em>every</em> arm, so all
+        four sat at the <strong>0.79&nbsp;s</strong> floor and the gate &mdash;
+        comparing already-fixed arms &mdash; saw no gap. The real win is
+        <strong>delete-as-you-go</strong>:
+        <code>7.06&nbsp;s&rarr;0.79&nbsp;s</code> and snapshots
+        <strong>14&rarr;79 per 120&nbsp;s</strong> (~5&ndash;8&times;). The disk gate
+        <strong>passed</strong> (peak &le;3&nbsp;GiB, via the new
+        <code>sudo</code>-delete fix); one real fidelity bug (a
+        self-clean&times;APF delete race on <code>mem_workingset@600s</code>). Full
+        reasoning: <a href="plan05_overview.html#mystery">The 7-second mystery</a>.
+        The text below is the original pre-pilot proposal, kept for the record.
+      </div>
 
       <div class="pair">
         <div>

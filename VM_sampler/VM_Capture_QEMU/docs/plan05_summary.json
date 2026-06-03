@@ -1,0 +1,1692 @@
+{
+  "schema": "plan05_summary.v1",
+  "generated_at": "2026-06-03T20:49:53.598311+00:00",
+  "params": {
+    "baseline_arm": "ssd_keep",
+    "min_speedup": 2.0,
+    "disk_cap_bytes": 3221225472,
+    "disk_cap_gib": 3.0,
+    "fidelity": {
+      "mean_margin": 0.02,
+      "std_margin": 0.02,
+      "alpha_tost": 0.05,
+      "alpha_ks": 0.05,
+      "min_n": 8
+    }
+  },
+  "n_records": 72,
+  "n_groups": 6,
+  "comparisons": [
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 120,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7923665982258471,
+        "median_lever_pmemsave_sec": 0.792205741133871,
+        "speedup": 1.0002030496418088,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 79.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:fail; std_equiv:fail; ks_2samp:fail",
+        "n_baseline": 234,
+        "n_lever": 234,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.016362296210394964,
+              "mean_lever": 0.0002275939680572249,
+              "mean_diff": 0.016134702242337737,
+              "se": 0.003805580618670582,
+              "df": 233.00815466524506,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 1.3780532097745905e-18,
+              "p_upper": 0.1554147843221903,
+              "p_tost": 0.1554147843221903
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.05821368015889128,
+              "std_lever": 0.00024352029767742898,
+              "std_diff": 0.05797015986121385,
+              "ci_low": 0.04473390801248917,
+              "ci_high": 0.06861117968157134,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.19230769230769232,
+              "pvalue": 0.0003367972496921771,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2602221568,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.424,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 120,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7923665982258471,
+        "median_lever_pmemsave_sec": 0.5882366299629211,
+        "speedup": 1.3470201579860694,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:fail; std_equiv:fail; ks_2samp:fail",
+        "n_baseline": 234,
+        "n_lever": 273,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.016362296210394964,
+              "mean_lever": 0.00020677615434695513,
+              "mean_diff": 0.01615552005604801,
+              "se": 0.003805570305484754,
+              "df": 233.00562889407513,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 1.3267032522621644e-18,
+              "p_upper": 0.15671785040441322,
+              "p_tost": 0.15671785040441322
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.05821368015889128,
+              "std_lever": 0.0002185329065185469,
+              "std_diff": 0.05799514725237273,
+              "ci_low": 0.044890412257112225,
+              "ci_high": 0.06863002174988274,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.184981684981685,
+              "pvalue": 0.00030388852424339976,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2747088896,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.558,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 120,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7923665982258471,
+        "median_lever_pmemsave_sec": 0.5880423732425856,
+        "speedup": 1.3474651390452972,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:fail; std_equiv:fail; ks_2samp:fail",
+        "n_baseline": 234,
+        "n_lever": 273,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.016362296210394964,
+              "mean_lever": 0.00020621722434466575,
+              "mean_diff": 0.016156078986050298,
+              "se": 0.003805575402000148,
+              "df": 233.00687707021135,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 1.325431099606978e-18,
+              "p_upper": 0.15675327346711548,
+              "p_tost": 0.15675327346711548
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.05821368015889128,
+              "std_lever": 0.00024154997192468136,
+              "std_diff": 0.0579721301869666,
+              "ci_low": 0.04477495099922342,
+              "ci_high": 0.0686387446260243,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.22283272283272285,
+              "pvalue": 5.7569844021822875e-06,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2712981504,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.527,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 600,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7925421958579156,
+        "median_lever_pmemsave_sec": 0.7926913805343397,
+        "speedup": 0.9998117997999126,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 398.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 1191,
+        "n_lever": 1190,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0018227206469583071,
+              "mean_lever": 0.0018096122421136422,
+              "mean_diff": 1.310840484466491e-05,
+              "se": 0.0007741965654262911,
+              "df": 2378.997176445654,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 2.2765121970450382e-130,
+              "p_upper": 4.512368090808587e-130,
+              "p_tost": 4.512368090808587e-130
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.018886295636303566,
+              "std_lever": 0.018891000763902432,
+              "std_diff": -4.705127598866182e-06,
+              "ci_low": -0.008312663070046581,
+              "ci_high": 0.008497770730448197,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.04314219390526992,
+              "pvalue": 0.2105527668286458,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2587025408,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.409,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 600,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7925421958579156,
+        "median_lever_pmemsave_sec": 0.5884845313694885,
+        "speedup": 1.346751110030973,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 461.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:fail; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 1380,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0018227206469583071,
+              "mean_lever": 0.00021107991536458334,
+              "mean_diff": 0.0016116407315937239,
+              "se": 0.0005473464064184376,
+              "df": 1190.7823633823884,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 6.023015806570527e-219,
+              "p_upper": 6.655812022302688e-175,
+              "p_tost": 6.655812022302688e-175
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.018886295636303566,
+              "std_lever": 0.00036858813767223206,
+              "std_diff": 0.018517707498631335,
+              "ci_low": 0.01222591880357254,
+              "ci_high": 0.023807173897747835,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.0810791078012631,
+              "pvalue": 0.0004140750306585732,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2698719232,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.513,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 600,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7925421958579156,
+        "median_lever_pmemsave_sec": 0.5886690089087165,
+        "speedup": 1.3463290641495502,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 461.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:fail; ks_2samp:pass",
+        "n_baseline": 1191,
+        "n_lever": 1380,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0018227206469583071,
+              "mean_lever": 0.00021112414373867754,
+              "mean_diff": 0.0016115965032196297,
+              "se": 0.0005473102384234999,
+              "df": 1190.4677240191525,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 6.018790624279366e-219,
+              "p_upper": 6.580947843678305e-175,
+              "p_tost": 6.580947843678305e-175
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.018886295636303566,
+              "std_lever": 0.00028499279915036434,
+              "std_diff": 0.0186013028371532,
+              "ci_low": 0.012323065215033003,
+              "ci_high": 0.023844719486673133,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.051723067937064215,
+              "pvalue": 0.062456951776239056,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2711666688,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.525,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 120,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7921046033690248,
+        "median_lever_pmemsave_sec": 0.7916417876376382,
+        "speedup": 1.000584627717503,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 79.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 234,
+        "n_lever": 234,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020289624858106303,
+              "mean_lever": 0.00022945241031483706,
+              "mean_diff": -2.6556161733774032e-05,
+              "se": 2.5751138918576506e-05,
+              "df": 306.0131553096154,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0001465835218904588,
+              "std_lever": 0.00036562770890823446,
+              "std_diff": -0.00021904418701777567,
+              "ci_low": -0.00041794408284097844,
+              "ci_high": -1.260962938625516e-05,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.0811965811965812,
+              "pvalue": 0.4241585942260872,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2573189120,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.396,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 120,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7921046033690248,
+        "median_lever_pmemsave_sec": 0.5885270367497983,
+        "speedup": 1.3459103047219456,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 234,
+        "n_lever": 273,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020289624858106303,
+              "mean_lever": 0.00020727919134901556,
+              "mean_diff": -4.3829427679525316e-06,
+              "se": 1.5675655037857975e-05,
+              "df": 489.8384520231397,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0001465835218904588,
+              "std_lever": 0.0002049765634040902,
+              "std_diff": -5.839304151363141e-05,
+              "ci_low": -0.00014001166557575854,
+              "ci_high": 2.0904186752745763e-05,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.08669108669108669,
+              "pvalue": 0.2819938386877999,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2743320576,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.555,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 120,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7921046033690248,
+        "median_lever_pmemsave_sec": 0.5885491993116296,
+        "speedup": 1.3458596227732103,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 234,
+        "n_lever": 272,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020289624858106303,
+              "mean_lever": 0.00020714367137235755,
+              "mean_diff": -4.247422791294516e-06,
+              "se": 1.482014869452034e-05,
+              "df": 500.0643114878901,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0001465835218904588,
+              "std_lever": 0.00018645424331299357,
+              "std_diff": -3.9870721422534785e-05,
+              "ci_low": -0.00010783225664811507,
+              "ci_high": 3.247115638211909e-05,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.04088109602815485,
+              "pvalue": 0.9767136925696391,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 3221225472,
+        "cap_bytes": 3221225472,
+        "peak_gib": 3.0,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 600,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7930367406289182,
+        "median_lever_pmemsave_sec": 0.7959332839407102,
+        "speedup": 0.9963608214780879,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 398.0,
+        "median_lever_snapshots": 396.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:fail; std_equiv:fail; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 1187,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00024579654312454084,
+              "mean_lever": 0.16654729160222068,
+              "mean_diff": -0.16630149505909614,
+              "se": 0.003425340103252401,
+              "df": 1186.0987409758866,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 1.0,
+              "p_upper": 0.0,
+              "p_tost": 1.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0007626791804683632,
+              "std_lever": 0.11801032856869771,
+              "std_diff": -0.11724764938822935,
+              "ci_low": -0.1192326052082606,
+              "ci_high": -0.11514618028657424,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.6655433866891323,
+              "pvalue": 2.3134455859794803e-250,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2722971648,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.536,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 600,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7930367406289182,
+        "median_lever_pmemsave_sec": 1.004524262097417,
+        "speedup": 0.7894649940789691,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 398.0,
+        "median_lever_snapshots": 245.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 820,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00024579654312454084,
+              "mean_lever": 0.006604529590141482,
+              "mean_diff": -0.006358733047016942,
+              "se": 0.000425533679824573,
+              "df": 823.4317151718333,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 2.6937817458088996e-147,
+              "p_upper": 1.776491736177e-312,
+              "p_tost": 2.6937817458088996e-147
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0007626791804683632,
+              "std_lever": 0.012168986142514835,
+              "std_diff": -0.011406306962046472,
+              "ci_low": -0.0155694952269144,
+              "ci_high": -0.007134118543056812,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.6652945874546907,
+              "pvalue": 1.4922252867609013e-204,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2430779392,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.264,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 600,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7930367406289182,
+        "median_lever_pmemsave_sec": 1.0123281173927838,
+        "speedup": 0.7833791504985133,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 398.0,
+        "median_lever_snapshots": 344.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 1028,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00024579654312454084,
+              "mean_lever": 0.00021533743416752795,
+              "mean_diff": 3.0459108957012887e-05,
+              "se": 2.243985658148895e-05,
+              "df": 1263.5696843594603,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0007626791804683632,
+              "std_lever": 0.00012480178469637503,
+              "std_diff": 0.0006378773957719881,
+              "ci_low": 0.00015964904542791424,
+              "ci_high": 0.0010696540307989508,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.1627502964843329,
+              "pvalue": 3.1099222361711395e-13,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2427052032,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.26,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 120,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7929069694084457,
+        "median_lever_pmemsave_sec": 0.7919350564479828,
+        "speedup": 1.001227263463777,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 80.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "n_baseline": 234,
+        "n_lever": 234,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020416781433627137,
+              "mean_lever": 0.0014842269767043937,
+              "mean_diff": -0.0012800591623681225,
+              "se": 0.00043656819427368,
+              "df": 233.29232404655002,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 6.3882761686566e-113,
+              "p_upper": 1.3164771042693808e-124,
+              "p_tost": 6.3882761686566e-113
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.00016721038403399793,
+              "std_lever": 0.006676115572568715,
+              "std_diff": -0.006508905188534717,
+              "ci_low": -0.008884020172119417,
+              "ci_high": -0.0036542521948892395,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.14957264957264957,
+              "pvalue": 0.010564082590709043,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2602508288,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.424,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 120,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7929069694084457,
+        "median_lever_pmemsave_sec": 0.5888152614883755,
+        "speedup": 1.3466141611278524,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 234,
+        "n_lever": 270,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020416781433627137,
+              "mean_lever": 0.0002685829445167824,
+              "mean_diff": -6.441513018051102e-05,
+              "se": 3.779574198337076e-05,
+              "df": 317.29602671211484,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.00016721038403399793,
+              "std_lever": 0.000594507481058329,
+              "std_diff": -0.00042729709702433105,
+              "ci_low": -0.0007514768781244553,
+              "ci_high": -3.56068167298707e-05,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.08091168091168091,
+              "pvalue": 0.36093995132426815,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 3221225472,
+        "cap_bytes": 3221225472,
+        "peak_gib": 3.0,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 120,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7929069694084457,
+        "median_lever_pmemsave_sec": 0.5887737559235614,
+        "speedup": 1.3467090905991168,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 79.0,
+        "median_lever_snapshots": 92.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 234,
+        "n_lever": 272,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.00020416781433627137,
+              "mean_lever": 0.00019616239211138557,
+              "mean_diff": 8.005422224885807e-06,
+              "se": 1.7135230622981034e-05,
+              "df": 497.861581326821,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.00016721038403399793,
+              "std_lever": 0.0002176324269130406,
+              "std_diff": -5.042204287904268e-05,
+              "ci_low": -0.0001657047211822935,
+              "ci_high": 6.784199736746644e-05,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.07293237807943691,
+              "pvalue": 0.48520183232886244,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 3221225472,
+        "cap_bytes": 3221225472,
+        "peak_gib": 3.0,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 600,
+      "arm": "ssd_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7931878255240282,
+        "median_lever_pmemsave_sec": 0.7927011736673326,
+        "speedup": 1.0006139159028165,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 398.0
+      },
+      "g_t2_fidelity": {
+        "passed": true,
+        "applicable": true,
+        "reason": "all checks pass",
+        "n_baseline": 1191,
+        "n_lever": 1191,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0003445046374419474,
+              "mean_lever": 0.00034158996530784266,
+              "mean_diff": 2.914672134104741e-06,
+              "se": 8.829205498783879e-05,
+              "df": 2374.844398795161,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0021037863929282445,
+              "std_lever": 0.0022042023044482203,
+              "std_diff": -0.00010041591151997578,
+              "ci_low": -0.0017518815103011057,
+              "ci_high": 0.001523096152010403,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.04114189756507137,
+              "pvalue": 0.2658349821586588,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2627301376,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.447,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 600,
+      "arm": "tmpfs_keep",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7931878255240282,
+        "median_lever_pmemsave_sec": 0.5889648449912247,
+        "speedup": 1.3467490161248017,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 461.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 1380,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0003445046374419474,
+              "mean_lever": 0.0002127688864003057,
+              "mean_diff": 0.0001317357510416417,
+              "se": 6.212712978313119e-05,
+              "df": 1282.1223427211476,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0021037863929282445,
+              "std_lever": 0.000445230261942784,
+              "std_diff": 0.0016585561309854606,
+              "ci_low": 0.00042947107835861057,
+              "ci_high": 0.0027325858755217216,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.09270981637644654,
+              "pvalue": 3.075219999406426e-05,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2741248000,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.553,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 600,
+      "arm": "tmpfs_selfclean",
+      "baseline_arm": "ssd_keep",
+      "n_baseline_runs": 3,
+      "n_lever_runs": 3,
+      "g_t1_throughput": {
+        "passed": false,
+        "applicable": true,
+        "median_baseline_pmemsave_sec": 0.7931878255240282,
+        "median_lever_pmemsave_sec": 0.588724897119849,
+        "speedup": 1.3472979135152083,
+        "min_speedup": 2.0,
+        "median_baseline_snapshots": 399.0,
+        "median_lever_snapshots": 461.0
+      },
+      "g_t2_fidelity": {
+        "passed": false,
+        "applicable": true,
+        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "n_baseline": 1191,
+        "n_lever": 1380,
+        "checks": [
+          {
+            "name": "tost_mean",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "mean_baseline": 0.0003445046374419474,
+              "mean_lever": 0.0002019799273947011,
+              "mean_diff": 0.0001425247100472463,
+              "se": 6.121826553981843e-05,
+              "df": 1210.2107423337545,
+              "margin": 0.02,
+              "alpha": 0.05,
+              "p_lower": 0.0,
+              "p_upper": 0.0,
+              "p_tost": 0.0
+            }
+          },
+          {
+            "name": "std_equiv",
+            "passed": true,
+            "applicable": true,
+            "detail": {
+              "std_baseline": 0.0021037863929282445,
+              "std_lever": 0.00020862924866024146,
+              "std_diff": 0.001895157144268003,
+              "ci_low": 0.000691044465973214,
+              "ci_high": 0.0029365629393253464,
+              "ci_level": 0.9,
+              "margin": 0.02,
+              "n_boot": 2000,
+              "seed": 12345
+            }
+          },
+          {
+            "name": "ks_2samp",
+            "passed": false,
+            "applicable": true,
+            "detail": {
+              "statistic": 0.056857591355455775,
+              "pvalue": 0.030468516205350744,
+              "alpha": 0.05,
+              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+            }
+          }
+        ],
+        "params": {
+          "mean_margin": 0.02,
+          "std_margin": 0.02,
+          "alpha_tost": 0.05,
+          "alpha_ks": 0.05,
+          "min_n": 8,
+          "boot_n": 2000,
+          "boot_seed": 12345
+        }
+      },
+      "g_t3_disk": {
+        "passed": true,
+        "applicable": true,
+        "peak_dump_bytes": 2743488512,
+        "cap_bytes": 3221225472,
+        "peak_gib": 2.555,
+        "cap_gib": 3.0
+      },
+      "passed": false,
+      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+    }
+  ],
+  "recommendations": [
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 120,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    },
+    {
+      "workload": "app_hashtable_intensive_v2",
+      "duration_s": 600,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 120,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    },
+    {
+      "workload": "mem_workingset_sweep_v2",
+      "duration_s": 600,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 120,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    },
+    {
+      "workload": "sandbox_scanner_metadata",
+      "duration_s": 600,
+      "recommended_arm": null,
+      "speedup": null,
+      "passes_all_gates": false,
+      "note": "no arm cleared all three gates"
+    }
+  ],
+  "notes": []
+}
