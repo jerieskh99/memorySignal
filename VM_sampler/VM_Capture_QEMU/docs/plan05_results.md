@@ -239,6 +239,12 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   deleted prev, drained the queue (pending/processing 0/0), dump dir 0 B. Matches
   the inline-helper path (A = 0.157) within run variance -> with-consumer and
   without-consumer compute the same signal (per-pair equivalence already exact).
+- **Step 4.5 (sustain-loop):** `SUSTAIN_LOOP` (opt-in, `run_files_controlled.py`)
+  re-runs each workload until its `--duration` elapses
+  (`timeout N sh -c 'while :; do <cmd>; done'`), fixing the cap-style early-exit.
+  Live verify: a sustained `app_hashtable` capture gave APF mean **0.0875** (n=296)
+  vs the pilot's near-idle **0.0018** -- the workload now churns the whole window.
+  Default off -> byte-identical. +3 tests (219 green).
 
 ## Provenance
 

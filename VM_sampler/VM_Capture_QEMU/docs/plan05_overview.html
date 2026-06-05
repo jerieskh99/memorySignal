@@ -763,12 +763,12 @@
         <li><strong>Or adopt it now.</strong> The 79-vs-14 evidence already
             stands; turning on delete-as-you-go in the production pipeline solves
             the trajectory-length problem the thesis flagged.</li>
-        <li><strong>Sustain the workloads.</strong> The Wave&nbsp;3 probe found the
-            near-idle cause: <code>app_hashtable</code> / <code>sandbox_scanner</code>
-            treat <code>--duration</code> as a cap and exit in 1&ndash;2&nbsp;s (the
-            guest idles the rest); <code>mem_workingset</code> churns when it runs.
-            Loop-wrap the workloads so they dirty memory for the whole window, then
-            re-validate APF before 2B/2A.</li>
+        <li><strong>Sustain the workloads &mdash; done (Wave&nbsp;4).</strong> The
+            probe found the near-idle cause: <code>app_hashtable</code> /
+            <code>sandbox_scanner</code> treat <code>--duration</code> as a cap and
+            exit in 1&ndash;2&nbsp;s. The opt-in <code>SUSTAIN_LOOP</code> re-runs each
+            workload until its <code>--duration</code> elapses; verified live
+            (<code>app_hashtable</code> APF 0.0018&nbsp;&rarr;&nbsp;0.0875).</li>
         <li><strong>Recalibrate the fidelity gate &mdash; done (Wave&nbsp;3).</strong>
             The KS leg now judges the distribution gap (effect size) instead of the
             p-value, so large-sample runs stop false-failing; 9/18 lever
@@ -801,8 +801,9 @@
                   production APF mode</strong> &mdash; <code>CAPTURE_METRIC</code> =
                   delta (unchanged) | apf (inline helper) | apf_queue (Rust
                   <code>apf_calc</code> consumer, bit-identical to the helper). All
-                  three verified live. Remaining: sustain-loop workloads + the full
-                  66-cell campaign</td>
+                  three verified live; <strong>sustain-loop done</strong>
+                  (<code>SUSTAIN_LOOP</code> -- app_hashtable APF 0.0018&rarr;0.0875).
+                  Remaining: the full 66-cell campaign</td>
               <td><span class="chip next">in progress</span></td></tr>
           <tr><td class="mono">4</td><td>server</td>
               <td>Apply the winning setting to the wider workload family</td>
