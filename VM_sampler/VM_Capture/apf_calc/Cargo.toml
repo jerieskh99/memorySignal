@@ -1,0 +1,11 @@
+[package]
+name = "apf_calc"
+version = "0.1.0"
+edition = "2021"
+
+# Active-Page-Fraction calculator: a lean, dependency-free sibling of
+# live_delta_calc. No external crates so it builds anywhere cargo runs.
+[dependencies]
+
+[profile.release]
+opt-level = 3
