@@ -200,6 +200,22 @@ still spawned producer+consumer and wrote cosine/hamming + streaming metrics.
   (producer+consumer, cosine/hamming + streaming metrics intact). Also normalized
   `run_qemu_capture.sh` to LF (was CRLF, unparseable by bash).
 
+## Wave 4 changelog (Rust APF consumer + full campaign)
+
+Wave 4 builds the architecturally-matching APF path -- a Rust consumer through the
+producer -> queue -> consumer pipeline -- and runs a validated campaign. Flag
+scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
+`| apf_queue` (Wave-4 Rust consumer).
+
+- **Step 5 (apf_calc):** new Rust binary `VM_sampler/VM_Capture/apf_calc/` -- a
+  dependency-free sibling of `live_delta_calc` with the same CLI
+  (`<prev> <curr> <output>`). Computes APF = fraction of differing 4 KiB pages,
+  matching `plan02_apf_helper._compute_active_page_fraction` bit-for-bit
+  (size-mismatch/empty -> 0.0; APF = differ_pages / n_pages). Ships 3 cargo unit
+  tests (0.3 / identical / size-mismatch) + a cross-language equivalence check
+  (`tests/apf_calc_equivalence.py`) asserting `apf_calc == plan02_apf_helper == 0.3`
+  on a synthetic dump pair. Built + verified server-side (no cargo on the laptop).
+
 ## Provenance
 
 - Per-cell records: `plan05_runs/20260602T230241Z_dd587705/` (66) +
