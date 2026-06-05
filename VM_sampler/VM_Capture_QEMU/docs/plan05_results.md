@@ -142,6 +142,24 @@ intermittent issue (launch / VM-pause throttling). The fix is to **sustain** the
 workloads for the capture window (loop-wrap them). None of this affects the
 throughput finding -- dump cost and cadence are independent of APF content.
 
+## Production APF capture mode (CAPTURE_METRIC)
+
+The production orchestrator (`run_files_controlled.py`) + launcher
+(`run_qemu_capture.sh`) now take a `CAPTURE_METRIC` selector:
+
+- `delta` (default) -- the existing Cosine/Hamming Rust-delta pipeline (producer +
+  consumer + `run_matrix.npy`). Byte-identical to before: proven offline by
+  `tests/test_run_files_capture_metric.py` and live by the delta-regression check.
+- `apf` -- the producer streams APF via `plan02_apf_helper.py` (`TIMING_APF_STREAM`
+  + `TIMING_SUDO_DELETE`); the Rust delta consumer is **not** started. Output:
+  `apf_trajectory.jsonl`. This is the lean inline-helper path (Wave 3); Wave 4 adds
+  an `apf_queue` value backed by a Rust APF consumer through the full
+  producer -> queue -> consumer pipeline.
+
+Live verify (mem_workingset, 30 s): `apf` -> 177 APF pairs, mean 0.157, one process
+(producer only), dump dir 0 B (helper sudo-deletes prev); the `delta` default run
+still spawned producer+consumer and wrote cosine/hamming + streaming metrics.
+
 ## Next steps
 
 1. **Measure the win as a clean contrast.** Re-run a small matrix with a *true*
@@ -174,6 +192,13 @@ throughput finding -- dump cost and cadence are independent of APF content.
   flat 1.29 s + 29 snaps. Confirms the retention -> dump-cost direction; the full
   v3 7 s also needs the concurrent consumer + a much longer run (210 GiB bomb at
   600 s, not run).
+- **Step 4 (2A):** added `CAPTURE_METRIC=delta|apf` to the production pipeline
+  (`run_files_controlled.py` + `run_qemu_capture.sh`), additive and default
+  byte-identical. `apf` streams APF via the producer's helper and skips the Rust
+  delta consumer; `delta` (default) is unchanged. Verified live: apf mode -> 177
+  pairs, APF mean 0.157, no consumer, dump dir 0 B; delta-regression run unchanged
+  (producer+consumer, cosine/hamming + streaming metrics intact). Also normalized
+  `run_qemu_capture.sh` to LF (was CRLF, unparseable by bash).
 
 ## Provenance
 
