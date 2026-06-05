@@ -53,6 +53,11 @@ TIMESTAMPS_LOG = os.environ.get(
 )
 CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "0"))
 
+# Capture metric selector: "delta" (default; Cosine/Hamming via the Rust consumer)
+# or "apf" (stream active-page-fraction via the producer's APF helper, with the
+# delta consumer skipped). Default "delta" keeps the existing pipeline byte-identical.
+CAPTURE_METRIC = os.environ.get("CAPTURE_METRIC", "delta").strip().lower()
+
 # ---------------------------------------------------------------------------
 # Step-gated offline metrics
 # ---------------------------------------------------------------------------
@@ -253,6 +258,27 @@ def stop_vm() -> None:
         print("[CONTROL] WARNING: VM may still be running (graceful stop timed out).")
 
 
+def _apf_env_prefix(metric: str, apf_jsonl: str, ack_dir: str, helper_log: str) -> str:
+    """Env-var prefix selecting the capture metric for run_qemu_capture.sh.
+
+    Returns '' for the default 'delta' metric so the launched command is
+    byte-identical to the pre-APF pipeline. For 'apf' it returns the prefix that
+    makes run_qemu_capture.sh skip the delta consumer and makes the producer stream
+    APF (TIMING_APF_STREAM), with TIMING_SUDO_DELETE so the helper can unlink the
+    previous dump from a libvirt-qemu-owned imageDir.
+    """
+    if metric != "apf":
+        return ""
+    return (
+        f"CAPTURE_METRIC=apf "
+        f"TIMING_APF_STREAM=1 "
+        f"TIMING_APF_JSONL={shlex.quote(apf_jsonl)} "
+        f"TIMING_APF_ACK_DIR={shlex.quote(ack_dir)} "
+        f"TIMING_APF_HELPER_LOG={shlex.quote(helper_log)} "
+        f"TIMING_SUDO_DELETE=1 "
+    )
+
+
 def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
@@ -286,6 +312,25 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     # offline metrics are computed by offline_step_metrics.py after each step.
     if OFFLINE_METRICS_MODE:
         env_prefix += "OFFLINE_MODE=1 "
+    if CAPTURE_METRIC == "apf":
+        base = run_matrix_path or os.path.join(CAPTURE_ROOT, "apf_capture")
+        apf_jsonl = f"{base}.apf_trajectory.jsonl"
+        ack_dir = f"{base}.apf_acks"
+        helper_log = f"{base}.apf_helper.log"
+        # Clear any prior trajectory / acks so each step's APF is self-contained.
+        try:
+            if os.path.isfile(apf_jsonl):
+                os.remove(apf_jsonl)
+        except OSError:
+            pass
+        os.makedirs(ack_dir, exist_ok=True)
+        for _a in Path(ack_dir).glob("seq_*.apf_done"):
+            try:
+                _a.unlink()
+            except OSError:
+                pass
+        env_prefix += _apf_env_prefix(CAPTURE_METRIC, apf_jsonl, ack_dir, helper_log)
+        print(f"[CONTROL] CAPTURE_METRIC=apf -> streaming APF to {apf_jsonl} (delta consumer skipped)")
     cmd = (
         f"cd {root_q} && "
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"

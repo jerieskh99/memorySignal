@@ -10,6 +10,10 @@ PRODUCER_SCRIPT="${PRODUCER_SCRIPT:-$ROOT/capture_producer_qemu_pmemsave.sh}"
 CONSUMER_SCRIPT="${CONSUMER_SCRIPT:-$ROOT/capture_consumer_qemu.sh}"
 CONFIG="${CONFIG:-$ROOT/config_qemu.json}"
 BACKGROUND="${BACKGROUND:-0}"
+# Capture metric: "delta" (default; spawn the Cosine/Hamming consumer) or "apf"
+# (skip the consumer; the producer streams APF via TIMING_APF_STREAM and its helper
+# deletes prev itself). Default "delta" keeps behavior unchanged.
+CAPTURE_METRIC="${CAPTURE_METRIC:-delta}"
 
 # Optional SSH trigger for workload scripts inside the guest.
 # Example:
@@ -71,14 +75,18 @@ if [[ "${BACKGROUND}" == "1" || "${BACKGROUND}" == "true" ]]; then
   echo "Starting producer and consumer in background (same terminal, nohup)."
   nohup bash "$PRODUCER_SCRIPT" >> "$ROOT/producer.log" 2>&1 &
   PROD_PID=$!
-  nohup bash "$CONSUMER_SCRIPT" >> "$ROOT/consumer.log" 2>&1 &
-  CONS_PID=$!
   echo "$PROD_PID" > "$ROOT/capture_pids.txt"
-  echo "$CONS_PID" >> "$ROOT/capture_pids.txt"
   echo "Producer PID: $PROD_PID (log: $ROOT/producer.log)"
-  echo "Consumer PID: $CONS_PID (log: $ROOT/consumer.log)"
+  if [[ "$CAPTURE_METRIC" == "apf" ]]; then
+    echo "APF mode: delta consumer skipped (producer streams APF via TIMING_APF_STREAM)."
+  else
+    nohup bash "$CONSUMER_SCRIPT" >> "$ROOT/consumer.log" 2>&1 &
+    CONS_PID=$!
+    echo "$CONS_PID" >> "$ROOT/capture_pids.txt"
+    echo "Consumer PID: $CONS_PID (log: $ROOT/consumer.log)"
+  fi
   echo "Root: $ROOT"
-  echo "To stop: kill $PROD_PID $CONS_PID"
+  echo "To stop: kill \$(cat $ROOT/capture_pids.txt)"
 else
   echo "Starting producer and consumer in separate terminals (xterm or current)."
   echo "Root: $ROOT"
@@ -86,7 +94,9 @@ else
   echo "Consumer: $CONSUMER_SCRIPT"
   if command -v xterm &>/dev/null; then
     xterm -e "cd $ROOT && CONFIG=$CONFIG bash $PRODUCER_SCRIPT; echo 'Producer exited; press Enter'; read" &
-    xterm -e "cd $ROOT && CONFIG=$CONFIG bash $CONSUMER_SCRIPT; echo 'Consumer exited; press Enter'; read" &
+    if [[ "$CAPTURE_METRIC" != "apf" ]]; then
+      xterm -e "cd $ROOT && CONFIG=$CONFIG bash $CONSUMER_SCRIPT; echo 'Consumer exited; press Enter'; read" &
+    fi
   else
     echo "Run in two terminals:"
     echo "  terminal 1: cd $ROOT && CONFIG=$CONFIG bash $PRODUCER_SCRIPT"
