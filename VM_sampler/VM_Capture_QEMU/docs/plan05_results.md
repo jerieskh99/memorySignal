@@ -47,7 +47,7 @@ windows** -- that DOF starvation is what relaxes.
 | Gate | Verdict | Reality |
 |------|---------|---------|
 | **G-T1 throughput** (lever <= 0.5x baseline) | FAIL, all 18 | Baseline already streamed+deleted, so all arms tie at 0.79s. Wrong contrast. The true gain vs keep-everything is ~9x dump / ~6x snapshots. |
-| **G-T2 fidelity** | Mixed | Passes where APF matches; failures are large-n KS hypersensitivity + d120 jitter; **one real bug** (below). |
+| **G-T2 fidelity** | 9/18 pass (recalibrated) | KS leg now judged on the statistic (effect size), not the p-value, fixing large-n false-fails. Residual fails are real: d120 short-traj jitter, an app_hashtable@600 spread diff, and the near-idle/bimodal APF cases (below). |
 | **G-T3 disk** (peak <= 3 GiB) | PASS, all | 2.26-3.0 GiB. Validated the disk-safety fix. |
 
 Per-arm throughput (median pmemsave): `ssd_keep` 0.79s, `ssd_selfclean` 0.79s
@@ -72,6 +72,28 @@ top of delete-as-you-go, not the main lever. (For `mem_workingset_sweep_v2` @
 Same machine, same 1 GiB guest. The only variable that changed is **retention**,
 not RAM and not the disk hardware.
 
+## 2B: keep-everything vs delete-as-you-go (head-to-head)
+
+A controlled one-machine check (idle guest, 60 s each, same session) isolates the
+retention effect:
+
+| Metric (60 s) | keep-everything | delete-as-you-go |
+|---------------|-----------------|------------------|
+| snapshots | 21 | 29 |
+| pmemsave start -> end | 1.26 -> 1.68 s (final spike 2.4 s) | 1.29 -> 1.29 s (flat) |
+| peak disk | 21 GiB (climbing) | 2.2 GiB (bounded) |
+| 600 s extrapolation | ~210 GiB (disk bomb) | ~2 GiB |
+
+Retention shows in all three signatures: keep-everything's disk explodes
+(21 GiB/60 s vs a bounded 2.2), pmemsave starts climbing (flat, then spiking to
+2.4 s as the pile bites), and it fits fewer snapshots (21 vs 29). **Caveat on
+magnitude:** at 60 s only 21 GiB piles -- not enough to reproduce the full v3 7 s
+climb -- and 2B is producer-only, so it omits v3's concurrent consumer reading the
+backlog (extra I/O contention). A longer keep run would show more climb but at
+0.35 GiB/s is a 210 GiB bomb at 600 s. So the v3 7 s = disk-fill + consumer
+contention + long accumulation; 2B isolates the disk-fill leg, and the disk-growth
+rate (21 GiB/60 s, unsustainable) is the decisive proof.
+
 ## The disk-safety fix (this wave)
 
 Delete-as-you-go only works if the delete actually succeeds. The `ssd_keep` dump
@@ -87,14 +109,38 @@ in a 120s smoke). Fix:
 All sudo is non-interactive (`sudo -n`), safe for an unattended run. (Committed to
 `fullv3` at `3065e95`.)
 
-## The one real fidelity bug
+## The G-T2 recalibration and the near-idle finding
 
-`mem_workingset_sweep_v2` @ 600s, `ssd_selfclean`: mean APF drops by **-0.166**
-(KS p ~ 2e-250). The self-clean inline `sudo rm` of the previous dump races the
-APF helper's read of that same dump; when rm wins, `_compute_active_page_fraction`
-memmaps a gone/truncated file and returns 0.0, dragging the mean down. Only on SSD
-(slow read loses the race), not tmpfs. A real `self-clean x --stream-apf`
-interaction to fix.
+**Recalibration (Wave 3).** The fidelity gate's KS leg rejected on the *p-value*,
+which gains power with sample size: at n~1,400 (the 600s cells) it flagged APF
+differences of 0.0001-0.002 -- far below the 0.02 margin we care about. The gate
+now judges the KS *statistic* `D = sup|F_a - F_b|` (an effect size in [0,1] that
+does not inflate with n), passing on `D <= 0.10 OR p > alpha`. The threshold is
+data-calibrated: pilot D clusters <=0.093 for practically-identical arms vs
+>=0.150 for real differences, so 0.10 sits in a clean gap. Result: 7/18 ->
+**9/18** lever comparisons pass (the sandbox@600 tmpfs arms flip); residual
+failures are now on TOST-mean or std, not KS.
+
+**The `mem_workingset@600s` anomaly is NOT a delete race.** An earlier draft
+claimed the -0.166 APF drop was the self-clean `rm` racing the APF helper. The
+trajectories falsify that: **zero APF=0 entries**, and the producer's
+`if APF_STREAM ... elif SELF_CLEAN` already makes those paths mutually exclusive.
+The real picture: APF is **near-zero in nearly all 72 cells** (both durations);
+only ~5 cells show real churn, notably `mem_workingset@600s ssd_selfclean` r1/r2
+~ 0.25 (vs 0 for r0 and all of `ssd_keep`). Idle and churning cells share the
+**same snapshot cadence**, ruling out a cadence artifact -- so the workloads were
+not reliably dirtying memory during capture, and most G-T2 "passes" are matching
+idle-vs-idle.
+
+**Root cause (Step 2 probe, confirmed).** `app_hashtable_intensive_v2` and
+`sandbox_scanner_metadata` treat `--duration` as a *cap, not a sustain*: they
+finish fixed work (6M inserts / a 5000-file scan) in **1-2 s** and the guest then
+idles for the rest of a 120/600 s window, so their APF is ~0 in every cell
+(deterministic). `mem_workingset_sweep_v2` *honors* `--duration` (ran a full 21 s,
+2.7 GB writes) and churns to ~0.25 when it runs; its idle reps are a separate,
+intermittent issue (launch / VM-pause throttling). The fix is to **sustain** the
+workloads for the capture window (loop-wrap them). None of this affects the
+throughput finding -- dump cost and cadence are independent of APF content.
 
 ## Next steps
 
@@ -105,9 +151,29 @@ interaction to fix.
 2. **Or adopt it now.** The 79-vs-14 evidence stands; turning on delete-as-you-go
    in the production pipeline solves the trajectory-length / DOF problem the
    papers flagged.
-3. **Fix the self-clean x APF delete race** (order the helper's read before the
-   delete, or skip dumps still pending an APF ack).
-4. **Recalibrate G-T2** so large-sample KS stops dominating fidelity at d600.
+3. **Sustain the workloads (fixes the near-idle captures).** Confirmed: app/sandbox
+   exit in 1-2 s (`--duration` is a cap). Loop-wrap the workloads so they churn for
+   the full window, and re-validate APF is non-trivial before trusting 2B/2A.
+4. **Recalibrate G-T2 -- done (Wave 3):** effect-size KS, 9/18 pass.
+
+## Wave 3 changelog
+
+- **Step 1 (3.2):** recalibrated the G-T2 KS leg to an effect-size gate
+  (`D <= 0.10 OR p > alpha`, `KS_STAT_MARGIN=0.10`). 7/18 -> 9/18 pass. +3 unit
+  tests (large-n negligible-diff passes; real-diff fails). Re-aggregated the 72
+  cells -> `plan05_summary_recal.json`.
+- **Step 2 (3.1 reframe):** retracted the "self-clean x APF delete race" claim --
+  falsified by zero APF=0 entries and the producer's APF/self-clean mutual
+  exclusion. Probe confirmed the near-idle root cause: `app_hashtable` and
+  `sandbox_scanner` treat `--duration` as a cap and exit in 1-2 s (guest idles the
+  rest of the window); `mem_workingset` honors `--duration` and churns (~0.25) when
+  it runs. Fix = sustain-loop the workloads. Pilot APF is therefore mostly idle and
+  the fidelity result is weak; the throughput result is unaffected.
+- **Step 3 (2B):** controlled idle 60 s head-to-head. keep-everything 21 GiB/60 s +
+  climbing pmemsave (spike 2.4 s) + 21 snaps; delete-as-you-go bounded 2.2 GiB +
+  flat 1.29 s + 29 snaps. Confirms the retention -> dump-cost direction; the full
+  v3 7 s also needs the concurrent consumer + a much longer run (210 GiB bomb at
+  600 s, not run).
 
 ## Provenance
 
@@ -119,4 +185,5 @@ interaction to fix.
   `plan05_aggregate.aggregate(records, baseline_arm="ssd_keep")`. Raw gate JSON:
   `plan05_summary.json`.
 - Gate constants: `THROUGHPUT_MIN_SPEEDUP=2.0`, `DISK_CAP_BYTES=3 GiB`,
-  `APF_MEAN_MARGIN=APF_STD_MARGIN=0.02`, `KS_ALPHA=TOST_ALPHA=0.05`.
+  `APF_MEAN_MARGIN=APF_STD_MARGIN=0.02`, `KS_ALPHA=TOST_ALPHA=0.05`,
+  `KS_STAT_MARGIN=0.10` (Wave 3 effect-size KS).

@@ -86,6 +86,27 @@ class TestKs(unittest.TestCase):
     def test_disjoint_rejected(self):
         self.assertFalse(F.ks_not_rejected([0.1] * 30, [0.9] * 30).passed)
 
+    def test_large_n_small_shift_passes_on_statistic(self):
+        # The Plan-05 d600 false-fail: a tiny real shift at large n makes the KS
+        # p-value reject (over-powered), but the statistic D stays below the
+        # margin, so the effect-size gate correctly passes.
+        rng = np.random.default_rng(11)
+        a = rng.normal(0.30, 0.05, 6000).tolist()
+        b = rng.normal(0.306, 0.05, 6000).tolist()
+        r = F.ks_not_rejected(a, b)
+        self.assertTrue(r.passed)                                  # D <= margin
+        self.assertLess(r.detail["statistic"], F.KS_STAT_MARGIN)
+        self.assertFalse(r.detail["pvalue_not_rejected"])          # p-value rejected
+        self.assertEqual(r.passed, r.detail["statistic"] <= F.KS_STAT_MARGIN)
+
+    def test_real_diff_fails_on_statistic(self):
+        rng = np.random.default_rng(12)
+        a = rng.normal(0.30, 0.05, 500).tolist()
+        b = rng.normal(0.45, 0.05, 500).tolist()
+        r = F.ks_not_rejected(a, b)
+        self.assertFalse(r.passed)
+        self.assertGreater(r.detail["statistic"], F.KS_STAT_MARGIN)
+
 
 class TestFidelityGate(unittest.TestCase):
     def test_same_pass(self):
@@ -104,6 +125,18 @@ class TestFidelityGate(unittest.TestCase):
         self.assertFalse(r.passed)
         names = {c["name"]: c["passed"] for c in r.checks}
         self.assertFalse(names["tost_mean"])
+
+    def test_large_n_negligible_diff_passes(self):
+        # Thousands of points, a negligible difference (the d600 regime). The old
+        # p-value KS rejected and failed the gate; it must now pass.
+        rng = np.random.default_rng(13)
+        a = rng.normal(0.30, 0.05, 4000).tolist()
+        b = rng.normal(0.302, 0.05, 4000).tolist()
+        r = F.fidelity_gate(a, b)
+        self.assertTrue(r.applicable)
+        self.assertTrue(r.passed)
+        ks = {c["name"]: c for c in r.checks}["ks_2samp"]
+        self.assertTrue(ks["passed"])
 
     def test_short_not_applicable(self):
         r = F.fidelity_gate([0.3] * 200, [0.3] * 5)

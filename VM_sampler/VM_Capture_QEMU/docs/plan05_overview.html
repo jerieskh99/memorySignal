@@ -458,10 +458,11 @@
         <dd>The runner that loops the driver across all 72 runs, starts the VM
             once, does the safety check once, and gathers the results.</dd>
         <dt>tests/</dt>
-        <dd>Five test files, 55 checks in total &mdash; including a proof that
+        <dd>Five test files, 58 checks in total &mdash; including a proof that
             with none of the new switches on, the tool behaves byte-for-byte
-            like before, plus a check on the opt-in <code>sudo</code>-delete that
-            keeps the keep-dumps arm under its disk budget.</dd>
+            like before, a check on the opt-in <code>sudo</code>-delete that
+            keeps the keep-dumps arm under its disk budget, and the recalibrated
+            effect-size KS fidelity check.</dd>
       </dl>
       <div class="callout good">
         <strong>Nothing changes unless you ask.</strong> Every new capability is
@@ -542,15 +543,24 @@
       <div class="gate">
         <div class="gate-id">G-T2<br>same signal?</div>
         <div class="gate-body">
-          <span class="ask">Mixed &mdash; mostly test-tuning, one real bug.</span>
-          Where APF truly matches, it passes. Most failures are the KS test turning
-          hypersensitive at ~1,400 samples (means differ by only
-          0.0001&ndash;0.002, a margin-calibration issue) or short-run jitter at
-          120&nbsp;s. One failure is real: <code>mem_workingset @ 600&nbsp;s,
-          ssd_selfclean</code> drops the APF mean by <strong>0.166</strong> &mdash;
-          the self-clean delete races the APF helper's read of the previous dump,
-          so the helper sees a missing file and records APF&nbsp;=&nbsp;0. A genuine
-          self-clean &times; APF-streaming interaction to fix.
+          <span class="ask">Mostly fine; the failures are now well understood.</span>
+          After recalibrating the gate (Wave&nbsp;3), <strong>9 of 18</strong>
+          lever comparisons pass. The recalibration: the old gate rejected on the
+          KS <em>p-value</em>, which at ~1,400 samples flags differences of
+          0.0001&ndash;0.002 APF &mdash; far below the 0.02 we care about. It now
+          judges the KS <em>statistic</em> (the actual distribution gap), so
+          negligible differences stop being false failures. The deeper finding
+          from the audit: APF is <strong>near-zero in nearly all 72 cells</strong>
+          (both durations) &mdash; the guest barely changed pages &mdash; so most
+          &ldquo;passes&rdquo; are matching near-idle signals, and the few real
+          failures are replicates where the workload actually churned (e.g.
+          <code>mem_workingset@600s</code> = 0 for some reps, 0.25 for others).
+          This is <em>not</em> a delete race (zero APF=0 entries). The Wave&nbsp;3
+          probe found the cause: <code>app_hashtable</code> and
+          <code>sandbox_scanner</code> treat <code>--duration</code> as a cap and
+          finish in 1&ndash;2&nbsp;s, so the guest idles the rest of the window;
+          <code>mem_workingset</code> honors the duration and churns. Fix: sustain
+          the workloads (loop-wrap) for the capture window.
         </div>
       </div>
 
@@ -561,8 +571,8 @@
               <td><strong>FAIL</strong> (all 18 comparisons)</td>
               <td>tmpfs 1.35&times;, self-clean 1.00&times; (target 2&times;)</td></tr>
           <tr><td class="mono">G-T2 fidelity</td>
-              <td>Mixed</td>
-              <td>passes where APF matches; one real artifact (&minus;0.166 APF)</td></tr>
+              <td>9/18 pass (recalibrated)</td>
+              <td>KS now judged on effect size; residual fails are real (short-traj, spread, near-idle APF)</td></tr>
           <tr><td class="mono">G-T3 disk</td>
               <td><strong>PASS</strong> (all)</td>
               <td>peak 2.3&ndash;3.0&nbsp;GiB &le; 3&nbsp;GiB cap</td></tr>
@@ -718,6 +728,17 @@
         coverage and SNR hedges is relieved.
       </p>
 
+      <div class="callout info">
+        <strong>2B head-to-head (Wave&nbsp;3).</strong> A controlled idle
+        60&nbsp;s check confirms retention is the lever: keep-everything's disk
+        climbs to <strong>21&nbsp;GiB in 60&nbsp;s</strong> (vs a bounded
+        2.2&nbsp;GiB for delete-as-you-go), its pmemsave starts climbing (flat
+        &rarr; a 2.4&nbsp;s spike), and it fits fewer snapshots (21 vs 29). The
+        full v3 7&nbsp;s also needed the concurrent consumer and a much longer run
+        (a 210&nbsp;GiB bomb at 600&nbsp;s), so 2B isolates the disk-fill leg
+        safely &mdash; the disk-growth rate is the decisive proof.
+      </div>
+
       <h3>Next steps</h3>
       <ol class="tight">
         <li><strong>Measure the win as a clean contrast.</strong> Re-run a small
@@ -728,10 +749,16 @@
         <li><strong>Or adopt it now.</strong> The 79-vs-14 evidence already
             stands; turning on delete-as-you-go in the production pipeline solves
             the trajectory-length problem the thesis flagged.</li>
-        <li><strong>Fix the self-clean&times;APF race</strong> (the one real
-            fidelity bug: <code>mem_workingset@600&nbsp;s</code>, &minus;0.166 APF).</li>
-        <li><strong>Recalibrate the fidelity gate</strong> so the KS test stops
-            over-flagging at large sample sizes.</li>
+        <li><strong>Sustain the workloads.</strong> The Wave&nbsp;3 probe found the
+            near-idle cause: <code>app_hashtable</code> / <code>sandbox_scanner</code>
+            treat <code>--duration</code> as a cap and exit in 1&ndash;2&nbsp;s (the
+            guest idles the rest); <code>mem_workingset</code> churns when it runs.
+            Loop-wrap the workloads so they dirty memory for the whole window, then
+            re-validate APF before 2B/2A.</li>
+        <li><strong>Recalibrate the fidelity gate &mdash; done (Wave&nbsp;3).</strong>
+            The KS leg now judges the distribution gap (effect size) instead of the
+            p-value, so large-sample runs stop false-failing; 9/18 lever
+            comparisons pass.</li>
       </ol>
     </section>
 
@@ -754,10 +781,11 @@
               <td>Ran the 72-run pilot; collected timing, APF, and peak disk</td>
               <td><span class="chip done">done</span></td></tr>
           <tr><td class="mono">3</td><td>both</td>
-              <td>Results in &mdash; the win is delete-as-you-go (see &sect;09).
-                  Measure it against a true keep-everything baseline, fix the
-                  self-clean APF race, recalibrate G-T2 margins</td>
-              <td><span class="chip next">next</span></td></tr>
+              <td>Win is delete-as-you-go (see &sect;09). Recalibrated G-T2 (KS
+                  effect-size, done); found the near-idle cause (workloads exit
+                  early); 2B head-to-head confirms retention. Next: sustain
+                  workloads + add an APF capture mode to production</td>
+              <td><span class="chip next">in progress</span></td></tr>
           <tr><td class="mono">4</td><td>server</td>
               <td>Apply the winning setting to the wider workload family</td>
               <td><span class="chip wait">after 3</span></td></tr>

@@ -1,6 +1,6 @@
 {
   "schema": "plan05_summary.v1",
-  "generated_at": "2026-06-03T20:49:53.598311+00:00",
+  "generated_at": "2026-06-04T00:03:45.737092+00:00",
   "params": {
     "baseline_arm": "ssd_keep",
     "min_speedup": 2.0,
@@ -11,6 +11,7 @@
       "std_margin": 0.02,
       "alpha_tost": 0.05,
       "alpha_ks": 0.05,
+      "ks_stat_margin": 0.1,
       "min_n": 8
     }
   },
@@ -80,9 +81,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.19230769230769232,
+              "stat_margin": 0.1,
               "pvalue": 0.0003367972496921771,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -91,6 +95,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -170,9 +175,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.184981684981685,
+              "stat_margin": 0.1,
               "pvalue": 0.00030388852424339976,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -181,6 +189,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -260,9 +269,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.22283272283272285,
+              "stat_margin": 0.1,
               "pvalue": 5.7569844021822875e-06,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -271,6 +283,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -350,9 +363,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.04314219390526992,
+              "stat_margin": 0.1,
               "pvalue": 0.2105527668286458,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -361,6 +377,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -397,7 +414,7 @@
       "g_t2_fidelity": {
         "passed": false,
         "applicable": true,
-        "reason": "tost_mean:pass; std_equiv:fail; ks_2samp:fail",
+        "reason": "tost_mean:pass; std_equiv:fail; ks_2samp:pass",
         "n_baseline": 1191,
         "n_lever": 1380,
         "checks": [
@@ -436,13 +453,16 @@
           },
           {
             "name": "ks_2samp",
-            "passed": false,
+            "passed": true,
             "applicable": true,
             "detail": {
               "statistic": 0.0810791078012631,
+              "stat_margin": 0.1,
               "pvalue": 0.0004140750306585732,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -451,6 +471,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -530,9 +551,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.051723067937064215,
+              "stat_margin": 0.1,
               "pvalue": 0.062456951776239056,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -541,6 +565,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -620,9 +645,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.0811965811965812,
+              "stat_margin": 0.1,
               "pvalue": 0.4241585942260872,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -631,6 +659,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -710,9 +739,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.08669108669108669,
+              "stat_margin": 0.1,
               "pvalue": 0.2819938386877999,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -721,6 +753,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -800,9 +833,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.04088109602815485,
+              "stat_margin": 0.1,
               "pvalue": 0.9767136925696391,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -811,6 +847,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -890,9 +927,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.6655433866891323,
+              "stat_margin": 0.1,
               "pvalue": 2.3134455859794803e-250,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -901,6 +941,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -980,9 +1021,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.6652945874546907,
+              "stat_margin": 0.1,
               "pvalue": 1.4922252867609013e-204,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -991,6 +1035,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1070,9 +1115,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.1627502964843329,
+              "stat_margin": 0.1,
               "pvalue": 3.1099222361711395e-13,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1081,6 +1129,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1160,9 +1209,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.14957264957264957,
+              "stat_margin": 0.1,
               "pvalue": 0.010564082590709043,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "neither",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1171,6 +1223,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1250,9 +1303,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.08091168091168091,
+              "stat_margin": 0.1,
               "pvalue": 0.36093995132426815,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1261,6 +1317,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1340,9 +1397,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.07293237807943691,
+              "stat_margin": 0.1,
               "pvalue": 0.48520183232886244,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1351,6 +1411,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1430,9 +1491,12 @@
             "applicable": true,
             "detail": {
               "statistic": 0.04114189756507137,
+              "stat_margin": 0.1,
               "pvalue": 0.2658349821586588,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": true,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1441,6 +1505,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1475,9 +1540,9 @@
         "median_lever_snapshots": 461.0
       },
       "g_t2_fidelity": {
-        "passed": false,
+        "passed": true,
         "applicable": true,
-        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "reason": "all checks pass",
         "n_baseline": 1191,
         "n_lever": 1380,
         "checks": [
@@ -1516,13 +1581,16 @@
           },
           {
             "name": "ks_2samp",
-            "passed": false,
+            "passed": true,
             "applicable": true,
             "detail": {
               "statistic": 0.09270981637644654,
+              "stat_margin": 0.1,
               "pvalue": 3.075219999406426e-05,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1531,6 +1599,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1545,7 +1614,7 @@
         "cap_gib": 3.0
       },
       "passed": false,
-      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
     },
     {
       "workload": "sandbox_scanner_metadata",
@@ -1565,9 +1634,9 @@
         "median_lever_snapshots": 461.0
       },
       "g_t2_fidelity": {
-        "passed": false,
+        "passed": true,
         "applicable": true,
-        "reason": "tost_mean:pass; std_equiv:pass; ks_2samp:fail",
+        "reason": "all checks pass",
         "n_baseline": 1191,
         "n_lever": 1380,
         "checks": [
@@ -1606,13 +1675,16 @@
           },
           {
             "name": "ks_2samp",
-            "passed": false,
+            "passed": true,
             "applicable": true,
             "detail": {
               "statistic": 0.056857591355455775,
+              "stat_margin": 0.1,
               "pvalue": 0.030468516205350744,
               "alpha": 0.05,
-              "interpretation": "pass = distributions NOT shown to differ (p > alpha)"
+              "pvalue_not_rejected": false,
+              "passed_via": "statistic",
+              "interpretation": "pass = D <= stat_margin OR p > alpha (practically equivalent, or not statistically distinguishable)"
             }
           }
         ],
@@ -1621,6 +1693,7 @@
           "std_margin": 0.02,
           "alpha_tost": 0.05,
           "alpha_ks": 0.05,
+          "ks_stat_margin": 0.1,
           "min_n": 8,
           "boot_n": 2000,
           "boot_seed": 12345
@@ -1635,7 +1708,7 @@
         "cap_gib": 3.0
       },
       "passed": false,
-      "note": "G-T1:fail; G-T2:fail; G-T3:pass"
+      "note": "G-T1:fail; G-T2:pass; G-T3:pass"
     }
   ],
   "recommendations": [

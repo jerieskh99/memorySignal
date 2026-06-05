@@ -249,8 +249,12 @@
         <code>7.06&nbsp;s&rarr;0.79&nbsp;s</code> and snapshots
         <strong>14&rarr;79 per 120&nbsp;s</strong> (~5&ndash;8&times;). The disk gate
         <strong>passed</strong> (peak &le;3&nbsp;GiB, via the new
-        <code>sudo</code>-delete fix); one real fidelity bug (a
-        self-clean&times;APF delete race on <code>mem_workingset@600s</code>). Full
+        <code>sudo</code>-delete fix); fidelity recalibrated to an effect-size KS
+        (9/18 pass), with the residual failures traced to near-idle APF &mdash; the
+        Wave&nbsp;3 probe found the workloads (<code>app_hashtable</code>,
+        <code>sandbox_scanner</code>) treat <code>--duration</code> as a cap and
+        exit in 1&ndash;2&nbsp;s, so the guest idles most of the window (not a delete
+        race). Full
         reasoning: <a href="plan05_overview.html#mystery">The 7-second mystery</a>.
         The text below is the original pre-pilot proposal, kept for the record.
       </div>
