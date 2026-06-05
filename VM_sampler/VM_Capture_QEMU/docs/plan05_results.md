@@ -214,7 +214,16 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   (size-mismatch/empty -> 0.0; APF = differ_pages / n_pages). Ships 3 cargo unit
   tests (0.3 / identical / size-mismatch) + a cross-language equivalence check
   (`tests/apf_calc_equivalence.py`) asserting `apf_calc == plan02_apf_helper == 0.3`
-  on a synthetic dump pair. Built + verified server-side (no cargo on the laptop).
+  on a synthetic dump pair. Built + verified server-side (build 2.1 s, 3 tests pass,
+  equivalence == 0.3).
+- **Step 6 (consumer routing + flag):** `capture_consumer_qemu.sh` now branches on
+  `CAPTURE_METRIC` -- `apf_queue` runs `apf_calc`, appends
+  `{seq,t_emit_epoch,prev,curr,apf}` to `apf_trajectory.jsonl`, and skips
+  run_matrix/streaming; `delta` (default) is unchanged. prev-delete + done-move are
+  shared. `run_files_controlled.py._apf_env_prefix` is now 3-way (delta | apf |
+  apf_queue): `apf_queue` makes the producer ENQUEUE (no `TIMING_APF_STREAM`) and
+  points the consumer at `TIMING_APF_JSONL`. `config_qemu_upc.json` gains
+  `apfCalculationProgram`. Default `delta` stays byte-identical (216 tests green).
 
 ## Provenance
 

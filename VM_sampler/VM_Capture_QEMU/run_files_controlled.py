@@ -261,22 +261,33 @@ def stop_vm() -> None:
 def _apf_env_prefix(metric: str, apf_jsonl: str, ack_dir: str, helper_log: str) -> str:
     """Env-var prefix selecting the capture metric for run_qemu_capture.sh.
 
-    Returns '' for the default 'delta' metric so the launched command is
-    byte-identical to the pre-APF pipeline. For 'apf' it returns the prefix that
-    makes run_qemu_capture.sh skip the delta consumer and makes the producer stream
-    APF (TIMING_APF_STREAM), with TIMING_SUDO_DELETE so the helper can unlink the
-    previous dump from a libvirt-qemu-owned imageDir.
+    Three values; the default 'delta' returns '' so the launched command is
+    byte-identical to the pre-APF pipeline:
+
+      * 'delta'     -> '' (Cosine/Hamming via the Rust delta consumer; unchanged).
+      * 'apf'       -> producer streams APF via the inline helper
+                       (TIMING_APF_STREAM) and run_qemu_capture.sh skips the
+                       consumer; TIMING_SUDO_DELETE lets the helper unlink prev
+                       from the libvirt-qemu-owned imageDir.
+      * 'apf_queue' -> producer ENQUEUES (no TIMING_APF_STREAM) and the apf_calc
+                       consumer computes APF, appending to TIMING_APF_JSONL. The
+                       consumer's own delete_file already uses sudo.
     """
-    if metric != "apf":
-        return ""
-    return (
-        f"CAPTURE_METRIC=apf "
-        f"TIMING_APF_STREAM=1 "
-        f"TIMING_APF_JSONL={shlex.quote(apf_jsonl)} "
-        f"TIMING_APF_ACK_DIR={shlex.quote(ack_dir)} "
-        f"TIMING_APF_HELPER_LOG={shlex.quote(helper_log)} "
-        f"TIMING_SUDO_DELETE=1 "
-    )
+    if metric == "apf":
+        return (
+            f"CAPTURE_METRIC=apf "
+            f"TIMING_APF_STREAM=1 "
+            f"TIMING_APF_JSONL={shlex.quote(apf_jsonl)} "
+            f"TIMING_APF_ACK_DIR={shlex.quote(ack_dir)} "
+            f"TIMING_APF_HELPER_LOG={shlex.quote(helper_log)} "
+            f"TIMING_SUDO_DELETE=1 "
+        )
+    if metric == "apf_queue":
+        return (
+            f"CAPTURE_METRIC=apf_queue "
+            f"TIMING_APF_JSONL={shlex.quote(apf_jsonl)} "
+        )
+    return ""
 
 
 def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
@@ -312,7 +323,7 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     # offline metrics are computed by offline_step_metrics.py after each step.
     if OFFLINE_METRICS_MODE:
         env_prefix += "OFFLINE_MODE=1 "
-    if CAPTURE_METRIC == "apf":
+    if CAPTURE_METRIC in ("apf", "apf_queue"):
         base = run_matrix_path or os.path.join(CAPTURE_ROOT, "apf_capture")
         apf_jsonl = f"{base}.apf_trajectory.jsonl"
         ack_dir = f"{base}.apf_acks"
@@ -330,7 +341,10 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
             except OSError:
                 pass
         env_prefix += _apf_env_prefix(CAPTURE_METRIC, apf_jsonl, ack_dir, helper_log)
-        print(f"[CONTROL] CAPTURE_METRIC=apf -> streaming APF to {apf_jsonl} (delta consumer skipped)")
+        if CAPTURE_METRIC == "apf":
+            print(f"[CONTROL] CAPTURE_METRIC=apf -> producer streams APF to {apf_jsonl} (delta consumer skipped)")
+        else:
+            print(f"[CONTROL] CAPTURE_METRIC=apf_queue -> apf_calc consumer writes APF to {apf_jsonl}")
     cmd = (
         f"cd {root_q} && "
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"

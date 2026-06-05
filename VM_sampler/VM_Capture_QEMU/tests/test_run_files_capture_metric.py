@@ -39,6 +39,19 @@ class TestApfEnvPrefix(unittest.TestCase):
         # delta keys (Rust consumer) are NOT referenced
         self.assertNotIn("OFFLINE_MODE", p)
 
+    def test_apf_queue_enqueues_no_stream(self):
+        # B path: producer ENQUEUES (no TIMING_APF_STREAM) and the apf_calc
+        # consumer computes APF, appending to TIMING_APF_JSONL.
+        p = R._apf_env_prefix("apf_queue", "/p/apf.jsonl", "/p/acks", "/p/h.log")
+        self.assertIn("CAPTURE_METRIC=apf_queue", p)
+        self.assertIn("TIMING_APF_JSONL=", p)
+        self.assertIn("/p/apf.jsonl", p)
+        # the producer must NOT stream in queue mode (the consumer computes APF)
+        self.assertNotIn("TIMING_APF_STREAM", p)
+        # no inline-helper ack/log keys
+        self.assertNotIn("TIMING_APF_ACK_DIR", p)
+        self.assertNotIn("TIMING_APF_HELPER_LOG", p)
+
 
 if __name__ == "__main__":
     unittest.main()

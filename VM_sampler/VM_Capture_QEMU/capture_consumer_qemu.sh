@@ -23,6 +23,12 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 
 rustDeltaCalculationProgram=$(jq -r '.rustDeltaCalculationProgram' "$CONFIG")
+apfCalculationProgram=$(jq -r '.apfCalculationProgram // ""' "$CONFIG")
+# Capture metric, inherited from the orchestrator env: "delta" (default;
+# Cosine/Hamming via rustDeltaCalculationProgram) or "apf_queue" (run apf_calc and
+# append one line per pair to apf_trajectory.jsonl, skipping run_matrix/streaming).
+CAPTURE_METRIC="${CAPTURE_METRIC:-delta}"
+APF_SEQ=0
 qPath=$(jq -r '.queueDir' "$CONFIG")
 streamingEnabled=$(jq -r '.streaming.enabled // false' "$CONFIG")
 streamingPython=$(jq -r '.streaming.python // "python3"' "$CONFIG")
@@ -241,6 +247,27 @@ process_job() {
   curr=$(jq -r '.curr' "$jobPath")
   output=$(jq -r '.output' "$jobPath")
 
+  if [[ "$CAPTURE_METRIC" == "apf_queue" ]]; then
+    # APF metric: compute APF with apf_calc, append one trajectory line, then skip
+    # the Cosine/Hamming delta + run_matrix + streaming. The shared prev-delete /
+    # raw-retention / done-move below run for both metrics.
+    echo "[CONSUMER] Running apf_calc: prev=$(basename "$prev") curr=$(basename "$curr")"
+    if ! "$apfCalculationProgram" "$prev" "$curr" "$output"; then
+      echo "[CONSUMER] ERROR: apf_calc failed (rc=$?)"
+      mv "$jobPath" "$qFailed/"
+      return 1
+    fi
+    local apfFile apfVal apfTraj
+    apfFile=$(ls -t "$output/apf"/*.txt 2>/dev/null | head -1)
+    apfVal=$(cat "$apfFile" 2>/dev/null)
+    [[ -z "$apfVal" ]] && apfVal=0
+    rm -f "$apfFile" 2>/dev/null || true
+    apfTraj="${TIMING_APF_JSONL:-$output/apf_trajectory.jsonl}"
+    printf '{"seq":%d,"t_emit_epoch":%s,"prev":"%s","curr":"%s","apf":%s}\n' \
+      "$APF_SEQ" "$(date +%s)" "$prev" "$curr" "$apfVal" >> "$apfTraj"
+    echo "[CONSUMER] APF seq=$APF_SEQ apf=$apfVal -> $apfTraj"
+    APF_SEQ=$((APF_SEQ + 1))
+  else
   echo "[CONSUMER] Running delta: prev=$(basename "$prev") curr=$(basename "$curr")"
 
   if ! "$rustDeltaCalculationProgram" "$prev" "$curr" "$output"; then
@@ -297,6 +324,7 @@ process_job() {
         disown "$streaming_bg_pid" 2>/dev/null || true
       fi
     fi
+  fi
   fi
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.

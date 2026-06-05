@@ -5,6 +5,7 @@
   "imageDir": "/var/lib/libvirt/qemu/dump",
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",
   "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",
+  "apfCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/apf_calc/target/release/apf_calc",
   "intervalMsec": 100,
   "queueDir": "/project/homes/jeries/memory_traces/queue_dir",
   "streaming": {
