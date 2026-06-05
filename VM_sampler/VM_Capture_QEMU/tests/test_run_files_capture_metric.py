@@ -53,5 +53,36 @@ class TestApfEnvPrefix(unittest.TestCase):
         self.assertNotIn("TIMING_APF_HELPER_LOG", p)
 
 
+class TestSustainWrap(unittest.TestCase):
+    def test_off_is_passthrough(self):
+        orig = R.SUSTAIN_LOOP
+        R.SUSTAIN_LOOP = False
+        try:
+            cmd = "/bin/work --duration 120 --x"
+            self.assertEqual(R._sustain_wrap(cmd), cmd)
+        finally:
+            R.SUSTAIN_LOOP = orig
+
+    def test_on_wraps_with_timeout_loop(self):
+        orig = R.SUSTAIN_LOOP
+        R.SUSTAIN_LOOP = True
+        try:
+            w = R._sustain_wrap("/bin/work --capacity 9 --duration 600 --x")
+            self.assertIn("timeout 600", w)
+            self.assertIn("while :; do", w)
+            self.assertIn("/bin/work --capacity 9 --duration 600 --x", w)
+        finally:
+            R.SUSTAIN_LOOP = orig
+
+    def test_on_without_duration_is_passthrough(self):
+        orig = R.SUSTAIN_LOOP
+        R.SUSTAIN_LOOP = True
+        try:
+            cmd = "/bin/work --x"
+            self.assertEqual(R._sustain_wrap(cmd), cmd)
+        finally:
+            R.SUSTAIN_LOOP = orig
+
+
 if __name__ == "__main__":
     unittest.main()

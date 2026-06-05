@@ -36,6 +36,12 @@ FORCE_DESTROY = os.environ.get("FORCE_DESTROY", "1").lower() in {"1", "true", "y
 STEPS_FILE = os.environ.get("STEPS_FILE", "")
 TEST_EXEC_SECONDS = int(os.environ.get("TEST_EXEC_SECONDS", "300"))
 
+# Sustain-loop: many guest workloads treat --duration as a CAP and finish in 1-2 s,
+# leaving the rest of the capture window idle (near-zero APF). When SUSTAIN_LOOP is
+# on, each workload command is re-run until its --duration elapses so it dirties
+# memory for the whole window. Opt-in (default off); no-op if no --duration.
+SUSTAIN_LOOP = os.environ.get("SUSTAIN_LOOP", "0").lower() in {"1", "true", "yes"}
+
 # Optional capture mode: start/stop capture around each workload step.
 CAPTURE_MODE = os.environ.get("CAPTURE_MODE", "0").lower() in {"1", "true", "yes"}
 CAPTURE_ROOT = os.environ.get(
@@ -683,6 +689,24 @@ def load_steps() -> list[str]:
     ]
 
 
+def _sustain_wrap(remote_cmd: str) -> str:
+    """Re-run the workload until its --duration elapses (when SUSTAIN_LOOP is on).
+
+    Workloads that treat --duration as a cap exit in ~1-2 s, leaving the capture
+    window idle. With SUSTAIN_LOOP on and a '--duration N' in the command, wrap it
+    as `timeout N sh -c 'while :; do <cmd>; done'` so it churns memory for the whole
+    N seconds. No-op when the flag is off or no --duration is present.
+    """
+    if not SUSTAIN_LOOP:
+        return remote_cmd
+    m = re.search(r"--duration\s+(\d+)", remote_cmd)
+    if not m:
+        return remote_cmd
+    secs = m.group(1)
+    inner = f"while :; do {remote_cmd}; done"
+    return f"timeout {secs} sh -c {shlex.quote(inner)}"
+
+
 def main() -> int:
     if not SSH_TARGET:
         print("ERROR: SSH_TARGET is required (e.g. SSH_TARGET=user@vm-ip).")
@@ -731,7 +755,7 @@ def main() -> int:
         log_test_timestamp(i, test_name, "started")
         print("[CONTROL] Running command over SSH...")
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
-            rc = run(f"{base} {shlex.quote(remote_cmd)}")
+            rc = run(f"{base} {shlex.quote(_sustain_wrap(remote_cmd))}")
         rc = rc >> 8  # os.system stores wait status
         log_test_timestamp(i, test_name, "ended")
         print(f"[CONTROL] Logged test timestamps -> {TIMESTAMPS_LOG}")
