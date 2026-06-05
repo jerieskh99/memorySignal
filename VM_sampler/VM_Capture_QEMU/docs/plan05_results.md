@@ -1,7 +1,10 @@
-# Plan 05 Results -- Capture-Side Throughput Pilot (Wave 2)
+# Plan 05 Results -- Capture-Side Throughput Pilot + APF-in-production (Waves 2-4)
 
-Status: **complete. Headline gate "failed," but the failure was the win in
-disguise.** 72/72 cells captured (2026-06-02 to 06-03).
+Status: **pilot "failed" gate was the win in disguise; fixes + the production APF
+pipeline are now built and verified -- only the full 66-cell campaign remains.**
+72/72 pilot cells captured (2026-06-02 to 06-03); Wave 3 fixes + Wave 4 production
+APF capture (`CAPTURE_METRIC` = delta | apf | apf_queue, Rust `apf_calc`,
+`SUSTAIN_LOOP`) all verified live (see the Wave 3 changelog below).
 Companion: `plan05_overview.html` (#mystery -- the full narrative),
 `plan05_snap_throughput_proposal.html`.
 

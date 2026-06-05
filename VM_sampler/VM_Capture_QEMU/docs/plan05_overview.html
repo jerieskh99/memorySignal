@@ -163,13 +163,14 @@
       <li><a href="#mystery">The 7-second mystery</a></li>
       <li><a href="#waves">Where we are</a></li>
     </ol>
-    <div class="status-pill" style="background:rgba(212,168,90,.08);
-         border-color:rgba(212,168,90,.22); color:var(--accent);">
-      <strong>Wave 2 done &mdash; goal met, gate mis-read.</strong><br>
-      The 2&times; speed gate &ldquo;failed,&rdquo; but the chase for why
-      uncovered the opposite: delete-as-you-go already cut the dump from
-      <strong>7.06&nbsp;s to 0.79&nbsp;s</strong> and lifted snapshots
-      <strong>14&nbsp;&rarr;&nbsp;79 per 120&nbsp;s</strong>. See
+    <div class="status-pill" style="background:rgba(124,185,110,.08);
+         border-color:rgba(124,185,110,.22); color:var(--good);">
+      <strong>Wave 4 &mdash; production APF pipeline shipped.</strong><br>
+      The pilot's &ldquo;failed&rdquo; 2&times; gate uncovered the real win
+      (delete-as-you-go: <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong>, snapshots
+      <strong>14&rarr;79/120&nbsp;s</strong>). It is now wired into the real
+      pipeline &mdash; <code>CAPTURE_METRIC</code> = delta | apf | apf_queue (Rust),
+      all verified live. Only the 66-cell campaign remains. See
       <a href="#mystery">The 7-second mystery</a>.
     </div>
   </aside>
@@ -202,7 +203,11 @@
       <b>keeping old copies on disk</b>. Deleting them as we go already cut the
       copy from <b>7.06&nbsp;s to 0.79&nbsp;s</b> and raised snapshots from
       <b>14 to 79 per 120&nbsp;s</b>. See <a href="#mystery">The 7-second
-      mystery</a>.
+      mystery</a>. Waves&nbsp;3&ndash;4 then fixed the analysis gate, confirmed the
+      cause, and <b>built that faster capture into the real pipeline</b> as a
+      selectable APF mode (a Rust <code>apf_calc</code> consumer) plus a
+      sustain-loop so workloads churn the whole window &mdash; only the full data
+      campaign is left.
     </div>
 
     <!-- 1 -->

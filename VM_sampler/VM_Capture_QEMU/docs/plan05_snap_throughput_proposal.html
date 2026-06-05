@@ -193,14 +193,16 @@
       <li><a href="#risks">Risks + mitigations</a></li>
       <li><a href="#pm">PM final recommendation</a></li>
     </ol>
-    <div class="status-pill" style="background:rgba(212,168,90,.08);
-         border-color:rgba(212,168,90,.22); color:var(--accent);">
-      <strong>Proposal &mdash; pilot: goal met, gate mis-read.</strong><br>
-      The <code>&ge;2&times;</code> gate &ldquo;failed,&rdquo; but only because the
-      pilot streamed-and-deleted on <em>every</em> arm, so the baseline already had
-      the cure. The real win is <strong>delete-as-you-go</strong>: it cut the dump
-      <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong> and lifted snapshots
-      <strong>14&rarr;79 / 120&nbsp;s</strong>. See
+    <div class="status-pill" style="background:rgba(124,185,110,.08);
+         border-color:rgba(124,185,110,.22); color:var(--good);">
+      <strong>Proposal &mdash; delivered; production APF pipeline shipped.</strong><br>
+      The <code>&ge;2&times;</code> gate &ldquo;failed&rdquo; only because the pilot
+      streamed-and-deleted on <em>every</em> arm. The real win is
+      <strong>delete-as-you-go</strong> (dump
+      <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong>, snapshots
+      <strong>14&rarr;79 / 120&nbsp;s</strong>), now built into the real pipeline as
+      a selectable APF mode (<code>CAPTURE_METRIC</code>: delta | apf | apf_queue
+      Rust consumer). Only the 66-cell campaign remains. See
       <a href="plan05_overview.html#mystery">The 7-second mystery</a>.
     </div>
   </aside>
