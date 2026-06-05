@@ -224,6 +224,12 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   apf_queue): `apf_queue` makes the producer ENQUEUE (no `TIMING_APF_STREAM`) and
   points the consumer at `TIMING_APF_JSONL`. `config_qemu_upc.json` gains
   `apfCalculationProgram`. Default `delta` stays byte-identical (216 tests green).
+- **Step 7 (apf_queue smoke):** live server run of the full producer -> queue ->
+  apf_calc-consumer path (mem_workingset, 30 s). 161 APF pairs, mean 0.21
+  (non-trivial); consumer ran apf_calc on every job, appended the trajectory,
+  deleted prev, drained the queue (pending/processing 0/0), dump dir 0 B. Matches
+  the inline-helper path (A = 0.157) within run variance -> with-consumer and
+  without-consumer compute the same signal (per-pair equivalence already exact).
 
 ## Provenance
 
