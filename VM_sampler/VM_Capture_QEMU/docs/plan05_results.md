@@ -145,20 +145,29 @@ throughput finding -- dump cost and cadence are independent of APF content.
 ## Production APF capture mode (CAPTURE_METRIC)
 
 The production orchestrator (`run_files_controlled.py`) + launcher
-(`run_qemu_capture.sh`) now take a `CAPTURE_METRIC` selector:
+(`run_qemu_capture.sh`) take a `CAPTURE_METRIC` selector with three values; the
+default `delta` is byte-identical to the pre-APF pipeline:
 
 - `delta` (default) -- the existing Cosine/Hamming Rust-delta pipeline (producer +
-  consumer + `run_matrix.npy`). Byte-identical to before: proven offline by
-  `tests/test_run_files_capture_metric.py` and live by the delta-regression check.
-- `apf` -- the producer streams APF via `plan02_apf_helper.py` (`TIMING_APF_STREAM`
-  + `TIMING_SUDO_DELETE`); the Rust delta consumer is **not** started. Output:
-  `apf_trajectory.jsonl`. This is the lean inline-helper path (Wave 3); Wave 4 adds
-  an `apf_queue` value backed by a Rust APF consumer through the full
-  producer -> queue -> consumer pipeline.
+  consumer + `run_matrix.npy`). Proven byte-identical offline
+  (`tests/test_run_files_capture_metric.py`) and live (the delta-regression check).
+- `apf` -- the **inline-helper** path (A, Wave 3): the producer streams APF via
+  `plan02_apf_helper.py` (`TIMING_APF_STREAM` + `TIMING_SUDO_DELETE`); no consumer.
+  Lean, lowest-latency.
+- `apf_queue` -- the **Rust-consumer** path (B, Wave 4): the producer enqueues and
+  the `apf_calc` Rust binary computes APF through the existing
+  producer -> queue -> consumer state machine, appending to `apf_trajectory.jsonl`
+  and deleting prev via the consumer's `delete_file`. Architecturally matches the
+  Cosine/Hamming path.
 
-Live verify (mem_workingset, 30 s): `apf` -> 177 APF pairs, mean 0.157, one process
-(producer only), dump dir 0 B (helper sudo-deletes prev); the `delta` default run
-still spawned producer+consumer and wrote cosine/hamming + streaming metrics.
+`apf_calc` (`VM_Capture/apf_calc/`, dependency-free Rust) is bit-identical to the
+Python helper -- 3 unit tests + a cross-language equivalence check both == 0.3.
+Live verify (mem_workingset, 30 s):
+
+- `apf` (A): 177 pairs, mean 0.157, producer-only, dump dir 0 B.
+- `apf_queue` (B): 161 pairs, mean 0.21, producer+consumer, queue drained 0/0, dump
+  dir 0 B, apf_calc ran every job. A and B agree (per-pair math exact).
+- `delta` (default): unchanged -- producer+consumer, cosine/hamming + streaming.
 
 ## Next steps
 

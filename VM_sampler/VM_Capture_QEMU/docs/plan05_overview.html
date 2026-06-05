@@ -739,6 +739,20 @@
         safely &mdash; the disk-growth rate is the decisive proof.
       </div>
 
+      <div class="callout good">
+        <strong>Production APF capture (Wave&nbsp;3&ndash;4).</strong> The real
+        pipeline now takes <code>CAPTURE_METRIC</code>: <strong>delta</strong>
+        (default &mdash; the existing Cosine/Hamming consumer, byte-identical) |
+        <strong>apf</strong> (producer streams APF via the inline helper, no
+        consumer) | <strong>apf_queue</strong> (producer enqueues and a new
+        dependency-free Rust binary <code>apf_calc</code> computes APF through the
+        same queue/consumer machinery as the delta). <code>apf_calc</code> is
+        bit-identical to the Python helper (equivalence&nbsp;==&nbsp;0.3), and all
+        three modes are verified live. So real capture campaigns can now produce
+        the long APF trajectories the analyzer needs, at the fast
+        delete-as-you-go cadence.
+      </div>
+
       <h3>Next steps</h3>
       <ol class="tight">
         <li><strong>Measure the win as a clean contrast.</strong> Re-run a small
@@ -783,10 +797,11 @@
           <tr><td class="mono">3</td><td>both</td>
               <td>Win is delete-as-you-go (see &sect;09). Recalibrated G-T2
                   (effect-size KS); found the near-idle cause (workloads exit
-                  early); 2B confirms retention; <strong>shipped the production
-                  APF mode</strong> (<code>CAPTURE_METRIC=apf</code>, verified live:
-                  APF 0.157, no consumer, disk 0; delta path unchanged). Next
-                  (Wave 4): sustain-loop workloads + a Rust APF consumer + the full
+                  early); 2B confirms retention; <strong>shipped + verified the
+                  production APF mode</strong> &mdash; <code>CAPTURE_METRIC</code> =
+                  delta (unchanged) | apf (inline helper) | apf_queue (Rust
+                  <code>apf_calc</code> consumer, bit-identical to the helper). All
+                  three verified live. Remaining: sustain-loop workloads + the full
                   66-cell campaign</td>
               <td><span class="chip next">in progress</span></td></tr>
           <tr><td class="mono">4</td><td>server</td>
