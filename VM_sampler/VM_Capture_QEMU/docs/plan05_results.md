@@ -248,6 +248,14 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   Live verify: a sustained `app_hashtable` capture gave APF mean **0.0875** (n=296)
   vs the pilot's near-idle **0.0018** -- the workload now churns the whole window.
   Default off -> byte-identical. +3 tests (219 green).
+- **Step 8 (subset campaign, in progress):** the production `apf_queue` + sustain
+  pipeline running the v3 workloads at the locked durations. **First cell**
+  (`app_hashtable@120s`) delivered **298 APF pairs, mean 0.1124, and 73 analysis
+  windows at (W,H)=(8,4)** -- vs the v3 baseline of 14-53 pairs, ~0.0018 (idle), and
+  53/132 cells with <=3 windows. The DOF starvation that forced the papers' G2/G3
+  hedges is relieved end-to-end on the real pipeline (delete-as-you-go + sustain-loop
+  + Rust `apf_calc`, all together) -- and on the *worst* case (app_hashtable was the
+  pilot's idle offender). 5 more subset cells + the full 66-cell campaign pending.
 
 ## Provenance
 

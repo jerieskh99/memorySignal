@@ -758,6 +758,19 @@
         delete-as-you-go cadence.
       </div>
 
+      <div class="callout good">
+        <strong>First campaign cell (Step 8, in progress).</strong> Running the
+        production <code>apf_queue</code> + sustain pipeline on the v3 workloads,
+        the first cell (<code>app_hashtable@120&nbsp;s</code>) produced
+        <strong>298 APF pairs, mean 0.1124, and 73 analysis windows</strong> at
+        <code>(W,H)=(8,4)</code> &mdash; against the v3 baseline of 14&ndash;53
+        pairs, ~0.0018 (idle), and <strong>53/132 cells with &le;3 windows</strong>.
+        The degrees-of-freedom starvation that forced the papers' hedges is relieved
+        end-to-end on the real pipeline, on the <em>worst</em>-case workload
+        (app_hashtable was the pilot's idle offender). Five more subset cells + the
+        full 66-cell campaign pending.
+      </div>
+
       <h3>Next steps</h3>
       <ol class="tight">
         <li><strong>Measure the win as a clean contrast.</strong> Re-run a small
