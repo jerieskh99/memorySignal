@@ -248,6 +248,18 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   Live verify: a sustained `app_hashtable` capture gave APF mean **0.0875** (n=296)
   vs the pilot's near-idle **0.0018** -- the workload now churns the whole window.
   Default off -> byte-identical. +3 tests (219 green).
+- **Cold-boot SSH-race hardening:** the subset campaign hit a recurring step
+  failure after a step that ended with `force destroy` -- `wait_for_ssh` returned
+  True on a single transient TCP handshake, the workload SSH then timed out
+  (rc=255), and the whole campaign aborted. Three-agent investigation
+  confirmed the diagnosis. Fix (`run_files_controlled.py`): (a) require **3
+  consecutive successful probes** with a real-path test (`test -d $HOME && echo
+  ready`, exercising auth + filesystem -- not just connect+echo), with each
+  attempt logged to `wait_for_ssh.log`; (b) `time.sleep(5)` after `virsh destroy`
+  so libvirt fully releases state before the next `virsh start`; (c) retry the
+  workload SSH **once** on rc=255 before aborting (cold-boot transient !=
+  workload bug). Abort-policy unchanged: data integrity rules out silent skip.
+  +5 unit tests (11 in the file now); full suite green.
 - **Step 8 (subset campaign, in progress):** the production `apf_queue` + sustain
   pipeline running the v3 workloads at the locked durations. **First cell**
   (`app_hashtable@120s`) delivered **298 APF pairs, mean 0.1124, and 73 analysis

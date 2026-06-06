@@ -237,12 +237,43 @@ def ssh_base() -> str:
 
 
 def wait_for_ssh() -> bool:
+    """Stable-sshd readiness probe (Plan 05 Wave 4 hardening).
+
+    A single TCP handshake "succeeds" briefly during cold boot before sshd is
+    ready for real commands -- the old single-shot `echo ok` probe returned True
+    on that transient, so the workload SSH ~seconds later then hit "Connection
+    timed out". Require N CONSECUTIVE successful probes, each one a real-path
+    test (`test -d $HOME && echo ready`) that exercises auth + filesystem rather
+    than just connect+echo. Log each attempt to wait_for_ssh.log (stderr was
+    previously /dev/null'd, so failures were invisible).
+    """
     base = ssh_base()
     deadline = time.time() + SSH_WAIT_TIMEOUT
+    required = int(os.environ.get("SSH_READY_CONSECUTIVE", "3"))
+    consecutive = 0
+    attempts = 0
+    last_heartbeat = time.time()
+    ssh_log = shlex.quote(os.path.join(CAPTURE_ROOT, "wait_for_ssh.log"))
+    probe = shlex.quote("test -d $HOME && echo ready")
     while time.time() < deadline:
-        rc = run(f"{base} 'echo ok' >/dev/null 2>&1")
+        attempts += 1
+        rc = run(f"{base} {probe} >/dev/null 2>>{ssh_log}")
         if rc == 0:
-            return True
+            consecutive += 1
+            if consecutive >= required:
+                if attempts > required:
+                    print(f"[CONTROL] SSH stable after {attempts} probes "
+                          f"({required} consecutive ok).")
+                return True
+        else:
+            if consecutive > 0:
+                print(f"[CONTROL] SSH flake at attempt {attempts}: "
+                      f"reset after {consecutive}/{required} consecutive ok.")
+            consecutive = 0
+        if time.time() - last_heartbeat > 30:
+            print(f"[CONTROL] wait_for_ssh: attempts={attempts} "
+                  f"consecutive={consecutive}/{required}; see {ssh_log}")
+            last_heartbeat = time.time()
         time.sleep(2)
     return False
 
@@ -260,6 +291,12 @@ def stop_vm() -> None:
     if FORCE_DESTROY:
         print("[CONTROL] Graceful stop timed out -> force destroy.")
         run(f"virsh -c {shlex.quote(VIRSH_URI)} destroy {shlex.quote(VM_DOMAIN)} >/dev/null 2>&1")
+        # `virsh destroy` returns before libvirt has fully released the VM's
+        # network stack / QEMU process / DHCP lease. Without a settle, the next
+        # iteration's `virsh start` races the prior destroy, sshd then comes up
+        # on a half-initialized network, and wait_for_ssh sees a false-positive
+        # TCP handshake. 5 s is empirically enough for libvirt + qemu cleanup.
+        time.sleep(5)
     else:
         print("[CONTROL] WARNING: VM may still be running (graceful stop timed out).")
 
@@ -759,12 +796,35 @@ def main() -> int:
 
         log_test_timestamp(i, test_name, "started")
         print("[CONTROL] Running command over SSH...")
+        wrapped = shlex.quote(_sustain_wrap(remote_cmd))
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
-            rc = run(f"{base} {shlex.quote(_sustain_wrap(remote_cmd))}")
+            rc = run(f"{base} {wrapped}")
         rc = rc >> 8  # os.system stores wait status
+        # rc == 255 = SSH connection failure (not a workload error). On a cold-boot
+        # post-destroy this is almost always a transient sshd-stabilization race;
+        # re-wait for SSH (with the stricter 3-consecutive probe) and retry once
+        # before treating it as a real step failure that aborts the campaign.
+        if rc == 255:
+            print("[CONTROL] WARNING: workload SSH returned 255 (connection "
+                  "failure, not a workload error). Re-waiting for stable SSH "
+                  "and retrying the step once...")
+            if wait_for_ssh():
+                with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name} [retry]"):
+                    rc = run(f"{base} {wrapped}")
+                rc = rc >> 8
+                print(f"[CONTROL] Retry exit code: {rc}")
+            else:
+                print("[CONTROL] ERROR: SSH still not stable on retry; "
+                      "leaving rc=255 so the step fails clearly.")
         log_test_timestamp(i, test_name, "ended")
         print(f"[CONTROL] Logged test timestamps -> {TIMESTAMPS_LOG}")
-        print(f"[CONTROL] SSH command exit code: {rc}")
+        if rc == 0:
+            print("[CONTROL] Workload completed successfully (rc=0).")
+        elif rc == 255:
+            print("[CONTROL] SSH command exit code: 255 (CONNECTION FAILURE -- "
+                  "workload almost certainly did not run).")
+        else:
+            print(f"[CONTROL] Workload exit code: {rc}")
 
         if CAPTURE_MODE:
             # 1. Stop the producer immediately — no more new dumps for this step.
