@@ -71,6 +71,9 @@ class TestSustainWrap(unittest.TestCase):
             self.assertIn("timeout 600", w)
             self.assertIn("while :; do", w)
             self.assertIn("/bin/work --capacity 9 --duration 600 --x", w)
+            # `timeout` exits 124 at the end of the window; swallow it so the
+            # orchestrator does not read the normal end as a step failure.
+            self.assertTrue(w.rstrip().endswith("|| true"))
         finally:
             R.SUSTAIN_LOOP = orig
 

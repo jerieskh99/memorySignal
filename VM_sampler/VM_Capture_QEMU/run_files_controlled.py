@@ -704,7 +704,12 @@ def _sustain_wrap(remote_cmd: str) -> str:
         return remote_cmd
     secs = m.group(1)
     inner = f"while :; do {remote_cmd}; done"
-    return f"timeout {secs} sh -c {shlex.quote(inner)}"
+    # `timeout` exits 124 when it ends the loop after N seconds -- that is the
+    # NORMAL, expected end of a sustained workload, not a failure. Swallow it so
+    # the orchestrator's per-step success check (rc != 0) does not abort the run.
+    # The loop re-runs the workload regardless of its own exit, so 124 is the only
+    # non-zero this can produce; workload validity is judged from the APF instead.
+    return f"timeout {secs} sh -c {shlex.quote(inner)} || true"
 
 
 def main() -> int:
