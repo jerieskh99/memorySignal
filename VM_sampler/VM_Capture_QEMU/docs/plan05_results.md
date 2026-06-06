@@ -291,6 +291,23 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   1-33 form a complete single-replicate matrix (max value if the run is
   interrupted) and the fast 120s cells lead each replicate (early failure
   surfacing).
+- **Guest /tmp tmpfs fix (campaign blocker).** The first full-campaign launch
+  crashed on step 1 with `No space left on device` writing
+  `/tmp/phase2_*/file_*.dat`. Root cause: the file-writing workloads default
+  their sandbox to **`/tmp`, a ~483 MiB tmpfs (RAM-backed)**, while they write
+  multi-GB sandboxes -- so /tmp fills in under a second, AND (worse) the file
+  bytes sit in the measured 1 GiB guest RAM, which would contaminate APF even if
+  it didn't fill. v3's driver (`plan02_run.py` D-82) redirected these to
+  `/var/tmp` (real disk) and wiped them per cell; `run_files_controlled.py` did
+  neither. Fix: the generator now appends each binary's correct scratch flag
+  (`--sandbox-dir` for the 5 sandbox_*, `--backing-dir` for mem_mmap_traversal,
+  per their `--help`) pointing at `/var/tmp/wl_campaign` (51 GiB vda1); the
+  orchestrator wipes the named scratch dir before each cell
+  (`wipe_guest_scratch`, safe-root gated so a typo can't rm an arbitrary path).
+  The binary self-cleans on natural exit; the wipe only clears the one subdir
+  the sustain loop's `timeout`-killed final iteration leaves behind. +5 tests
+  (16 in the file). Pure-memory workloads (workingset, pagefault, rmw, writemag,
+  app_hashtable) get no scratch flag.
 
 ## Provenance
 

@@ -688,6 +688,43 @@ def step_name_from_command(remote_cmd: str) -> str:
     return safe or "step"
 
 
+# Roots under which a guest scratch dir may be wiped. Anything else is refused,
+# so a typo in a --sandbox-dir/--backing-dir value can never rm an arbitrary
+# guest path. These are the standard guest scratch locations.
+GUEST_SCRATCH_SAFE_ROOTS = ("/var/tmp/", "/tmp/", "/home/kali/")
+
+
+def wipe_guest_scratch(base: str, remote_cmd: str) -> None:
+    """Clear a workload's scratch dir on the guest before its cell runs.
+
+    File-writing workloads take ``--sandbox-dir`` / ``--backing-dir`` (default
+    ``/tmp``) and create ``<dir>/phase2_*`` subdirs, self-cleaning only on
+    NATURAL exit. Under SUSTAIN_LOOP the final iteration is killed by
+    ``timeout``, so one subdir leaks per cell; across the 66-cell campaign these
+    accumulate and fill the guest disk (v3 D-82). Wipe the named dir's CONTENTS
+    (keep the dir itself) before each cell. Safe-root gated. No-op for
+    pure-memory workloads (no such flag in the command).
+    """
+    try:
+        parts = shlex.split(remote_cmd)
+    except ValueError:
+        parts = remote_cmd.split()
+    dirs: set[str] = set()
+    for idx, tok in enumerate(parts):
+        if tok in ("--sandbox-dir", "--backing-dir") and idx + 1 < len(parts):
+            dirs.add(parts[idx + 1])
+    for d in dirs:
+        if not any(d.startswith(r) for r in GUEST_SCRATCH_SAFE_ROOTS):
+            print(f"[CONTROL] WARNING: refusing to wipe non-scratch dir {d!r} "
+                  "(not under a known scratch root).")
+            continue
+        # Remove contents + recreate so the workload can repopulate it. Glob
+        # expands on the GUEST shell; errors swallowed; `true` keeps rc clean.
+        wipe = f"rm -rf -- {d}/* {d}/.[!.]* 2>/dev/null; mkdir -p -- {d}; true"
+        run(f"{base} {shlex.quote(wipe)}")
+        print(f"[CONTROL] pre-cell guest scratch wipe: {d}")
+
+
 def log_test_timestamp(step_index: int, test_name: str, status: str) -> None:
     """Append one compact timestamp line for test start/end events."""
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -781,6 +818,12 @@ def main() -> int:
         if not wait_for_ssh():
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
             return 1
+
+        # Pre-cell guest sandbox wipe (v3 D-82): clear any scratch dir the
+        # workload names, before capture/launch, so the subdir left by the
+        # sustain loop's timeout-killed final iteration cannot accumulate
+        # across cells and fill the guest disk. No-op for pure-memory steps.
+        wipe_guest_scratch(base, remote_cmd)
 
         # Derive a step-specific matrix path so each test's frames are isolated.
         step_matrix = ""

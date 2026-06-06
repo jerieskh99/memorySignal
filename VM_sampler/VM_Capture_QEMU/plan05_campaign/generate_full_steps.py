@@ -35,19 +35,31 @@ from pathlib import Path
 
 BIN = "/home/kali/memorySignal/VM_executables_phase2/bin"
 
-# (binary, locked flags) -- verbatim from PLAN02_V3_RUNBOOK.md lines 79-89.
+# Real-disk scratch for file-writing workloads. The guest /tmp is a ~483 MiB
+# tmpfs (RAM-backed); the file-writing workloads create multi-GB sandboxes and
+# DEFAULT to /tmp -- which (a) fills instantly -> "No space left on device", and
+# (b) puts the workload's file bytes in the measured RAM, contaminating APF.
+# /var/tmp is on the 51 GiB vda1 disk. The orchestrator wipes this dir before
+# each cell (see run_files_controlled.wipe_guest_scratch).
+SCRATCH = "/var/tmp/wl_campaign"
+
+# (binary, locked flags, scratch-dir flag | None). Flags verbatim from
+# PLAN02_V3_RUNBOOK.md lines 79-89. The scratch flag is per the binary's own
+# --help on the guest: the 5 sandbox_* take --sandbox-dir, mem_mmap_traversal
+# takes --backing-dir, the rest are pure-memory (no scratch). Verified
+# 2026-06-07; do not assume -- re-check --help if binaries change.
 WORKLOADS = [
-    ("sandbox_ransom_seq",        "--files 4000 --file-size-bytes 1048576"),
-    ("sandbox_ransom_slowburn",   "--files 200 --interval-s 3"),
-    ("sandbox_ransom_selective",  "--files 1500 --file-size-bytes 1048576"),
-    ("sandbox_ransom_batched",    "--files 12000 --file-size-bytes 1048576"),
-    ("sandbox_scanner_metadata",  "--files 5000 --subdirs 50 --passes 40"),
-    ("mem_workingset_sweep_v2",   "--working-set-mb 256 --stride 4096"),
-    ("mem_mmap_traversal_v2",     "--variant rmw --file-size-mb 256"),
-    ("mem_pagefault_density_v2",  "--variant mixed --working-set-mb 256"),
-    ("mem_rmw_intensity_v2",      "--mode rmw --working-set-mb 256 --stride 4096"),
-    ("mem_writemag_sweep_v2",     "--working-set-mb 256 --bytes-per-page 64"),
-    ("app_hashtable_intensive_v2","--capacity-pow2 24 --inserts 6000000 --lookups 10000000"),
+    ("sandbox_ransom_seq",        "--files 4000 --file-size-bytes 1048576",  "--sandbox-dir"),
+    ("sandbox_ransom_slowburn",   "--files 200 --interval-s 3",              "--sandbox-dir"),
+    ("sandbox_ransom_selective",  "--files 1500 --file-size-bytes 1048576",  "--sandbox-dir"),
+    ("sandbox_ransom_batched",    "--files 12000 --file-size-bytes 1048576", "--sandbox-dir"),
+    ("sandbox_scanner_metadata",  "--files 5000 --subdirs 50 --passes 40",   "--sandbox-dir"),
+    ("mem_workingset_sweep_v2",   "--working-set-mb 256 --stride 4096",       None),
+    ("mem_mmap_traversal_v2",     "--variant rmw --file-size-mb 256",         "--backing-dir"),
+    ("mem_pagefault_density_v2",  "--variant mixed --working-set-mb 256",     None),
+    ("mem_rmw_intensity_v2",      "--mode rmw --working-set-mb 256 --stride 4096", None),
+    ("mem_writemag_sweep_v2",     "--working-set-mb 256 --bytes-per-page 64", None),
+    ("app_hashtable_intensive_v2","--capacity-pow2 24 --inserts 6000000 --lookups 10000000", None),
 ]
 DURATIONS = [120, 300, 600]
 REPS = [1, 2]
@@ -67,9 +79,11 @@ def main() -> int:
     i = 0
     for rep in REPS:                      # outermost: full single-rep matrix first
         for dur in DURATIONS:             # mid: 120s cells lead each rep
-            for binary, flags in WORKLOADS:
+            for binary, flags, scratch_flag in WORKLOADS:
                 i += 1
-                cmd = f"{BIN}/{binary} {flags} --duration {dur} --phase-markers"
+                scratch = f" {scratch_flag} {SCRATCH}" if scratch_flag else ""
+                cmd = (f"{BIN}/{binary} {flags}{scratch} "
+                       f"--duration {dur} --phase-markers")
                 steps.append(cmd)
                 label = safe_label(binary)
                 test_name = f"test{i}_{label}"

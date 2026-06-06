@@ -153,5 +153,51 @@ class TestWaitForSshHardening(unittest.TestCase):
         self.assertIn("retrying the step once", src)
 
 
+class TestWipeGuestScratch(unittest.TestCase):
+    """The Wave-4 guest-disk fix: workloads default to /tmp (a ~483 MiB tmpfs);
+    the orchestrator must redirect them to a real-disk scratch and wipe it per
+    cell. These cover the wipe's command extraction + safe-root gating without
+    touching a real guest (run() is monkeypatched to capture the SSH command).
+    """
+
+    def _capture(self, cmd):
+        calls = []
+        orig = R.run
+        R.run = lambda c, *a, **k: (calls.append(c), 0)[1]
+        try:
+            R.wipe_guest_scratch("ssh host", cmd)
+        finally:
+            R.run = orig
+        return calls
+
+    def test_sandbox_dir_is_wiped(self):
+        calls = self._capture(
+            "/bin/wl --files 10 --sandbox-dir /var/tmp/wl_campaign --duration 60")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("/var/tmp/wl_campaign", calls[0])
+        self.assertIn("rm -rf", calls[0])
+        self.assertIn("mkdir -p", calls[0])  # recreates the dir
+
+    def test_backing_dir_is_wiped(self):
+        calls = self._capture(
+            "/bin/wl --backing-dir /var/tmp/wl_campaign --variant rmw --duration 60")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("/var/tmp/wl_campaign", calls[0])
+
+    def test_pure_memory_is_noop(self):
+        # No scratch flag -> no wipe issued.
+        calls = self._capture("/bin/mem_wl --working-set-mb 256 --duration 60")
+        self.assertEqual(calls, [])
+
+    def test_refuses_unsafe_root(self):
+        # A path outside the safe roots must NOT be wiped (typo protection).
+        calls = self._capture("/bin/wl --sandbox-dir /etc --files 1 --duration 60")
+        self.assertEqual(calls, [])
+
+    def test_safe_roots_are_the_expected_three(self):
+        self.assertEqual(R.GUEST_SCRATCH_SAFE_ROOTS,
+                         ("/var/tmp/", "/tmp/", "/home/kali/"))
+
+
 if __name__ == "__main__":
     unittest.main()
