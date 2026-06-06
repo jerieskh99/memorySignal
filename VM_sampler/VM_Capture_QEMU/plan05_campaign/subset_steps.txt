@@ -1,0 +1,19 @@
+# Plan 05 -- subset campaign (apf_queue pipeline validation).
+# 3 representative workloads x {120, 600}s, sustained. ~6 cells, ~1 h.
+# Each line is run as its own capture step (test{i}_...), so durations do NOT
+# collide. Commands carry --duration; SUSTAIN_LOOP re-runs each until it elapses.
+#
+# Launch (server, inside screen/tmux):
+#   CAPTURE_MODE=1 CAPTURE_METRIC=apf_queue SUSTAIN_LOOP=1 \
+#     SSH_TARGET=kali@192.168.222.63 \
+#     SSH_KEY=/project/homes/jeries/.ssh/id_ed25519 \
+#     CONFIG=config_qemu_upc.json \
+#     STEPS_FILE=plan05_campaign/subset_steps.txt \
+#     python3 run_files_controlled.py 2>&1 | tee plan05_campaign/subset.log
+#
+/home/kali/memorySignal/VM_executables_phase2/bin/app_hashtable_intensive_v2 --capacity-pow2 24 --inserts 6000000 --lookups 10000000 --duration 120 --phase-markers
+/home/kali/memorySignal/VM_executables_phase2/bin/mem_workingset_sweep_v2 --working-set-mb 256 --stride 4096 --duration 120 --phase-markers
+/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_scanner_metadata --files 5000 --subdirs 50 --passes 40 --duration 120 --phase-markers
+/home/kali/memorySignal/VM_executables_phase2/bin/app_hashtable_intensive_v2 --capacity-pow2 24 --inserts 6000000 --lookups 10000000 --duration 600 --phase-markers
+/home/kali/memorySignal/VM_executables_phase2/bin/mem_workingset_sweep_v2 --working-set-mb 256 --stride 4096 --duration 600 --phase-markers
+/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_scanner_metadata --files 5000 --subdirs 50 --passes 40 --duration 600 --phase-markers
