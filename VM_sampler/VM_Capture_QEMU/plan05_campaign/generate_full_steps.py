@@ -52,7 +52,10 @@ WORKLOADS = [
     ("sandbox_ransom_seq",        "--files 4000 --file-size-bytes 1048576",  "--sandbox-dir"),
     ("sandbox_ransom_slowburn",   "--files 200 --interval-s 3",              "--sandbox-dir"),
     ("sandbox_ransom_selective",  "--files 1500 --file-size-bytes 1048576",  "--sandbox-dir"),
-    ("sandbox_ransom_batched",    "--files 12000 --file-size-bytes 1048576", "--sandbox-dir"),
+    # NOTE: the binary caps --files at 5000 ("outside [1..5000]"); the v3
+    # runbook's 12000 is rejected. Use 5000 (the max) to keep "batched" as
+    # large as the current binary allows. Deviation from runbook line 82.
+    ("sandbox_ransom_batched",    "--files 5000 --file-size-bytes 1048576",  "--sandbox-dir"),
     ("sandbox_scanner_metadata",  "--files 5000 --subdirs 50 --passes 40",   "--sandbox-dir"),
     ("mem_workingset_sweep_v2",   "--working-set-mb 256 --stride 4096",       None),
     ("mem_mmap_traversal_v2",     "--variant rmw --file-size-mb 256",         "--backing-dir"),
