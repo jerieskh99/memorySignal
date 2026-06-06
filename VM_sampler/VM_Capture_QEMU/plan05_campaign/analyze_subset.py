@@ -24,7 +24,10 @@ def windows(n: int) -> int:
 
 
 def main() -> int:
-    files = sorted(glob.glob(f"{QUEUE}/run_matrix_test*.apf_trajectory.jsonl"))
+    # Match every per-step trajectory, including ones renamed to avoid
+    # cross-run collisions (e.g. run_matrix_d120_test1_*). The naming is always
+    # run_matrix_<label>.npy.apf_trajectory.jsonl, so a broad glob is safe.
+    files = sorted(glob.glob(f"{QUEUE}/run_matrix_*.apf_trajectory.jsonl"))
     if not files:
         print(f"no apf trajectories under {QUEUE}")
         return 1
