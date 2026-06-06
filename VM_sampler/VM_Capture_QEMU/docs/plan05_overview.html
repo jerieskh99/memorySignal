@@ -165,13 +165,14 @@
     </ol>
     <div class="status-pill" style="background:rgba(124,185,110,.08);
          border-color:rgba(124,185,110,.22); color:var(--good);">
-      <strong>Wave 4 &mdash; production APF pipeline shipped.</strong><br>
+      <strong>Wave 4 &mdash; subset PASS, full campaign running.</strong><br>
       The pilot's &ldquo;failed&rdquo; 2&times; gate uncovered the real win
       (delete-as-you-go: <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong>, snapshots
-      <strong>14&rarr;79/120&nbsp;s</strong>). It is now wired into the real
-      pipeline &mdash; <code>CAPTURE_METRIC</code> = delta | apf | apf_queue (Rust),
-      all verified live. Only the 66-cell campaign remains. See
-      <a href="#mystery">The 7-second mystery</a>.
+      <strong>14&rarr;79/120&nbsp;s</strong>), now wired into the production
+      pipeline (<code>CAPTURE_METRIC</code> = delta | apf | apf_queue, Rust). The
+      6-cell subset <strong>passed: 0/6 DOF-starved</strong> (v3: 53/132) and
+      sustain-loop killed the v3 bimodality. The full <strong>66-cell campaign</strong>
+      is now running. See <a href="#mystery">The 7-second mystery</a>.
     </div>
   </aside>
 
@@ -759,16 +760,55 @@
       </div>
 
       <div class="callout good">
-        <strong>First campaign cell (Step 8, in progress).</strong> Running the
-        production <code>apf_queue</code> + sustain pipeline on the v3 workloads,
-        the first cell (<code>app_hashtable@120&nbsp;s</code>) produced
-        <strong>298 APF pairs, mean 0.1124, and 73 analysis windows</strong> at
-        <code>(W,H)=(8,4)</code> &mdash; against the v3 baseline of 14&ndash;53
-        pairs, ~0.0018 (idle), and <strong>53/132 cells with &le;3 windows</strong>.
-        The degrees-of-freedom starvation that forced the papers' hedges is relieved
-        end-to-end on the real pipeline, on the <em>worst</em>-case workload
-        (app_hashtable was the pilot's idle offender). Five more subset cells + the
-        full 66-cell campaign pending.
+        <strong>Step 8 subset (6 cells) &mdash; PASS.</strong> The production
+        <code>apf_queue</code> + sustain pipeline, 3 workloads &times;
+        {120,600}&nbsp;s at the locked cadence. <strong>All 6 cells cleared the
+        DOF bar: 0 with &le;3 windows</strong> (v3 baseline: 53/132). Frozen
+        analyzer <code>(W,H)=(8,4)</code>:
+        <table>
+          <thead><tr><th>cell</th><th>pairs</th><th>APF mean</th><th>windows</th></tr></thead>
+          <tbody>
+            <tr><td>app_hashtable@120&nbsp;s</td><td class="mono">534</td><td class="mono">0.1125</td><td class="mono">132</td></tr>
+            <tr><td>app_hashtable@600&nbsp;s</td><td class="mono">2697</td><td class="mono">0.1113</td><td class="mono">673</td></tr>
+            <tr><td>mem_workingset@120&nbsp;s</td><td class="mono">535</td><td class="mono">0.2501</td><td class="mono">132</td></tr>
+            <tr><td>mem_workingset@600&nbsp;s</td><td class="mono">2675</td><td class="mono">0.2503</td><td class="mono">667</td></tr>
+            <tr><td>sandbox_scanner@120&nbsp;s</td><td class="mono">490</td><td class="mono">0.0163</td><td class="mono">121</td></tr>
+            <tr><td>sandbox_scanner@600&nbsp;s</td><td class="mono">2701</td><td class="mono">0.0157</td><td class="mono">674</td></tr>
+          </tbody>
+        </table>
+        Two findings beyond the windows. (1) <strong>Sustain-loop killed the v3
+        bimodality</strong> &mdash; APF is now stable across durations
+        (mem_workingset 0.2501@120 vs 0.2503@600; app_hashtable 0.1125 vs 0.1113),
+        where v3's 600&nbsp;s mem captures decayed to near-idle. (2)
+        <strong>sandbox_scanner's low APF (0.016) is real signal, not idle</strong>
+        &mdash; a metadata scanner touches few pages, consistent at both durations.
+        DOF starvation relieved end-to-end on the worst case (app_hashtable was the
+        pilot's idle offender).
+      </div>
+
+      <div class="callout">
+        <strong>Full 66-cell campaign &mdash; launched.</strong> 11 workloads
+        &times; {120,300,600}&nbsp;s &times; 2 reps via
+        <code>CAPTURE_METRIC=apf_queue SUSTAIN_LOOP=1</code> at the locked
+        <code>intervalMsec=500</code> (matching v3 cadence, so the window gain is
+        attributable to delete-as-you-go alone, not a faster interval). A
+        deterministic generator emits the steps file + a step&rarr;cell manifest;
+        order is rep-outer&nbsp;&rarr;&nbsp;duration&nbsp;&rarr;&nbsp;workload, so
+        steps&nbsp;1&ndash;33 form a complete single-replicate matrix (maximal
+        value if interrupted) and the fast 120&nbsp;s cells lead each replicate.
+      </div>
+
+      <div class="callout">
+        <strong>Cold-boot SSH-race hardening (orchestrator).</strong> The subset
+        first hit a recurring step failure after a <code>force&nbsp;destroy</code>:
+        <code>wait_for_ssh</code> returned True on a single transient TCP
+        handshake, the workload SSH then timed out (rc=255), and the campaign
+        aborted. Fix: require <strong>3 consecutive</strong> real-path probes
+        (<code>test&nbsp;-d&nbsp;$HOME</code>, exercising auth + filesystem), a
+        5&nbsp;s settle after <code>virsh destroy</code> so libvirt releases the
+        VM's network/qemu state, and a <strong>single retry</strong> of the
+        workload SSH on rc=255 before aborting. +5 unit tests; the subset ran
+        clean afterward (all 6 cells rc=0).
       </div>
 
       <h3>Next steps</h3>

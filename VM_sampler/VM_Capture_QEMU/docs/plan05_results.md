@@ -260,14 +260,37 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   workload SSH **once** on rc=255 before aborting (cold-boot transient !=
   workload bug). Abort-policy unchanged: data integrity rules out silent skip.
   +5 unit tests (11 in the file now); full suite green.
-- **Step 8 (subset campaign, in progress):** the production `apf_queue` + sustain
-  pipeline running the v3 workloads at the locked durations. **First cell**
-  (`app_hashtable@120s`) delivered **298 APF pairs, mean 0.1124, and 73 analysis
-  windows at (W,H)=(8,4)** -- vs the v3 baseline of 14-53 pairs, ~0.0018 (idle), and
-  53/132 cells with <=3 windows. The DOF starvation that forced the papers' G2/G3
-  hedges is relieved end-to-end on the real pipeline (delete-as-you-go + sustain-loop
-  + Rust `apf_calc`, all together) -- and on the *worst* case (app_hashtable was the
-  pilot's idle offender). 5 more subset cells + the full 66-cell campaign pending.
+- **Step 8 subset (6 cells) -- PASS.** The production `apf_queue` + sustain
+  pipeline, 3 workloads x {120,600}s at the locked cadence. **All 6 cells: 0 with
+  <=3 windows** (v3 baseline: 53/132). The frozen analyzer (W,H)=(8,4):
+
+  | cell | pairs | APF mean | windows@(8,4) |
+  |---|---:|---:|---:|
+  | app_hashtable@120s    |  534 | 0.1125 | 132 |
+  | app_hashtable@600s    | 2697 | 0.1113 | 673 |
+  | mem_workingset@120s   |  535 | 0.2501 | 132 |
+  | mem_workingset@600s   | 2675 | 0.2503 | 667 |
+  | sandbox_scanner@120s  |  490 | 0.0163 | 121 |
+  | sandbox_scanner@600s  | 2701 | 0.0157 | 674 |
+
+  Two findings beyond the window counts. (1) **Sustain-loop killed the v3
+  bimodality:** APF is now stable across durations -- mem_workingset 0.2501@120
+  vs 0.2503@600, app_hashtable 0.1125 vs 0.1113 -- whereas in v3 the 600s mem
+  captures decayed to near-idle (~0). The guest now churns the whole window. (2)
+  **sandbox_scanner's low APF (0.016) is real signal, not idle:** a metadata
+  scanner touches few pages, and the value is consistent at both durations (no
+  idle-decay). DOF starvation relieved end-to-end on the worst case
+  (app_hashtable was the pilot's idle offender), on the real pipeline
+  (delete-as-you-go + sustain-loop + Rust `apf_calc`).
+- **Full 66-cell campaign (launched).** 11 workloads x {120,300,600}s x 2 reps,
+  via `run_files_controlled.py CAPTURE_METRIC=apf_queue SUSTAIN_LOOP=1` at the
+  locked **intervalMsec=500** (matches v3 cadence, so the window gain is
+  attributable to delete-as-you-go alone, not a faster interval). Deterministic
+  generator (`plan05_campaign/generate_full_steps.py`) emits the steps file +
+  a step->cell manifest; order is rep-outer -> duration -> workload, so steps
+  1-33 form a complete single-replicate matrix (max value if the run is
+  interrupted) and the fast 120s cells lead each replicate (early failure
+  surfacing).
 
 ## Provenance
 
