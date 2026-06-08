@@ -1139,14 +1139,18 @@
         <li><strong>APF is a valid, reproducible discriminator.</strong> It spans
             0.002&ndash;0.41 in the expected order and repeats across replicates to
             ~0.01 mean absolute difference.</li>
-        <li><strong>APF's blind spot is in the mean, not the signal.</strong>
-            Low-and-slow and I/O-bound threats read near-idle <em>on average</em>
-            &mdash; but <code>slowburn</code> still spikes to 0.244 (CoV&nbsp;5.0).
-            A detector using the windowed <em>peak / variance</em> of APF (not the
-            mean) recovers exactly these threats; pairing with an I/O-rate feature
-            closes the gap for the steadily I/O-bound ones (<code>batched</code>
-            &mdash; whose low reading is partly its default memory cap, see the
-            validation note above).</li>
+        <li><strong>APF's blind spot is in the mean, and peak/variance shape
+            features measurably narrow it (built + measured, see &sect;9.8).</strong>
+            Appending five shape features (max, p95, CoV, peak-to-median,
+            duty-cycle) to the leakage-free AGNOSTIC set lifts the honest
+            (leave-one-workload-out) threat/benign accuracy
+            <strong>0.636&nbsp;&rarr;&nbsp;0.788</strong> and anomaly ROC-AUC
+            <strong>0.74&nbsp;&rarr;&nbsp;0.93</strong> (LOF), recovering
+            <code>batched</code> (0.17&rarr;1.0), <code>scanner</code> and
+            <code>seq</code>. Two near-idle workloads stay irreducible &mdash; the
+            low-and-slow <code>slowburn</code> (threat) and the bursty-low
+            <code>pagefault</code> (benign): opposite labels, mutually confusable,
+            needing a non-APF (I/O-rate) signal.</li>
         <li><strong>Page granularity matters.</strong> A 64-byte write dirties a
             full 4&nbsp;KiB page (<code>writemag</code> ~0.25), so APF reflects
             <em>pages touched</em>, not bytes changed &mdash; relevant when
@@ -1247,6 +1251,35 @@
         finding, and it matches the supervised LOWO failures (the same low-APF
         workloads) and the APF blind spot: <strong>the mean scalar cannot separate
         the quiet behaviors</strong>.</p>
+
+      <h3>Recovering the stealth threats: peak/variance feature lift</h3>
+      <p>The campaign predicted (&sect;9.7) that windowed peak/variance would
+        recover threats the mean misses. We built and measured it &mdash; appending
+        five shape features (max, p95, CoV, peak-to-median, duty-cycle) to the
+        leakage-free AGNOSTIC set. Honest (LOWO / leave-one-benign-out) lift:</p>
+      <table>
+        <thead><tr><th>Metric (honest)</th><th>AGNOSTIC</th><th>+ peak/variance</th></tr></thead>
+        <tbody>
+          <tr><td>Binary threat/benign LOWO acc</td><td class="mono">0.636</td><td class="mono"><strong>0.788</strong></td></tr>
+          <tr><td>Anomaly ROC-AUC (LOF)</td><td class="mono">0.739</td><td class="mono"><strong>0.925</strong></td></tr>
+          <tr><td>Anomaly ROC-AUC (IsolationForest)</td><td class="mono">0.676</td><td class="mono">0.853</td></tr>
+          <tr><td>Anomaly ROC-AUC (OneClassSVM)</td><td class="mono">0.538</td><td class="mono">0.903</td></tr>
+          <tr><td>5-class family LOWO acc</td><td class="mono">0.348</td><td class="mono">0.364</td></tr>
+        </tbody>
+      </table>
+      <p>Per-workload binary LOWO shows what got recovered: <code>batched</code>
+        0.17&rarr;1.00, <code>scanner</code> 0.50&rarr;1.00, <code>seq</code>
+        0.67&rarr;0.83 (benign <code>mmap</code> 0.67&rarr;0.83 too). Two stay at
+        0.00 &mdash; the low-and-slow <code>slowburn</code> (threat) and the
+        bursty-low <code>pagefault</code> (benign): both near-idle with rare spikes,
+        opposite labels, mutually confusable; <code>slowburn</code>'s spike is so
+        rare that a held-out model can't generalize to it. Net: a clear, measured
+        detection win (anomaly AUC 0.74&rarr;0.93), with two very-quiet workloads
+        that still need a non-APF (I/O-rate) signal. The 5-class family stays at
+        baseline &mdash; shape features do not make fine taxonomy generalize.
+        (Honest correction: the &sect;9.7 prototype guessed peak/variance would
+        recover <code>slowburn</code> not <code>batched</code>; the measured result
+        is the opposite.)</p>
 
       <h3>What this says for the thesis</h3>
       <ol class="tight">

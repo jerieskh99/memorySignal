@@ -1,0 +1,109 @@
+{
+ "schema": "plan05.peakvar_lift.v1",
+ "sklearn": "1.7.2",
+ "extra_features": [
+  "apf_max",
+  "apf_p95",
+  "apf_cov",
+  "peak2med",
+  "duty_gt05"
+ ],
+ "n_cells": 66,
+ "agnostic_features": [
+  "apf_mean",
+  "apf_std",
+  "cepstral_peak_idx",
+  "ceps_peak_snr_db",
+  "stat_pass_frac",
+  "n_pairs",
+  "n_windows"
+ ],
+ "results": {
+  "AGNOSTIC": {
+   "binary": {
+    "loro_acc": 0.9697,
+    "lowo_acc": 0.6364,
+    "lowo_macro_f1": 0.6192,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.667,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.167,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.667,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   },
+   "family5": {
+    "loro_acc": 0.9545,
+    "lowo_acc": 0.3485,
+    "lowo_macro_f1": 0.2251,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 0.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.833,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.0
+    }
+   },
+   "anomaly_roc_auc_honest": {
+    "IsolationForest": 0.6759,
+    "LOF": 0.7389,
+    "OCSVM": 0.538
+   }
+  },
+  "AGNOSTIC+peakvar": {
+   "binary": {
+    "loro_acc": 1.0,
+    "lowo_acc": 0.7879,
+    "lowo_macro_f1": 0.7861,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.833,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 1.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.833,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "family5": {
+    "loro_acc": 1.0,
+    "lowo_acc": 0.3636,
+    "lowo_macro_f1": 0.2423,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 0.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.0
+    }
+   },
+   "anomaly_roc_auc_honest": {
+    "IsolationForest": 0.8528,
+    "LOF": 0.925,
+    "OCSVM": 0.9028
+   }
+  }
+ }
+}

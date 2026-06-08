@@ -500,11 +500,13 @@ ransom_batched.
    windows) into a fully-powered dataset (0/66). Downstream stats now have DOF.
 2. **APF is a valid, reproducible discriminator** -- spans 0.002-0.41 in the
    expected order, ~0.01 mean abs difference across reps.
-3. **APF's blind spot is in the mean, not the signal:** low-and-slow and
-   I/O-bound threats read near-idle *on average*, but slowburn still spikes to
-   0.244 (CoV 5.0). Use windowed APF *peak/variance* (not the mean) to recover
-   them; pair with an I/O-rate feature for the steadily I/O-bound ones (batched --
-   whose low reading is partly its default memory cap, see the validation note).
+3. **APF's blind spot is in the mean, and peak/variance shape features measurably
+   narrow it (built + measured -- see the downstream section).** Appending 5 shape
+   features (max, p95, CoV, peak-to-median, duty-cycle) to AGNOSTIC lifts honest
+   (LOWO) threat/benign accuracy 0.636 -> 0.788 and anomaly ROC-AUC 0.74 -> 0.93
+   (LOF), recovering batched (0.17->1.0), scanner, seq. The near-idle slowburn
+   (threat) and pagefault (benign) stay confusable and need a non-APF I/O-rate
+   signal.
 4. **Page granularity:** a 64-byte write dirties a full 4 KiB page
    (`writemag` ~0.25), so APF reflects *pages touched*, not bytes changed.
 5. **Continuous-write workloads stay thin at 120 s:** ransom_selective/seq bottom
@@ -572,6 +574,28 @@ anomalous as the threats, and the throttled/low-APF threats (`slowburn`,
 `batched`) sit near the benign cluster. The overlap matches the supervised LOWO
 failures (same low-APF workloads) and the APF blind spot: the mean scalar cannot
 separate the quiet behaviors.
+
+### Peak/variance feature lift (recovering stealth threats)
+
+Built + measured the conclusion-3 hypothesis: append 5 leakage-free shape
+features (max, p95, CoV, peak-to-median, duty-cycle) to AGNOSTIC. Honest lift:
+
+| Metric (honest LOWO / leave-one-benign-out) | AGNOSTIC | + peak/variance |
+|---|---:|---:|
+| Binary threat/benign acc | 0.636 | **0.788** |
+| Anomaly ROC-AUC (LOF) | 0.739 | **0.925** |
+| Anomaly ROC-AUC (IsolationForest) | 0.676 | 0.853 |
+| Anomaly ROC-AUC (OneClassSVM) | 0.538 | 0.903 |
+| 5-class family acc | 0.348 | 0.364 |
+
+Per-workload binary LOWO recoveries: batched 0.17->1.00, scanner 0.50->1.00, seq
+0.67->0.83 (benign mmap 0.67->0.83). Two stay at 0.00 -- slowburn (threat) and
+pagefault (benign): near-idle, rare spikes, opposite labels, mutually confusable;
+slowburn's spike is too rare to generalize to when held out. Honest correction:
+the prototype guess (peak/variance recovers slowburn, not batched) was backwards
+-- the measured result recovers batched, not slowburn. Net: clear detection win
+(anomaly AUC 0.74->0.93); the two very-quiet workloads need a non-APF (I/O-rate)
+signal. 5-class family stays at baseline. Reproduce: `peakvar_lift.py`.
 
 ### Conclusions
 
