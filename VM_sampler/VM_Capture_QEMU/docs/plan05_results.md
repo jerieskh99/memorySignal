@@ -384,9 +384,12 @@ ransom_slowburn    0.0022 .
 | 300 s | 22 | 11 | 121 | 121 |
 | 600 s | 22 | 8 | 242 | 244 |
 
-The few low mins (4, 8, 11) are the heavy-I/O threat cells (ransom_batched,
-selective): their disk writes contend with `pmemsave`, so fewer snapshots fit.
-They still clear >3, and their 300/600 s reps are comfortable.
+The few low mins (4, 8, 11) are all `ransom_selective` cells (its four are the
+four thinnest), then `ransom_seq` -- the *continuous-write* encryptors. Their
+sustained writes to the guest image share the host disk with `pmemsave`, slowing
+it (~2.4 s/snapshot vs the ~0.6 s ceiling), so fewer snapshots fit. The *bursty*
+`ransom_batched` stays at the ceiling (181-933 pairs), and pure-RAM workloads are
+unaffected. All thin cells still clear >3; their 300/600 s reps are comfortable.
 
 ### Reproducibility is the validity proof
 
@@ -489,8 +492,9 @@ clean apart from one self-recovered SSH transient; C4/C7/C8 do not apply to the
    them; pair with an I/O-rate feature for the steadily I/O-bound ones (batched).
 4. **Page granularity:** a 64-byte write dirties a full 4 KiB page
    (`writemag` ~0.25), so APF reflects *pages touched*, not bytes changed.
-5. **Short heavy-I/O cells stay thin** (120 s I/O-bound bottoms at 4 windows);
-   prefer 300/600 s for those workloads.
+5. **Continuous-write workloads stay thin at 120 s:** ransom_selective/seq bottom
+   at 4-14 windows (sustained writes slow `pmemsave`); prefer their 300/600 s
+   data. Bursty (batched) and pure-RAM workloads keep the full cadence.
 
 Data: per-step `run_matrix_test{i}_*.apf_trajectory.jsonl` in the queue dir,
 labelled via `plan05_campaign/full_manifest.csv`; analyze with

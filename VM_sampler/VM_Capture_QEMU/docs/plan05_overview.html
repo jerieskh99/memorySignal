@@ -974,10 +974,15 @@
           <tr><td class="mono">600&nbsp;s</td><td class="mono">22</td><td class="mono">8</td><td class="mono">242</td><td class="mono">244</td></tr>
         </tbody>
       </table>
-      <p>The few low values (min 4, 8, 11) are all the heavy-I/O threat cells
-         (<code>ransom_batched</code>, <code>selective</code>): their disk writes
-         contend with <code>pmemsave</code>, so fewer snapshots fit. They still
-         clear &gt;3, and their 300/600&nbsp;s reps are comfortable.</p>
+      <p>The few low values (min 4, 8, 11) are all <code>ransom_selective</code>
+         cells (its four are the four thinnest), with <code>ransom_seq</code> next
+         &mdash; the <em>continuous-write</em> encryptors. Their sustained writes
+         to the guest image share the host disk with <code>pmemsave</code>, slowing
+         it, so fewer snapshots fit (selective runs ~2.4&nbsp;s/snapshot vs the
+         ~0.6&nbsp;s ceiling). By contrast the <em>bursty</em>
+         <code>ransom_batched</code> stays at the ceiling (181&ndash;933 pairs), and
+         pure-RAM workloads are unaffected. All thin cells still clear &gt;3, and
+         their 300/600&nbsp;s reps are comfortable.</p>
 
       <h3>Reproducibility is the validity proof</h3>
       <div class="callout info">
@@ -1121,9 +1126,11 @@
             full 4&nbsp;KiB page (<code>writemag</code> ~0.25), so APF reflects
             <em>pages touched</em>, not bytes changed &mdash; relevant when
             interpreting absolute APF levels.</li>
-        <li><strong>Short cells of heavy-I/O workloads stay thin.</strong> The
-            120&nbsp;s I/O-bound cells bottom out at 4 windows; prefer the
-            300/600&nbsp;s data for those workloads, or shorten their I/O.</li>
+        <li><strong>Continuous-write workloads stay thin at 120&nbsp;s.</strong>
+            <code>ransom_selective</code> and <code>ransom_seq</code> bottom out at
+            4&ndash;14 windows (sustained writes slow <code>pmemsave</code>); prefer
+            their 300/600&nbsp;s data. Bursty (<code>batched</code>) and pure-RAM
+            workloads keep the full ~0.6&nbsp;s cadence and are unaffected.</li>
       </ol>
     </section>
 
