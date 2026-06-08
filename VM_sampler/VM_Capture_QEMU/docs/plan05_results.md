@@ -397,6 +397,37 @@ that reproduce across independent boots -- the signal is real and stable. The
 lone large gap (0.189) is `ransom_selective@600s rep1`, an under-sampled cell (39
 pairs); rep2 is healthy (88), and the two-rep design is what surfaces it.
 
+### Beyond the mean: burstiness, duty cycle, trajectory shape
+
+The full per-pair trajectories (29,003 points) say more than the means:
+
+| Workload | std | CoV | max | %>0.1 | drift |
+|---|---:|---:|---:|---:|---:|
+| ransom_seq | 0.115 | 0.37 | 0.539 | 98% | -0.052 |
+| ransom_slowburn | 0.0104 | 5.00 | 0.244 | 0% | -0.003 |
+| ransom_selective | 0.144 | 0.41 | 0.530 | 92% | -0.006 |
+| ransom_batched | 0.0026 | 0.34 | 0.101 | 0% | -0.001 |
+| scanner_metadata | 0.0026 | 0.07 | 0.064 | 0% | -0.000 |
+| mem_workingset_sweep | 0.0013 | 0.00 | 0.273 | 100% | -0.001 |
+| mem_mmap_traversal | 0.068 | 0.37 | 0.280 | 86% | -0.006 |
+| mem_pagefault_density | 0.0078 | 1.62 | 0.225 | 0% | -0.002 |
+| mem_rmw_intensity | 0.0545 | 0.25 | 0.281 | 94% | +0.001 |
+| mem_writemag_sweep | 0.0038 | 0.02 | 0.325 | 100% | -0.001 |
+| app_hashtable_intensive | 0.117 | 0.76 | 0.330 | 62% | -0.004 |
+
+(Pooled over all pairs per workload; CoV = std/mean = burstiness; %>0.1 = duty
+cycle; drift = last-third mean - first-third mean.)
+
+1. **Trajectories are stable, not decaying.** Drift < 0.01 for 9/11 workloads
+   (worst -0.052, ransom_seq). Sustain-loop holds load the whole window -- v3's
+   idle-decay is gone, quantified.
+2. **Burstiness is its own signal.** ransom_slowburn CoV 5.0 = a near-zero floor
+   with rare spikes to 0.244 (the low-and-slow signature); workingset/writemag
+   CoV ~0 = flat steady churn. APF *variance* carries information the mean hides.
+3. **app_hashtable is bimodal** -- median 0.25 but mean 0.154, 62% of pairs > 0.1:
+   build phase churns (~0.25), lookup phase quieter. Confirms the runbook's
+   build->probe note from real data.
+
 ### The 18 "IDLE?" flags are real low signal, not failures
 
 They fall on exactly three workloads, each consistent across all six of its cells:
@@ -427,8 +458,10 @@ I/O-rate signal.
    windows) into a fully-powered dataset (0/66). Downstream stats now have DOF.
 2. **APF is a valid, reproducible discriminator** -- spans 0.002-0.41 in the
    expected order, ~0.01 mean abs difference across reps.
-3. **APF has a known blind spot:** low-and-slow and I/O-bound threats read
-   near-idle; pair APF with an I/O-rate feature for coverage.
+3. **APF's blind spot is in the mean, not the signal:** low-and-slow and
+   I/O-bound threats read near-idle *on average*, but slowburn still spikes to
+   0.244 (CoV 5.0). Use windowed APF *peak/variance* (not the mean) to recover
+   them; pair with an I/O-rate feature for the steadily I/O-bound ones (batched).
 4. **Page granularity:** a 64-byte write dirties a full 4 KiB page
    (`writemag` ~0.25), so APF reflects *pages touched*, not bytes changed.
 5. **Short heavy-I/O cells stay thin** (120 s I/O-bound bottoms at 4 windows);

@@ -992,6 +992,49 @@
         pairs), and the two-replicate design is exactly what surfaces such variance.
       </div>
 
+      <h3>Beyond the mean: burstiness, duty cycle, and trajectory shape</h3>
+      <p>The full per-pair trajectories (29,003 points) say more than the means.
+         Three findings only the distributions reveal:</p>
+      <ol class="tight">
+        <li><strong>The trajectories are stable, not decaying.</strong> Drift
+            (last-third mean &minus; first-third mean) is below 0.01 for 9 of 11
+            workloads (worst: <code>ransom_seq</code> &minus;0.052). The
+            sustain-loop holds load across the whole window &mdash; the v3
+            idle-decay that zeroed late-window APF is gone, now quantified.</li>
+        <li><strong>Burstiness (CoV = std/mean) is its own signal.</strong>
+            <code>ransom_slowburn</code> has CoV&nbsp;5.0 &mdash; a near-zero floor
+            punctuated by rare spikes to <strong>0.244</strong> &mdash; the
+            low-and-slow signature. <code>workingset</code> and
+            <code>writemag</code> sit at CoV&nbsp;~0 (flat, steady churn). APF
+            <em>variance</em> carries information the mean hides.</li>
+        <li><strong><code>app_hashtable</code> is bimodal.</strong> Median 0.25 but
+            mean 0.154, with 62&nbsp;% of pairs &gt; 0.1: the build phase churns
+            (~0.25), the lookup phase is quieter. Visible directly in the
+            trajectory &mdash; confirms the runbook's build&rarr;probe note from
+            real data.</li>
+      </ol>
+      <table>
+        <thead><tr><th>Workload</th><th>std</th><th>CoV</th><th>max</th><th>% pairs&gt;0.1</th><th>drift</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ransom_seq</td><td class="mono">0.115</td><td class="mono">0.37</td><td class="mono">0.539</td><td class="mono">98%</td><td class="mono">-0.052</td></tr>
+          <tr><td class="mono">ransom_slowburn</td><td class="mono">0.0104</td><td class="mono">5.00</td><td class="mono">0.244</td><td class="mono">0%</td><td class="mono">-0.003</td></tr>
+          <tr><td class="mono">ransom_selective</td><td class="mono">0.144</td><td class="mono">0.41</td><td class="mono">0.530</td><td class="mono">92%</td><td class="mono">-0.006</td></tr>
+          <tr><td class="mono">ransom_batched</td><td class="mono">0.0026</td><td class="mono">0.34</td><td class="mono">0.101</td><td class="mono">0%</td><td class="mono">-0.001</td></tr>
+          <tr><td class="mono">scanner_metadata</td><td class="mono">0.0026</td><td class="mono">0.07</td><td class="mono">0.064</td><td class="mono">0%</td><td class="mono">-0.000</td></tr>
+          <tr><td class="mono">mem_workingset_sweep</td><td class="mono">0.0013</td><td class="mono">0.00</td><td class="mono">0.273</td><td class="mono">100%</td><td class="mono">-0.001</td></tr>
+          <tr><td class="mono">mem_mmap_traversal</td><td class="mono">0.068</td><td class="mono">0.37</td><td class="mono">0.280</td><td class="mono">86%</td><td class="mono">-0.006</td></tr>
+          <tr><td class="mono">mem_pagefault_density</td><td class="mono">0.0078</td><td class="mono">1.62</td><td class="mono">0.225</td><td class="mono">0%</td><td class="mono">-0.002</td></tr>
+          <tr><td class="mono">mem_rmw_intensity</td><td class="mono">0.0545</td><td class="mono">0.25</td><td class="mono">0.281</td><td class="mono">94%</td><td class="mono">+0.001</td></tr>
+          <tr><td class="mono">mem_writemag_sweep</td><td class="mono">0.0038</td><td class="mono">0.02</td><td class="mono">0.325</td><td class="mono">100%</td><td class="mono">-0.001</td></tr>
+          <tr><td class="mono">app_hashtable_intensive</td><td class="mono">0.117</td><td class="mono">0.76</td><td class="mono">0.330</td><td class="mono">62%</td><td class="mono">-0.004</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted)">Pooled over all snapshot pairs
+         per workload (so weighted by pair count; differs slightly from the
+         per-cell-averaged means in the catalog above). CoV = std/mean;
+         %&nbsp;pairs&gt;0.1 is the duty cycle; drift = last-third &minus;
+         first-third mean.</p>
+
       <h3>The 18 &ldquo;IDLE?&rdquo; flags are real low signal, not failures</h3>
       <p>The analyzer flags any cell with mean APF &lt; 0.01. Eighteen cells trip
          it &mdash; and they are exactly three workloads, each consistent across
@@ -1039,9 +1082,12 @@
         <li><strong>APF is a valid, reproducible discriminator.</strong> It spans
             0.002&ndash;0.41 in the expected order and repeats across replicates to
             ~0.01 mean absolute difference.</li>
-        <li><strong>APF has a known blind spot.</strong> Low-and-slow and
-            I/O-bound threats read near-idle; APF-only detection would miss them.
-            Pair APF with an I/O-rate feature for threat coverage.</li>
+        <li><strong>APF's blind spot is in the mean, not the signal.</strong>
+            Low-and-slow and I/O-bound threats read near-idle <em>on average</em>
+            &mdash; but <code>slowburn</code> still spikes to 0.244 (CoV&nbsp;5.0).
+            A detector using the windowed <em>peak / variance</em> of APF (not the
+            mean) recovers exactly these threats; pairing with an I/O-rate feature
+            closes the gap for the steadily I/O-bound ones (<code>batched</code>).</li>
         <li><strong>Page granularity matters.</strong> A 64-byte write dirties a
             full 4&nbsp;KiB page (<code>writemag</code> ~0.25), so APF reflects
             <em>pages touched</em>, not bytes changed &mdash; relevant when
