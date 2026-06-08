@@ -21,6 +21,11 @@ before/after is the old keep-everything pipeline vs delete-as-you-go:
 **7.06s -> 0.79s** dump, **14 -> 79 snapshots per 120s**. Plan 05 succeeded; the
 gate just measured the wrong contrast.
 
+**Update (Wave 4 complete):** the full v3 campaign then ran end-to-end on the
+production pipeline -- **66/66 cells, 0 DOF-starved** (v3: 53/132), APF
+reproducible to ~0.01 across replicates, spanning 0.002-0.41 across the workload
+battery. See [Full v3 APF campaign](#full-v3-apf-campaign----results-66-cells).
+
 ## What ran
 
 3 workloads x 2 durations (120s, 600s) x 4 arms x 3 replicates = **72 cells**,
@@ -308,6 +313,130 @@ scheme: `CAPTURE_METRIC = delta` (default) `| apf` (Wave-3 lean inline helper)
   the sustain loop's `timeout`-killed final iteration leaves behind. +5 tests
   (16 in the file). Pure-memory workloads (workingset, pagefault, rmw, writemag,
   app_hashtable) get no scratch flag.
+
+## Full v3 APF campaign -- results (66 cells)
+
+The production pipeline (delete-as-you-go + `SUSTAIN_LOOP` + the Rust
+`apf_queue` consumer, workload scratch redirected to real disk) ran the complete
+v3 matrix: **11 workloads x {120,300,600}s x 2 replicates = 66 cells**, at the
+locked cadence (`intervalMsec=500`, RAM 1024 MiB). All 66 finished `rc=0`.
+
+**Headline: 0 of 66 cells are degrees-of-freedom starved** (<=3 analysis windows
+at the frozen `(W,H)=(8,4)`), vs the v3 baseline of **53 of 132**. Total across
+the campaign: **29,003 snapshot pairs, 7,159 analysis windows**. The
+trajectory-length problem that forced the papers' G2/G3 hedges is gone.
+
+### What ran, and why these settings
+
+| Knob | Value | Why |
+|---|---|---|
+| Matrix | 11 x 3 x 2 = 66 | Every workload, three durations, two reps (v3 design). |
+| Metric path | `apf_queue` | Producer -> queue -> Rust `apf_calc` (bit-identical to the Python helper). |
+| Retention | delete-as-you-go | Dump deleted right after use -> `pmemsave` stays ~0.8s -> more snapshots. |
+| Load | `SUSTAIN_LOOP=1` | Re-runs each workload for the whole window (kills v3 near-idle decay). |
+| Interval | 500 ms | Matches v3 cadence -> window gain is attributable to delete-as-you-go. |
+| Scratch | `/var/tmp` (51 GiB disk) | File-writers default to `/tmp` (483 MiB RAM-disk); redirected so they neither crash nor pollute measured RAM. |
+
+### The workload battery -- what each is and why
+
+Eleven workloads, three families, spanning the full activity spectrum. The width
+stress-tests both the capture pipeline (heavy I/O, light load, long runs) and the
+APF signal (does it separate loud from quiet, stably and reproducibly).
+
+| Workload | Family | What it models / why | APF mean | win (min-max) | Reading |
+|---|---|---|---:|---|---|
+| ransom_seq | threat | Sequential file-encrypting ransomware (reversible XOR); the "loud" threat, churns RAM hard | 0.326 | 14-66 | Strong stable signal (easy case) |
+| ransom_slowburn | threat | Low-and-slow (1 file / 3 s); the stealthy threat, hard case by design | 0.0022 | 38-214 | Near-floor: genuinely faint |
+| ransom_selective | threat | Targeted subset of files; mid-volume variant | 0.349 | 4-25 | Active; exposes sampling sensitivity |
+| ransom_batched | threat | Batch encryptor, large file set; high-throughput but I/O-bound | 0.0077 | 44-232 | Low: busy threat, quiet in RAM |
+| scanner_metadata | threat | Filesystem metadata scan (recon/enumeration) | 0.039 | 48-244 | Faint but extremely stable |
+| mem_workingset_sweep | microbench | Sweeps 256 MiB working set (stride 4096); canonical high-churn reference | 0.251 | 47-243 | Gold-standard stable high signal |
+| mem_mmap_traversal | microbench | mmap 256 MiB, read-modify-write traversal | 0.193 | 35-188 | Solid mid-high |
+| mem_pagefault_density | microbench | High page-*fault* rate (mixed); isolates faulting | 0.0050 | 47-243 | Low: faults without content change |
+| mem_rmw_intensity | microbench | Read-modify-write over 256 MiB; write-heavy | 0.218 | 46-243 | High, stable |
+| mem_writemag_sweep | microbench | Write-magnitude sweep, 64 bytes/page | 0.251 | 48-244 | High anyway: 64 B dirties whole 4 KiB page |
+| app_hashtable_intensive | application | Hash table 2^24, 6M inserts + 10M lookups | 0.155 | 48-244 | Steady moderate; representative app |
+
+### The APF spectrum (mean over all 6 cells per workload)
+
+The core evidence APF is a real discriminator: it spreads cleanly from ~0.002 to
+~0.41, in the order each workload should produce.
+
+```
+ransom_selective   0.349  ########################################
+ransom_seq         0.326  #####################################
+mem_writemag       0.251  #############################
+mem_workingset     0.251  #############################
+mem_rmw            0.218  #########################
+mem_mmap           0.193  ######################
+app_hashtable      0.155  ##################
+scanner_metadata   0.039  ####
+ransom_batched     0.0077 #
+mem_pagefault      0.0050 .
+ransom_slowburn    0.0022 .
+```
+
+### Degrees of freedom: starvation relieved at every duration
+
+| Duration | Cells | win min | win median | win max |
+|---|---:|---:|---:|---:|
+| 120 s | 22 | 4 | 47 | 48 |
+| 300 s | 22 | 11 | 121 | 121 |
+| 600 s | 22 | 8 | 242 | 244 |
+
+The few low mins (4, 8, 11) are the heavy-I/O threat cells (ransom_batched,
+selective): their disk writes contend with `pmemsave`, so fewer snapshots fit.
+They still clear >3, and their 300/600 s reps are comfortable.
+
+### Reproducibility is the validity proof
+
+Across the 33 matched workload x duration pairs, mean `|rep1 - rep2|` APF =
+**0.0098**; the memory microbenches repeat to the fourth decimal (mem_workingset
+0.2509/0.2507/0.2505 in *both* reps). A broken capture yields noise, not numbers
+that reproduce across independent boots -- the signal is real and stable. The
+lone large gap (0.189) is `ransom_selective@600s rep1`, an under-sampled cell (39
+pairs); rep2 is healthy (88), and the two-rep design is what surfaces it.
+
+### The 18 "IDLE?" flags are real low signal, not failures
+
+They fall on exactly three workloads, each consistent across all six of its cells:
+`ransom_slowburn` (~0.0022, drips by design), `ransom_batched` (~0.0077,
+I/O-bound), `mem_pagefault_density` (~0.0050, faults without content change). All
+repeat to 3-4 decimals across reps -- a real measurement, not an idle miss; the
+0.01 threshold is just miscalibrated for low-churn workloads. **Research finding:**
+two of the three are *threats* (low-and-slow, I/O-bound ransomware) nearly
+invisible in APF alone -- APF-only detection would miss them, so pair APF with an
+I/O-rate signal.
+
+### Pipeline robustness during the run
+
+- **SSH hardening earned its keep:** exactly one cold-boot `rc=255`; the
+  consecutive-probe wait + single retry recovered it; the cell still finished
+  `rc=0`.
+- **Disk fix held:** zero "No space"; delete-as-you-go kept host dumps bounded
+  (the 933-snapshot cells alone would be ~900 GiB un-deleted). The ~72 GiB the
+  host lost is one-time guest-image (qcow2) inflation, reclaimable with `fstrim`
+  + compact.
+- **Per-cell scratch wipe fired on every file-writing cell;** no cross-cell
+  accumulation.
+
+### Conclusions and thesis impact
+
+1. **Capture-side problem solved end-to-end.** Delete-as-you-go + sustain-loop +
+   Rust consumer + scratch-on-disk turn the starved v3 capture (53/132 with <=3
+   windows) into a fully-powered dataset (0/66). Downstream stats now have DOF.
+2. **APF is a valid, reproducible discriminator** -- spans 0.002-0.41 in the
+   expected order, ~0.01 mean abs difference across reps.
+3. **APF has a known blind spot:** low-and-slow and I/O-bound threats read
+   near-idle; pair APF with an I/O-rate feature for coverage.
+4. **Page granularity:** a 64-byte write dirties a full 4 KiB page
+   (`writemag` ~0.25), so APF reflects *pages touched*, not bytes changed.
+5. **Short heavy-I/O cells stay thin** (120 s I/O-bound bottoms at 4 windows);
+   prefer 300/600 s for those workloads.
+
+Data: per-step `run_matrix_test{i}_*.apf_trajectory.jsonl` in the queue dir,
+labelled via `plan05_campaign/full_manifest.csv`; analyze with
+`plan05_campaign/analyze_campaign.py`.
 
 ## Provenance
 

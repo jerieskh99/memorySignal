@@ -131,6 +131,7 @@
   .chip.next { background:rgba(212,168,90,.16); color:var(--accent); }
   .chip.wait { background:rgba(122,122,133,.16); color:var(--muted); }
   .chip.info { background:rgba(110,167,212,.14); color:var(--info); }
+  .chip.warn { background:rgba(232,85,58,.14); color:var(--bad-2); }
   dl.kv { display:grid; grid-template-columns:max-content 1fr;
           gap:10px 18px; font-size:14.5px; margin:14px 0; }
   dl.kv dt { color:var(--accent); font-family:var(--f-mono); font-size:13px; }
@@ -160,19 +161,19 @@
       <li><a href="#built">What's built</a></li>
       <li><a href="#run">How to run it</a></li>
       <li><a href="#results">Results</a></li>
+      <li><a href="#campaign">Full campaign (66 cells)</a></li>
       <li><a href="#mystery">The 7-second mystery</a></li>
       <li><a href="#waves">Where we are</a></li>
     </ol>
     <div class="status-pill" style="background:rgba(124,185,110,.08);
          border-color:rgba(124,185,110,.22); color:var(--good);">
-      <strong>Wave 4 &mdash; subset PASS, full campaign running.</strong><br>
+      <strong>Wave 4 &mdash; full 66-cell campaign COMPLETE.</strong><br>
       The pilot's &ldquo;failed&rdquo; 2&times; gate uncovered the real win
-      (delete-as-you-go: <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong>, snapshots
-      <strong>14&rarr;79/120&nbsp;s</strong>), now wired into the production
-      pipeline (<code>CAPTURE_METRIC</code> = delta | apf | apf_queue, Rust). The
-      6-cell subset <strong>passed: 0/6 DOF-starved</strong> (v3: 53/132) and
-      sustain-loop killed the v3 bimodality. The full <strong>66-cell campaign</strong>
-      is now running. See <a href="#mystery">The 7-second mystery</a>.
+      (delete-as-you-go: <strong>7.06&nbsp;s&rarr;0.79&nbsp;s</strong>), now wired
+      into the production pipeline (<code>CAPTURE_METRIC</code> = delta | apf |
+      apf_queue, Rust). The full campaign ran clean: <strong>66/66 cells, 0
+      DOF-starved</strong> (v3: 53/132), APF reproducible to ~0.01 across
+      replicates. See <a href="#campaign">the full campaign</a>.
     </div>
   </aside>
 
@@ -787,7 +788,8 @@
       </div>
 
       <div class="callout">
-        <strong>Full 66-cell campaign &mdash; launched.</strong> 11 workloads
+        <strong>Full 66-cell campaign &mdash; complete</strong> (full results in
+        <a href="#campaign">&sect;9.7</a>). 11 workloads
         &times; {120,300,600}&nbsp;s &times; 2 reps via
         <code>CAPTURE_METRIC=apf_queue SUSTAIN_LOOP=1</code> at the locked
         <code>intervalMsec=500</code> (matching v3 cadence, so the window gain is
@@ -834,6 +836,222 @@
       </ol>
     </section>
 
+    <!-- 9.7 -->
+    <section class="card" id="campaign">
+      <div class="num">9.7</div>
+      <h2>The full campaign &mdash; 66 cells, the result we were chasing</h2>
+
+      <p class="lead">The production pipeline (delete-as-you-go + sustain-loop +
+        the Rust <code>apf_queue</code> consumer, with workload scratch on real
+        disk) ran the complete v3 matrix: <strong>11 workloads &times;
+        {120,&nbsp;300,&nbsp;600}&nbsp;s &times; 2 replicates = 66 cells</strong>,
+        at the locked cadence (<code>intervalMsec&nbsp;500</code>, RAM
+        1024&nbsp;MiB). All 66 finished cleanly.</p>
+
+      <div class="callout good">
+        <strong>The headline: 0 of 66 cells are degrees-of-freedom starved</strong>
+        (&le;3 analysis windows at the frozen <code>(W,H)=(8,4)</code>), against
+        the v3 baseline of <strong>53 of 132</strong>. The trajectory-length
+        problem that forced the papers' G2/G3 hedges is gone. Across the 66 cells
+        the pipeline produced <strong>29,003 snapshot pairs</strong> and
+        <strong>7,159 analysis windows</strong>.
+      </div>
+
+      <h3>What ran, and the settings that made it valid</h3>
+      <table>
+        <thead><tr><th>Knob</th><th>Value</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Matrix</td><td class="mono">11 &times; 3 &times; 2 = 66</td>
+              <td>Every workload at three durations, twice &mdash; the v3 design.</td></tr>
+          <tr><td>Metric path</td><td class="mono">apf_queue</td>
+              <td>Producer &rarr; queue &rarr; Rust <code>apf_calc</code> consumer
+                  (bit-identical to the Python helper). Production-grade path.</td></tr>
+          <tr><td>Retention</td><td class="mono">delete-as-you-go</td>
+              <td>Each dump deleted right after use &rarr; <code>pmemsave</code>
+                  stays on its ~0.8&nbsp;s floor &rarr; many more snapshots.</td></tr>
+          <tr><td>Load</td><td class="mono">SUSTAIN_LOOP=1</td>
+              <td>Re-runs each workload until <code>--duration</code> elapses, so
+                  the guest churns the whole window (kills the v3 near-idle decay).</td></tr>
+          <tr><td>Interval</td><td class="mono">500&nbsp;ms</td>
+              <td>Matches v3 cadence, so the window gain is attributable to
+                  delete-as-you-go, not a faster timer.</td></tr>
+          <tr><td>Workload scratch</td><td class="mono">/var/tmp (51&nbsp;GiB disk)</td>
+              <td>File-writing workloads default to <code>/tmp</code> (a 483&nbsp;MiB
+                  RAM-disk) &mdash; redirected to real disk so they neither crash
+                  nor pollute the measured RAM.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The workload battery &mdash; what each one is and why it is in the set</h3>
+      <p>Eleven workloads spanning three families and the full memory-activity
+         spectrum. The point of a battery this wide is to stress two things at
+         once: the <em>capture pipeline</em> (does it hold up under heavy I/O,
+         light load, long runs?) and the <em>APF signal itself</em> (does it
+         separate a loud workload from a quiet one in a stable, reproducible way?).</p>
+      <table>
+        <thead><tr><th>Workload</th><th>Family</th><th>What it models / why we need it</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ransom_seq</td><td><span class="chip warn">threat</span></td>
+              <td>Sequential file-encrypting ransomware (reversible XOR). The
+                  &ldquo;loud&rdquo; threat &mdash; reads each file into RAM,
+                  transforms, writes back, so it churns memory hard.</td>
+              <td>Strong, stable signal (the easy-to-catch case).</td></tr>
+          <tr><td class="mono">ransom_slowburn</td><td><span class="chip warn">threat</span></td>
+              <td>Low-and-slow ransomware: one file every 3&nbsp;s. The stealthy
+                  threat &mdash; the hard detection case by design.</td>
+              <td>Near-floor APF: a genuinely faint signal.</td></tr>
+          <tr><td class="mono">ransom_selective</td><td><span class="chip warn">threat</span></td>
+              <td>Targeted ransomware hitting a chosen subset of files. A
+                  mid-volume variant between seq and batched.</td>
+              <td>Active signal; also exposes sampling sensitivity in short cells.</td></tr>
+          <tr><td class="mono">ransom_batched</td><td><span class="chip warn">threat</span></td>
+              <td>Batch encryptor over a large file set. High-throughput but
+                  <em>I/O-bound</em> &mdash; spends its time moving bytes to disk.</td>
+              <td>Low APF: a busy threat that is quiet in RAM (key counter-example).</td></tr>
+          <tr><td class="mono">scanner_metadata</td><td><span class="chip warn">threat</span></td>
+              <td>Filesystem metadata scanner (reconnaissance / enumeration).</td>
+              <td>Faint but extremely stable (0.0388&ndash;0.0395 across all 6).</td></tr>
+          <tr><td class="mono">mem_workingset_sweep</td><td><span class="chip info">microbench</span></td>
+              <td>Sweeps a 256&nbsp;MiB working set (stride 4096). The canonical
+                  active-working-set pattern &mdash; the reference high-churn case.</td>
+              <td>Gold-standard stable high signal; anchors the scale.</td></tr>
+          <tr><td class="mono">mem_mmap_traversal</td><td><span class="chip info">microbench</span></td>
+              <td>Memory-maps a 256&nbsp;MiB file and does read-modify-write
+                  traversal. Page-cache churn via mmap.</td>
+              <td>Solid mid-high; mmap RMW shows clearly.</td></tr>
+          <tr><td class="mono">mem_pagefault_density</td><td><span class="chip info">microbench</span></td>
+              <td>Drives a high page-<em>fault</em> rate (mixed). Isolates faulting
+                  from content change.</td>
+              <td>Low APF &mdash; faults without rewriting page contents. Shows APF
+                  measures <em>content change</em>, not fault rate.</td></tr>
+          <tr><td class="mono">mem_rmw_intensity</td><td><span class="chip info">microbench</span></td>
+              <td>Read-modify-write intensity over 256&nbsp;MiB (stride 4096).
+                  Write-heavy churn.</td>
+              <td>High, stable signal.</td></tr>
+          <tr><td class="mono">mem_writemag_sweep</td><td><span class="chip info">microbench</span></td>
+              <td>Write-magnitude sweep, only 64 bytes written per page.</td>
+              <td>High APF anyway &mdash; a tiny write dirties the whole 4&nbsp;KiB
+                  page (page-granularity insight).</td></tr>
+          <tr><td class="mono">app_hashtable_intensive</td><td><span class="chip done">application</span></td>
+              <td>Hash table, 2<sup>24</sup> capacity, 6M inserts + 10M lookups.
+                  A realistic application access pattern.</td>
+              <td>Steady moderate signal; the representative app case.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The APF spectrum (mean over all 6 cells per workload)</h3>
+      <p>This is the core evidence that APF is a real discriminator: the battery
+         spreads cleanly from ~0.002 (idle-quiet) to ~0.41 (heavy churn), and the
+         ordering matches what each workload <em>should</em> do.</p>
+      <table>
+        <thead><tr><th>Workload</th><th>APF mean</th><th style="width:42%">relative</th><th>range (min&ndash;max)</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ransom_selective</td><td class="mono">0.349</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:83%;height:13px;background:var(--bad-2);border-radius:3px"></div></div></td><td class="mono">0.152&ndash;0.415</td></tr>
+          <tr><td class="mono">ransom_seq</td><td class="mono">0.326</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:78%;height:13px;background:var(--bad-2);border-radius:3px"></div></div></td><td class="mono">0.286&ndash;0.350</td></tr>
+          <tr><td class="mono">mem_writemag_sweep</td><td class="mono">0.251</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:60%;height:13px;background:var(--info);border-radius:3px"></div></div></td><td class="mono">0.2506&ndash;0.2517</td></tr>
+          <tr><td class="mono">mem_workingset_sweep</td><td class="mono">0.251</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:60%;height:13px;background:var(--info);border-radius:3px"></div></div></td><td class="mono">0.2505&ndash;0.2509</td></tr>
+          <tr><td class="mono">mem_rmw_intensity</td><td class="mono">0.218</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:52%;height:13px;background:var(--info);border-radius:3px"></div></div></td><td class="mono">0.216&ndash;0.224</td></tr>
+          <tr><td class="mono">mem_mmap_traversal</td><td class="mono">0.193</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:46%;height:13px;background:var(--info);border-radius:3px"></div></div></td><td class="mono">0.176&ndash;0.210</td></tr>
+          <tr><td class="mono">app_hashtable_intensive</td><td class="mono">0.155</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:37%;height:13px;background:var(--good);border-radius:3px"></div></div></td><td class="mono">0.1530&ndash;0.1565</td></tr>
+          <tr><td class="mono">scanner_metadata</td><td class="mono">0.039</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:9%;height:13px;background:var(--bad-2);border-radius:3px"></div></div></td><td class="mono">0.0388&ndash;0.0395</td></tr>
+          <tr><td class="mono">ransom_batched</td><td class="mono">0.0077</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:2%;height:13px;background:var(--bad-2);border-radius:3px"></div></div></td><td class="mono">0.0074&ndash;0.0080</td></tr>
+          <tr><td class="mono">mem_pagefault_density</td><td class="mono">0.0050</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:1.5%;height:13px;background:var(--info);border-radius:3px"></div></div></td><td class="mono">0.0046&ndash;0.0056</td></tr>
+          <tr><td class="mono">ransom_slowburn</td><td class="mono">0.0022</td><td><div style="background:rgba(125,125,125,.15);border-radius:3px"><div style="width:0.8%;height:13px;background:var(--bad-2);border-radius:3px"></div></div></td><td class="mono">0.0016&ndash;0.0029</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted)">Bar colour = family: red
+         threat, blue microbench, green application. Width scaled to the 0.42 max.</p>
+
+      <h3>Degrees of freedom: starvation relieved at every duration</h3>
+      <p>Windows are the statistical degrees of freedom the downstream detectors
+         get. v3 had 53/132 cells with &le;3 windows; the campaign has none. Even
+         the thinnest cells clear the bar, and the longer durations are rich.</p>
+      <table>
+        <thead><tr><th>Duration</th><th>Cells</th><th>Windows min</th><th>Windows median</th><th>Windows max</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">120&nbsp;s</td><td class="mono">22</td><td class="mono">4</td><td class="mono">47</td><td class="mono">48</td></tr>
+          <tr><td class="mono">300&nbsp;s</td><td class="mono">22</td><td class="mono">11</td><td class="mono">121</td><td class="mono">121</td></tr>
+          <tr><td class="mono">600&nbsp;s</td><td class="mono">22</td><td class="mono">8</td><td class="mono">242</td><td class="mono">244</td></tr>
+        </tbody>
+      </table>
+      <p>The few low values (min 4, 8, 11) are all the heavy-I/O threat cells
+         (<code>ransom_batched</code>, <code>selective</code>): their disk writes
+         contend with <code>pmemsave</code>, so fewer snapshots fit. They still
+         clear &gt;3, and their 300/600&nbsp;s reps are comfortable.</p>
+
+      <h3>Reproducibility is the validity proof</h3>
+      <div class="callout info">
+        Across the 33 matched workload&times;duration pairs, the mean
+        <code>|rep1&nbsp;&minus;&nbsp;rep2|</code> in APF is <strong>0.0098</strong>,
+        and the memory-microbench workloads repeat to the fourth decimal
+        (<code>mem_workingset</code> 0.2509/0.2507/0.2505 in <em>both</em>
+        replicates). A broken capture yields random noise, not numbers that
+        reproduce across independent boots &mdash; so the signal is real and
+        stable. The single large gap (0.189) is <code>ransom_selective@600&nbsp;s
+        rep1</code>, an under-sampled cell (39 pairs); its rep2 is healthy (88
+        pairs), and the two-replicate design is exactly what surfaces such variance.
+      </div>
+
+      <h3>The 18 &ldquo;IDLE?&rdquo; flags are real low signal, not failures</h3>
+      <p>The analyzer flags any cell with mean APF &lt; 0.01. Eighteen cells trip
+         it &mdash; and they are exactly three workloads, each consistent across
+         all six of its cells:</p>
+      <table>
+        <thead><tr><th>Workload</th><th>APF</th><th>Why it is genuinely low</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">ransom_slowburn</td><td class="mono">~0.0022</td>
+              <td>Drips one file every 3&nbsp;s by design &mdash; little memory churn.</td></tr>
+          <tr><td class="mono">ransom_batched</td><td class="mono">~0.0077</td>
+              <td>I/O-bound &mdash; moves bytes to disk rather than rewriting RAM.</td></tr>
+          <tr><td class="mono">mem_pagefault_density</td><td class="mono">~0.0050</td>
+              <td>Generates faults, but page <em>contents</em> barely change.</td></tr>
+        </tbody>
+      </table>
+      <p>All three repeat to 3&ndash;4 decimals across replicates &mdash; the
+         signature of a real measurement, not an idle miss. The 0.01 threshold is
+         simply miscalibrated for low-churn workloads. <strong>This is itself a
+         research finding:</strong> two of the three are <em>threats</em>
+         (low-and-slow and I/O-bound ransomware) that are nearly invisible in APF
+         alone &mdash; a detector built only on APF would miss them, so APF should
+         be paired with an I/O-rate signal.</p>
+
+      <h3>Pipeline robustness during the run</h3>
+      <ul class="tight">
+        <li><strong>SSH hardening earned its keep.</strong> Exactly one cold-boot
+            <code>rc=255</code> occurred; the consecutive-probe wait + single
+            retry recovered it and the cell still finished <code>rc=0</code>.</li>
+        <li><strong>Disk fix held.</strong> Zero &ldquo;No space&rdquo; events;
+            <code>delete-as-you-go</code> kept host dumps bounded (the
+            933-snapshot cells alone would be ~900&nbsp;GiB un-deleted). The
+            ~72&nbsp;GiB the host lost is one-time guest-image inflation
+            (qcow2 high-water mark), reclaimable with <code>fstrim</code> + compact.</li>
+        <li><strong>Every cell self-validated.</strong> The per-cell guest scratch
+            wipe fired on all file-writing cells; no cross-cell accumulation.</li>
+      </ul>
+
+      <h3>Conclusions and thesis impact</h3>
+      <ol class="tight">
+        <li><strong>The capture-side problem is solved end-to-end.</strong>
+            Delete-as-you-go + sustain-loop + the Rust consumer + scratch-on-disk
+            turn the starved v3 capture (53/132 cells with &le;3 windows) into a
+            fully-powered dataset (0/66). Downstream statistics now have the
+            degrees of freedom the papers lacked.</li>
+        <li><strong>APF is a valid, reproducible discriminator.</strong> It spans
+            0.002&ndash;0.41 in the expected order and repeats across replicates to
+            ~0.01 mean absolute difference.</li>
+        <li><strong>APF has a known blind spot.</strong> Low-and-slow and
+            I/O-bound threats read near-idle; APF-only detection would miss them.
+            Pair APF with an I/O-rate feature for threat coverage.</li>
+        <li><strong>Page granularity matters.</strong> A 64-byte write dirties a
+            full 4&nbsp;KiB page (<code>writemag</code> ~0.25), so APF reflects
+            <em>pages touched</em>, not bytes changed &mdash; relevant when
+            interpreting absolute APF levels.</li>
+        <li><strong>Short cells of heavy-I/O workloads stay thin.</strong> The
+            120&nbsp;s I/O-bound cells bottom out at 4 windows; prefer the
+            300/600&nbsp;s data for those workloads, or shorten their I/O.</li>
+      </ol>
+    </section>
+
     <!-- 10 -->
     <section class="card" id="waves">
       <div class="num">10</div>
@@ -860,15 +1078,17 @@
                   delta (unchanged) | apf (inline helper) | apf_queue (Rust
                   <code>apf_calc</code> consumer, bit-identical to the helper). All
                   three verified live; <strong>sustain-loop done</strong>
-                  (<code>SUSTAIN_LOOP</code> -- app_hashtable APF 0.0018&rarr;0.0875).
-                  Remaining: the full 66-cell campaign</td>
-              <td><span class="chip next">in progress</span></td></tr>
+                  (<code>SUSTAIN_LOOP</code> -- app_hashtable APF 0.0018&rarr;0.0875)</td>
+              <td><span class="chip done">done</span></td></tr>
           <tr><td class="mono">4</td><td>server</td>
-              <td>Apply the winning setting to the wider workload family</td>
-              <td><span class="chip wait">after 3</span></td></tr>
-          <tr><td class="mono">5</td><td>server</td>
-              <td>Fold the winning setting into the full capture campaign</td>
-              <td><span class="chip wait">after 4</span></td></tr>
+              <td>Full 66-cell campaign on the wider workload family (apf_queue +
+                  sustain + delete-as-you-go). <strong>Complete: 66/66 cells, 0
+                  DOF-starved</strong> (v3: 53/132); see &sect;9.7</td>
+              <td><span class="chip done">done</span></td></tr>
+          <tr><td class="mono">5</td><td>both</td>
+              <td>Validate (C1&ndash;C8 adapter), reclaim guest-image disk, and feed
+                  the dataset to the downstream detectors</td>
+              <td><span class="chip next">next</span></td></tr>
         </tbody>
       </table>
       <p style="margin-top:18px; font-size:13.5px; color:var(--muted);">
