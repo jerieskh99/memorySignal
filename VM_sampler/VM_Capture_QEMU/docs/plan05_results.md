@@ -451,6 +451,31 @@ I/O-rate signal.
 - **Per-cell scratch wipe fired on every file-writing cell;** no cross-cell
   accumulation.
 
+### Validation (C1-C8)
+
+`plan02_validate_session.py` checks eight claims but expects the plan02 *session*
+schema (per-cell `workload_stderr.log`, `run_record.json`, `producer.log`,
+plan03/plan04 outputs). This campaign used the production orchestrator (different
+layout), so the literal validator does not apply -- and synthesizing those
+artifacts would make C1/C2/C4 meaningless. `plan05_campaign/validate_campaign.py`
+checks the same *intent* against the `apf_queue` output. **Verdict: PASS** -- all
+66 cells clear the three hard gates (integrity, activity, completeness).
+
+| Claim | Our check | Result |
+|---|---|---|
+| C1 workload ran | apf_max >= 0.02 (capture saw real change) | 66/66 pass |
+| C2 snap completion | >= 1 analysis window of data | 66/66 pass |
+| C3 n_windows | windows@(8,4) | 66/66 > 3 |
+| C4 lock_retries==0 | n/a | no lock-settle in apf_queue path |
+| C5 producer no errors | log scan | 1 recovered SSH-255, else clean |
+| C6 trajectory complete | valid JSON, all keys, seq 0..N-1 contiguous | 66/66 pass |
+| C7 plan03 winner | n/a | plan03 not run on this campaign |
+| C8 plan04 segmenter | n/a | plan04 not run on this campaign |
+
+The four applicable operational claims (C1, C2, C3, C6) pass on every cell; C5 is
+clean apart from one self-recovered SSH transient; C4/C7/C8 do not apply to the
+`apf_queue` path. Re-run: `python3 plan05_campaign/validate_campaign.py [data_dir]`.
+
 ### Conclusions and thesis impact
 
 1. **Capture-side problem solved end-to-end.** Delete-as-you-go + sustain-loop +

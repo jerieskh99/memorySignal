@@ -1072,6 +1072,35 @@
             wipe fired on all file-writing cells; no cross-cell accumulation.</li>
       </ul>
 
+      <h3>Validation (C1&ndash;C8)</h3>
+      <p>The original session validator (<code>plan02_validate_session.py</code>)
+         checks eight claims, but expects the plan02 <em>session</em> schema
+         (per-cell <code>workload_stderr.log</code>, <code>run_record.json</code>,
+         <code>producer.log</code>, plan03/plan04 outputs). This campaign used the
+         production orchestrator, which emits a different layout, so the literal
+         validator does not apply &mdash; and fabricating those artifacts would
+         make C1/C2/C4 meaningless. Instead <code>validate_campaign.py</code>
+         checks the same <em>intent</em> against the <code>apf_queue</code> output,
+         per cell. <strong>Verdict: PASS</strong> &mdash; all 66 cells clear the
+         three hard gates (integrity, activity, completeness).</p>
+      <table>
+        <thead><tr><th>Claim</th><th>Our check</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">C1 workload ran</td><td>apf_max &ge; 0.02 (capture saw real change)</td><td><span class="chip done">66/66 pass</span></td></tr>
+          <tr><td class="mono">C2 snap completion</td><td>&ge; 1 analysis window of data</td><td><span class="chip done">66/66 pass</span></td></tr>
+          <tr><td class="mono">C3 n_windows</td><td>windows@(8,4)</td><td><span class="chip done">66/66 &gt; 3</span></td></tr>
+          <tr><td class="mono">C4 lock_retries==0</td><td>n/a</td><td><span class="chip wait">no lock-settle in this path</span></td></tr>
+          <tr><td class="mono">C5 producer no errors</td><td>log scan</td><td><span class="chip info">1 recovered SSH-255, else clean</span></td></tr>
+          <tr><td class="mono">C6 trajectory complete</td><td>valid JSON, all keys, seq 0..N-1 contiguous</td><td><span class="chip done">66/66 pass</span></td></tr>
+          <tr><td class="mono">C7 plan03 winner</td><td>n/a</td><td><span class="chip wait">plan03 not run</span></td></tr>
+          <tr><td class="mono">C8 plan04 segmenter</td><td>n/a</td><td><span class="chip wait">plan04 not run</span></td></tr>
+        </tbody>
+      </table>
+      <p>The four operationally-applicable claims (C1, C2, C3, C6) pass on every
+         cell; C5 is clean apart from one self-recovered SSH transient; C4/C7/C8
+         do not apply to the <code>apf_queue</code> capture path. Re-run with
+         <code>plan05_campaign/validate_campaign.py</code>.</p>
+
       <h3>Conclusions and thesis impact</h3>
       <ol class="tight">
         <li><strong>The capture-side problem is solved end-to-end.</strong>
@@ -1132,9 +1161,11 @@
                   DOF-starved</strong> (v3: 53/132); see &sect;9.7</td>
               <td><span class="chip done">done</span></td></tr>
           <tr><td class="mono">5</td><td>both</td>
-              <td>Validate (C1&ndash;C8 adapter), reclaim guest-image disk, and feed
-                  the dataset to the downstream detectors</td>
-              <td><span class="chip next">next</span></td></tr>
+              <td><strong>Validation done</strong> (C1/C2/C3/C6 pass on all 66 via
+                  <code>validate_campaign.py</code>; C4/C7/C8 n/a to this path).
+                  Remaining: reclaim guest-image disk, feed the dataset to the
+                  downstream detectors</td>
+              <td><span class="chip next">in progress</span></td></tr>
         </tbody>
       </table>
       <p style="margin-top:18px; font-size:13.5px; color:var(--muted);">
