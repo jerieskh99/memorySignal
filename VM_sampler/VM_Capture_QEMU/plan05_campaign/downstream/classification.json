@@ -1,0 +1,831 @@
+{
+  "schema": "plan04.classification.v1",
+  "input": {
+    "sweep_csv": "plan05_campaign/downstream/sweep.csv",
+    "window": 8,
+    "hop": 4,
+    "n_cells": 66,
+    "n_classes": 11,
+    "classes": [
+      "app_hashtable_intensive_v2",
+      "mem_mmap_traversal_v2",
+      "mem_pagefault_density_v2",
+      "mem_rmw_intensity_v2",
+      "mem_workingset_sweep_v2",
+      "mem_writemag_sweep_v2",
+      "sandbox_ransom_batched",
+      "sandbox_ransom_selective",
+      "sandbox_ransom_seq",
+      "sandbox_ransom_slowburn",
+      "sandbox_scanner_metadata"
+    ],
+    "replicate_groups": [
+      1,
+      2
+    ],
+    "feature_cols": [
+      "apf_mean",
+      "apf_std",
+      "cv_workingset",
+      "f1_phase",
+      "cepstral_peak_idx",
+      "ceps_peak_snr_db",
+      "stat_pass_frac",
+      "n_pairs",
+      "n_windows",
+      "coverage_ratio"
+    ]
+  },
+  "cv": {
+    "scheme": "GroupKFold by replicate (leave-one-replicate-out)",
+    "n_splits": 2
+  },
+  "models": {
+    "kNN(k=5)": {
+      "accuracy": 0.6515151515151515,
+      "macro_f1": 0.6404586500843185,
+      "confusion_matrix": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          3,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "classes": [
+        "app_hashtable_intensive_v2",
+        "mem_mmap_traversal_v2",
+        "mem_pagefault_density_v2",
+        "mem_rmw_intensity_v2",
+        "mem_workingset_sweep_v2",
+        "mem_writemag_sweep_v2",
+        "sandbox_ransom_batched",
+        "sandbox_ransom_selective",
+        "sandbox_ransom_seq",
+        "sandbox_ransom_slowburn",
+        "sandbox_scanner_metadata"
+      ],
+      "per_class": {
+        "app_hashtable_intensive_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_mmap_traversal_v2": {
+          "precision": 0.5714285714285714,
+          "recall": 0.6666666666666666,
+          "f1": 0.6153846153846154,
+          "support": 6
+        },
+        "mem_pagefault_density_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_rmw_intensity_v2": {
+          "precision": 0.75,
+          "recall": 0.5,
+          "f1": 0.6,
+          "support": 6
+        },
+        "mem_workingset_sweep_v2": {
+          "precision": 0.5,
+          "recall": 0.5,
+          "f1": 0.5,
+          "support": 6
+        },
+        "mem_writemag_sweep_v2": {
+          "precision": 0.42857142857142855,
+          "recall": 0.5,
+          "f1": 0.46153846153846156,
+          "support": 6
+        },
+        "sandbox_ransom_batched": {
+          "precision": 0.45454545454545453,
+          "recall": 0.8333333333333334,
+          "f1": 0.5882352941176471,
+          "support": 6
+        },
+        "sandbox_ransom_selective": {
+          "precision": 0.6,
+          "recall": 0.5,
+          "f1": 0.5454545454545454,
+          "support": 6
+        },
+        "sandbox_ransom_seq": {
+          "precision": 0.5714285714285714,
+          "recall": 0.6666666666666666,
+          "f1": 0.6153846153846154,
+          "support": 6
+        },
+        "sandbox_ransom_slowburn": {
+          "precision": 0.8333333333333334,
+          "recall": 0.8333333333333334,
+          "f1": 0.8333333333333334,
+          "support": 6
+        },
+        "sandbox_scanner_metadata": {
+          "precision": 1.0,
+          "recall": 0.16666666666666666,
+          "f1": 0.2857142857142857,
+          "support": 6
+        }
+      },
+      "binary_phasic_vs_steady": {
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix": [
+          [
+            30,
+            0
+          ],
+          [
+            0,
+            36
+          ]
+        ],
+        "classes": [
+          "phasic",
+          "steady"
+        ],
+        "per_class": {
+          "phasic": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 30
+          },
+          "steady": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 36
+          }
+        }
+      }
+    },
+    "RandomForest(n=300)": {
+      "accuracy": 0.8787878787878788,
+      "macro_f1": 0.8766324584506403,
+      "confusion_matrix": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          5,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          5,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          5,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6
+        ]
+      ],
+      "classes": [
+        "app_hashtable_intensive_v2",
+        "mem_mmap_traversal_v2",
+        "mem_pagefault_density_v2",
+        "mem_rmw_intensity_v2",
+        "mem_workingset_sweep_v2",
+        "mem_writemag_sweep_v2",
+        "sandbox_ransom_batched",
+        "sandbox_ransom_selective",
+        "sandbox_ransom_seq",
+        "sandbox_ransom_slowburn",
+        "sandbox_scanner_metadata"
+      ],
+      "per_class": {
+        "app_hashtable_intensive_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_mmap_traversal_v2": {
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091,
+          "support": 6
+        },
+        "mem_pagefault_density_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_rmw_intensity_v2": {
+          "precision": 0.8571428571428571,
+          "recall": 1.0,
+          "f1": 0.9230769230769231,
+          "support": 6
+        },
+        "mem_workingset_sweep_v2": {
+          "precision": 0.7142857142857143,
+          "recall": 0.8333333333333334,
+          "f1": 0.7692307692307693,
+          "support": 6
+        },
+        "mem_writemag_sweep_v2": {
+          "precision": 0.8,
+          "recall": 0.6666666666666666,
+          "f1": 0.7272727272727273,
+          "support": 6
+        },
+        "sandbox_ransom_batched": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "sandbox_ransom_selective": {
+          "precision": 0.75,
+          "recall": 0.5,
+          "f1": 0.6,
+          "support": 6
+        },
+        "sandbox_ransom_seq": {
+          "precision": 0.625,
+          "recall": 0.8333333333333334,
+          "f1": 0.7142857142857143,
+          "support": 6
+        },
+        "sandbox_ransom_slowburn": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "sandbox_scanner_metadata": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        }
+      },
+      "binary_phasic_vs_steady": {
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix": [
+          [
+            30,
+            0
+          ],
+          [
+            0,
+            36
+          ]
+        ],
+        "classes": [
+          "phasic",
+          "steady"
+        ],
+        "per_class": {
+          "phasic": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 30
+          },
+          "steady": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 36
+          }
+        }
+      }
+    },
+    "MLP(64,32)": {
+      "accuracy": 0.696969696969697,
+      "macro_f1": 0.6954035863126772,
+      "confusion_matrix": [
+        [
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          4,
+          0,
+          1,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2,
+          4,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3,
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          4,
+          0,
+          0,
+          0,
+          2
+        ]
+      ],
+      "classes": [
+        "app_hashtable_intensive_v2",
+        "mem_mmap_traversal_v2",
+        "mem_pagefault_density_v2",
+        "mem_rmw_intensity_v2",
+        "mem_workingset_sweep_v2",
+        "mem_writemag_sweep_v2",
+        "sandbox_ransom_batched",
+        "sandbox_ransom_selective",
+        "sandbox_ransom_seq",
+        "sandbox_ransom_slowburn",
+        "sandbox_scanner_metadata"
+      ],
+      "per_class": {
+        "app_hashtable_intensive_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_mmap_traversal_v2": {
+          "precision": 0.8,
+          "recall": 0.6666666666666666,
+          "f1": 0.7272727272727273,
+          "support": 6
+        },
+        "mem_pagefault_density_v2": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 6
+        },
+        "mem_rmw_intensity_v2": {
+          "precision": 0.8333333333333334,
+          "recall": 0.8333333333333334,
+          "f1": 0.8333333333333334,
+          "support": 6
+        },
+        "mem_workingset_sweep_v2": {
+          "precision": 0.6,
+          "recall": 0.5,
+          "f1": 0.5454545454545454,
+          "support": 6
+        },
+        "mem_writemag_sweep_v2": {
+          "precision": 0.5,
+          "recall": 0.6666666666666666,
+          "f1": 0.5714285714285714,
+          "support": 6
+        },
+        "sandbox_ransom_batched": {
+          "precision": 0.4444444444444444,
+          "recall": 0.6666666666666666,
+          "f1": 0.5333333333333333,
+          "support": 6
+        },
+        "sandbox_ransom_selective": {
+          "precision": 0.6,
+          "recall": 0.5,
+          "f1": 0.5454545454545454,
+          "support": 6
+        },
+        "sandbox_ransom_seq": {
+          "precision": 0.5714285714285714,
+          "recall": 0.6666666666666666,
+          "f1": 0.6153846153846154,
+          "support": 6
+        },
+        "sandbox_ransom_slowburn": {
+          "precision": 0.8333333333333334,
+          "recall": 0.8333333333333334,
+          "f1": 0.8333333333333334,
+          "support": 6
+        },
+        "sandbox_scanner_metadata": {
+          "precision": 0.6666666666666666,
+          "recall": 0.3333333333333333,
+          "f1": 0.4444444444444444,
+          "support": 6
+        }
+      },
+      "binary_phasic_vs_steady": {
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "confusion_matrix": [
+          [
+            30,
+            0
+          ],
+          [
+            0,
+            36
+          ]
+        ],
+        "classes": [
+          "phasic",
+          "steady"
+        ],
+        "per_class": {
+          "phasic": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 30
+          },
+          "steady": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 36
+          }
+        }
+      }
+    }
+  }
+}

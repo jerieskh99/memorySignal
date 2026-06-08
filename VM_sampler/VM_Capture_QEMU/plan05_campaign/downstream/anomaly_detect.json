@@ -1,0 +1,70 @@
+{
+ "schema": "plan05.anomaly_detect.v1",
+ "sklearn_version": "1.7.2",
+ "n_cells": 66,
+ "n_benign": 36,
+ "n_threat": 30,
+ "features": [
+  "apf_mean",
+  "apf_std",
+  "cepstral_peak_idx",
+  "ceps_peak_snr_db",
+  "stat_pass_frac",
+  "n_pairs",
+  "n_windows"
+ ],
+ "protocol": "one-class novelty trained on benign(steady) AGNOSTIC features; ROC-AUC for flagging threats(phasic). 1=threat/anomaly.",
+ "methods": {
+  "IsolationForest": {
+   "roc_auc_in_sample": 0.8306,
+   "roc_auc_honest_lowo_benign": 0.6759,
+   "mean_anomaly_score_by_workload": {
+    "app_hashtable_intensive_v2": 0.528,
+    "mem_mmap_traversal_v2": 0.532,
+    "mem_pagefault_density_v2": 0.541,
+    "mem_rmw_intensity_v2": 0.5,
+    "mem_workingset_sweep_v2": 0.468,
+    "mem_writemag_sweep_v2": 0.495,
+    "sandbox_ransom_batched": 0.548,
+    "sandbox_ransom_selective": 0.569,
+    "sandbox_ransom_seq": 0.551,
+    "sandbox_ransom_slowburn": 0.583,
+    "sandbox_scanner_metadata": 0.56
+   }
+  },
+  "OneClassSVM": {
+   "roc_auc_in_sample": 0.9,
+   "roc_auc_honest_lowo_benign": 0.538,
+   "mean_anomaly_score_by_workload": {
+    "app_hashtable_intensive_v2": -0.698,
+    "mem_mmap_traversal_v2": -0.754,
+    "mem_pagefault_density_v2": -0.689,
+    "mem_rmw_intensity_v2": -0.757,
+    "mem_workingset_sweep_v2": -0.717,
+    "mem_writemag_sweep_v2": -0.71,
+    "sandbox_ransom_batched": -0.646,
+    "sandbox_ransom_selective": -0.161,
+    "sandbox_ransom_seq": -0.304,
+    "sandbox_ransom_slowburn": -0.547,
+    "sandbox_scanner_metadata": -0.531
+   }
+  },
+  "LOF(novelty)": {
+   "roc_auc_in_sample": 0.8454,
+   "roc_auc_honest_lowo_benign": 0.7389,
+   "mean_anomaly_score_by_workload": {
+    "app_hashtable_intensive_v2": 1.14,
+    "mem_mmap_traversal_v2": 1.037,
+    "mem_pagefault_density_v2": 1.135,
+    "mem_rmw_intensity_v2": 1.045,
+    "mem_workingset_sweep_v2": 1.037,
+    "mem_writemag_sweep_v2": 1.04,
+    "sandbox_ransom_batched": 1.183,
+    "sandbox_ransom_selective": 1.667,
+    "sandbox_ransom_seq": 1.44,
+    "sandbox_ransom_slowburn": 1.146,
+    "sandbox_scanner_metadata": 1.18
+   }
+  }
+ }
+}

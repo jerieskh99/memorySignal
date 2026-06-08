@@ -162,6 +162,7 @@
       <li><a href="#run">How to run it</a></li>
       <li><a href="#results">Results</a></li>
       <li><a href="#campaign">Full campaign (66 cells)</a></li>
+      <li><a href="#downstream">Behavioral ID + anomaly</a></li>
       <li><a href="#mystery">The 7-second mystery</a></li>
       <li><a href="#waves">Where we are</a></li>
     </ol>
@@ -1156,6 +1157,120 @@
             their 300/600&nbsp;s data. Bursty (<code>batched</code>) and pure-RAM
             workloads keep the full ~0.6&nbsp;s cadence and are unaffected.</li>
       </ol>
+    </section>
+
+    <!-- 9.8 -->
+    <section class="card" id="downstream">
+      <div class="num">9.8</div>
+      <h2>Downstream: behavioral identification + anomaly detection</h2>
+
+      <p class="lead">With the capture fixed, we fed the 66-cell dataset through
+        the existing analysis pipeline (an adapter into the <code>cells-dir</code>
+        schema &rarr; <code>plan03_sweep</code> features &rarr; the classifiers).
+        The question: <strong>how much of a workload's behavior survives in the
+        single APF scalar</strong> &mdash; can we identify the workload, its
+        behavioral family, or flag an unseen one as anomalous? Framed as behavioral
+        characterization, <em>not</em> a security detector (the phasic class is
+        synthetic write-rhythm emulation; there is no benign-but-bursty control).</p>
+
+      <div class="callout warn">
+        <strong>Leakage is the headline caveat.</strong> paperC found the original
+        &ldquo;100&nbsp;% family accuracy&rdquo; was an artifact: <code>coverage_ratio</code>
+        is a per-family constant (0.133 steady / 0.200 phasic) and
+        <code>cv_workingset</code>/<code>f1_phase</code> are family-conditional.
+        Our iv=500 data reproduces it exactly &mdash; <strong>coverage_ratio alone
+        scores 1.000</strong>. So every number below is reported two ways: the
+        leaky <strong>FULL</strong> feature set vs. the leakage-free
+        <strong>AGNOSTIC</strong> set (7 features: apf_mean/std, cepstral peak +
+        SNR, stationarity, n_pairs, n_windows); and under two protocols:
+        <strong>LORO</strong> (leave-one-replicate-out, optimistic &mdash; a
+        workload appears in train and test) vs. <strong>LOWO</strong>
+        (leave-one-workload-out, the honest generalization-to-an-unseen-workload
+        test).
+      </div>
+
+      <h3>The behavioral-identification ladder (lead with AGNOSTIC + LOWO)</h3>
+      <table>
+        <thead><tr><th>Task</th><th>FULL LORO (leaky)</th><th>AGNOSTIC LORO</th><th>AGNOSTIC LOWO (honest)</th><th>baseline</th></tr></thead>
+        <tbody>
+          <tr><td>Binary phasic/steady (= threat/benign)</td><td class="mono">1.000</td><td class="mono">0.970</td><td class="mono"><strong>0.636</strong></td><td class="mono">0.545</td></tr>
+          <tr><td>5-class behavioral family</td><td class="mono">0.970</td><td class="mono">0.955</td><td class="mono"><strong>0.348</strong></td><td class="mono">0.364</td></tr>
+          <tr><td>11-way instance (workload ID)</td><td class="mono">0.879*</td><td class="mono">&mdash;</td><td class="mono">n/a&dagger;</td><td class="mono">0.091</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted)">Accuracy, RandomForest(n=300).
+        *11-way is FULL+LORO (leak + memorization inflated; errors are
+        within-family, e.g. mmap&harr;rmw, seq&harr;selective). &dagger;an unseen
+        workload cannot be predicted as <em>itself</em>. Binary significance:
+        McNemar vs. majority <code>p=0.0</code>; cluster-bootstrap 95&nbsp;% CI
+        <code>[0.924, 1.000]</code>.</p>
+
+      <p><strong>Reading it:</strong> the coarser the task, the more APF
+        generalizes. Binary family clears the baseline under the honest LOWO test
+        (0.636 vs 0.545); the 5-class family collapses to baseline (0.348 vs
+        0.364); instance identity is memorization. APF carries a <em>coarse
+        behavioral hint, not fine identity</em> &mdash; the same conclusion paperC
+        reached, now re-confirmed on a clean dataset.</p>
+
+      <div class="callout good">
+        <strong>The capture fix measurably helped the signal.</strong> paperC's
+        leakage-free family signal was computed on the <em>DOF-starved</em> v3 data
+        (53/132 cells &le;3 windows) and <strong>did not generalize</strong>:
+        AGNOSTIC LOWO = <strong>0.466, below baseline</strong>. On our
+        delete-as-you-go dataset (0/66 starved) the same leakage-free test rises to
+        <strong>0.636, above baseline</strong>, and the phasic cepstral SNR &mdash;
+        the rhythm signature &mdash; is now a median <strong>8.4&nbsp;dB on 29/30
+        cells with &ge;8 windows</strong> (v3 computed it on too few DOF). Relieving
+        DOF starvation turned a non-generalizing signal into a (modestly)
+        generalizing one.
+      </div>
+
+      <h3>Anomaly detection (separate track)</h3>
+      <p>A different question: train a one-class novelty detector on
+        <em>benign</em> (steady) behavior only, using leakage-free AGNOSTIC
+        features, and flag the threat (phasic) cells as anomalies. Reported
+        threshold-free as ROC-AUC; the honest column scores each benign workload
+        out-of-sample (leave-one-benign-workload-out).</p>
+      <table>
+        <thead><tr><th>Method</th><th>ROC-AUC in-sample</th><th>ROC-AUC honest</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">LocalOutlierFactor</td><td class="mono">0.845</td><td class="mono"><strong>0.739</strong></td></tr>
+          <tr><td class="mono">IsolationForest</td><td class="mono">0.831</td><td class="mono">0.676</td></tr>
+          <tr><td class="mono">OneClassSVM</td><td class="mono">0.900</td><td class="mono">0.538</td></tr>
+        </tbody>
+      </table>
+      <p>Honest novelty detection of an unseen threat reaches ROC-AUC
+        <strong>~0.74</strong> (LOF) &mdash; better than chance (0.5) but weak, with
+        heavy overlap: low-APF benign <code>pagefault</code> looks as anomalous as
+        the threats, and the throttled/low-APF threats (<code>slowburn</code>,
+        <code>batched</code>) sit near the benign cluster. The overlap is the
+        finding, and it matches the supervised LOWO failures (the same low-APF
+        workloads) and the APF blind spot: <strong>the mean scalar cannot separate
+        the quiet behaviors</strong>.</p>
+
+      <h3>What this says for the thesis</h3>
+      <ol class="tight">
+        <li><strong>APF is a coarse behavioral fingerprint.</strong> It separates
+            bursty-vs-steady behavior above baseline on unseen workloads, but
+            finer family or instance identity is memorization, not signal.</li>
+        <li><strong>The Plan&nbsp;05 capture fix paid off downstream.</strong> The
+            honest, leakage-free family signal went from below-baseline (starved
+            v3) to above-baseline (this dataset) &mdash; a direct, measured benefit
+            of relieving DOF starvation.</li>
+        <li><strong>Leakage discipline is mandatory.</strong> coverage_ratio alone
+            reproduces &ldquo;perfect&rdquo; accuracy; only AGNOSTIC + LOWO numbers
+            are trustworthy.</li>
+        <li><strong>Not a detector.</strong> Anomaly ROC-AUC ~0.74 and the
+            no-benign-bursty-control gap mean this is characterization, not a
+            security claim &mdash; consistent with the thesis's stated stance.</li>
+      </ol>
+      <p style="font-size:13px;color:var(--muted)">Reproduce:
+        <code>build_cells_dir.py</code> &rarr; <code>plan03_sweep.py</code> &rarr;
+        <code>plan04_classify.py</code> + paperC's
+        <code>leakage_ablation.py</code>/<code>robustness_reanalysis.py</code> +
+        <code>behavior_families.py</code> + <code>anomaly_detect.py</code> (all in
+        <code>plan05_campaign/</code>, outputs under
+        <code>plan05_campaign/downstream/</code>).</p>
     </section>
 
     <!-- 10 -->

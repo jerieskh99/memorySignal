@@ -515,6 +515,80 @@ Data: per-step `run_matrix_test{i}_*.apf_trajectory.jsonl` in the queue dir,
 labelled via `plan05_campaign/full_manifest.csv`; analyze with
 `plan05_campaign/analyze_campaign.py`.
 
+## Downstream: behavioral identification + anomaly detection
+
+With capture fixed, the 66-cell dataset was fed through the existing analysis
+pipeline (adapter -> `cells-dir` -> `plan03_sweep` features -> classifiers) to ask
+how much workload behavior survives in the single APF scalar. Framed as behavioral
+characterization, NOT a security detector (the phasic class is synthetic
+write-rhythm emulation; no benign-but-bursty control exists).
+
+**Leakage caveat (central).** paperC showed the original "100% family accuracy"
+was an artifact: `coverage_ratio` is a per-family constant (0.133 steady / 0.200
+phasic), `cv_workingset`/`f1_phase` are family-conditional. Our iv=500 data
+reproduces it -- **coverage_ratio alone = 1.000**. So every number is reported
+FULL (leaky) vs AGNOSTIC (7 leakage-free features) under LORO (leave-one-replicate-out,
+optimistic) vs LOWO (leave-one-workload-out, honest generalization).
+
+### Behavioral-identification ladder (lead with AGNOSTIC + LOWO)
+
+| Task | FULL LORO (leaky) | AGNOSTIC LORO | AGNOSTIC LOWO (honest) | baseline |
+|---|---:|---:|---:|---:|
+| Binary phasic/steady (= threat/benign) | 1.000 | 0.970 | **0.636** | 0.545 |
+| 5-class behavioral family | 0.970 | 0.955 | **0.348** | 0.364 |
+| 11-way instance (workload ID) | 0.879* | -- | n/a | 0.091 |
+
+RandomForest(n=300). *11-way is FULL+LORO (leak + memorization inflated; errors
+within-family: mmap<->rmw, seq<->selective). Binary significance: McNemar vs
+majority p=0.0; cluster-bootstrap 95% CI [0.924, 1.000].
+
+**Reading:** the coarser the task, the more APF generalizes. Binary family clears
+baseline under honest LOWO (0.636 vs 0.545); 5-class collapses to baseline (0.348
+vs 0.364); instance identity is memorization. APF carries a coarse behavioral
+hint, not fine identity -- paperC's conclusion, re-confirmed on a clean dataset.
+
+**The capture fix measurably helped.** paperC's leakage-free family signal, on the
+DOF-starved v3 data (53/132 cells <=3 windows), did NOT generalize: AGNOSTIC LOWO
+= **0.466, below baseline**. On our delete-as-you-go dataset (0/66 starved) the
+same test rises to **0.636, above baseline**, and the phasic cepstral SNR is a
+median **8.4 dB on 29/30 cells with >=8 windows** (v3 computed it on too few DOF).
+Relieving DOF starvation turned a non-generalizing signal into a generalizing one.
+
+### Anomaly detection (separate track)
+
+One-class novelty detector trained on benign (steady) AGNOSTIC features only;
+flags threat (phasic) cells. ROC-AUC, honest column scores benign out-of-sample
+(leave-one-benign-workload-out).
+
+| Method | ROC-AUC in-sample | ROC-AUC honest |
+|---|---:|---:|
+| LocalOutlierFactor | 0.845 | **0.739** |
+| IsolationForest | 0.831 | 0.676 |
+| OneClassSVM | 0.900 | 0.538 |
+
+Honest novelty detection of an unseen threat reaches ROC-AUC ~0.74 (LOF) -- better
+than chance but weak, with heavy overlap: low-APF benign `pagefault` looks as
+anomalous as the threats, and the throttled/low-APF threats (`slowburn`,
+`batched`) sit near the benign cluster. The overlap matches the supervised LOWO
+failures (same low-APF workloads) and the APF blind spot: the mean scalar cannot
+separate the quiet behaviors.
+
+### Conclusions
+
+1. **APF is a coarse behavioral fingerprint** -- separates bursty-vs-steady on
+   unseen workloads above baseline; finer family/instance ID is memorization.
+2. **The Plan 05 capture fix paid off downstream** -- honest leakage-free family
+   signal went from below-baseline (starved v3) to above-baseline (this dataset).
+3. **Leakage discipline is mandatory** -- coverage_ratio alone reproduces "perfect"
+   accuracy; only AGNOSTIC + LOWO numbers are trustworthy.
+4. **Not a detector** -- anomaly ROC-AUC ~0.74 + the no-benign-bursty-control gap
+   mean this is characterization, not a security claim.
+
+Reproduce: `plan05_campaign/{build_cells_dir,behavior_families,anomaly_detect}.py`
++ `plan03_sweep.py` + `plan04_classify.py` + paperC's
+`{leakage_ablation,robustness_reanalysis}.py`; outputs under
+`plan05_campaign/downstream/`.
+
 ## Provenance
 
 - Per-cell records: `plan05_runs/20260602T230241Z_dd587705/` (66) +

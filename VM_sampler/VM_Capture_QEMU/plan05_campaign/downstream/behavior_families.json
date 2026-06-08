@@ -1,0 +1,358 @@
+{
+ "schema": "plan05.behavior_families.v1",
+ "sklearn_version": "1.7.2",
+ "n_cells": 66,
+ "n_classes": 5,
+ "labels": [
+  "ransomware",
+  "scanner",
+  "mem_sweep",
+  "mem_fault",
+  "app"
+ ],
+ "class_counts": {
+  "app": 6,
+  "mem_fault": 12,
+  "mem_sweep": 18,
+  "ransomware": 24,
+  "scanner": 6
+ },
+ "majority_baseline": 0.3636,
+ "singleton_families_unpredictable_under_lowo": [
+  "scanner",
+  "app"
+ ],
+ "runs": {
+  "FULL": {
+   "features": [
+    "apf_mean",
+    "apf_std",
+    "cv_workingset",
+    "f1_phase",
+    "cepstral_peak_idx",
+    "ceps_peak_snr_db",
+    "stat_pass_frac",
+    "n_pairs",
+    "n_windows",
+    "coverage_ratio"
+   ],
+   "loro": {
+    "accuracy": 0.9697,
+    "macro_f1": 0.952,
+    "labels": [
+     "ransomware",
+     "scanner",
+     "mem_sweep",
+     "mem_fault",
+     "app"
+    ],
+    "confusion": [
+     [
+      24,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      2,
+      4,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      18,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      12,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      6
+     ]
+    ]
+   },
+   "lowo": {
+    "accuracy": 0.4545,
+    "macro_f1": 0.2833,
+    "labels": [
+     "ransomware",
+     "scanner",
+     "mem_sweep",
+     "mem_fault",
+     "app"
+    ],
+    "confusion": [
+     [
+      18,
+      6,
+      0,
+      0,
+      0
+     ],
+     [
+      6,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      12,
+      6,
+      0
+     ],
+     [
+      0,
+      0,
+      6,
+      0,
+      6
+     ],
+     [
+      0,
+      0,
+      0,
+      6,
+      0
+     ]
+    ],
+    "per_workload": {
+     "app_hashtable_intensive_v2": {
+      "family": "app",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_mmap_traversal_v2": {
+      "family": "mem_fault",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_pagefault_density_v2": {
+      "family": "mem_fault",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_rmw_intensity_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_workingset_sweep_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 1.0
+     },
+     "mem_writemag_sweep_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_ransom_batched": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 0.0
+     },
+     "sandbox_ransom_selective": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_ransom_seq": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_ransom_slowburn": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_scanner_metadata": {
+      "family": "scanner",
+      "n": 6,
+      "acc": 0.0
+     }
+    }
+   }
+  },
+  "AGNOSTIC": {
+   "features": [
+    "apf_mean",
+    "apf_std",
+    "cepstral_peak_idx",
+    "ceps_peak_snr_db",
+    "stat_pass_frac",
+    "n_pairs",
+    "n_windows"
+   ],
+   "loro": {
+    "accuracy": 0.9545,
+    "macro_f1": 0.9504,
+    "labels": [
+     "ransomware",
+     "scanner",
+     "mem_sweep",
+     "mem_fault",
+     "app"
+    ],
+    "confusion": [
+     [
+      23,
+      0,
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      5,
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      18,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      1,
+      11,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      6
+     ]
+    ]
+   },
+   "lowo": {
+    "accuracy": 0.3485,
+    "macro_f1": 0.2251,
+    "labels": [
+     "ransomware",
+     "scanner",
+     "mem_sweep",
+     "mem_fault",
+     "app"
+    ],
+    "confusion": [
+     [
+      11,
+      5,
+      1,
+      7,
+      0
+     ],
+     [
+      5,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      12,
+      6,
+      0
+     ],
+     [
+      8,
+      0,
+      4,
+      0,
+      0
+     ],
+     [
+      2,
+      0,
+      0,
+      4,
+      0
+     ]
+    ],
+    "per_workload": {
+     "app_hashtable_intensive_v2": {
+      "family": "app",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_mmap_traversal_v2": {
+      "family": "mem_fault",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_pagefault_density_v2": {
+      "family": "mem_fault",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_rmw_intensity_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 0.0
+     },
+     "mem_workingset_sweep_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 1.0
+     },
+     "mem_writemag_sweep_v2": {
+      "family": "mem_sweep",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_ransom_batched": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 0.0
+     },
+     "sandbox_ransom_selective": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 1.0
+     },
+     "sandbox_ransom_seq": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 0.8333
+     },
+     "sandbox_ransom_slowburn": {
+      "family": "ransomware",
+      "n": 6,
+      "acc": 0.0
+     },
+     "sandbox_scanner_metadata": {
+      "family": "scanner",
+      "n": 6,
+      "acc": 0.0
+     }
+    }
+   }
+  }
+ }
+}
