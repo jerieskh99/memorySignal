@@ -1095,16 +1095,38 @@
           <tr><td class="mono">C2 snap completion</td><td>&ge; 1 analysis window of data</td><td><span class="chip done">66/66 pass</span></td></tr>
           <tr><td class="mono">C3 n_windows</td><td>windows@(8,4)</td><td><span class="chip done">66/66 &gt; 3</span></td></tr>
           <tr><td class="mono">C4 lock_retries==0</td><td>n/a</td><td><span class="chip wait">no lock-settle in this path</span></td></tr>
-          <tr><td class="mono">C5 producer no errors</td><td>log scan</td><td><span class="chip info">1 recovered SSH-255, else clean</span></td></tr>
+          <tr><td class="mono">C5 producer no errors</td><td>producer.log scan</td><td><span class="chip done">PASS (2 benign broken-pipe only)</span></td></tr>
           <tr><td class="mono">C6 trajectory complete</td><td>valid JSON, all keys, seq 0..N-1 contiguous</td><td><span class="chip done">66/66 pass</span></td></tr>
           <tr><td class="mono">C7 plan03 winner</td><td>n/a</td><td><span class="chip wait">plan03 not run</span></td></tr>
           <tr><td class="mono">C8 plan04 segmenter</td><td>n/a</td><td><span class="chip wait">plan04 not run</span></td></tr>
         </tbody>
       </table>
-      <p>The four operationally-applicable claims (C1, C2, C3, C6) pass on every
-         cell; C5 is clean apart from one self-recovered SSH transient; C4/C7/C8
-         do not apply to the <code>apf_queue</code> capture path. Re-run with
-         <code>plan05_campaign/validate_campaign.py</code>.</p>
+      <p>All five applicable claims (C1, C2, C3, C5, C6) pass on every cell;
+         C4/C7/C8 do not apply to the <code>apf_queue</code> capture path. C5: the
+         capture <code>producer.log</code> contained only two benign
+         <code>broken pipe</code> messages (a <code>wc</code>/<code>date</code>
+         getting SIGPIPE in a shell pipeline) &mdash; zero real capture errors.
+         Re-run with <code>plan05_campaign/validate_campaign.py</code>.</p>
+
+      <div class="callout warn">
+        <strong>What the validation surfaced &mdash; the
+        <code>ransom_batched</code> memory cap.</strong> The orchestrator log held
+        <strong>2.17&nbsp;million</strong> copies of one workload line,
+        <code>[ERROR] in-memory footprint exceeds --mem-cap-mb</code>, and all of
+        them come from <code>ransom_batched</code> (all six of its cells). It
+        repeatedly hit its <em>default</em> in-memory cap, so it could not hold its
+        file batch in RAM and streamed to disk instead &mdash; little page churn
+        &rarr; APF&nbsp;~0.0077. This is <em>workload</em> output, not a capture
+        error (the producer was clean, the trajectories complete), and it is
+        reproducible across all six cells, so the reading is valid as-measured.
+        But it refines the interpretation: <code>ransom_batched</code>'s low APF is
+        partly a consequence of its default <code>--mem-cap-mb</code>, not purely
+        intrinsic I/O-bound behaviour &mdash; an uncapped run (higher cap) could
+        churn more RAM and read higher. The 2.17&nbsp;M lines also bloated the
+        orchestrator log; a future run should pass an explicit
+        <code>--mem-cap-mb</code> (or quiet that message) for
+        <code>ransom_batched</code>.
+      </div>
 
       <h3>Conclusions and thesis impact</h3>
       <ol class="tight">
@@ -1121,7 +1143,9 @@
             &mdash; but <code>slowburn</code> still spikes to 0.244 (CoV&nbsp;5.0).
             A detector using the windowed <em>peak / variance</em> of APF (not the
             mean) recovers exactly these threats; pairing with an I/O-rate feature
-            closes the gap for the steadily I/O-bound ones (<code>batched</code>).</li>
+            closes the gap for the steadily I/O-bound ones (<code>batched</code>
+            &mdash; whose low reading is partly its default memory cap, see the
+            validation note above).</li>
         <li><strong>Page granularity matters.</strong> A 64-byte write dirties a
             full 4&nbsp;KiB page (<code>writemag</code> ~0.25), so APF reflects
             <em>pages touched</em>, not bytes changed &mdash; relevant when

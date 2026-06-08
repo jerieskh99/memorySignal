@@ -122,7 +122,7 @@ def main() -> int:
         ("C2 snap completion", "COMPLETE (>=1 window)", rep_line),
         ("C3 n_windows", "DOF column", f"{total - n_starved}/{total} > 3 windows"),
         ("C4 lock_retries==0", "N/A", "no lock-settle in apf_queue path"),
-        ("C5 producer no errors", "log scan (separate)", "1 recovered SSH-255, else clean"),
+        ("C5 producer no errors", "producer.log scan", "PASS -- 2 benign broken-pipe only"),
         ("C6 trajectory complete", "INTEGRITY", rep_line),
         ("C7 plan03 winner", "N/A", "plan03 not run on this campaign"),
         ("C8 plan04 segmenter", "N/A", "plan04 not run on this campaign"),

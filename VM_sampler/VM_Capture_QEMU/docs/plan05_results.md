@@ -470,14 +470,28 @@ checks the same *intent* against the `apf_queue` output. **Verdict: PASS** -- al
 | C2 snap completion | >= 1 analysis window of data | 66/66 pass |
 | C3 n_windows | windows@(8,4) | 66/66 > 3 |
 | C4 lock_retries==0 | n/a | no lock-settle in apf_queue path |
-| C5 producer no errors | log scan | 1 recovered SSH-255, else clean |
+| C5 producer no errors | producer.log scan | PASS (2 benign broken-pipe only) |
 | C6 trajectory complete | valid JSON, all keys, seq 0..N-1 contiguous | 66/66 pass |
 | C7 plan03 winner | n/a | plan03 not run on this campaign |
 | C8 plan04 segmenter | n/a | plan04 not run on this campaign |
 
-The four applicable operational claims (C1, C2, C3, C6) pass on every cell; C5 is
-clean apart from one self-recovered SSH transient; C4/C7/C8 do not apply to the
-`apf_queue` path. Re-run: `python3 plan05_campaign/validate_campaign.py [data_dir]`.
+All five applicable claims (C1, C2, C3, C5, C6) pass on every cell; C4/C7/C8 do
+not apply to the `apf_queue` path. C5: the capture `producer.log` held only two
+benign `broken pipe` messages (`wc`/`date` getting SIGPIPE in a shell pipeline) --
+zero real capture errors. Re-run: `python3 plan05_campaign/validate_campaign.py
+[data_dir]`.
+
+**What validation surfaced -- the `ransom_batched` memory cap.** The orchestrator
+log held **2.17 million** copies of one workload line, `[ERROR] in-memory
+footprint exceeds --mem-cap-mb`, all from `ransom_batched` (all 6 cells). It
+repeatedly hit its *default* in-memory cap, so it could not hold its file batch in
+RAM and streamed to disk -- little page churn -> APF ~0.0077. This is *workload*
+output, not a capture error (producer clean, trajectories complete), and is
+reproducible, so valid as-measured. But it refines the reading: batched's low APF
+is partly its default `--mem-cap-mb`, not purely intrinsic I/O-bound behaviour; an
+uncapped run could read higher. The 2.17 M lines also bloated the orchestrator
+log -- a future run should set an explicit `--mem-cap-mb` (or quiet that line) for
+ransom_batched.
 
 ### Conclusions and thesis impact
 
@@ -489,7 +503,8 @@ clean apart from one self-recovered SSH transient; C4/C7/C8 do not apply to the
 3. **APF's blind spot is in the mean, not the signal:** low-and-slow and
    I/O-bound threats read near-idle *on average*, but slowburn still spikes to
    0.244 (CoV 5.0). Use windowed APF *peak/variance* (not the mean) to recover
-   them; pair with an I/O-rate feature for the steadily I/O-bound ones (batched).
+   them; pair with an I/O-rate feature for the steadily I/O-bound ones (batched --
+   whose low reading is partly its default memory cap, see the validation note).
 4. **Page granularity:** a 64-byte write dirties a full 4 KiB page
    (`writemag` ~0.25), so APF reflects *pages touched*, not bytes changed.
 5. **Continuous-write workloads stay thin at 120 s:** ransom_selective/seq bottom
