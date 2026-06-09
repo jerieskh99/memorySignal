@@ -54,6 +54,31 @@ class TestApfEnvPrefix(unittest.TestCase):
         self.assertNotIn("TIMING_APF_HELPER_LOG", p)
 
 
+class TestDiskioEnvPrefix(unittest.TestCase):
+    """Plan 06 disk-I/O channel: additive + flag-gated, default off."""
+
+    def test_default_flag_is_off(self):
+        # Byte-identical default: CAPTURE_DISKIO unset -> False -> no env added.
+        self.assertIs(type(R.CAPTURE_DISKIO), bool)
+        if "CAPTURE_DISKIO" not in os.environ:
+            self.assertFalse(R.CAPTURE_DISKIO)
+
+    def test_default_device_is_vda(self):
+        self.assertTrue(R.CAPTURE_DISKIO_DEV)
+        if "CAPTURE_DISKIO_DEV" not in os.environ:
+            self.assertEqual(R.CAPTURE_DISKIO_DEV, "vda")
+
+    def test_prefix_sets_exactly_the_diskio_keys(self):
+        p = R._diskio_env_prefix("/p/x.diskio_trajectory.jsonl", "vda")
+        for key in ("TIMING_DISKIO=1", "TIMING_DISKIO_JSONL=", "TIMING_DISKIO_DEV="):
+            self.assertIn(key, p)
+        self.assertIn("/p/x.diskio_trajectory.jsonl", p)
+        self.assertIn("vda", p)
+        # must not disturb the apf/delta seam
+        self.assertNotIn("CAPTURE_METRIC", p)
+        self.assertNotIn("TIMING_APF", p)
+
+
 class TestSustainWrap(unittest.TestCase):
     def test_off_is_passthrough(self):
         orig = R.SUSTAIN_LOOP

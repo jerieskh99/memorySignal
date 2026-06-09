@@ -333,6 +333,22 @@ def _apf_env_prefix(metric: str, apf_jsonl: str, ack_dir: str, helper_log: str) 
     return ""
 
 
+# Plan 06 disk-I/O channel (additive, flag-gated). Default off -> '' env, so the
+# delta/apf/apf_queue capture paths stay byte-identical.
+CAPTURE_DISKIO = os.environ.get("CAPTURE_DISKIO", "0").strip().lower() in {"1", "true", "yes"}
+CAPTURE_DISKIO_DEV = os.environ.get("CAPTURE_DISKIO_DEV", "vda")
+
+
+def _diskio_env_prefix(diskio_jsonl: str, dev: str) -> str:
+    """Tell the producer to record a per-snapshot disk-I/O channel (domblkstat).
+    Only appended when CAPTURE_DISKIO is set; otherwise the env is unchanged."""
+    return (
+        f"TIMING_DISKIO=1 "
+        f"TIMING_DISKIO_JSONL={shlex.quote(diskio_jsonl)} "
+        f"TIMING_DISKIO_DEV={shlex.quote(dev)} "
+    )
+
+
 def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
@@ -388,6 +404,17 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
             print(f"[CONTROL] CAPTURE_METRIC=apf -> producer streams APF to {apf_jsonl} (delta consumer skipped)")
         else:
             print(f"[CONTROL] CAPTURE_METRIC=apf_queue -> apf_calc consumer writes APF to {apf_jsonl}")
+    if CAPTURE_DISKIO:
+        base = run_matrix_path or os.path.join(CAPTURE_ROOT, "apf_capture")
+        diskio_jsonl = f"{base}.diskio_trajectory.jsonl"
+        try:
+            if os.path.isfile(diskio_jsonl):
+                os.remove(diskio_jsonl)
+        except OSError:
+            pass
+        env_prefix += _diskio_env_prefix(diskio_jsonl, CAPTURE_DISKIO_DEV)
+        print(f"[CONTROL] CAPTURE_DISKIO=1 -> producer records disk-I/O to "
+              f"{diskio_jsonl} (dev={CAPTURE_DISKIO_DEV})")
     cmd = (
         f"cd {root_q} && "
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"

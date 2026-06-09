@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -92,6 +93,12 @@ def main() -> int:
             fh.write(json.dumps({"final": True, "n_pairs_expected": n,
                                  "n_ok": n, "n_failed": 0, "gap_seqs": [],
                                  "timed_out": False}) + "\n")
+        # Plan 06 (additive): copy the sibling disk-I/O trajectory if present, so
+        # the cell carries both channels. No-op for Plan 05 (apf-only) data.
+        diskio_src = data_dir / r["traj_file"].replace(
+            ".apf_trajectory.jsonl", ".diskio_trajectory.jsonl")
+        if diskio_src.exists():
+            shutil.copyfile(diskio_src, cdir / "diskio_trajectory.jsonl")
         mrows.append(ManifestRow(
             cell_id=cid, manifest_id=MANIFEST_ID, block_id=0, workload=wl,
             interval_ms=INTERVAL_MS, duration_s=dur, replicate=rep,

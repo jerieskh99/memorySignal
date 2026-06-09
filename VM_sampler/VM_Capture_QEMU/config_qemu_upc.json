@@ -1,6 +1,7 @@
 {
   "domain": "Kali Jeries",
   "qemuMonitorSocket": "",
+  "diskDevice": "vda",
   "ramSizeMb": 1024,
   "imageDir": "/var/lib/libvirt/qemu/dump",
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",

@@ -88,6 +88,31 @@ emit_timing() {
   SNAP_SEQ=$((SNAP_SEQ + 1))
 }
 
+# Plan 06 (additive, flag-gated): host-side disk-I/O channel. When TIMING_DISKIO is
+# set, after each pmemsave (VM paused -> cadence-safe) we read the guest block
+# device's cumulative rd/wr byte counters via domblkstat and append one line per
+# snapshot to TIMING_DISKIO_JSONL, keyed by the same SNAP_SEQ. Default UNSET ->
+# this is a no-op and behaviour is byte-identical to the delta/apf/apf_queue paths.
+TIMING_DISKIO="${TIMING_DISKIO:-}"
+TIMING_DISKIO_JSONL="${TIMING_DISKIO_JSONL:-}"
+DISKIO_DEV="${TIMING_DISKIO_DEV:-vda}"
+if [[ -n "$TIMING_DISKIO" && -n "$TIMING_DISKIO_JSONL" ]]; then
+  mkdir -p "$(dirname "$TIMING_DISKIO_JSONL")"
+  : > "$TIMING_DISKIO_JSONL"
+  echo "[PRODUCER-PMEM] diskio JSONL: $TIMING_DISKIO_JSONL (dev=$DISKIO_DEV)"
+fi
+diskio_emit() {
+  [[ -z "$TIMING_DISKIO" || -z "$TIMING_DISKIO_JSONL" ]] && return 0
+  local stat rd wr
+  stat=$(virsh -c qemu:///system domblkstat "$domain" "$DISKIO_DEV" 2>/dev/null || true)
+  rd=$(awk '$2=="rd_bytes"{print $3}' <<<"$stat")
+  wr=$(awk '$2=="wr_bytes"{print $3}' <<<"$stat")
+  [[ -z "$rd" ]] && rd=-1
+  [[ -z "$wr" ]] && wr=-1
+  printf '{"seq":%d,"t_emit_epoch":%s,"rd_bytes":%s,"wr_bytes":%s}\n' \
+    "$SNAP_SEQ" "$(ts_ns)" "$rd" "$wr" >> "$TIMING_DISKIO_JSONL"
+}
+
 wait_state() {
   local want="$1"
   local deadline=$((SECONDS + timeoutSeconds))
@@ -150,6 +175,9 @@ while true; do
     continue
   fi
   __t3=$(ts_ns)
+
+  # Plan 06 disk-I/O channel (flag-gated; VM still paused here). No-op when unset.
+  diskio_emit
 
   # Give QEMU a brief moment to flush the dump file. Set TIMING_NO_FLUSH=1
   # to skip this sleep (see exp2c flush-sensitivity test).
