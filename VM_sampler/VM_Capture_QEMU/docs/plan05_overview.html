@@ -163,6 +163,7 @@
       <li><a href="#results">Results</a></li>
       <li><a href="#campaign">Full campaign (66 cells)</a></li>
       <li><a href="#downstream">Behavioral ID + anomaly</a></li>
+      <li><a href="#synthesis">Summary + contributions</a></li>
       <li><a href="#mystery">The 7-second mystery</a></li>
       <li><a href="#waves">Where we are</a></li>
     </ol>
@@ -1366,6 +1367,142 @@
         <code>behavior_families.py</code> + <code>anomaly_detect.py</code> (all in
         <code>plan05_campaign/</code>, outputs under
         <code>plan05_campaign/downstream/</code>).</p>
+    </section>
+
+    <!-- 9.9 -->
+    <section class="card" id="synthesis">
+      <div class="num">9.9</div>
+      <h2>Summary: what we got, what it means, what we contribute</h2>
+      <p class="lead">The whole arc in plain language &mdash; the result, its
+        meaning, the conclusions, and what is actually new.</p>
+
+      <h3>1. What we were testing</h3>
+      <p><strong>The signal (APF).</strong> Every ~half-second we snapshot the
+        VM's memory and compute one number: the fraction of 4&nbsp;KB pages that
+        changed since the last snapshot &mdash; the active page fraction. It is a
+        single scalar over time. The question: how much can you tell about what a
+        machine is doing from this one coarse number?</p>
+      <p><strong>The dataset.</strong> 66 captures = 11 workloads &times; 3
+        durations &times; 2 repeats. Two groups: 5 threat-like (4 ransomware
+        variants + a filesystem scanner) and 6 benign (5 memory microbenchmarks +
+        a hashtable app).</p>
+
+      <h3>2. What we got</h3>
+      <p><strong>The capture itself (Plan&nbsp;05's job).</strong> The old v3
+        captures were degrees-of-freedom starved (53/132 cells with &le;3 analysis
+        windows). Our pipeline produced <strong>0 of 66 starved</strong> cells,
+        29,003 snapshot pairs, all validated. The capture problem is solved.</p>
+      <p><strong>What APF can identify</strong> &mdash; three granularities, two
+        regimes (seen-before vs. never-seen), all leakage-controlled, best feature
+        set:</p>
+      <table>
+        <thead><tr><th>Task</th><th>Seen-before</th><th>Novel workload</th><th>Novel whole family</th></tr></thead>
+        <tbody>
+          <tr><td>11-way &ldquo;which exact program&rdquo;</td><td class="mono"><strong>0.89</strong></td><td class="mono">n/a</td><td class="mono">n/a</td></tr>
+          <tr><td>5-class &ldquo;which behavior family&rdquo;</td><td class="mono"><strong>1.00</strong></td><td class="mono">0.36 (chance)</td><td class="mono">n/a</td></tr>
+          <tr><td>binary threat/benign</td><td class="mono"><strong>1.00</strong></td><td class="mono">0.79</td><td class="mono">0.30&ndash;0.64 (threats mostly missed)</td></tr>
+          <tr><td>anomaly (flag the abnormal)</td><td class="mono">&mdash;</td><td class="mono"><strong>0.93</strong></td><td class="mono"><strong>0.93</strong></td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:13px;color:var(--muted)">Chance baselines: 11-way 0.09,
+        5-class 0.36, binary 0.55.</p>
+      <p><strong>Three findings that shaped those numbers:</strong></p>
+      <ul class="tight">
+        <li><strong>Leakage (a trap we avoided).</strong> A naive run gives
+            &ldquo;100&nbsp;%&rdquo; &mdash; but one feature
+            (<code>coverage_ratio</code>) is a per-family constant that leaks the
+            label. Stripped out, the honest numbers are those above.</li>
+        <li><strong>The capture fix measurably helped the science.</strong> On the
+            starved v3 data the honest family signal was 0.466 (below chance); on
+            our clean data it is <strong>0.636</strong> (above chance,
+            significant). Better capture &rarr; a real downstream gain.</li>
+        <li><strong>Simple shape features help, with a surprise.</strong> Adding
+            peak/variance features lifted novel-workload threat/benign
+            0.64&rarr;0.79 and anomaly 0.74&rarr;0.93 &mdash; recovering the
+            I/O-bound <code>batched</code> threat but <em>not</em> the low-and-slow
+            <code>slowburn</code>, the opposite of the prediction. Measuring beat
+            guessing.</li>
+      </ul>
+
+      <h3>3. What it means</h3>
+      <ul class="tight">
+        <li><strong>APF is a coarse behavioral fingerprint</strong> &mdash;
+            reliable at bursty-vs-steady and at identifying behavior it has seen
+            before (family 1.0, exact program 0.89), but it cannot pin fine
+            identity on something genuinely new.</li>
+        <li><strong>&ldquo;Generalization&rdquo; was partly memorization until
+            stress-tested.</strong> The 0.79 on a novel <em>workload</em> leaned on
+            same-family siblings in training. Remove a whole family and supervised
+            threat detection collapses (held out all ransomware &rarr; missed 3 of
+            4; recall 0.25): high-activity encryptors look like high-activity
+            benign workloads when nothing ransomware-shaped trains the boundary.</li>
+        <li><strong>Anomaly detection behaves differently &mdash; better for
+            novelty.</strong> It learns only &ldquo;normal&rdquo; and flags
+            deviation, so it never needed to see the threat family: 0.93 on a novel
+            family where the supervised classifier fails.</li>
+        <li><strong>Two workloads are irreducibly confusable in memory:</strong>
+            the stealth threat <code>slowburn</code> and the benign
+            <code>pagefault</code> are both near-idle with rare spikes. What
+            separates them is disk I/O, which APF structurally cannot see.</li>
+      </ul>
+
+      <h3>4. What we conclude</h3>
+      <ol class="tight">
+        <li><strong>Capture quality is a first-class variable.</strong> Relieving
+            DOF starvation moved the downstream family signal from below-chance to
+            above-chance &mdash; the engineering enabled the science.</li>
+        <li><strong>APF supports behavioral characterization, not security
+            detection.</strong> Strong on known behavior, weak on novel identity,
+            and honest about it.</li>
+        <li><strong>Use the right tool for the regime:</strong> known families
+            &rarr; supervised classification (near-perfect); novel/unseen threat
+            family &rarr; anomaly detection (0.93).</li>
+        <li><strong>Methodology matters as much as results:</strong> without
+            leakage control and held-out-<em>family</em> testing you get a fake
+            100&nbsp;%. The honest numbers are lower but real.</li>
+        <li><strong>The single scalar has a known blind spot</strong> (low-and-slow
+            / I/O-bound threats) that a second, non-memory signal (disk-I/O rate)
+            would close &mdash; a concrete next step.</li>
+      </ol>
+
+      <h3>5. Contributions</h3>
+      <p><strong>Engineering / infrastructure</strong></p>
+      <ul class="tight">
+        <li>A capture pipeline that eliminates DOF starvation end-to-end
+            (delete-as-you-go, sustain-loop, Rust queue consumer, real-disk
+            workload scratch, cold-boot SSH hardening) &mdash; 66/66 clean,
+            validated against C1&ndash;C8.</li>
+        <li>A reproducible, fully offline downstream harness (trajectory&rarr;cells
+            adapter, leakage-aware classifiers, anomaly detectors, family/workload
+            stress tests) &mdash; one command reproduces every number.</li>
+      </ul>
+      <p><strong>Scientific findings</strong></p>
+      <ul class="tight">
+        <li><strong>Evidence that capture fidelity changes the conclusion:</strong>
+            the same leakage-free analysis flips from non-generalizing (starved v3)
+            to generalizing (our data) &mdash; a result about <em>why</em> prior
+            weak findings were weak.</li>
+        <li><strong>A clean characterization ladder</strong> of exactly what a
+            single memory scalar supports (near-perfect known, coarse-only novel
+            workload, failing novel family) with the controls that make the numbers
+            trustworthy.</li>
+        <li><strong>The supervised-vs-anomaly regime distinction</strong> for
+            novelty, with the failure mode (cross-family supervised collapse)
+            quantified.</li>
+        <li><strong>A small leakage-free feature contribution</strong>
+            (peak/variance) with a measured lift and an honest negative (recovers
+            <code>batched</code>, not <code>slowburn</code>) that points precisely
+            at the one missing signal (disk I/O).</li>
+        <li><strong>Honest-science practice:</strong> reproducing and controlling a
+            known leakage, testing at the hardest held-out-family level, and
+            correcting our own wrong prediction in writing.</li>
+      </ul>
+      <div class="callout warn">
+        <strong>What we are not claiming.</strong> Not a deployable malware
+        detector; synthetic threats; small sample (11 workloads, 2 reps); no
+        benign-but-bursty control. Stated, not hidden &mdash; which is what makes
+        the positive claims defensible.
+      </div>
     </section>
 
     <!-- 10 -->
