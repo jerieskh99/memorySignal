@@ -639,6 +639,34 @@ seen any threat. LOFO-benign ROC-AUC (a benign family also held out): LOF
 classifier missing 3/4 of a held-out threat family. Rule: **known families ->
 classify; novel/unseen family -> anomaly detection.**
 
+### Normal-behavior profiler (normal as a deliverable)
+
+Built offline from the 36 benign cells (no new captures) -- normal behavior
+characterized in its own right, not just the anomaly backdrop.
+
+(a) Per-behavior fingerprint -- each benign workload's APF signature (median):
+
+| Normal behavior | mean | CoV | duty | character |
+|---|---:|---:|---:|---|
+| workingset / writemag | 0.25 | 0.01 | 100% | flat-saturated |
+| rmw | 0.22 | 0.25 | 99% | steady-high |
+| mmap | 0.19 | 0.34 | 97% | mid-high |
+| app_hashtable | 0.155 | 0.76 | 65% | bimodal (build/probe) |
+| pagefault | 0.005 | 1.80 | 0% | quiet-bursty |
+
+(b) Normal envelope + interpretable detector: benign cells fall a median of 0
+features outside the benign p5-p95 band, threats 4; a no-ML "count features
+outside normal" rule scores ROC-AUC 0.95 (comparable to the ML one-class 0.93,
+fully interpretable). In-sample envelope -> descriptive baseline, not a held-out
+detector.
+
+(c) Masquerade map: batched/slowburn/scanner -> pagefault (quiet-bursty),
+seq/selective -> mmap (mid-high). Localizes the detection difficulty to specific
+normal behaviors -- low-APF threats impersonate the low-APF benign pagefault.
+
+Scope: benign microbenchmarks only, APF-only -- a baseline over our benign set,
+not real production traffic. Reproduce: `plan05_campaign/normal_profile.py`.
+
 ### Conclusions
 
 1. **APF is a coarse behavioral fingerprint; generalization depends on what's held

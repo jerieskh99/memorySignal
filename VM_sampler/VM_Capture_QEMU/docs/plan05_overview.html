@@ -1334,6 +1334,39 @@
         novel/unseen threat family &rarr; anomaly detection.</strong>
       </div>
 
+      <h3>Normal behavior as a deliverable: the profiler</h3>
+      <p>Anomaly detection consumes a model of normal; here we make normal behavior
+        an explicit deliverable in its own right, built offline from the 36 benign
+        cells (no new captures). Three artifacts:</p>
+      <p><strong>(a) Per-behavior fingerprint catalog</strong> &mdash; each benign
+        workload's APF signature (median of 10 leakage-free features):</p>
+      <table>
+        <thead><tr><th>Normal behavior</th><th>APF mean</th><th>CoV</th><th>duty</th><th>character</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">workingset / writemag</td><td class="mono">0.25</td><td class="mono">0.01</td><td class="mono">100%</td><td>flat-saturated</td></tr>
+          <tr><td class="mono">rmw</td><td class="mono">0.22</td><td class="mono">0.25</td><td class="mono">99%</td><td>steady-high</td></tr>
+          <tr><td class="mono">mmap</td><td class="mono">0.19</td><td class="mono">0.34</td><td class="mono">97%</td><td>mid-high</td></tr>
+          <tr><td class="mono">app_hashtable</td><td class="mono">0.155</td><td class="mono">0.76</td><td class="mono">65%</td><td>bimodal (build/probe)</td></tr>
+          <tr><td class="mono">pagefault</td><td class="mono">0.005</td><td class="mono">1.80</td><td class="mono">0%</td><td>quiet-bursty</td></tr>
+        </tbody>
+      </table>
+      <p><strong>(b) Normal envelope + interpretable detector.</strong> Benign
+        cells fall a median of <strong>0</strong> features outside the benign
+        p5&ndash;p95 band; threats fall a median of <strong>4</strong>. A no-ML
+        &ldquo;count features outside normal&rdquo; rule scores <strong>ROC-AUC
+        0.95</strong>, comparable to the ML one-class (0.93) and fully
+        interpretable. (In-sample envelope &mdash; a descriptive baseline, not a
+        held-out detector; the one-class model is the rigorous version.)</p>
+      <p><strong>(c) Masquerade map</strong> &mdash; which benign behavior each
+        threat sits nearest to: <code>batched</code>/<code>slowburn</code>/<code>scanner</code>
+        &rarr; <code>pagefault</code> (quiet-bursty), <code>seq</code>/<code>selective</code>
+        &rarr; <code>mmap</code> (mid-high). This localizes the detection difficulty
+        to specific normal behaviors: the low-APF threats impersonate the low-APF
+        benign <code>pagefault</code> &mdash; exactly the recurring false positive.</p>
+      <p style="font-size:13px;color:var(--muted)">Scope: benign microbenchmarks
+        only, APF-only &mdash; a baseline over our benign set, not real production
+        traffic. Reproduce: <code>plan05_campaign/normal_profile.py</code>.</p>
+
       <h3>What this says for the thesis</h3>
       <ol class="tight">
         <li><strong>APF is a coarse behavioral fingerprint, and the generalization
@@ -1493,6 +1526,11 @@
             (peak/variance) with a measured lift and an honest negative (recovers
             <code>batched</code>, not <code>slowburn</code>) that points precisely
             at the one missing signal (disk I/O).</li>
+        <li><strong>A normal-behavior profiler</strong> built offline from the
+            benign cells: a per-behavior fingerprint catalog, an interpretable
+            normal-envelope detector (ROC-AUC 0.95), and a masquerade map pinning
+            which normal behavior each threat impersonates &mdash; normal behavior
+            characterized as a deliverable, not just an anomaly backdrop.</li>
         <li><strong>Honest-science practice:</strong> reproducing and controlling a
             known leakage, testing at the hardest held-out-family level, and
             correcting our own wrong prediction in writing.</li>

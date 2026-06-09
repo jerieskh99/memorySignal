@@ -206,6 +206,16 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         coherent cluster in APF. Peak/variance shape features lift the
         novel-\emph{workload} binary 0.636$\to$0.788 and the anomaly ROC-AUC
         0.74$\to$0.93, but do not confer cross-family generalization.
+  \item \textbf{Normal-behavior baseline (benign cells, offline).} Treating normal
+        behavior as a deliverable rather than a backdrop: a per-behavior
+        fingerprint (median and p5--p95 of the leakage-free features) and a normal
+        \emph{envelope} (per-feature benign p5--p95 band). An interpretable ``count
+        features outside the envelope'' rule separates threat/benign at ROC-AUC
+        0.95 (in-sample envelope, descriptive), complementing the held-out
+        one-class detector (0.93). A \emph{masquerade map} -- the nearest benign
+        behavior to each threat -- localizes the confusion: low-APF threats sit
+        nearest benign \texttt{pagefault}, high-APF threats nearest \texttt{mmap},
+        naming the specific normal behaviors each threat impersonates.
   \item TODO: figure -- accuracy vs.\ feature subset bar chart; table -- the
         per-family medians showing SNR overlap and the coverage-ratio constants.
 \end{itemize}
