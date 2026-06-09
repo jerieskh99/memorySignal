@@ -92,6 +92,11 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
             yet a one-class detector trained only on benign flags a novel threat
             family -- so supervised family-identification and anomaly detection
             occupy different regimes.
+      \item C6: an interpretable normal-behavior baseline -- a per-behavior
+            fingerprint and a normal envelope whose ``outside the band'' rule
+            matches the ML one-class detector (0.95 vs.\ 0.93), plus a masquerade
+            map naming the normal behavior each threat impersonates -- recasting
+            normal behavior from anomaly backdrop into a characterized deliverable.
     \end{itemize}
 \end{itemize}
 
@@ -281,6 +286,10 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         whereas a benign-only anomaly detector flags a novel family at ROC-AUC
         0.93. The family hint is real but coarse, and detection of an unseen
         family belongs to the anomaly regime, not the supervised one.
+  \item Normal behavior is itself a deliverable: a per-behavior fingerprint and a
+        normal envelope yield an interpretable detector on par with the ML
+        one-class (0.95 vs.\ 0.93), and a masquerade map names the normal behavior
+        each threat impersonates -- a characterization, not merely an anomaly flag.
   \item The transferable lesson is methodological: when a pipeline derives
         per-class ``defining metrics,'' those metrics must be kept out of any
         classifier that is meant to demonstrate discrimination -- otherwise the
