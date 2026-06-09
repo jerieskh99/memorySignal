@@ -20,6 +20,10 @@
  ],
  "results": {
   "AGNOSTIC": {
+   "instance11": {
+    "loro_acc": 0.8788,
+    "loro_macro_f1": 0.8743
+   },
    "binary": {
     "loro_acc": 0.9697,
     "lowo_acc": 0.6364,
@@ -63,6 +67,10 @@
    }
   },
   "AGNOSTIC+peakvar": {
+   "instance11": {
+    "loro_acc": 0.8939,
+    "loro_macro_f1": 0.8905
+   },
    "binary": {
     "loro_acc": 1.0,
     "lowo_acc": 0.7879,

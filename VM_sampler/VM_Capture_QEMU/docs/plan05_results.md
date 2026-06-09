@@ -578,15 +578,32 @@ separate the quiet behaviors.
 ### Peak/variance feature lift (recovering stealth threats)
 
 Built + measured the conclusion-3 hypothesis: append 5 leakage-free shape
-features (max, p95, CoV, peak-to-median, duty-cycle) to AGNOSTIC. Honest lift:
+features (max, p95, CoV, peak-to-median, duty-cycle) to AGNOSTIC, all four tasks.
 
-| Metric (honest LOWO / leave-one-benign-out) | AGNOSTIC | + peak/variance |
+Generalization to an unseen workload (honest -- LOWO / leave-one-benign-out):
+
+| Metric | AGNOSTIC | + peak/variance |
 |---|---:|---:|
 | Binary threat/benign acc | 0.636 | **0.788** |
+| 5-class family acc | 0.348 | 0.364 |
 | Anomaly ROC-AUC (LOF) | 0.739 | **0.925** |
 | Anomaly ROC-AUC (IsolationForest) | 0.676 | 0.853 |
 | Anomaly ROC-AUC (OneClassSVM) | 0.538 | 0.903 |
-| 5-class family acc | 0.348 | 0.364 |
+
+Seen-before identification (LORO -- workload type in training; realistic for
+known families):
+
+| Task | AGNOSTIC | + peak/variance |
+|---|---:|---:|
+| 11-way instance (which workload) | 0.879 | **0.894** |
+| 5-class family (which behavior type) | 0.955 | **1.000** |
+| Binary threat/benign | 0.970 | **1.000** |
+
+With peak/variance, seen-before classification is near-perfect (5-class 1.000,
+11-way 0.894, binary 1.000, all leakage-free); the lift concentrates on the hard
+cases (novel-workload binary +0.15, anomaly +0.19). The fine 5-class still does
+not generalize to an unseen workload (LOWO at baseline) -- shape features sharpen
+identification of known behavior but do not confer zero-shot fine-grained typing.
 
 Per-workload binary LOWO recoveries: batched 0.17->1.00, scanner 0.50->1.00, seq
 0.67->0.83 (benign mmap 0.67->0.83). Two stay at 0.00 -- slowburn (threat) and

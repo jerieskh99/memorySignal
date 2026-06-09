@@ -60,6 +60,18 @@ def classify(X, y, rep, wl, labels):
     }
 
 
+def classify_loro(X, y, rep, labels):
+    """LORO-only (used for 11-way instance, where LOWO is undefined -- a held-out
+    workload's own label is never in the training folds)."""
+    pred = cross_val_predict(_rf(), X, y, groups=rep,
+                             cv=GroupKFold(n_splits=len(set(rep))))
+    return {
+        "loro_acc": round(float((pred == y).mean()), 4),
+        "loro_macro_f1": round(float(f1_score(y, pred, labels=labels,
+                                              average="macro", zero_division=0)), 4),
+    }
+
+
 def anomaly_auc(Xs, y, wl, benign):
     benign_wls = sorted(set(wl[benign]))
     makers = {
@@ -107,6 +119,7 @@ def main() -> int:
         sc = StandardScaler().fit(imp.transform(X[benign]))
         Xs = sc.transform(imp.transform(X))
         out["results"][setname] = {
+            "instance11": classify_loro(X, wl, rep, sorted(set(wl))),
             "binary": classify(X, ybin, rep, wl, [0, 1]),
             "family5": classify(X, yfam, rep, wl, FAMS),
             "anomaly_roc_auc_honest": anomaly_auc(Xs, ybin, wl, benign),

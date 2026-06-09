@@ -1256,17 +1256,36 @@
       <p>The campaign predicted (&sect;9.7) that windowed peak/variance would
         recover threats the mean misses. We built and measured it &mdash; appending
         five shape features (max, p95, CoV, peak-to-median, duty-cycle) to the
-        leakage-free AGNOSTIC set. Honest (LOWO / leave-one-benign-out) lift:</p>
+        leakage-free AGNOSTIC set, on all four tasks.</p>
+      <p><strong>Generalization to an unseen workload (honest &mdash; LOWO /
+        leave-one-benign-out):</strong></p>
       <table>
-        <thead><tr><th>Metric (honest)</th><th>AGNOSTIC</th><th>+ peak/variance</th></tr></thead>
+        <thead><tr><th>Metric</th><th>AGNOSTIC</th><th>+ peak/variance</th></tr></thead>
         <tbody>
-          <tr><td>Binary threat/benign LOWO acc</td><td class="mono">0.636</td><td class="mono"><strong>0.788</strong></td></tr>
+          <tr><td>Binary threat/benign acc</td><td class="mono">0.636</td><td class="mono"><strong>0.788</strong></td></tr>
+          <tr><td>5-class family acc</td><td class="mono">0.348</td><td class="mono">0.364</td></tr>
           <tr><td>Anomaly ROC-AUC (LOF)</td><td class="mono">0.739</td><td class="mono"><strong>0.925</strong></td></tr>
           <tr><td>Anomaly ROC-AUC (IsolationForest)</td><td class="mono">0.676</td><td class="mono">0.853</td></tr>
           <tr><td>Anomaly ROC-AUC (OneClassSVM)</td><td class="mono">0.538</td><td class="mono">0.903</td></tr>
-          <tr><td>5-class family LOWO acc</td><td class="mono">0.348</td><td class="mono">0.364</td></tr>
         </tbody>
       </table>
+      <p><strong>Seen-before identification (LORO &mdash; the workload type was in
+        training; realistic for known families):</strong></p>
+      <table>
+        <thead><tr><th>Task</th><th>AGNOSTIC</th><th>+ peak/variance</th></tr></thead>
+        <tbody>
+          <tr><td>11-way instance (which workload)</td><td class="mono">0.879</td><td class="mono"><strong>0.894</strong></td></tr>
+          <tr><td>5-class family (which behavior type)</td><td class="mono">0.955</td><td class="mono"><strong>1.000</strong></td></tr>
+          <tr><td>Binary threat/benign</td><td class="mono">0.970</td><td class="mono"><strong>1.000</strong></td></tr>
+        </tbody>
+      </table>
+      <p>So with peak/variance, <strong>seen-before classification is
+        near-perfect</strong> (5-class family 1.000, 11-way instance 0.894, binary
+        1.000, all leakage-free), and the lift concentrates where the hard cases
+        live: novel-workload binary +0.15 and anomaly +0.19. The fine 5-class still
+        does not generalize to an <em>unseen</em> workload (LOWO at baseline) &mdash;
+        shape features sharpen identification of known behavior but do not confer
+        zero-shot fine-grained typing.</p>
       <p>Per-workload binary LOWO shows what got recovered: <code>batched</code>
         0.17&rarr;1.00, <code>scanner</code> 0.50&rarr;1.00, <code>seq</code>
         0.67&rarr;0.83 (benign <code>mmap</code> 0.67&rarr;0.83 too). Two stay at
