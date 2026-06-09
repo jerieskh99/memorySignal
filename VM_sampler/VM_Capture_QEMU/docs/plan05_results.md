@@ -614,18 +614,49 @@ the prototype guess (peak/variance recovers slowburn, not batched) was backwards
 (anomaly AUC 0.74->0.93); the two very-quiet workloads need a non-APF (I/O-rate)
 signal. 5-class family stays at baseline. Reproduce: `peakvar_lift.py`.
 
+### Leave-one-FAMILY-out (general shape vs same-family memorization)
+
+The LOWO number (binary 0.788) can lean on same-family siblings (hold out seq,
+the other 3 ransomware still train "ransomware shape"). LOFO holds out an *entire
+family* and classifies it from the others -- the decisive test.
+
+| Binary threat/benign, LOFO | AGNOSTIC | + peak/variance | baseline |
+|---|---:|---:|---:|
+| overall acc | 0.303 | 0.636 | 0.545 |
+| per-family: ransomware | 0.00 | **0.25** | |
+| scanner / mem_sweep / app | 0.5 / 0.39 / 1.0 | 1.0 / 1.0 / 1.0 | |
+
+Held out the whole ransomware family (zero ransomware in training, only scanner as
+a threat exemplar): batched flagged (1.0 with peakvar), but **seq, selective,
+slowburn all missed (0.0) -- 3 of 4**. The high-APF encryptors look like the
+benign high-APF memory workloads once no ransomware trains the boundary. So the
+0.788 was partly same-family memorization; supervised threat detection does NOT
+generalize to an unseen *family*.
+
+**But anomaly detection does.** Trained only on benign, it never needs to have
+seen any threat. LOFO-benign ROC-AUC (a benign family also held out): LOF
+**0.933**, OCSVM 0.900, IsolationForest 0.773 (with peakvar) -- vs the supervised
+classifier missing 3/4 of a held-out threat family. Rule: **known families ->
+classify; novel/unseen family -> anomaly detection.**
+
 ### Conclusions
 
-1. **APF is a coarse behavioral fingerprint** -- separates bursty-vs-steady on
-   unseen workloads above baseline; finer family/instance ID is memorization.
-2. **The Plan 05 capture fix paid off downstream** -- honest leakage-free family
+1. **APF is a coarse behavioral fingerprint; generalization depends on what's held
+   out:** seen-before near-perfect (5-class 1.0, 11-way 0.89); unseen workload with
+   siblings 0.79; unseen whole family -> supervised threat recall 0.25 (the
+   cross-workload number was partly same-family memorization).
+2. **For novel families, prefer anomaly detection over supervised classification:**
+   LOFO -- the supervised classifier misses 3/4 of a held-out threat family, while
+   one-class anomaly (benign-only training) flags novel threats at ROC-AUC 0.93.
+   Known families -> classify; novel/unseen family -> anomaly.
+3. **The Plan 05 capture fix paid off downstream** -- honest leakage-free family
    signal went from below-baseline (starved v3) to above-baseline (this dataset).
-3. **Leakage discipline is mandatory** -- coverage_ratio alone reproduces "perfect"
-   accuracy; only AGNOSTIC + LOWO numbers are trustworthy.
-4. **Not a detector** -- anomaly ROC-AUC ~0.74 + the no-benign-bursty-control gap
-   mean this is characterization, not a security claim.
+4. **Leakage discipline is mandatory** -- coverage_ratio alone reproduces "perfect"
+   accuracy; only AGNOSTIC + held-out (LOWO/LOFO) numbers are trustworthy.
+5. **Not a detector (as stated)** -- the no-benign-bursty-control gap + the
+   cross-family failure mean this is characterization, not a security claim.
 
-Reproduce: `plan05_campaign/{build_cells_dir,behavior_families,anomaly_detect}.py`
+Reproduce: `plan05_campaign/{build_cells_dir,behavior_families,anomaly_detect,peakvar_lift}.py`
 + `plan03_sweep.py` + `plan04_classify.py` + paperC's
 `{leakage_ablation,robustness_reanalysis}.py`; outputs under
 `plan05_campaign/downstream/`.

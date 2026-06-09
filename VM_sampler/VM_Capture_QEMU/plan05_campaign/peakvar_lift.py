@@ -72,13 +72,49 @@ def classify_loro(X, y, rep, labels):
     }
 
 
-def anomaly_auc(Xs, y, wl, benign):
-    benign_wls = sorted(set(wl[benign]))
-    makers = {
+def _makers():
+    return {
         "IsolationForest": lambda: IsolationForest(n_estimators=300, random_state=0),
         "LOF": lambda: LocalOutlierFactor(n_neighbors=10, novelty=True),
         "OCSVM": lambda: OneClassSVM(nu=0.1, gamma="scale"),
     }
+
+
+def classify_lofo(X, y, fam, wl, labels):
+    """Leave-One-FAMILY-Out: train on 4 families, test the held-out family. Tests
+    whether the label generalizes across families (general shape) vs. needs the
+    same family in training (memorization). Per-family + per-workload breakdown."""
+    pred = cross_val_predict(_rf(), X, y, groups=fam, cv=LeaveOneGroupOut())
+    return {
+        "lofo_acc": round(float((pred == y).mean()), 4),
+        "lofo_macro_f1": round(float(f1_score(y, pred, labels=labels,
+                                              average="macro", zero_division=0)), 4),
+        "per_family": {f: round(float((pred[fam == f] == y[fam == f]).mean()), 3)
+                       for f in sorted(set(fam))},
+        "per_workload": {w: round(float((pred[wl == w] == y[wl == w]).mean()), 3)
+                         for w in sorted(set(wl))},
+    }
+
+
+def anomaly_lofo_benign(Xs, y, fam, benign):
+    """One-class trained on benign families MINUS one; the held-out benign family
+    is scored out-of-sample; threats scored by the all-benign model. ROC-AUC tests
+    flagging threats without false-alarming on a novel benign family."""
+    benign_fams = sorted(set(fam[benign]))
+    res = {}
+    for name, mk in _makers().items():
+        s = np.empty(len(y), dtype=float)
+        m = mk(); m.fit(Xs[benign]); s[y == 1] = -m.score_samples(Xs[y == 1])
+        for bf in benign_fams:
+            tr = benign & (fam != bf); te = (fam == bf)
+            mm = mk(); mm.fit(Xs[tr]); s[te] = -mm.score_samples(Xs[te])
+        res[name] = round(float(roc_auc_score(y, s)), 4)
+    return res
+
+
+def anomaly_auc(Xs, y, wl, benign):
+    benign_wls = sorted(set(wl[benign]))
+    makers = _makers()
     res = {}
     for name, mk in makers.items():
         s = np.empty(len(y), dtype=float)
@@ -100,6 +136,7 @@ def main() -> int:
     rep = np.array([r["replicate"] for r in rows])
     ybin = np.array([1 if is_threat(r["workload"]) else 0 for r in rows])
     yfam = np.array([family_of(r["workload"]) for r in rows])
+    fam = yfam   # family used as the LOFO grouping variable
 
     def matrix(with_pv):
         base = [[_f(r, c) for c in AGNOSTIC] for r in rows]
@@ -121,8 +158,10 @@ def main() -> int:
         out["results"][setname] = {
             "instance11": classify_loro(X, wl, rep, sorted(set(wl))),
             "binary": classify(X, ybin, rep, wl, [0, 1]),
+            "binary_lofo": classify_lofo(X, ybin, fam, wl, [0, 1]),
             "family5": classify(X, yfam, rep, wl, FAMS),
             "anomaly_roc_auc_honest": anomaly_auc(Xs, ybin, wl, benign),
+            "anomaly_roc_auc_lofo_benign": anomaly_lofo_benign(Xs, ybin, fam, benign),
         }
     print(json.dumps(out, indent=1))
     return 0

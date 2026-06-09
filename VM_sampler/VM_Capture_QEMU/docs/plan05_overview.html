@@ -1300,21 +1300,64 @@
         recover <code>slowburn</code> not <code>batched</code>; the measured result
         is the opposite.)</p>
 
+      <h3>The decisive test: leave-one-FAMILY-out (general shape vs. memorization)</h3>
+      <p>The leave-one-<em>workload</em>-out number above (binary 0.788) can still
+        lean on same-family siblings: hold out <code>seq</code>, and the other three
+        ransomware remain in training to teach &ldquo;ransomware shape.&rdquo; To
+        isolate <em>general</em> threat-shape from same-family memorization we hold
+        out an <strong>entire family</strong> and classify it from the others.</p>
+      <table>
+        <thead><tr><th>Binary threat/benign, LOFO</th><th>AGNOSTIC</th><th>+ peak/variance</th><th>baseline</th></tr></thead>
+        <tbody>
+          <tr><td>overall accuracy</td><td class="mono">0.303</td><td class="mono">0.636</td><td class="mono">0.545</td></tr>
+          <tr><td>per family: ransomware</td><td class="mono">0.00</td><td class="mono"><strong>0.25</strong></td><td class="mono"></td></tr>
+          <tr><td>scanner / mem_sweep / app</td><td class="mono">0.5 / 0.39 / 1.0</td><td class="mono">1.0 / 1.0 / 1.0</td><td class="mono"></td></tr>
+        </tbody>
+      </table>
+      <p>Held out the <strong>whole ransomware family</strong> (model sees zero
+        ransomware, only <code>scanner</code> as a threat exemplar): <code>batched</code>
+        is flagged (1.0 with peak/variance) but <strong><code>seq</code>,
+        <code>selective</code>, <code>slowburn</code> are all missed (0.0)</strong>
+        &mdash; 3 of 4. The high-APF encryptors look like the benign high-APF memory
+        workloads once no ransomware trains the boundary. So the earlier 0.788 was
+        <em>partly same-family memorization</em>; supervised threat detection does
+        <strong>not</strong> generalize to an unseen <em>family</em>.</p>
+      <div class="callout good">
+        <strong>But anomaly detection does generalize to a novel family.</strong>
+        Trained only on benign, it never needs to have seen any threat, so a novel
+        threat family is simply &ldquo;not normal.&rdquo; LOFO-benign ROC-AUC (a
+        benign family <em>also</em> held out): LOF <strong>0.933</strong>,
+        OneClassSVM 0.900, IsolationForest 0.773 (with peak/variance) &mdash;
+        vs. the supervised classifier missing 3/4 of a held-out threat family. The
+        practical rule: <strong>known families &rarr; supervised classification;
+        novel/unseen threat family &rarr; anomaly detection.</strong>
+      </div>
+
       <h3>What this says for the thesis</h3>
       <ol class="tight">
-        <li><strong>APF is a coarse behavioral fingerprint.</strong> It separates
-            bursty-vs-steady behavior above baseline on unseen workloads, but
-            finer family or instance identity is memorization, not signal.</li>
+        <li><strong>APF is a coarse behavioral fingerprint, and the generalization
+            it supports depends on what is held out.</strong> Seen-before: near
+            perfect (5-class 1.0, 11-way 0.89). Unseen <em>workload</em> with
+            same-family siblings in training: binary 0.79. Unseen whole
+            <em>family</em>: supervised threat detection drops to ransomware recall
+            0.25 &mdash; the cross-workload number was partly same-family
+            memorization.</li>
+        <li><strong>For novel families, prefer anomaly detection over supervised
+            classification.</strong> Leave-one-family-out: the supervised classifier
+            misses 3/4 of a held-out threat family, while one-class anomaly (trained
+            only on benign) flags novel threats at ROC-AUC 0.93. Rule: known
+            families &rarr; classify; novel/unseen family &rarr; anomaly.</li>
         <li><strong>The Plan&nbsp;05 capture fix paid off downstream.</strong> The
             honest, leakage-free family signal went from below-baseline (starved
             v3) to above-baseline (this dataset) &mdash; a direct, measured benefit
             of relieving DOF starvation.</li>
         <li><strong>Leakage discipline is mandatory.</strong> coverage_ratio alone
-            reproduces &ldquo;perfect&rdquo; accuracy; only AGNOSTIC + LOWO numbers
-            are trustworthy.</li>
-        <li><strong>Not a detector.</strong> Anomaly ROC-AUC ~0.74 and the
-            no-benign-bursty-control gap mean this is characterization, not a
-            security claim &mdash; consistent with the thesis's stated stance.</li>
+            reproduces &ldquo;perfect&rdquo; accuracy; only AGNOSTIC + held-out
+            (LOWO/LOFO) numbers are trustworthy.</li>
+        <li><strong>Not a detector (as stated).</strong> The no-benign-bursty-control
+            gap and the cross-family failure mean this is behavioral
+            characterization, not a security-detection claim &mdash; consistent
+            with the thesis's stance.</li>
       </ol>
       <p style="font-size:13px;color:var(--muted)">Reproduce:
         <code>build_cells_dir.py</code> &rarr; <code>plan03_sweep.py</code> &rarr;

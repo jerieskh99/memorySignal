@@ -42,6 +42,30 @@
      "sandbox_scanner_metadata": 0.5
     }
    },
+   "binary_lofo": {
+    "lofo_acc": 0.303,
+    "lofo_macro_f1": 0.2702,
+    "per_family": {
+     "app": 1.0,
+     "mem_fault": 0.333,
+     "mem_sweep": 0.389,
+     "ransomware": 0.0,
+     "scanner": 0.5
+    },
+    "per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.667,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "mem_writemag_sweep_v2": 0.167,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   },
    "family5": {
     "loro_acc": 0.9545,
     "lowo_acc": 0.3485,
@@ -64,6 +88,11 @@
     "IsolationForest": 0.6759,
     "LOF": 0.7389,
     "OCSVM": 0.538
+   },
+   "anomaly_roc_auc_lofo_benign": {
+    "IsolationForest": 0.5509,
+    "LOF": 0.7907,
+    "OCSVM": 0.3222
    }
   },
   "AGNOSTIC+peakvar": {
@@ -85,6 +114,30 @@
      "sandbox_ransom_batched": 1.0,
      "sandbox_ransom_selective": 1.0,
      "sandbox_ransom_seq": 0.833,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.6364,
+    "lofo_macro_f1": 0.6071,
+    "per_family": {
+     "app": 1.0,
+     "mem_fault": 0.5,
+     "mem_sweep": 1.0,
+     "ransomware": 0.25,
+     "scanner": 1.0
+    },
+    "per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 1.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 1.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
      "sandbox_ransom_slowburn": 0.0,
      "sandbox_scanner_metadata": 1.0
     }
@@ -111,6 +164,11 @@
     "IsolationForest": 0.8528,
     "LOF": 0.925,
     "OCSVM": 0.9028
+   },
+   "anomaly_roc_auc_lofo_benign": {
+    "IsolationForest": 0.7731,
+    "LOF": 0.9333,
+    "OCSVM": 0.9
    }
   }
  }
