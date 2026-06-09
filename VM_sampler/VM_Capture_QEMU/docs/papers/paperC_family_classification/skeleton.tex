@@ -47,6 +47,11 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
   \item The contribution is therefore a cautionary, quantified result about
         feature-construction leakage in memory-signal classification, plus an
         honest measurement of the residual signal.
+  \item On a DOF-relieved re-capture the same protocol yields a
+        significant-but-coarse signal (leave-one-workload-out 0.636 vs.\ a 0.545
+        baseline), showing the weak v3 result was partly a capture-fidelity
+        artifact; yet the signal still fails to generalize across families,
+        confirming the boundary is real, not an artifact.
 \end{itemize}
 \end{abstract}
 
@@ -76,6 +81,17 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
       \item C3: an honest measurement of residual identity -- a coarse scalar
             carries a \emph{weak} family signal and essentially no instance
             signal -- and the experiments needed before any security claim.
+      \item C4: the residual family signal is \emph{capture-fidelity dependent}.
+            Re-running the identical leakage-controlled protocol on a DOF-relieved
+            capture flips the leakage-free signal from below the majority baseline
+            to above it and significant -- the earlier ``not significant'' was
+            partly a capture-quality artifact, not an intrinsic ceiling.
+      \item C5: a generalization boundary and a regime split. The leakage-free
+            signal does not transfer across \emph{families} (a held-out family's
+            threats are missed; a novel subtype's family is recovered at chance),
+            yet a one-class detector trained only on benign flags a novel threat
+            family -- so supervised family-identification and anomaly detection
+            occupy different regimes.
     \end{itemize}
 \end{itemize}
 
@@ -161,6 +177,35 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         \texttt{mmap} 0.12. The block-diagonal-by-family structure of the 11-way
         matrix inherits the same leakage; the \emph{within}-family confusion is
         the genuine (and weak) part.
+  \item \textbf{Re-test on a DOF-relieved capture (66 cells, 0 starved;}
+        \textbf{delete-as-you-go pipeline, Paper~A/F).} The identical
+        leakage-controlled protocol on a higher-fidelity capture, leakage-free
+        (family-agnostic) RandomForest:
+        \begin{center}
+        \begin{tabular}{lcc}
+          \toprule
+          Protocol & v3 (starved) & relieved \\
+          \midrule
+          leave-one-replicate-out (LORO)        & 0.644 & 0.970 \\
+          leave-one-workload-out (LOWO)         & 0.466 & 0.636 \\
+          \quad + peak/variance features        & --    & 0.788 \\
+          leave-one-\emph{family}-out (LOFO)    & --    & 0.30--0.64 \\
+          anomaly ROC-AUC (novel family)        & --    & 0.93 \\
+          majority baseline                     & 0.542 & 0.545 \\
+          \bottomrule
+        \end{tabular}
+        \end{center}
+  \item \textbf{Significance flips positive on relieved capture.} Exact McNemar
+        (agnostic vs.\ majority) $p\approx0$; 33-group cluster bootstrap 95\% CI
+        $[0.92, 1.0]$ -- against paperC's v3 $p=0.119$ with a CI lower bound at
+        the baseline. The leakage-free family signal is real once DOF starvation
+        is removed; relieving capture, not changing the model, moved it.
+  \item \textbf{But it does not generalize across families.} Leave-one-family-out
+        holding out all ransomware misses 3 of 4 subtypes (threat recall 0.25),
+        and a novel subtype's family is recovered at chance -- a family is not a
+        coherent cluster in APF. Peak/variance shape features lift the
+        novel-\emph{workload} binary 0.636$\to$0.788 and the anomaly ROC-AUC
+        0.74$\to$0.93, but do not confer cross-family generalization.
   \item TODO: figure -- accuracy vs.\ feature subset bar chart; table -- the
         per-family medians showing SNR overlap and the coverage-ratio constants.
 \end{itemize}
@@ -189,6 +234,18 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         constant invariant to which workload is held out, and that the modest
         leave-one-replicate-out signal is partly workload memorization
         (\texttt{robustness\_reanalysis.py}).
+  \item \textbf{Cross-family non-generalization persists on relieved capture.}
+        The DOF-relieved re-test confirms the v3 leave-one-workload-out warning is
+        structural, not a starvation artifact: leave-one-\emph{family}-out (hold
+        out an entire family) misses 3 of 4 ransomware subtypes (recall 0.25), and
+        a held-out subtype's family is recovered at chance. The
+        leave-one-replicate-out gains are partly same-family memorization; APF does
+        not cluster by family.
+  \item \textbf{Anomaly detection is the regime that survives novelty.} A
+        one-class detector trained only on benign flags a held-out threat family
+        at ROC-AUC 0.93, because it models ``normal'' and never needs to have seen
+        the threat -- the practical split is: known families $\to$ supervised
+        classification; novel/unseen family $\to$ anomaly detection.
   \item \textbf{Imputation is a second family-conditional channel.} Because
         \texttt{cv\_workingset} and \texttt{f1\_phase} are missing by family
         (complementary NaN), median imputation injects a family-correlated
@@ -207,6 +264,13 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         the replicate-group level) and no usable instance signal; the apparent
         perfect separation is an artifact of family-conditional feature
         computation.
+  \item Capture fidelity matters: on a DOF-relieved re-capture the same
+        leakage-free protocol becomes significant (leave-one-workload-out 0.636
+        vs.\ 0.545, McNemar $p\approx0$), but the signal still does not generalize
+        across families (leave-one-family-out misses 3/4 of a held-out family),
+        whereas a benign-only anomaly detector flags a novel family at ROC-AUC
+        0.93. The family hint is real but coarse, and detection of an unseen
+        family belongs to the anomaly regime, not the supervised one.
   \item The transferable lesson is methodological: when a pipeline derives
         per-class ``defining metrics,'' those metrics must be kept out of any
         classifier that is meant to demonstrate discrimination -- otherwise the
