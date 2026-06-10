@@ -261,6 +261,17 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         at ROC-AUC 0.93, because it models ``normal'' and never needs to have seen
         the threat -- the practical split is: known families $\to$ supervised
         classification; novel/unseen family $\to$ anomaly detection.
+  \item \textbf{A second channel disambiguates but does not detect (Plan 06).} The
+        memory-aliased pair -- \texttt{slowburn} (threat) vs.\ \texttt{pagefault}
+        (benign), indistinguishable in APF -- is cleanly separated by a
+        per-snapshot disk-I/O channel (mean write rate $\sim$0.20 vs.\
+        0.002\,MB/s, $\sim$100$\times$). But disk I/O is itself a behavioral axis,
+        not a threat marker: the heaviest writer is \emph{benign}
+        (\texttt{mmap\_traversal}, 140\,MB/s) and a threat writes essentially
+        nothing (\texttt{batched}, memory-capped). Two orthogonal channels buy
+        behavioral \emph{disambiguation} of workloads that alias in one channel,
+        \emph{not} detection -- reinforcing that no single coarse channel separates
+        threat from benign, and that the contribution is characterization.
   \item \textbf{Imputation is a second family-conditional channel.} Because
         \texttt{cv\_workingset} and \texttt{f1\_phase} are missing by family
         (complementary NaN), median imputation injects a family-correlated

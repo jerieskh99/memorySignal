@@ -77,6 +77,10 @@ def main() -> int:
         out["results"][name] = {
             "binary_lowo": pv.classify(X, ybin, rep, wl, [0, 1]),
             "binary_lofo": pv.classify_lofo(X, ybin, fam, wl, [0, 1]),
+            # Characterization angle (meaningful on the full 66-cell run): does the
+            # disk-I/O channel improve multi-class workload/family identification?
+            "family5_lowo": pv.classify(X, fam, rep, wl, pv.FAMS),
+            "instance11_loro": pv.classify_loro(X, wl, rep, sorted(set(wl))),
         }
 
     # Direct masquerade-pair check: write rate (MB/s) per workload.
