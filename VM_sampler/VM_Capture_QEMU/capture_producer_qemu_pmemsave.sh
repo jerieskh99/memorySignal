@@ -96,6 +96,7 @@ emit_timing() {
 TIMING_DISKIO="${TIMING_DISKIO:-}"
 TIMING_DISKIO_JSONL="${TIMING_DISKIO_JSONL:-}"
 DISKIO_DEV="${TIMING_DISKIO_DEV:-vda}"
+DISKIO_SEQ=0   # own counter: SNAP_SEQ only advances when TIMING_JSONL_PATH is set.
 if [[ -n "$TIMING_DISKIO" && -n "$TIMING_DISKIO_JSONL" ]]; then
   mkdir -p "$(dirname "$TIMING_DISKIO_JSONL")"
   : > "$TIMING_DISKIO_JSONL"
@@ -110,7 +111,8 @@ diskio_emit() {
   [[ -z "$rd" ]] && rd=-1
   [[ -z "$wr" ]] && wr=-1
   printf '{"seq":%d,"t_emit_epoch":%s,"rd_bytes":%s,"wr_bytes":%s}\n' \
-    "$SNAP_SEQ" "$(ts_ns)" "$rd" "$wr" >> "$TIMING_DISKIO_JSONL"
+    "$DISKIO_SEQ" "$(ts_ns)" "$rd" "$wr" >> "$TIMING_DISKIO_JSONL"
+  DISKIO_SEQ=$((DISKIO_SEQ + 1))
 }
 
 wait_state() {

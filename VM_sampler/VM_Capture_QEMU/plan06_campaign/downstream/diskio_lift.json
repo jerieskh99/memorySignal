@@ -1,0 +1,134 @@
+{
+ "schema": "plan06.diskio_lift.v1",
+ "n_cells": 16,
+ "diskio_features": [
+  "wr_rate_mean_mbs",
+  "wr_rate_max_mbs",
+  "wr_rate_p95_mbs",
+  "rd_rate_mean_mbs",
+  "wr_total_mb"
+ ],
+ "results": {
+  "AGNOSTIC": {
+   "binary_lowo": {
+    "loro_acc": 0.75,
+    "lowo_acc": 0.375,
+    "lowo_macro_f1": 0.2727,
+    "lowo_per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "sandbox_ransom_batched": 0.5,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.0625,
+    "lofo_macro_f1": 0.0588,
+    "per_family": {
+     "mem_fault": 0.0,
+     "mem_sweep": 0.0,
+     "ransomware": 0.0,
+     "scanner": 0.5
+    },
+    "per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   }
+  },
+  "AGNOSTIC+peakvar": {
+   "binary_lowo": {
+    "loro_acc": 0.8125,
+    "lowo_acc": 0.4375,
+    "lowo_macro_f1": 0.417,
+    "lowo_per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.5,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.375,
+    "lofo_macro_f1": 0.3651,
+    "per_family": {
+     "mem_fault": 0.0,
+     "mem_sweep": 1.0,
+     "ransomware": 0.25,
+     "scanner": 1.0
+    },
+    "per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 1.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   }
+  },
+  "AGNOSTIC+peakvar+diskio": {
+   "binary_lowo": {
+    "loro_acc": 0.875,
+    "lowo_acc": 0.25,
+    "lowo_macro_f1": 0.2,
+    "lowo_per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.125,
+    "lofo_macro_f1": 0.1111,
+    "per_family": {
+     "mem_fault": 0.0,
+     "mem_sweep": 0.0,
+     "ransomware": 0.0,
+     "scanner": 1.0
+    },
+    "per_workload": {
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   }
+  }
+ },
+ "masquerade_pair_wr_rate_mbs": {
+  "mem_mmap_traversal_v2": 140.7021,
+  "mem_pagefault_density_v2": 0.0018,
+  "mem_workingset_sweep_v2": 0.0039,
+  "sandbox_ransom_batched": 0.0034,
+  "sandbox_ransom_selective": 22.5117,
+  "sandbox_ransom_seq": 9.449,
+  "sandbox_ransom_slowburn": 0.2004,
+  "sandbox_scanner_metadata": 0.1872
+ }
+}
