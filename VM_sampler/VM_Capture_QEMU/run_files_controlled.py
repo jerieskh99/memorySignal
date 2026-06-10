@@ -337,15 +337,18 @@ def _apf_env_prefix(metric: str, apf_jsonl: str, ack_dir: str, helper_log: str) 
 # delta/apf/apf_queue capture paths stay byte-identical.
 CAPTURE_DISKIO = os.environ.get("CAPTURE_DISKIO", "0").strip().lower() in {"1", "true", "yes"}
 CAPTURE_DISKIO_DEV = os.environ.get("CAPTURE_DISKIO_DEV", "vda")
+CAPTURE_DISKIO_STRIDE = os.environ.get("CAPTURE_DISKIO_STRIDE", "1")
 
 
-def _diskio_env_prefix(diskio_jsonl: str, dev: str) -> str:
+def _diskio_env_prefix(diskio_jsonl: str, dev: str, stride: str = "1") -> str:
     """Tell the producer to record a per-snapshot disk-I/O channel (domblkstat).
-    Only appended when CAPTURE_DISKIO is set; otherwise the env is unchanged."""
+    Only appended when CAPTURE_DISKIO is set; otherwise the env is unchanged.
+    stride > 1 samples every Nth snapshot (the domblkstat poll is the costly part)."""
     return (
         f"TIMING_DISKIO=1 "
         f"TIMING_DISKIO_JSONL={shlex.quote(diskio_jsonl)} "
         f"TIMING_DISKIO_DEV={shlex.quote(dev)} "
+        f"TIMING_DISKIO_STRIDE={shlex.quote(str(stride))} "
     )
 
 
@@ -412,9 +415,9 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
                 os.remove(diskio_jsonl)
         except OSError:
             pass
-        env_prefix += _diskio_env_prefix(diskio_jsonl, CAPTURE_DISKIO_DEV)
+        env_prefix += _diskio_env_prefix(diskio_jsonl, CAPTURE_DISKIO_DEV, CAPTURE_DISKIO_STRIDE)
         print(f"[CONTROL] CAPTURE_DISKIO=1 -> producer records disk-I/O to "
-              f"{diskio_jsonl} (dev={CAPTURE_DISKIO_DEV})")
+              f"{diskio_jsonl} (dev={CAPTURE_DISKIO_DEV}, stride={CAPTURE_DISKIO_STRIDE})")
     cmd = (
         f"cd {root_q} && "
         f"{env_prefix}CONFIG={cfg_q} PRODUCER_SCRIPT={producer_q} BACKGROUND=1 ./run_qemu_capture.sh"

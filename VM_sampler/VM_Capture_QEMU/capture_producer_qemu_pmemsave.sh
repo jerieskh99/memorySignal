@@ -96,23 +96,30 @@ emit_timing() {
 TIMING_DISKIO="${TIMING_DISKIO:-}"
 TIMING_DISKIO_JSONL="${TIMING_DISKIO_JSONL:-}"
 DISKIO_DEV="${TIMING_DISKIO_DEV:-vda}"
-DISKIO_SEQ=0   # own counter: SNAP_SEQ only advances when TIMING_JSONL_PATH is set.
+DISKIO_STRIDE="${TIMING_DISKIO_STRIDE:-1}"   # poll every Nth snapshot (1 = every).
+DISKIO_SEQ=0    # own counter: SNAP_SEQ only advances when TIMING_JSONL_PATH is set.
+DISKIO_CALLS=0
 if [[ -n "$TIMING_DISKIO" && -n "$TIMING_DISKIO_JSONL" ]]; then
   mkdir -p "$(dirname "$TIMING_DISKIO_JSONL")"
   : > "$TIMING_DISKIO_JSONL"
-  echo "[PRODUCER-PMEM] diskio JSONL: $TIMING_DISKIO_JSONL (dev=$DISKIO_DEV)"
+  echo "[PRODUCER-PMEM] diskio JSONL: $TIMING_DISKIO_JSONL (dev=$DISKIO_DEV, stride=$DISKIO_STRIDE)"
 fi
 diskio_emit() {
   [[ -z "$TIMING_DISKIO" || -z "$TIMING_DISKIO_JSONL" ]] && return 0
-  local stat rd wr
-  stat=$(virsh -c qemu:///system domblkstat "$domain" "$DISKIO_DEV" 2>/dev/null || true)
-  rd=$(awk '$2=="rd_bytes"{print $3}' <<<"$stat")
-  wr=$(awk '$2=="wr_bytes"{print $3}' <<<"$stat")
-  [[ -z "$rd" ]] && rd=-1
-  [[ -z "$wr" ]] && wr=-1
-  printf '{"seq":%d,"t_emit_epoch":%s,"rd_bytes":%s,"wr_bytes":%s}\n' \
-    "$DISKIO_SEQ" "$(ts_ns)" "$rd" "$wr" >> "$TIMING_DISKIO_JSONL"
-  DISKIO_SEQ=$((DISKIO_SEQ + 1))
+  # Stride: domblkstat is the costly part; sample every Nth snapshot. Cumulative
+  # counters mean the per-cell rate is unchanged, only fewer (coarser) points.
+  if (( DISKIO_CALLS % DISKIO_STRIDE == 0 )); then
+    local stat rd wr
+    stat=$(virsh -c qemu:///system domblkstat "$domain" "$DISKIO_DEV" 2>/dev/null || true)
+    rd=$(awk '$2=="rd_bytes"{print $3}' <<<"$stat")
+    wr=$(awk '$2=="wr_bytes"{print $3}' <<<"$stat")
+    [[ -z "$rd" ]] && rd=-1
+    [[ -z "$wr" ]] && wr=-1
+    printf '{"seq":%d,"t_emit_epoch":%s,"rd_bytes":%s,"wr_bytes":%s}\n' \
+      "$DISKIO_SEQ" "$(ts_ns)" "$rd" "$wr" >> "$TIMING_DISKIO_JSONL"
+    DISKIO_SEQ=$((DISKIO_SEQ + 1))
+  fi
+  DISKIO_CALLS=$((DISKIO_CALLS + 1))
 }
 
 wait_state() {

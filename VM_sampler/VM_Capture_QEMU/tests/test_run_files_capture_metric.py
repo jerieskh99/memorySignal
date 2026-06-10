@@ -70,7 +70,8 @@ class TestDiskioEnvPrefix(unittest.TestCase):
 
     def test_prefix_sets_exactly_the_diskio_keys(self):
         p = R._diskio_env_prefix("/p/x.diskio_trajectory.jsonl", "vda")
-        for key in ("TIMING_DISKIO=1", "TIMING_DISKIO_JSONL=", "TIMING_DISKIO_DEV="):
+        for key in ("TIMING_DISKIO=1", "TIMING_DISKIO_JSONL=", "TIMING_DISKIO_DEV=",
+                    "TIMING_DISKIO_STRIDE="):
             self.assertIn(key, p)
         self.assertIn("/p/x.diskio_trajectory.jsonl", p)
         self.assertIn("vda", p)
