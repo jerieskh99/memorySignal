@@ -83,6 +83,8 @@ for r in rows:
         "wr_rate_mbs": d.get("wr_rate_mean_mbs", float("nan")),
         "wr_total_mb": d.get("wr_total_mb", float("nan")),
         "rd_rate_mbs": d.get("rd_rate_mean_mbs", float("nan")),
+        "rd_total_mb": d.get("rd_total_mb", float("nan")),
+        "rd_frac": d.get("rd_frac", float("nan")),
     })
 cells.sort(key=lambda c: (c["family"], c["workload"], c["duration_s"], c["rep"]))
 
@@ -93,11 +95,13 @@ perwl = [{"workload": wl, "short": short(wl), "family": family_of(wl),
           "kind": "threat" if is_threat(wl) else "benign",
           "apf_mean": agg(wl, "apf_mean"), "apf_cov": agg(wl, "apf_cov"),
           "wr_rate_mbs": agg(wl, "wr_rate_mbs"), "wr_total_mb": agg(wl, "wr_total_mb"),
+          "rd_rate_mbs": agg(wl, "rd_rate_mbs"), "rd_frac": agg(wl, "rd_frac"),
           "n_windows": agg(wl, "n_windows")} for wl in WL]
 
 # ---- 66-cell CSV ------------------------------------------------------------
 csv_cols = ["family", "workload", "kind", "duration_s", "rep", "apf_mean", "apf_cov",
-            "apf_max", "duty_gt05", "n_windows", "wr_rate_mbs", "wr_total_mb", "rd_rate_mbs"]
+            "apf_max", "duty_gt05", "n_windows", "wr_rate_mbs", "wr_total_mb",
+            "rd_rate_mbs", "rd_total_mb", "rd_frac"]
 with (DOCS / "plan06_all_data.csv").open("w", newline="") as fh:
     w = csv.DictWriter(fh, fieldnames=csv_cols, extrasaction="ignore")
     w.writeheader()
@@ -114,6 +118,10 @@ GLOSSARY = {
                 "The Plan 06 second channel.",
     "diskio": "Short name for the disk-I/O channel: per-snapshot rd/wr byte counters "
               "read via domblkstat.",
+    "rd_frac": "Read fraction of disk I/O = reads / (reads + writes). ~0 for a pure "
+               "writer; ~0.25-0.4 for an encrypt-in-place threat (reads plaintext, "
+               "writes ciphertext).",
+    "rd_total_mb": "Total bytes (MB) the VM read from the virtual disk during a cell.",
     "pmemsave": "QEMU monitor command that dumps guest RAM to a file. APF is computed "
                 "from two consecutive dumps.",
     "domblkstat": "libvirt command returning a VM disk's cumulative rd_bytes/wr_bytes. "
@@ -271,7 +279,8 @@ savepng(fig, "bar_classification.png"); figs["clf_bar"] = b64(fig)
 
 # Fig 5: per-workload metric heatmap (normalized columns)
 metrics = [("apf_mean", "APF mean"), ("apf_cov", "APF CoV"), ("n_windows", "windows"),
-           ("wr_rate_mbs", "disk MB/s"), ("wr_total_mb", "disk total MB")]
+           ("wr_rate_mbs", "write MB/s"), ("rd_rate_mbs", "read MB/s"),
+           ("rd_frac", "read frac"), ("wr_total_mb", "write total MB")]
 pw = sorted(perwl, key=lambda x: (x["family"], x["short"]))
 mat = []
 for mk, _ in metrics:
@@ -286,6 +295,37 @@ ax.set_yticks(range(len(metrics))); ax.set_yticklabels([m[1] for m in metrics], 
 ax.set_title("Per-workload metric heatmap (each row min-max normalized)")
 fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
 savepng(fig, "heatmap.png"); figs["heatmap"] = b64(fig)
+
+# Fig 6: read vs write scatter -- the read angle. Pure writers sit on the floor
+# (rd_frac ~0); encrypt-in-place threats lift off it (read AND write).
+fig, ax = plt.subplots(figsize=(8, 5.5))
+for c in cells:
+    ax.scatter(max(c["wr_rate_mbs"], 1e-3), max(c["rd_rate_mbs"], 1e-3),
+               c=FAM_COLOR[c["family"]], marker=("X" if c["kind"] == "threat" else "o"),
+               s=70, edgecolors="white", linewidths=0.5, alpha=0.85)
+ax.set_xscale("log"); ax.set_yscale("log")
+ax.set_xlabel("disk WRITE rate MB/s"); ax.set_ylabel("disk READ rate MB/s")
+ax.set_title("Read vs write: encrypt-in-place threats (seq/selective) read AND write;\n"
+             "benign mmap writes heavily but reads ~0 (pure writer)")
+ax.grid(True, which="both", ls=":", alpha=0.4)
+for c in cells:
+    if c["short"] in ("ransom_seq", "ransom_selective", "mem_mmap") and c["rep"] == 1 and c["duration_s"] == 600:
+        ax.annotate(c["short"], (max(c["wr_rate_mbs"], 1e-3), max(c["rd_rate_mbs"], 1e-3)),
+                    fontsize=8, xytext=(5, 5), textcoords="offset points")
+ax.legend(handles=fam_leg + kind_leg, fontsize=8, loc="lower right", framealpha=0.9)
+savepng(fig, "scatter_rdwr.png"); figs["rdwr"] = b64(fig)
+
+# Fig 7: read share (rd_frac) per workload -- the encrypt-in-place fingerprint
+fig, ax = plt.subplots(figsize=(8, 4.2))
+pw = sorted(perwl, key=lambda x: -x["rd_frac"])
+ax.bar([p["short"] for p in pw], [p["rd_frac"] for p in pw],
+       color=[FAM_COLOR[p["family"]] for p in pw])
+ax.set_ylabel("read fraction of disk I/O")
+ax.set_title("Read share (rd_frac): only encrypt-in-place threats read; everything else writes-only")
+ax.tick_params(axis="x", rotation=55, labelsize=8)
+for lbl in ax.get_xticklabels():
+    lbl.set_ha("right")
+savepng(fig, "bar_rdfrac.png"); figs["rdfrac_bar"] = b64(fig)
 
 print(f"figures -> {FIGDIR}")
 print(f"csv -> {DOCS / 'plan06_all_data.csv'} ({len(cells)} cells)")
@@ -304,7 +344,8 @@ def cell_rows():
             f'<td class="{c["kind"]}">{c["kind"]}</td><td class="r">{c["duration_s"]}</td>'
             f'<td class="r">{c["rep"]}</td><td class="r">{c["apf_mean"]:.4f}</td>'
             f'<td class="r">{c["apf_cov"]:.2f}</td><td class="r">{c["n_windows"]}</td>'
-            f'<td class="r">{c["wr_rate_mbs"]:.3f}</td><td class="r">{c["wr_total_mb"]:.1f}</td></tr>')
+            f'<td class="r">{c["wr_rate_mbs"]:.3f}</td><td class="r">{c["wr_total_mb"]:.1f}</td>'
+            f'<td class="r">{c["rd_rate_mbs"]:.3f}</td><td class="r">{c["rd_frac"]:.3f}</td></tr>')
     return "\n".join(out)
 
 
@@ -315,7 +356,8 @@ def wl_rows():
             f'<tr><td>{p["family"]}</td><td class="mono">{p["short"]}</td>'
             f'<td class="{p["kind"]}">{p["kind"]}</td><td class="r">{p["apf_mean"]:.4f}</td>'
             f'<td class="r">{p["apf_cov"]:.2f}</td><td class="r">{p["wr_rate_mbs"]:.3f}</td>'
-            f'<td class="r">{p["wr_total_mb"]:.1f}</td><td class="r">{p["n_windows"]:.0f}</td></tr>')
+            f'<td class="r">{p["wr_total_mb"]:.1f}</td><td class="r">{p["rd_rate_mbs"]:.3f}</td>'
+            f'<td class="r">{p["rd_frac"]:.3f}</td><td class="r">{p["n_windows"]:.0f}</td></tr>')
     return "\n".join(out)
 
 
@@ -377,10 +419,28 @@ for its definition, or use the glossary below.</p>
 {img("heatmap", "Per-workload metric heatmap, each row min-max normalized.")}
 
 <table><thead><tr><th>family</th><th>workload</th><th>kind</th><th class="r">APF mean</th>
-<th class="r">APF CoV</th><th class="r">disk MB/s</th><th class="r">disk total MB</th>
-<th class="r">windows</th></tr></thead><tbody>
+<th class="r">APF CoV</th><th class="r">write MB/s</th><th class="r">write total MB</th>
+<th class="r">read MB/s</th><th class="r">read frac</th><th class="r">windows</th></tr></thead><tbody>
 {wl_rows()}
 </tbody></table>
+
+<h2>2b. Reads vs writes (we capture both)</h2>
+<p class="sub">The disk channel records read AND write bytes (host <code>domblkstat</code>).
+Most workloads read ~0: host reads count only what misses the guest page cache, and
+memory-stress working sets stay in guest RAM. Reads carry signal for one thing &mdash;
+the encrypt-in-place threats that read plaintext and write ciphertext.</p>
+{img("rdwr", "Read rate vs write rate per cell (log-log). Benign mmap is a pure writer "
+     "(far right, floor on reads). The encrypt-in-place threats ransom_seq / ransom_selective "
+     "lift off the read floor &mdash; they read AND write. Everything else clusters at the origin.")}
+{img("rdfrac_bar", "Read fraction of disk I/O (rd_frac = reads / (reads+writes)) per workload. "
+     "Only ransom_seq and ransom_selective read meaningfully; every other workload is writes-only.")}
+<div class="note">Adding read-volume + read-share features (<code>rd_total_mb</code>,
+<code>rd_frac</code>) lifts <b>instance</b> identification 0.939&rarr;<b>0.985</b> &mdash; the
+read signature is a near-unique fingerprint for the two encryptors. It does <b>not</b> help
+threat/benign detection (binary unchanged at 0.636 / 0.424): 3 of 5 threats
+(<code>batched</code>, <code>slowburn</code>, <code>scanner</code>) read ~0, like the benigns.
+So reads are a sharper <b>characterization</b> signal, not a detector &mdash; the same verdict
+as writes.</div>
 
 <h2>3. Classification: what each channel buys</h2>
 {img("clf_bar", "Accuracy by feature set (APF -> +shape -> +disk) across tasks. Disk helps "
@@ -389,14 +449,17 @@ for its definition, or use the glossary below.</p>
 <th class="r">+disk</th></tr></thead><tbody>
 {clf_rows()}
 </tbody></table>
-<div class="note">Disk I/O <b>helps characterization</b> (family LORO 0.955&rarr;0.985,
-family LOWO 0.348&rarr;0.455 crossing the 0.364 baseline, instance 0.924&rarr;0.939) and
-<b>hurts detection</b> (binary LOWO 0.742&rarr;0.636) &mdash; a characterization channel, not a detector.</div>
+<div class="note">Disk I/O (writes + reads) <b>helps characterization</b> &mdash; instance
+0.924&rarr;<b>0.985</b>, family LOWO 0.348&rarr;0.439 (crossing the 0.364 baseline memory
+alone could not) &mdash; and <b>hurts detection</b> (binary LOWO 0.742&rarr;0.636). The
+<code>+disk</code> column here is the full disk feature set including the read features; reads
+are what push instance ID to 0.985. A characterization channel, not a detector.</div>
 
 <h2>4. Every cell (66)</h2>
 <div class="wrap"><table id="celltable"><thead><tr><th>family</th><th>workload</th><th>kind</th>
 <th class="r">dur s</th><th class="r">rep</th><th class="r">APF mean</th><th class="r">APF CoV</th>
-<th class="r">windows</th><th class="r">disk MB/s</th><th class="r">disk total MB</th></tr></thead><tbody>
+<th class="r">windows</th><th class="r">write MB/s</th><th class="r">write total MB</th>
+<th class="r">read MB/s</th><th class="r">read frac</th></tr></thead><tbody>
 {cell_rows()}
 </tbody></table></div>
 <p class="sub">Full table also at <code>docs/plan06_all_data.csv</code>; standalone figures in

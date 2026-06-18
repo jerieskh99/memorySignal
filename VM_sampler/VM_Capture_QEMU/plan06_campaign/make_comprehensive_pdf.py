@@ -62,6 +62,10 @@ story += fig("scatter_2channel.png", "Each point = one cell. X = APF mean (memor
 story.append(Paragraph("2. Per-workload, both channels", H2))
 story += fig("bar_apf.png", "Memory: APF mean per workload.")
 story += fig("bar_disk.png", "Disk: write rate per workload (log).")
+story += fig("scatter_rdwr.png", "Read vs write rate per cell. Encrypt-in-place threats "
+            "(ransom_seq/selective) read AND write; benign mmap is a pure writer (reads ~0).")
+story += fig("bar_rdfrac.png", "Read fraction of disk I/O per workload. Only the two "
+            "encryptors read meaningfully; everything else is writes-only.")
 story += fig("heatmap.png", "Per-workload metric heatmap (rows min-max normalized).")
 
 # per-workload table
@@ -69,15 +73,18 @@ WL = {}
 for c in cells:
     WL.setdefault(c["workload"], []).append(c)
 def mean(rs, k): return sum(float(r[k]) for r in rs) / len(rs)
-head = ["family", "workload", "kind", "APF mean", "APF CoV", "disk MB/s", "disk MB", "win"]
+head = ["family", "workload", "kind", "APF mean", "write MB/s", "write MB",
+        "read MB/s", "read frac", "win"]
 data = [head]
 for wl in sorted(WL, key=lambda w: (WL[w][0]["family"], w)):
     rs = WL[wl]
     data.append([rs[0]["family"], rs[0]["workload"].replace("sandbox_", "").replace("_v2", ""),
-                 rs[0]["kind"], f"{mean(rs,'apf_mean'):.4f}", f"{mean(rs,'apf_cov'):.2f}",
+                 rs[0]["kind"], f"{mean(rs,'apf_mean'):.4f}",
                  f"{mean(rs,'wr_rate_mbs'):.3f}", f"{mean(rs,'wr_total_mb'):.0f}",
+                 f"{mean(rs,'rd_rate_mbs'):.3f}", f"{mean(rs,'rd_frac'):.3f}",
                  f"{mean(rs,'n_windows'):.0f}"])
-story.append(styled(Table(data, colWidths=[0.9*inch, 1.8*inch, 0.6*inch, 0.8*inch, 0.7*inch, 0.8*inch, 0.7*inch, 0.5*inch]), fs=8))
+story.append(styled(Table(data, colWidths=[0.85*inch, 1.6*inch, 0.55*inch, 0.7*inch, 0.7*inch,
+                                           0.6*inch, 0.7*inch, 0.6*inch, 0.45*inch]), fs=8))
 
 story.append(PageBreak())
 story.append(Paragraph("3. Classification: what each channel buys", H2))
@@ -93,20 +100,24 @@ for t, g in tasks:
     cd.append([t, f"{g(lift['AGNOSTIC']):.3f}", f"{g(lift['AGNOSTIC+peakvar']):.3f}",
                f"{g(lift['AGNOSTIC+peakvar+diskio']):.3f}"])
 story.append(styled(Table(cd, colWidths=[1.6*inch, 1.1*inch, 1.1*inch, 1.1*inch]), fs=9))
-story.append(Paragraph("Disk I/O helps characterization (family LORO 0.955&rarr;0.985, family LOWO "
-                       "0.348&rarr;0.455, instance 0.924&rarr;0.939) and hurts detection (binary LOWO "
-                       "0.742&rarr;0.636) &mdash; a characterization channel, not a detector.", BODY))
+story.append(Paragraph("Disk I/O (writes + reads) helps characterization &mdash; instance "
+                       "0.924&rarr;0.985 (the read signature fingerprints the two encryptors), "
+                       "family LOWO 0.348&rarr;0.439 crossing the 0.364 baseline &mdash; and hurts "
+                       "detection (binary LOWO 0.742&rarr;0.636). Reads sharpen instance ID but do "
+                       "not detect: 3 of 5 threats read ~0, like the benigns. A characterization "
+                       "channel, not a detector.", BODY))
 
 story.append(PageBreak())
 story.append(Paragraph("4. Every cell (66)", H2))
-ch = ["fam", "workload", "kind", "dur", "rep", "APF", "CoV", "win", "MB/s", "MB"]
+ch = ["fam", "workload", "kind", "dur", "rep", "APF", "win", "wMB/s", "wMB", "rMB/s", "rfrac"]
 cdata = [ch]
 for c in cells:
     cdata.append([c["family"], c["workload"].replace("sandbox_", "").replace("_v2", ""), c["kind"],
-                  c["duration_s"], c["rep"], f"{float(c['apf_mean']):.4f}", f"{float(c['apf_cov']):.2f}",
-                  c["n_windows"], f"{float(c['wr_rate_mbs']):.3f}", f"{float(c['wr_total_mb']):.0f}"])
-t = Table(cdata, repeatRows=1, colWidths=[0.7*inch, 1.7*inch, 0.6*inch, 0.4*inch, 0.35*inch,
-                                          0.6*inch, 0.5*inch, 0.45*inch, 0.6*inch, 0.5*inch])
+                  c["duration_s"], c["rep"], f"{float(c['apf_mean']):.4f}", c["n_windows"],
+                  f"{float(c['wr_rate_mbs']):.3f}", f"{float(c['wr_total_mb']):.0f}",
+                  f"{float(c['rd_rate_mbs']):.3f}", f"{float(c['rd_frac']):.3f}"])
+t = Table(cdata, repeatRows=1, colWidths=[0.6*inch, 1.45*inch, 0.55*inch, 0.38*inch, 0.32*inch,
+                                          0.55*inch, 0.42*inch, 0.55*inch, 0.45*inch, 0.55*inch, 0.48*inch])
 story.append(styled(t, fs=6.8))
 
 SimpleDocTemplate(str(OUT), pagesize=LETTER, leftMargin=0.7*inch, rightMargin=0.7*inch,

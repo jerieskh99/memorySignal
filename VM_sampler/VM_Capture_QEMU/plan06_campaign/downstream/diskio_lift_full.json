@@ -6,7 +6,9 @@
   "wr_rate_max_mbs",
   "wr_rate_p95_mbs",
   "rd_rate_mean_mbs",
-  "wr_total_mb"
+  "wr_total_mb",
+  "rd_total_mb",
+  "rd_frac"
  ],
  "results": {
   "AGNOSTIC": {
@@ -143,7 +145,7 @@
   },
   "AGNOSTIC+peakvar+diskio": {
    "binary_lowo": {
-    "loro_acc": 1.0,
+    "loro_acc": 0.9848,
     "lowo_acc": 0.6364,
     "lowo_macro_f1": 0.6333,
     "lowo_per_workload": {
@@ -174,9 +176,9 @@
      "app_hashtable_intensive_v2": 1.0,
      "mem_mmap_traversal_v2": 0.0,
      "mem_pagefault_density_v2": 0.0,
-     "mem_rmw_intensity_v2": 1.0,
+     "mem_rmw_intensity_v2": 0.833,
      "mem_workingset_sweep_v2": 1.0,
-     "mem_writemag_sweep_v2": 0.667,
+     "mem_writemag_sweep_v2": 0.833,
      "sandbox_ransom_batched": 0.0,
      "sandbox_ransom_selective": 0.0,
      "sandbox_ransom_seq": 0.0,
@@ -185,14 +187,14 @@
     }
    },
    "family5_lowo": {
-    "loro_acc": 0.9848,
-    "lowo_acc": 0.4545,
-    "lowo_macro_f1": 0.2603,
+    "loro_acc": 0.9697,
+    "lowo_acc": 0.4394,
+    "lowo_macro_f1": 0.2547,
     "lowo_per_workload": {
      "app_hashtable_intensive_v2": 0.0,
      "mem_mmap_traversal_v2": 0.0,
      "mem_pagefault_density_v2": 0.0,
-     "mem_rmw_intensity_v2": 1.0,
+     "mem_rmw_intensity_v2": 0.833,
      "mem_workingset_sweep_v2": 1.0,
      "mem_writemag_sweep_v2": 1.0,
      "sandbox_ransom_batched": 0.0,
@@ -203,8 +205,8 @@
     }
    },
    "instance11_loro": {
-    "loro_acc": 0.9394,
-    "loro_macro_f1": 0.9363
+    "loro_acc": 0.9848,
+    "loro_macro_f1": 0.9847
    }
   }
  },
