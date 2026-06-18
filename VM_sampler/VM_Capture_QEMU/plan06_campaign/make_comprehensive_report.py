@@ -106,6 +106,88 @@ with (DOCS / "plan06_all_data.csv").open("w", newline="") as fh:
 
 lift = json.load(open(LIFT))["results"]
 
+# ---- glossary (drives the hover tooltips AND the glossary table) -------------
+GLOSSARY = {
+    "APF": "Active Page Fraction: fraction of 4 KB guest RAM pages that changed "
+           "between two consecutive memory snapshots. The core memory signal.",
+    "disk I/O": "Bytes the VM reads/writes to its virtual disk, measured host-side. "
+                "The Plan 06 second channel.",
+    "diskio": "Short name for the disk-I/O channel: per-snapshot rd/wr byte counters "
+              "read via domblkstat.",
+    "pmemsave": "QEMU monitor command that dumps guest RAM to a file. APF is computed "
+                "from two consecutive dumps.",
+    "domblkstat": "libvirt command returning a VM disk's cumulative rd_bytes/wr_bytes. "
+                  "Disk rate = delta / elapsed time.",
+    "peak/var": "Peak/variance shape features of the APF trajectory (apf_max, apf_p95, "
+                "apf_cov, peak-to-median, duty cycle), beyond its mean.",
+    "CoV": "Coefficient of Variation = std / mean. Unitless measure of how bursty the signal is.",
+    "cell": "One capture run = (workload, duration, replicate). The unit of the 66-cell matrix.",
+    "replicate": "A repeated run of the same workload and duration, used to measure "
+                 "run-to-run variance.",
+    "windows": "Count of analysis windows a cell yields (its degrees of freedom). "
+               "Too few = starved.",
+    "window": "A sliding analysis window over the trajectory, W = 8 snapshots wide.",
+    "hop": "Step between consecutive analysis windows, H = 4 snapshots.",
+    "DOF": "Degrees of freedom: number of analysis windows a cell produces at the "
+           "frozen (W,H) = (8,4).",
+    "family": "A group of workloads sharing behavior: ransomware, scanner, mem_sweep, "
+              "mem_fault, app.",
+    "instance": "An individual workload (11 total). Instance-level ID names the exact workload.",
+    "threat": "Malicious-class workload: the 4 ransomware variants + the scanner.",
+    "benign": "Non-malicious workload: the mem_* family members + app_hashtable.",
+    "masquerade": "A threat whose memory signal mimics a benign one (slowburn looks like "
+                  "pagefault in APF).",
+    "baseline": "Majority-class accuracy: the score from always guessing the most common "
+                "label. Beating it = real signal.",
+    "LORO": "Leave-One-Replicate-Out CV: test on a held-out repeat of a workload the model "
+            "already saw. Optimistic (memorization-prone).",
+    "LOWO": "Leave-One-Workload-Out CV: test on a workload never seen in training. Honest "
+            "novel-workload generalization.",
+    "LOFO": "Leave-One-Family-Out CV: test on an entire behavior family never seen in "
+            "training. The hardest split.",
+}
+glossary_rows = "\n".join(
+    f'<tr><td class="mono">{t}</td><td>{d}</td></tr>' for t, d in GLOSSARY.items())
+glossary_section = (
+    '<details id="glossary" open>'
+    '<summary>Glossary &mdash; jargon used on this page (underlined terms also explain on hover)</summary>'
+    '<table><thead><tr><th>term</th><th>meaning</th></tr></thead><tbody>'
+    f'{glossary_rows}</tbody></table></details>')
+
+WALKER_JS = r'''(function(){
+  var terms=Object.keys(GLOSSARY).sort(function(a,b){return b.length-a.length;});
+  function esc(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+  var re=new RegExp('(?<!\\w)('+terms.map(esc).join('|')+')(?!\\w)','gi');
+  var low={}; for(var k in GLOSSARY){low[k.toLowerCase()]=GLOSSARY[k];}
+  var SKIPTAG={SCRIPT:1,STYLE:1,CODE:1,SUMMARY:1};
+  var SKIPID={glossary:1,celltable:1};
+  function walk(node){
+    if(node.nodeType===1){
+      if(SKIPTAG[node.tagName]) return;
+      if(node.id&&SKIPID[node.id]) return;
+      if(node.classList&&(node.classList.contains('term')||node.classList.contains('mono'))) return;
+      var kids=Array.prototype.slice.call(node.childNodes);
+      for(var i=0;i<kids.length;i++) walk(kids[i]);
+    } else if(node.nodeType===3){
+      var txt=node.nodeValue;
+      re.lastIndex=0;
+      if(!re.test(txt)) return;
+      var span=document.createElement('span');
+      span.innerHTML=txt.replace(re,function(m){
+        var d=(low[m.toLowerCase()]||'').replace(/"/g,'&quot;');
+        return '<span class="term" tabindex="0" data-def="'+d+'">'+m+'</span>';
+      });
+      var frag=Array.prototype.slice.call(span.childNodes), parent=node.parentNode;
+      for(var j=0;j<frag.length;j++) parent.insertBefore(frag[j],node);
+      parent.removeChild(node);
+    }
+  }
+  document.addEventListener('DOMContentLoaded',function(){
+    var m=document.querySelector('main'); if(m) walk(m);
+  });
+})();'''
+script_html = '<script>\nconst GLOSSARY=' + json.dumps(GLOSSARY, ensure_ascii=False) + ';\n' + WALKER_JS + '\n</script>'
+
 
 def b64(fig):
     buf = io.BytesIO(); fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
@@ -266,10 +348,22 @@ html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
  figure{{margin:14px 0}} figcaption{{color:var(--muted);font-size:12px;margin-top:4px}}
  .wrap{{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}}
  .note{{background:#22262b;border-left:3px solid #4f86c6;padding:10px 14px;border-radius:6px;margin:12px 0}}
+ .term{{position:relative;border-bottom:1px dotted var(--muted);cursor:help}}
+ .term:hover::after,.term:focus::after{{content:attr(data-def);position:absolute;left:0;top:142%;z-index:40;
+   width:max-content;max-width:300px;background:#0d0f12;color:var(--text);border:1px solid var(--line);
+   border-radius:6px;padding:8px 11px;font-size:12px;font-weight:400;line-height:1.45;white-space:normal;
+   box-shadow:0 8px 24px rgba(0,0,0,.55)}}
+ details#glossary{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 16px;margin:16px 0}}
+ details#glossary summary{{cursor:pointer;color:#cfe0f0;font-size:16px;font-weight:600;padding:6px 0}}
+ details#glossary td:first-child{{white-space:nowrap;color:#cfe0f0;font-weight:600}}
 </style></head><body><main>
 <h1>Plan 05 &rarr; Plan 06 &mdash; comprehensive data</h1>
 <p class="sub">All 66 cells, all 11 workloads, both channels. Memory (APF) is the
-Plan 05 view; the disk columns are the Plan 06 addition.</p>
+Plan 05 view; the disk columns are the Plan 06 addition. Hover any
+<span class="term" data-def="Like this: hover a dotted-underlined term to see its definition.">underlined term</span>
+for its definition, or use the glossary below.</p>
+
+{glossary_section}
 
 <h2>1. Two-channel behavior space (the headline view)</h2>
 {img("scatter", "Each point is one cell. X = APF mean (memory). Y = disk write rate (Plan 06). "
@@ -300,14 +394,16 @@ family LOWO 0.348&rarr;0.455 crossing the 0.364 baseline, instance 0.924&rarr;0.
 <b>hurts detection</b> (binary LOWO 0.742&rarr;0.636) &mdash; a characterization channel, not a detector.</div>
 
 <h2>4. Every cell (66)</h2>
-<div class="wrap"><table><thead><tr><th>family</th><th>workload</th><th>kind</th>
+<div class="wrap"><table id="celltable"><thead><tr><th>family</th><th>workload</th><th>kind</th>
 <th class="r">dur s</th><th class="r">rep</th><th class="r">APF mean</th><th class="r">APF CoV</th>
 <th class="r">windows</th><th class="r">disk MB/s</th><th class="r">disk total MB</th></tr></thead><tbody>
 {cell_rows()}
 </tbody></table></div>
 <p class="sub">Full table also at <code>docs/plan06_all_data.csv</code>; standalone figures in
 <code>docs/plan06_figs/</code>.</p>
-</main></body></html>"""
+</main>
+{script_html}
+</body></html>"""
 
 (DOCS / "plan06_comprehensive.html").write_text(html)
 print(f"html -> {DOCS / 'plan06_comprehensive.html'}")
