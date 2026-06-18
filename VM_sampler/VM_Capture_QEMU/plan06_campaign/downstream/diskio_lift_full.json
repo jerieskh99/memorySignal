@@ -1,0 +1,224 @@
+{
+ "schema": "plan06.diskio_lift.v1",
+ "n_cells": 66,
+ "diskio_features": [
+  "wr_rate_mean_mbs",
+  "wr_rate_max_mbs",
+  "wr_rate_p95_mbs",
+  "rd_rate_mean_mbs",
+  "wr_total_mb"
+ ],
+ "results": {
+  "AGNOSTIC": {
+   "binary_lowo": {
+    "loro_acc": 0.9242,
+    "lowo_acc": 0.6061,
+    "lowo_macro_f1": 0.5875,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.5,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.167,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.5,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.2727,
+    "lofo_macro_f1": 0.2479,
+    "per_family": {
+     "app": 1.0,
+     "mem_fault": 0.25,
+     "mem_sweep": 0.333,
+     "ransomware": 0.0,
+     "scanner": 0.5
+    },
+    "per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.5,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 0.0,
+     "mem_writemag_sweep_v2": 0.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.5
+    }
+   },
+   "family5_lowo": {
+    "loro_acc": 0.9091,
+    "lowo_acc": 0.3636,
+    "lowo_macro_f1": 0.2204,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 0.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.167,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.833,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.0
+    }
+   },
+   "instance11_loro": {
+    "loro_acc": 0.8333,
+    "loro_macro_f1": 0.8379
+   }
+  },
+  "AGNOSTIC+peakvar": {
+   "binary_lowo": {
+    "loro_acc": 0.9697,
+    "lowo_acc": 0.7424,
+    "lowo_macro_f1": 0.7395,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.667,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 1.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.667,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.833
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.5758,
+    "lofo_macro_f1": 0.5493,
+    "per_family": {
+     "app": 1.0,
+     "mem_fault": 0.333,
+     "mem_sweep": 0.944,
+     "ransomware": 0.25,
+     "scanner": 0.833
+    },
+    "per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.667,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 0.833,
+     "sandbox_ransom_batched": 1.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.833
+    }
+   },
+   "family5_lowo": {
+    "loro_acc": 0.9545,
+    "lowo_acc": 0.3485,
+    "lowo_macro_f1": 0.231,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 0.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 0.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 0.833,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.0
+    }
+   },
+   "instance11_loro": {
+    "loro_acc": 0.9242,
+    "loro_macro_f1": 0.9212
+   }
+  },
+  "AGNOSTIC+peakvar+diskio": {
+   "binary_lowo": {
+    "loro_acc": 1.0,
+    "lowo_acc": 0.6364,
+    "lowo_macro_f1": 0.6333,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "binary_lofo": {
+    "lofo_acc": 0.4242,
+    "lofo_macro_f1": 0.3883,
+    "per_family": {
+     "app": 1.0,
+     "mem_fault": 0.0,
+     "mem_sweep": 0.889,
+     "ransomware": 0.0,
+     "scanner": 1.0
+    },
+    "per_workload": {
+     "app_hashtable_intensive_v2": 1.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 0.667,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 0.0,
+     "sandbox_ransom_seq": 0.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 1.0
+    }
+   },
+   "family5_lowo": {
+    "loro_acc": 0.9848,
+    "lowo_acc": 0.4545,
+    "lowo_macro_f1": 0.2603,
+    "lowo_per_workload": {
+     "app_hashtable_intensive_v2": 0.0,
+     "mem_mmap_traversal_v2": 0.0,
+     "mem_pagefault_density_v2": 0.0,
+     "mem_rmw_intensity_v2": 1.0,
+     "mem_workingset_sweep_v2": 1.0,
+     "mem_writemag_sweep_v2": 1.0,
+     "sandbox_ransom_batched": 0.0,
+     "sandbox_ransom_selective": 1.0,
+     "sandbox_ransom_seq": 1.0,
+     "sandbox_ransom_slowburn": 0.0,
+     "sandbox_scanner_metadata": 0.0
+    }
+   },
+   "instance11_loro": {
+    "loro_acc": 0.9394,
+    "loro_macro_f1": 0.9363
+   }
+  }
+ },
+ "masquerade_pair_wr_rate_mbs": {
+  "app_hashtable_intensive_v2": 0.0088,
+  "mem_mmap_traversal_v2": 231.6357,
+  "mem_pagefault_density_v2": 0.0086,
+  "mem_rmw_intensity_v2": 0.0078,
+  "mem_workingset_sweep_v2": 0.0082,
+  "mem_writemag_sweep_v2": 0.0087,
+  "sandbox_ransom_batched": 0.0073,
+  "sandbox_ransom_selective": 62.5189,
+  "sandbox_ransom_seq": 59.0699,
+  "sandbox_ransom_slowburn": 0.2934,
+  "sandbox_scanner_metadata": 0.2692
+ }
+}
