@@ -271,7 +271,13 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
         nothing (\texttt{batched}, memory-capped). Two orthogonal channels buy
         behavioral \emph{disambiguation} of workloads that alias in one channel,
         \emph{not} detection -- reinforcing that no single coarse channel separates
-        threat from benign, and that the contribution is characterization.
+        threat from benign, and that the contribution is characterization. On the
+        full 66-cell 2-channel run this splits cleanly: adding disk I/O \emph{helps}
+        identification (11-way instance 0.924$\to$0.939; family seen-before
+        0.955$\to$0.985; family on an \emph{unseen} workload 0.348$\to$0.455,
+        crossing the 0.364 baseline that the memory channel alone could not) and
+        \emph{hurts} threat/benign (leave-one-workload-out 0.742$\to$0.636) -- the
+        second channel is a characterization instrument, not a detector.
   \item \textbf{Imputation is a second family-conditional channel.} Because
         \texttt{cv\_workingset} and \texttt{f1\_phase} are missing by family
         (complementary NaN), median imputation injects a family-correlated

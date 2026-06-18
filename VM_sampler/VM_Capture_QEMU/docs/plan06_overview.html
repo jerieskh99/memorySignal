@@ -98,6 +98,33 @@
   </div>
 
   <div class="card">
+    <h2>Full 66-cell run &mdash; characterization vs detection</h2>
+    <p>The full matrix settles it: disk I/O helps <strong>characterization</strong>
+       (which workload/family) and hurts <strong>detection</strong> (threat/benign).</p>
+    <table>
+      <thead><tr><th>task</th><th class="r">APF only</th><th class="r">+peak/var</th><th class="r">+disk</th></tr></thead>
+      <tbody>
+        <tr><td>binary threat/benign LOWO</td><td class="r mono">0.606</td><td class="r mono">0.742</td><td class="r mono">0.636</td></tr>
+        <tr><td>binary threat/benign LOFO</td><td class="r mono">0.273</td><td class="r mono">0.576</td><td class="r mono">0.424</td></tr>
+        <tr><td>5-class family LORO (seen)</td><td class="r mono">0.909</td><td class="r mono">0.955</td><td class="r mono"><strong>0.985</strong></td></tr>
+        <tr><td>5-class family LOWO (novel)</td><td class="r mono">0.364</td><td class="r mono">0.348</td><td class="r mono"><strong>0.455</strong></td></tr>
+        <tr><td>11-way instance LORO</td><td class="r mono">0.833</td><td class="r mono">0.924</td><td class="r mono"><strong>0.939</strong></td></tr>
+      </tbody>
+    </table>
+    <div class="callout good">
+      <strong>Characterization: disk helps.</strong> Instance 0.924&rarr;0.939,
+      seen-family 0.955&rarr;0.985, and novel-workload family 0.348&rarr;<strong>0.455</strong>
+      &mdash; crossing the 0.364 baseline that memory alone could not. The disk
+      channel is what makes family generalize to an unseen workload.
+    </div>
+    <div class="callout warn">
+      <strong>Detection: disk hurts.</strong> LOWO 0.742&rarr;0.636, LOFO
+      0.576&rarr;0.424 &mdash; "writes to disk" is not a threat marker (benign
+      <code>mmap</code> is the heaviest writer), so it adds a confounding axis.
+    </div>
+  </div>
+
+  <div class="card">
     <h2>The reframe</h2>
     <div class="callout good">
       A second channel's value is <strong>behavioral disambiguation</strong> &mdash;

@@ -77,6 +77,33 @@ project's stance: it is **characterization, not detection**. The honest, defensi
 claim is "two orthogonal channels disambiguate behaviors that one channel aliases,"
 not "the second channel catches the threat."
 
+## Full 66-cell run -- characterization vs detection
+
+The full matrix (11 workloads x 3 durations x 2 reps, 2-channel) settles what the
+subset only hinted: disk I/O helps CHARACTERIZATION and hurts DETECTION.
+
+| task | APF only | +peakvar | +peakvar+diskio |
+|---|---:|---:|---:|
+| binary threat/benign LOWO | 0.606 | 0.742 | 0.636 |
+| binary threat/benign LOFO | 0.273 | 0.576 | 0.424 |
+| 5-class family LORO (seen) | 0.909 | 0.955 | 0.985 |
+| 5-class family LOWO (novel) | 0.364 | 0.348 | **0.455** |
+| 11-way instance LORO | 0.833 | 0.924 | 0.939 |
+
+- **Characterization (which workload/family): disk I/O helps.** Instance ID
+  0.924->0.939, seen-before family 0.955->0.985, and novel-workload family ID
+  0.348->**0.455**, which crosses the 0.364 baseline. Memory alone could not
+  generalize family to an unseen workload; the disk channel is what makes it beat
+  chance. Per-workload, disk recovers held-out `mem_rmw` (0->1.0) and `ransom_seq`
+  (0.83->1.0) at the family level.
+- **Detection (threat/benign): disk I/O hurts** (LOWO 0.742->0.636, LOFO
+  0.576->0.424) -- "writes to disk" is not a threat marker (benign `mmap` is the
+  heaviest writer), so it adds a confounding axis to the threat boundary.
+
+A second orthogonal channel is a **characterization instrument, not a detector**:
+it sharpens which behavior a trace is -- especially family generalization to unseen
+workloads -- while confirming neither channel separates threat from benign.
+
 ## Conclusions
 
 1. **The disk-I/O channel works and is additive** -- flag-gated, byte-identical when
@@ -86,9 +113,12 @@ not "the second channel catches the threat."
    memory-aliased pair.
 3. **It is not a threat axis** -- benign `mmap` is the heaviest writer; threat
    `batched` writes nothing. Multi-channel buys disambiguation, not detection.
-4. **Next (full run):** re-capture all 66 workloads 2-channel to test whether disk
-   I/O improves multi-class WORKLOAD/FAMILY identification (the characterization
-   angle), with the meaningful sample size the subset lacked.
+4. **Full run done -- disk I/O is a characterization channel, not a detector.** On
+   all 66 cells it improves workload/family identification (instance 0.92->0.94,
+   seen-family 0.96->0.99, and novel-workload family 0.35->0.46, crossing the
+   baseline that memory alone could not) while it hurts threat/benign (LOWO
+   0.74->0.64, LOFO 0.58->0.42). The orthogonal channel buys behavioral
+   disambiguation, not detection.
 
 Reproduce: `CAPTURE_DISKIO=1` capture -> `plan05_campaign/build_cells_dir.py`
 (copies the diskio sibling) -> `plan03_sweep.py` -> `plan06_campaign/diskio_lift.py`.
