@@ -132,15 +132,15 @@ def fig_overview():
     ax.text(2, 78, "OFFLINE\n(laptop,\nexisting data)", fontsize=8.6, fontweight="bold", color=PAL["old"], va="center")
     ax.text(2, 34, "SERVER\n(new captures,\ngated)", fontsize=8.6, fontweight="bold", color=PAL["new"], va="center")
     # Wave 1 offline boxes
-    w1 = [("1c separability\nmatrix", 20), ("1d kill-test\n(benign floor)", 38),
-          ("1a fused\ndetector", 56), ("1b CIs +\nsignificance", 74)]
+    w1 = [("separability\n+ cohesion", 20), ("family-normal\npilot", 38),
+          ("open-set\nrecogniser", 56), ("CIs +\nsignificance", 74)]
     for label, x in w1:
         _box(ax, x, 78, 15, 9, label, PAL["old"], fs=8.2)
     for i in range(len(w1) - 1):
         _arrow(ax, w1[i][1] + 7.5, 78, w1[i + 1][1] - 7.5, 78, PAL["old"])
-    ax.text(47, 90, "WAVE 1  (settles the spine)", ha="center", fontsize=9, fontweight="bold", color=PAL["old"])
+    ax.text(47, 90, "WAVE 1  (the per-family recogniser, memory-only)", ha="center", fontsize=9, fontweight="bold", color=PAL["old"])
     # Wave 2 offline
-    _box(ax, 89, 78, 16, 9, "WAVE 2\ndecimation -  2-ch\ncoverage -  disk", PAL["indigo"], fs=7.6)
+    _box(ax, 89, 78, 16, 9, "WAVE 2\ndecimation:\ncapture economy", PAL["indigo"], fs=7.6)
     _arrow(ax, 81.5, 78, 81, 78, PAL["old"])
     # gate diamond
     gx, gy = 56, 56
@@ -154,7 +154,7 @@ def fig_overview():
     _arrow(ax, gx + 6, gy - 5, 56, 34.5, PAL["confirm"]); ax.text(60, 44, "PASS", fontsize=7.6, color=PAL["confirm"], fontweight="bold")
     _arrow(ax, 65.5, 30, 75.5, 30, PAL["new"])
     # fail branch
-    _box(ax, 22, 30, 22, 9, "keep global detector +\nfamily characterization\n(complete, honest thesis)", PAL["benign"], fs=7.6)
+    _box(ax, 22, 30, 22, 9, "keep the memory recogniser\n+ characterisation\n(complete, honest thesis)", PAL["benign"], fs=7.6)
     _arrow(ax, gx - 6, gy - 5, 30, 34.5, PAL["refute"]); ax.text(34, 44, "FAIL", fontsize=7.6, color=PAL["refute"], fontweight="bold")
     # parallel-capture note
     _box(ax, 22, 56, 26, 8, "(parallel) capture app x5 existing +\nauthor scanner x2 -- both machines work", PAL["panel2"], tc=PAL["ink"], fs=7.4)
@@ -170,7 +170,7 @@ def fig_ladder():
     fig, ax = _canvas(10.5, 5.4)
     ax.text(50, 95, "The separability ladder: from 'are they different' to 'does it generalise'", ha="center", fontsize=12.5, fontweight="bold")
     rungs = [
-        ("1 : 1", "PAIRS", "Is behaviour A separable from B?\nThe 11x11 separability matrix.", "LORO-level", PAL["benign"], 16),
+        ("1 : 1", "PAIRS", "Is behaviour A separable from B?\nThe 11x11 separability matrix.", "diagnostic", PAL["benign"], 16),
         ("N : 1", "WITHIN-FAMILY", "Train on N family members,\nrecognise a held-out member.\n(e.g. 3:1 ransomware)", "LOWO", PAL["mem_sweep"], 47),
         ("N : 1", "FAMILY-LEVEL", "Train on N families,\nflag a held-out whole family\nas novel.", "LOFO / open-set", PAL["ransomware"], 78),
     ]
@@ -248,18 +248,25 @@ def fig_two_paths():
 # 6. Two detector flavours
 # =====================================================================
 def fig_flavors():
-    fig, ax = _canvas(10.5, 5.0)
-    ax.text(50, 95, "Two detector flavours (open-set / novelty)", ha="center", fontsize=12.5, fontweight="bold")
-    ax.add_patch(FancyBboxPatch((4, 14), 43, 70, boxstyle="round,pad=0.3,rounding_size=0.5", fc=PAL["panel"], ec=PAL["benign"], lw=1.3))
-    ax.text(25.5, 79, "POPULATION-NORMAL", ha="center", fontsize=10, fontweight="bold", color=PAL["benign"])
-    ax.text(25.5, 71, "learn 'normal' from MANY benign\ntraces; flag what doesn't fit", ha="center", fontsize=8.3, color=PAL["muted"])
-    ax.text(25.5, 52, "+ catches a uniformly quiet\nthreat (slowburn): it differs\nfrom the benign population", ha="center", fontsize=8.4, color=PAL["confirm"])
-    ax.text(25.5, 30, "the existing 0.925 detector\nis this flavour", ha="center", fontsize=8, style="italic", color=PAL["muted"])
-    ax.add_patch(FancyBboxPatch((53, 14), 43, 70, boxstyle="round,pad=0.3,rounding_size=0.5", fc=PAL["panel"], ec=PAL["scanner"], lw=1.3))
-    ax.text(74.5, 79, "WITHIN-TRACE ('normal window')", ha="center", fontsize=9.4, fontweight="bold", color=PAL["scanner"])
-    ax.text(74.5, 71, "learn a trace's OWN recent windows;\nflag when the next one shifts", ha="center", fontsize=8.3, color=PAL["muted"])
-    ax.text(74.5, 52, "+ truly online / streaming", ha="center", fontsize=8.4, color=PAL["confirm"])
-    ax.text(74.5, 38, "- blind to a uniformly quiet\nthreat (no internal shift\nto trip on)", ha="center", fontsize=8.4, color=PAL["refute"])
+    fig, ax = _canvas(10.5, 5.4)
+    ax.text(50, 95, "Two granularities of 'normal-behaviour' model  (a -> b)", ha="center", fontsize=12.5, fontweight="bold")
+    # (a) global
+    ax.add_patch(FancyBboxPatch((3, 16), 41, 66, boxstyle="round,pad=0.3,rounding_size=0.5", fc=PAL["panel"], ec=PAL["old"], lw=1.3))
+    ax.text(23.5, 77, "(a) GLOBAL normal-model", ha="center", fontsize=10.2, fontweight="bold", color=PAL["old"])
+    ax.text(23.5, 69, "one model of 'normal',\nfrom ALL benign traces", ha="center", fontsize=8.4, color=PAL["muted"])
+    _box(ax, 23.5, 55, 30, 7, "Output: normal / anomalous\n(one verdict)", PAL["old"], fs=8.2)
+    ax.text(23.5, 38, "the existing 0.925 detector;\nthreat-flagging RIDES ON TOP\nof this (the (a) corollary)", ha="center", fontsize=8, style="italic", color=PAL["muted"])
+    # arrow a -> b
+    _arrow(ax, 44.5, 49, 55.5, 49, PAL["muted"], 2.2)
+    ax.text(50, 53.5, "specialise", ha="center", fontsize=8, color=PAL["ink"])
+    # (b) per-family
+    ax.add_patch(FancyBboxPatch((56, 16), 41, 66, boxstyle="round,pad=0.3,rounding_size=0.5", fc="#FBF6EC", ec=PAL["new"], lw=1.7))
+    ax.text(76.5, 77, "(b) PER-FAMILY blocks", ha="center", fontsize=10.2, fontweight="bold", color=PAL["new"])
+    ax.text(76.5, 69, "one normal-model PER family", ha="center", fontsize=8.4, color=PAL["muted"])
+    _box(ax, 76.5, 55, 30, 7, "Output: WHICH family,\nor NOVEL (open-set)", PAL["new"], fs=8.2)
+    ax.text(76.5, 37, "THE CENTREPIECE: a behaviour\nrecogniser. 'is it a threat?' =\n'does it match a known\nthreat-shaped family?'", ha="center", fontsize=8, style="italic", color=PAL["new"])
+    ax.text(50, 8.5, "(within-trace streaming is an optional online variant -- blind to a uniformly quiet trace -- not the spine)",
+            ha="center", fontsize=7.4, style="italic", color=PAL["muted"])
     _tag(ax, "schematic")
     _emit(fig, "flavors")
 

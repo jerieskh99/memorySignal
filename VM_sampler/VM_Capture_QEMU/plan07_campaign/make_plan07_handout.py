@@ -49,7 +49,7 @@ METRIC_TABLE = table(
     [["apf_mean, apf_std, cepstral, stat_pass_frac, n_pairs, n_windows", "AGNOSTIC (7)", "existing", "leakage-free level + periodicity + quality"],
      ["apf_max, apf_p95", "peakvar -- magnitude", "existing", "level / loudness of churn"],
      ["apf_cov, peak2med, duty_gt05", "peakvar -- scale-invariant", "existing", "shape / burstiness (unitless)"],
-     ["wr_rate, rd_rate, rd_frac", "disk (Plan 06)", "existing", "host-side disk read/write behaviour"],
+     ["wr_rate, rd_rate, rd_frac", "disk (Plan 06)", "ablation only", "a second-channel comparison -- NOT part of the memory-only spine"],
      ["APF (changed-page fraction)", "Hamming -- baseline", "kept", "the existing signal, retained for comparison"],
      ["Hamming sum", "Hamming -- NEW", "additive", "total bits flipped per snapshot"],
      ["mean Hamming / changed page", "Hamming -- NEW", "additive", "intensity per touched page -- the encryption tell"],
@@ -91,51 +91,61 @@ WINDOWS_TABLE = table(
 
 SIGFLOOR_TABLE = table(
     ["Independent units n", "Sign / McNemar floor p = 2^(1-n)", "Can reach p < 0.05?"],
-    [["4 (disk-LOFO)", "0.125", "No, ever"],
-     ["5", "0.0625", "No, ever"],
-     ["6 (LOFO)", "0.031", "Only if all 6 agree, no ties"],
-     ["11 (LOWO)", "0.00098", "Yes (needs >= 6 concordant)"]],
-    "Structural significance floor. With few independent units, some claims cannot reach "
-    "significance regardless of effect size -- they are reported descriptively, with CIs.")
+    [["5 (LOFO, current families)", "0.0625", "No, ever -- on the current 5 families"],
+     ["7+ (LOFO, after capturing IO + IDLE)", "0.016 or lower", "Yes -- the capture lifts it below 0.05"],
+     ["11 (LOWO, current workloads)", "0.00098", "Yes (needs >= 6 concordant)"]],
+    "Structural significance floor (sign / McNemar). With only **5** families, "
+    "leave-one-family-out cannot reach significance regardless of effect size; capturing the "
+    "currently-absent IO and IDLE families (>= 7 total) drops the floor below 0.05. Few-unit "
+    "comparisons are reported descriptively, with CIs, until the families grow.")
 
 EXPECTED_TABLE = table(
     ["Experiment", "CONFIRM (and its meaning)", "REFUTE (and its meaning)"],
-    [["1c separability (slowburn vs pagefault, memory alone)",
-      "AUC ~ 1.0, exact test p < 0.0167 -> Finding #2 rewritten: separable in memory; the supervised setup failed, not the signal",
-      "AUC ~ 0.5 out-of-sample -> memory aliasing is real; disk genuinely required"],
-     ["1d kill-test (benign-floor learning curve)",
-      "AUC degrades gracefully as benign workloads leave training -> detector learns a manifold; green-light",
-      "AUC collapses when one benign workload (esp. pagefault) leaves -> memorisation of 6 points; stop"],
-     ["1a fused detector (one-class, PR-AUC, leak-free threshold)",
-      "PR-AUC CI above prevalence under LOFO-benign -> a real weak-positive detector with an operating point",
-      "PR-AUC CI straddles prevalence -> the 0.93 was a ROC/prevalence illusion; the negative is hardened with CIs"],
-     ["per-family pilot (ransomware n=4, mem_sweep n=3)",
-      "held-out family member accepted, other family rejected -> family-normal generalises; cohesion measured",
-      "within-family rejection or cross-family acceptance -> family label does not map to one memory routine (a finding)"]],
-    "Every experiment is win/win: both outcomes are reportable, and several can rewrite the thesis spine.")
+    [["Separability + cohesion (per family, memory only)",
+      "within-family tight, between-family distinct -> families have a coherent memory signature; family-normal models are meaningful",
+      "families not cohesive -> the semantic taxonomy does not map to memory; sub-family granularity needed (still a finding)"],
+     ["Family-normal recogniser (within-family hold-one-out)",
+      "held-out, unseen family member accepted; other families rejected -> the recogniser generalises within a family",
+      "held-out member rejected, or cross-family accepted -> the family label does not map to one routine"],
+     ["Open-set novelty (hold out a whole family)",
+      "a never-seen family is flagged NOVEL, not forced into a known one -> open-set recognition works",
+      "the novel family is absorbed into a known one -> the novelty boundary is too weak"],
+     ["Memory resolves the masquerade (slowburn vs pagefault, NO disk)",
+      "separable in memory alone (AUC ~ 1.0) -> the disk channel is not needed for the spine",
+      "inseparable out-of-sample -> a second channel is genuinely required after all"],
+     ["Detection as a corollary of (b)",
+      "threat-shaped families are recognised + flag-on-match works with CIs -> detection rides on recognition",
+      "threat families are not recognisable as families -> memory recognises kinds but not threat-ness (an honest negative)"]],
+    "Every experiment is win/win. The spine is the per-family recogniser (b); detection (a) is derived from it.")
 
 SECTIONS = [
 ("summary", "Summary", [
-    p("This handout specifies **Plan 07**, an offline-first re-examination of the central claim "
-      "of this thesis. Plans 05 and 06 concluded that the VM memory signal (APF) supports "
-      "**characterization, not detection** -- that no single channel separates the simulated-threat "
-      "class from the benign class. A reconvened review (a seven-role research team plus a three-lens "
-      "adversarial critique, all reading the committed code) found that this negative may be an "
-      "artifact of the **estimator and the small sample**, not a property of the signal."),
-    p("Two facts, already sitting in our committed results, motivate the re-test. First, a "
-      "**one-class novelty detector** (trained on benign only) scores **ROC-AUC 0.925** on a "
-      "held-out workload and **0.933** on a held-out benign family -- far above the supervised "
-      "classifier (~0.79) on which the 'detection is dead' conclusion rested. Second, the two "
-      "workloads we called 'memory twins' (the stealth threat **slowburn** and the benign "
-      "**pagefault**) are in fact **separable in the raw signal** (Cohen's d ~ 5.6, "
-      "non-overlapping) yet both score **0.0** under leave-one-workload-out -- a labelling "
-      "artifact, not aliasing."),
-    p("Every decisive experiment runs **offline on data we already have**; new captures are "
-      "gated behind an offline pilot. The outcome is win/win: either the thesis spine upgrades "
-      "from a negative to a **positive, mechanistic** claim (with error bars), or the negative "
-      "is **rigorously hardened** and its true limiter named. This document covers the research "
-      "questions, the data model, the metrics (existing and new), the tests we have and the "
-      "ones to capture, the two modelling paths, the methodology, and the expected results."),
+    p("**Plan 07 builds a behaviour recogniser from a single host-side memory signal.** Watching "
+      "a VM from the outside -- no agent inside the guest -- the system places a running workload "
+      "into a known **behaviour family** (memory-sweep-like, IO-like, file-processing-like, ...) "
+      "or flags it as **novel**. That recogniser is the centrepiece and the claim. Threat-flagging "
+      "is a *downstream consequence* of it: a behaviour that matches a known threat-shaped family "
+      "is flagged for review. We build (b) the recogniser; (a) detection rides on top of it."),
+    p("**What already works, and what is open.** We can already identify a workload's behaviour "
+      "*when its kind has been seen before* -- instance and family identification reach ~0.97 on "
+      "the optimistic (seen-before) split. That much is established. What Plan 07 answers is the "
+      "open part: does a per-family 'normal-behaviour' model generalise to an *unseen* member of "
+      "its family; do families even have a **coherent memory signature** (or does our taxonomy not "
+      "match the data); can the system flag a **novel** family open-set; and does threat-flagging "
+      "follow as a corollary."),
+    p("The reframe that makes this worth doing: the earlier 'characterisation, not detection' "
+      "reading understated the signal. A one-class model already recognises 'normal' at ROC-AUC "
+      "**0.925**, and two workloads we had called inseparable in memory separate cleanly (Cohen's "
+      "d ~ **5.6**) once the right method is used -- they scored 0.0 only because a *supervised "
+      "classifier* failed on them. The memory signal carries more behavioural structure than the "
+      "negative implied."),
+    p("The signal is **memory only** -- APF plus a new per-page magnitude metric. The disk channel "
+      "from Plan 06 is retained as a supporting **ablation**, not part of the spine (we keep the "
+      "thesis on its novel contribution, the memory signal). Every decisive experiment runs "
+      "**offline on data we already have**, with new captures gated behind an offline pilot. The "
+      "outcome is win/win: either a working behaviour recogniser with measured family cohesion, or "
+      "a rigorous, error-bounded map of exactly where memory recognises behaviour and where it "
+      "does not."),
     callout("new", "Safety and scope (please read first)",
       "This is academic, defensive research. Every reference to 'threat', 'ransomware', "
       "'scanner', or 'encryptor' in this document denotes a SAFE SYNTHETIC SIMULATION -- a "
@@ -156,14 +166,16 @@ SECTIONS = [
       "second, disk-I/O channel."),
     p("The downstream conclusion was sobering and honest: a **supervised** threat/benign "
       "classifier did not generalize to unseen workloads or families (binary leave-one-workload-out "
-      "~0.79, leave-one-family-out ~0.58, and 0.0 on the stealth pair), and the disk channel "
-      "helped **characterization** (instance identification rose to 0.985) but not detection. "
-      "Hence: characterization, not detection."),
+      "~0.79, leave-one-family-out ~0.58, and 0.0 on the stealth pair), and a second, disk-I/O "
+      "channel helped **characterization** (instance identification rose to 0.985) but not "
+      "detection. Hence the earlier reading: characterization, not detection. (Plan 07 keeps the "
+      "spine **memory-only** and treats that disk channel as a supporting ablation -- see Metrics.)"),
     p("The review then noticed what the supervised framing had hidden. The **same committed "
       "results file** contains a one-class novelty detector at ROC-AUC 0.925 / 0.933, and the "
-      "'memory twins' separate cleanly in raw apf_mean. In other words, the negative result may "
-      "be a property of *how we asked the question* (a supervised boundary across too few "
-      "workloads), not of the memory signal. Plan 07 tests exactly that."),
+      "'memory twins' separate cleanly in raw apf_mean. In other words, the negative result was a "
+      "property of *how we asked the question* (a supervised boundary across too few workloads), "
+      "not of the memory signal. Plan 07 builds on that: a memory-only behaviour recogniser, with "
+      "detection as a corollary."),
     fig("results", "The motivating result. A one-class novelty detector already beats the "
         "supervised classifier the thesis used to declare detection dead. The 0.933 is flagged "
         "for a fixable validity issue (see Methodology)."),
@@ -172,36 +184,34 @@ SECTIONS = [
         "under leave-one-workload-out -- a labelling-coverage artifact."),
 ]),
 ("questions", "Research questions", [
-    p("The questions group into three themes. An earlier draft folded the entire "
-      "characterisation-and-taxonomy theme into a single question; because each of its parts "
-      "carries as much weight as any other question, it is split out into peer questions here."),
-    h3("Theme A -- Detection"),
-    ul(["**RQ1 -- Is detection real?** Does a one-class novelty model detect the simulated-threat "
-        "class from memory (with honest error bars and a stated operating point), or was the high "
-        "number a metric/prevalence illusion?",
-        "**RQ2 -- Does memory separate the 'twins'?** Can a calibrated model separate the "
-        "quiet-threat simulation (slowburn) from the benign pagefault workload in memory alone, "
-        "out-of-sample -- which would rewrite the characterization-not-detection spine?"]),
-    h3("Theme B -- Characterisation and taxonomy (the split-out theme)"),
-    ul(["**RQ3 -- Are families cohesive?** Do the workloads of a family resemble each other in "
+    p("The questions group into three themes, **led by the recogniser** -- the centrepiece. "
+      "Detection appears last, as a corollary. None of the eight is assumed; every outcome is a "
+      "publishable finding."),
+    h3("Theme A -- The recogniser: characterisation, families, novelty (the centrepiece)"),
+    ul(["**RQ1 -- Are families cohesive?** Do the workloads of a family resemble each other in "
         "memory enough for a single 'family-normal' model to represent them? Cohesion is "
         "**measured** per family, not assumed.",
-        "**RQ4 -- Does a family-normal model generalise?** Trained on some members of a family, "
-        "does it accept a held-out, unseen member and reject other families (supervised "
-        "within-family generalisation)?",
-        "**RQ5 -- Does memory respect our taxonomy?** With no labels, do data-driven clusters of "
-        "the memory signal recover the semantic families, or carve the space differently?",
-        "**RQ6 -- Bank or reject-option?** For open-set recognition, does a per-family one-class "
-        "bank beat a discriminative classifier with a reject option -- or are they "
-        "indistinguishable at this sample size?"]),
-    h3("Theme C -- Signal and capture economy"),
-    ul(["**RQ7 -- Do magnitude-aware metrics catch stealth?** Does mean-Hamming-per-changed-page "
+        "**RQ2 -- Does a family-normal model generalise?** Trained on some members of a family, "
+        "does it accept a held-out, *unseen* member and reject other families?",
+        "**RQ3 -- Does memory respect our taxonomy?** With no labels, do data-driven clusters of "
+        "the memory signal recover the families we named, or carve the space differently?",
+        "**RQ4 -- Can we flag the novel, open-set?** Held out a whole family, does the system "
+        "label it **NOVEL** rather than forcing it into a known family -- and does a per-family "
+        "one-class *bank* beat a discriminative classifier with a *reject option* (or tie at "
+        "this sample size)?"]),
+    h3("Theme B -- The signal"),
+    ul(["**RQ5 -- Do magnitude-aware metrics catch stealth?** Does mean-Hamming-per-changed-page "
         "expose the simulated encryptor (slowburn) that APF's changed-page count cannot see?",
-        "**RQ8 -- How cheap can capture be?** What is the minimum useful trace length, and how "
+        "**RQ6 -- How cheap can capture be?** What is the minimum useful trace length, and how "
         "coarsely can we sample, before the signal degrades -- which sets the budget for "
         "expanding the workload set?"]),
-    p("Every outcome is a publishable finding; none of the eight is assumed. RQ3--RQ6 are the "
-      "characterisation core and are deliberately kept as separate, equally weighted questions."),
+    h3("Theme C -- Detection, as a corollary of the recogniser"),
+    ul(["**RQ7 -- Does threat-flagging ride on top?** Once behaviour is recognised by family, can "
+        "'flag if it matches a known threat-shaped family' be shown to work, with error bars?",
+        "**RQ8 -- Is the masquerade resolved in memory alone?** Do slowburn and pagefault separate "
+        "in the memory signal *without* the disk channel -- confirming the spine needs only memory?"]),
+    p("Theme A is the core. Themes B and C support and extend it; detection (Theme C) is "
+      "deliberately downstream of recognition, not the headline."),
 ]),
 ("data-model", "How we look at the data", [
     p("The experiment is built on a **nested data model**. Each level is both a statistical unit "
@@ -226,29 +236,34 @@ SECTIONS = [
 ("overview", "Plan overview", [
     p("Work proceeds on two tracks in parallel -- offline analysis on data in hand, and (gated) "
       "new captures on the server -- across three waves. A single decision gate governs whether "
-      "any server time is spent."),
-    fig("overview", "Two tracks, three waves, one gate. Wave 1 (offline) settles the spine; "
-        "the gate releases server captures only if the offline pilot passes; either gate outcome "
-        "leaves a complete, honest thesis."),
-    h3("Wave 1 (offline, existing data) -- run in order"),
-    ul(["**1c separability matrix** -- the diagnostic: which behaviours actually alias in memory.",
-        "**1d kill-test** -- the benign-floor learning curve; the cheapest test that could "
-        "falsify the whole detection reframe before we over-invest.",
-        "**1a fused detector** -- the definitive one-class experiment with PR-AUC, a leak-free "
-        "operating point, per-workload recall, and a magnitude-vs-shape ablation.",
-        "**1b confidence intervals + significance** on every remaining headline number."]),
+      "any server time is spent. The whole plan is **memory-only**."),
+    fig("overview", "Two tracks, three waves, one gate. Wave 1 (offline) builds the per-family "
+        "recogniser from the memory signal; the gate releases server captures only if the offline "
+        "pilot passes; either gate outcome leaves a complete, honest thesis."),
+    h3("Wave 1 (offline, existing data) -- build the recogniser"),
+    ul(["**Separability + cohesion** -- the workload-level matrix, blocked by family: which "
+        "behaviours alias, and how cohesive each family is (RQ1, RQ3).",
+        "**Family-normal pilot** -- on the families that already have enough workloads "
+        "(ransomware, mem_sweep), train a family-normal model and test it on a held-out, unseen "
+        "member (RQ2); run the bank vs reject-option bake-off (RQ4).",
+        "**Open-set recogniser** -- hold out a whole family, check it is flagged NOVEL; report a "
+        "leak-free operating point and per-workload recall.",
+        "**Confidence intervals + significance** on every headline number (workload / family unit)."]),
     h3("Wave 2 (offline) and Wave 3 (server, gated)"),
-    ul(["Wave 2: the decimation cadence law, a two-channel alias-coverage statistic, and a "
-        "disk-fairness re-analysis -- all offline.",
-        "Wave 3: capture more workloads to lift the small families, and (if justified) a "
-        "graded-Hamming re-capture -- only after the gate passes."]),
+    ul(["Wave 2: the **capture-economy** study -- trajectory decimation and truncation -- fixing "
+        "the minimum useful cadence and length (RQ6). The Plan 06 disk experiments are dropped "
+        "from the spine.",
+        "Wave 3: **capture more workloads** to lift the small families and add the absent IO and "
+        "IDLE families, and (if justified) a graded-Hamming re-capture -- only after the gate passes."]),
 ]),
 ("metrics", "Metrics: existing and new", [
     p("The features split into level (magnitude) and shape (scale-invariant). The strong "
-      "one-class detector leans on magnitude features, which is also its weakness: magnitude is "
-      "a poor proxy for threat in this corpus (the stealth threat slowburn is *quieter* than the "
-      "benign mmap is loud). Plan 07 therefore tests magnitude, scale-invariant, and combined "
-      "feature sets, and adds a new magnitude-aware-but-cheap metric."),
+      "one-class model leans on magnitude features, which is also its weakness: magnitude is "
+      "a poor proxy for the threat-shaped class here (the stealth simulation slowburn is *quieter* "
+      "than the benign mmap is loud). Plan 07 therefore tests magnitude, scale-invariant, and "
+      "combined feature sets, and adds a new magnitude-aware-but-cheap metric. The recogniser uses "
+      "**memory features only**; the disk features remain in the inventory as a second-channel "
+      "**ablation**, not part of the spine."),
     fig("features", "The feature taxonomy. Existing memory and disk features (left) plus the "
         "new per-page Hamming scalars (right), with the motivation for the new metric."),
     METRIC_TABLE,
@@ -284,7 +299,9 @@ SECTIONS = [
     WINDOWS_TABLE,
 ]),
 ("paths", "Two modelling paths", [
-    p("Two distinct, complementary modelling paths run in parallel. They are not competitors."),
+    p("Two distinct, complementary modelling paths run in parallel. The **per-family path is the "
+      "centrepiece** (the recogniser); the per-workload path supports it with instance-level "
+      "separability. They are not competitors."),
     fig("two_paths", "The per-workload path (instance identification) and the per-family path "
         "(learn a family's normal routine). The per-family path both characterises the family "
         "and yields an open-set normality model."),
@@ -314,21 +331,23 @@ SECTIONS = [
       "shape are likely **complementary** -- each resolves different pairs -- and the matrix is "
       "the instrument that shows, pair by pair, where each matters."),
 ]),
-("flavors", "Two detector flavours, and the bake-off", [
-    p("Within the detection work, two flavours of novelty detector answer different questions."),
-    fig("flavors", "Population-normal (learn normal from many benign traces) versus within-trace "
-        "(learn a trace's own recent windows and flag a shift). The first can catch a uniformly "
-        "quiet threat; the second is truly online but blind to one."),
-    p("There is also an unresolved mechanism question for the per-family path, to be settled "
-      "**empirically** rather than by argument: the **per-family one-class bank** (one density "
-      "model per family) versus a **discriminative family classifier with a reject option** "
-      "(open-set with two thresholds rather than five blocks). At the current sample size the "
-      "two may be statistically indistinguishable, so the pilot runs **both on the same folds** "
-      "and lets the data decide."),
+("flavors", "Global model, then per-family blocks", [
+    p("All the models here are **novelty / one-class** -- learn what 'normal' looks like, flag "
+      "what does not fit. They differ in **granularity**, and that granularity is the (a) -> (b) "
+      "structure of the whole plan."),
+    fig("flavors", "(a) one GLOBAL normal-model (output: normal / anomalous -- the detection "
+        "corollary) specialises into (b) one normal-model PER FAMILY (output: which family, or "
+        "NOVEL -- the recogniser, and the centrepiece). Within-trace streaming is an optional "
+        "online variant, not the spine."),
+    p("For the per-family blocks (b), one mechanism question is settled **empirically**, not by "
+      "argument: a **per-family one-class bank** (one density model per family) versus a "
+      "**discriminative classifier with a reject option** (open-set with two thresholds rather "
+      "than five blocks). At the current sample size the two may be statistically "
+      "indistinguishable, so the pilot runs **both on the same folds** and lets the data decide (RQ4)."),
     callout("warn", "The sharp failure mode to guard against",
       "The per-family rule 'clear it if it matches a known benign family' can launder the stealth "
-      "threat: slowburn (low APF) is closest to a benign family in a magnitude-driven space, so a "
-      "benign block would clear it. Guard: run the pilot on magnitude-invariant shape features "
+      "simulation: slowburn (low APF) is closest to a benign family in a magnitude-driven space, so "
+      "a benign block would clear it. Guard: run the pilot on magnitude-invariant shape features "
       "(apf_cov, peak2med, duty_gt05) and hold slowburn out as a probe, with its recall on the "
       "headline table so it can never hide in an average."),
 ]),
@@ -339,7 +358,7 @@ SECTIONS = [
         "threshold/PR metric (the committed code fits these globally -- valid for ROC ranking, "
         "but a leak for an operating point).",
         "**Honest units.** Bootstrap confidence intervals resample whole **workloads** (11) for "
-        "LOWO/detection claims and **families** (6) for LOFO; the (workload, duration) cluster "
+        "LOWO/recogniser claims and **families** (5) for LOFO; the (workload, duration) cluster "
         "bootstrap is a labelled sensitivity bound only, never the headline CI.",
         "**Significance by permutation/exact tests**, computed at the generalization unit -- not "
         "asymptotic tests, given n <= 11.",
@@ -350,11 +369,11 @@ SECTIONS = [
       "with confidence intervals, and never dressed up with a p-value."),
     SIGFLOOR_TABLE,
     p("Accordingly, claims are sorted into three tiers: a small set of **confirmatory** "
-      "hypotheses (the one-class detector vs a permutation null, the slowburn/pagefault "
-      "separability, the supervised binary vs the prior) corrected together with Holm; "
-      "**descriptive** results (all leave-one-family-out comparisons, 'disk hurts detection', "
-      "'family beats prior') reported as intervals with no significance verdict; and "
-      "**effect-size-only** results (the masquerade separation magnitude). The false-positive "
+      "hypotheses (the family-normal recogniser vs a permutation null, the slowburn/pagefault "
+      "separability in memory, the one-class normal-model vs chance) corrected together with "
+      "Holm; **descriptive** results (all leave-one-family-out comparisons) reported as intervals "
+      "with no significance verdict; and **effect-size-only** results (the masquerade separation "
+      "magnitude). The false-positive "
       "benefit of the per-family scheme is, on current data, demonstrable only as a worked "
       "mechanism -- with at most ~5 honest novel-benign test points, its exact-McNemar floor is "
       "0.0625, so it cannot reach significance until the families grow."),
@@ -364,11 +383,11 @@ SECTIONS = [
       "per experiment, what would confirm versus refute -- and what each means."),
     EXPECTED_TABLE,
     callout("good", "Why this is win/win",
-      "If the detector survives confidence intervals and the benign-floor kill-test, the spine "
-      "upgrades to a positive, mechanistic claim that also *explains* the old negative as a "
-      "small-sample estimator artifact. If it collapses, the negative is hardened with proper "
-      "error bars and the true limiter (benign diversity at n=11) is named -- which also redirects "
-      "scarce server time correctly. Neither path is a dead end."),
+      "If the per-family recogniser generalises and families prove cohesive, the thesis is a "
+      "working **memory-only behaviour recogniser** with open-set novelty -- and detection follows "
+      "as a corollary. If families prove *not* cohesive, that is itself a finding (the memory "
+      "signal carves behaviour differently from our taxonomy), reported with error bars, and it "
+      "redirects the capture toward the granularity that does work. Neither path is a dead end."),
 ]),
 ("risks", "Risks and honest scope", [
     ul(["**Small n.** 11 workloads / 5 families bound what any analysis can claim; several "
@@ -381,7 +400,10 @@ SECTIONS = [
         "memory -- reported as a finding, not hidden.",
         "**Per-page spatial detail is not retained.** The new Hamming scalars keep aggregate "
         "magnitude, not which pages changed; a future spatial analysis would need a richer "
-        "capture."]),
+        "capture.",
+        "**Disk is out of scope on the spine.** The Plan 06 disk-channel result is reported only "
+        "as an ablation; the recogniser claims nothing from it, keeping the contribution "
+        "memory-only."]),
     p("The plan is deliberately staged so that the expensive, irreversible step (server capture) "
       "is the last one, and is taken only after the cheap, offline steps have shown it is worth "
       "taking."),
