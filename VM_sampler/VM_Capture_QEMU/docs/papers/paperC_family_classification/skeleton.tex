@@ -56,6 +56,34 @@ Memory-Liveness Trajectory? A Leakage-Controlled Study}
 \end{abstract}
 
 \section{Introduction}
+
+We investigate whether the behaviour of a workload running inside a virtual machine
+can be recognised from a single host-side memory signal, observed black-box and without
+any in-guest agent. The signal is the \emph{Active Page Fraction} (APF) -- the fraction
+of guest pages that change between consecutive memory snapshots -- augmented with a
+per-page \emph{bit-flip magnitude} computed from the same snapshots, which exposes
+write-intensive behaviour that the change-or-no-change fraction alone cannot register;
+the method consequently requires no instrumentation beyond periodic memory capture.
+
+Workload identity is already recoverable from this signal when a family member has been
+observed during training, reaching near-ceiling accuracy ($\approx 0.97$) under the
+optimistic leave-one-replicate-out protocol. The open problem, and the subject of this
+paper, is the harder regime: generalisation to \emph{unseen} members of a known family,
+and recognition of \emph{novel} families never observed during training.
+
+Our central contribution is to cast workload-behaviour identification as \emph{open-set}
+family recognition over a host-side memory signal: we model the \emph{normal behaviour}
+of each known workload family and, at inference, either assign a trace to a family or
+declare it novel. Threat detection reduces to a corollary under this formulation,
+accordingly, since a trace assigned to a threat-associated family is flagged without a
+dedicated detector.
+
+We further treat family \emph{cohesion} -- whether the members of a family share a memory
+signature -- not as an assumption but as a measured quantity, thereby rendering both
+outcomes, a coherent family or a taxonomy the signal does not respect, reportable findings.
+
+% Prior-framing contribution register (Plan 05/06 leakage / characterization result);
+% retained for reference, to be reconciled with the open-set recogniser framing above.
 \begin{itemize}
   \item APF discards per-page detail (Paper A). A fair question is whether the
         surviving scalar still carries workload identity, at the family level
