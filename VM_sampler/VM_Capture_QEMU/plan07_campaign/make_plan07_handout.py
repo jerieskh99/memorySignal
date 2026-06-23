@@ -410,6 +410,12 @@ SECTIONS = [
 ]),
 ]
 
+# Lead the body with the recogniser architecture (paths + granularity), right after the
+# plan overview; keep the separability ladder after Metrics (it needs the feature taxonomy).
+_ORDER = ["summary", "motivation", "questions", "data-model", "overview", "paths",
+          "flavors", "metrics", "tests", "ladder", "methodology", "expected", "risks"]
+SECTIONS = sorted(SECTIONS, key=lambda s: _ORDER.index(s[0]))
+
 # ---------------------------------------------------------------- inline markup
 def _md(s, esc):
     s = esc(s)
