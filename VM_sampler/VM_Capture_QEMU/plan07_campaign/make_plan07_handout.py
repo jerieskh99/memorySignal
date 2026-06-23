@@ -40,8 +40,9 @@ FAM_TABLE = table(
      ["mem_fault", "benign", "2", "12", "No -- 1 degenerate fold"],
      ["app", "benign", "1", "6", "No -- family-of-one (memorises one workload)"],
      ["scanner", "threat", "1", "6", "No -- family-of-one; and a threat family"]],
-    "Family composition of the existing 66-cell dataset. Size, in distinct workloads, decides "
-    "whether a per-family model can be honestly validated.")
+    "Family composition of the CURRENT 66-cell dataset. These figures are provisional -- they "
+    "grow as we capture more workloads (see the catalogue below). Size, in distinct workloads, "
+    "decides whether a per-family model can be honestly validated.")
 
 METRIC_TABLE = table(
     ["Metric", "Group", "Status", "What it captures"],
@@ -56,15 +57,30 @@ METRIC_TABLE = table(
     "Feature inventory. The new per-page Hamming scalars are computed additively at capture "
     "(XOR + popcount in the page comparison APF already performs) -- a few scalars, no per-page storage.")
 
+CATALOG_TABLE = table(
+    ["Family", "Captured (66-cell)", "Available now (built)", "Also specced (design docs)"],
+    [["app", "1 (hashtable)", "6: + sqlite_oltp / sqlite_analytical / gzip_compress / gzip_decompress / json_parse", "--"],
+     ["mem", "5 (sweep + fault)", "8: + phase-1 mem_stream / mem_pointer_chase / mem_alloc_touch_pages", "mem_random_write_pages, mem_stride_sweep_large"],
+     ["IO", "0", "3: phase-1 io_seq_fsync / io_rand_rw / io_many_files", "next-gen IO family"],
+     ["IDLE", "0", "0", "idle baselines (negative / reference family)"],
+     ["ransomware", "4", "4 (seq / batched / slowburn / selective)", "--"],
+     ["scanner", "1", "1 (scanner_metadata)", "additional scanner variants"]],
+    "The available catalogue is much larger than the 66-cell subset: roughly 22 built workloads "
+    "(16 in VM_executables_phase2 + 6 phase-1) plus whole specced families (IO, IDLE) we never "
+    "captured. The capture plan should draw on all of it, not just fill the thin families.")
+
 CAPTURE_TABLE = table(
-    ["Family", "Have", "Target", "Add", "Path", "Source"],
-    [["app", "1", ">= 3 (up to 6)", "+5", "capture only (no code)", "existing app_sqlite_oltp / sqlite_analytical / gzip_compress / gzip_decompress / json_parse"],
-     ["scanner", "1", ">= 3", "+2", "author new code, then capture", "two new scanner-behaviour programs"],
-     ["mem_fault", "2", ">= 3", "+1", "author or treat variants as distinct", "judgment call"],
-     ["ransomware", "4", "ok", "--", "already sufficient", "--"],
-     ["mem_sweep", "3", "ok", "--", "already sufficient", "--"]],
-    "Capture plan to lift every family to a validatable size. app is fixed by pure capture "
-    "(executables exist); only scanner needs new code.")
+    ["Family", "Captured", "Capture plan (priority order)"],
+    [["app", "1", "capture all 6 built programs -- no new code; takes app 1 -> 6"],
+     ["IO", "0", "capture the 3 built IO programs -- an entire family currently absent"],
+     ["mem", "5", "add the 3 built phase-1 mem programs (+ specced variants) for within-family diversity"],
+     ["IDLE", "0", "capture idle baselines as a reference / negative family"],
+     ["scanner", "1", "author ~2 more scanner programs, then capture"],
+     ["ransomware", "4", "sufficient; optionally add variants for tighter intervals"]],
+    "Capture broadly for workload and family diversity (the real binding constraint), "
+    "prioritising families with too few distinct workloads and the entirely-absent IO and IDLE "
+    "families. Most of this is capture-only (the executables exist); only scanner needs new code. "
+    "All counts are current and grow with capture.")
 
 WINDOWS_TABLE = table(
     ["Duration", "Windows per cell (range, W=8/H=4)", "Note"],
@@ -102,8 +118,8 @@ SECTIONS = [
 ("summary", "Summary", [
     p("This handout specifies **Plan 07**, an offline-first re-examination of the central claim "
       "of this thesis. Plans 05 and 06 concluded that the VM memory signal (APF) supports "
-      "**characterization, not detection** -- that no single channel separates malicious from "
-      "benign behaviour. A reconvened review (a seven-role research team plus a three-lens "
+      "**characterization, not detection** -- that no single channel separates the simulated-threat "
+      "class from the benign class. A reconvened review (a seven-role research team plus a three-lens "
       "adversarial critique, all reading the committed code) found that this negative may be an "
       "artifact of the **estimator and the small sample**, not a property of the signal."),
     p("Two facts, already sitting in our committed results, motivate the re-test. First, a "
@@ -120,7 +136,14 @@ SECTIONS = [
       "is **rigorously hardened** and its true limiter named. This document covers the research "
       "questions, the data model, the metrics (existing and new), the tests we have and the "
       "ones to capture, the two modelling paths, the methodology, and the expected results."),
-    callout("info", "Dataset at a glance",
+    callout("new", "Safety and scope (please read first)",
+      "This is academic, defensive research. Every reference to 'threat', 'ransomware', "
+      "'scanner', or 'encryptor' in this document denotes a SAFE SYNTHETIC SIMULATION -- a "
+      "controlled workload generator that imitates a behavioural *shape* using a reversible XOR "
+      "on disposable sandbox files. There is no real malware, no real encryption, no network "
+      "activity, and no persistence. See RESEARCH_SAFETY_NOTICE.md and "
+      "VM_executables_phase2/docs/SAFETY_MODEL.md."),
+    callout("info", "Dataset at a glance (current figures; grow with capture)",
       "11 workloads, 5 families, 66 cells = 11 workloads x 3 durations (120 / 300 / 600 s) x 2 "
       "repetitions. Memory snapshot cadence 500 ms; analysis window W=8, hop H=4; 5--244 windows "
       "per cell. Binary majority prior 0.545; family majority prior 0.364."),
@@ -149,23 +172,36 @@ SECTIONS = [
         "under leave-one-workload-out -- a labelling-coverage artifact."),
 ]),
 ("questions", "Research questions", [
-    p("Plan 07 is organised around five questions. None is assumed; each is answered by an "
-      "experiment whose every outcome is a publishable finding."),
-    ul(["**RQ1 -- Is detection real?** Does a one-class novelty model detect threats from memory "
-        "(with honest error bars and a stated operating point), or was the high number a "
-        "metric/prevalence illusion?",
-        "**RQ2 -- Does memory separate the 'twins'?** Can a calibrated model separate slowburn "
-        "from pagefault in memory alone, out-of-sample -- which would rewrite the "
-        "characterization-not-detection spine?",
-        "**RQ3 -- Are families cohesive, and does memory respect our taxonomy?** Do the workloads "
-        "of a family resemble each other in memory (so a family-normal model is meaningful), and "
-        "do data-driven clusters recover the semantic families or carve them differently? "
-        "Cohesion is **measured**, not assumed; both answers are findings.",
-        "**RQ4 -- Do magnitude-aware metrics catch stealth?** Does mean-Hamming-per-changed-page "
-        "expose an encryptor (slowburn) that APF's changed-page count cannot see?",
-        "**RQ5 -- How cheap can capture be?** What is the minimum useful trace length, and how "
+    p("The questions group into three themes. An earlier draft folded the entire "
+      "characterisation-and-taxonomy theme into a single question; because each of its parts "
+      "carries as much weight as any other question, it is split out into peer questions here."),
+    h3("Theme A -- Detection"),
+    ul(["**RQ1 -- Is detection real?** Does a one-class novelty model detect the simulated-threat "
+        "class from memory (with honest error bars and a stated operating point), or was the high "
+        "number a metric/prevalence illusion?",
+        "**RQ2 -- Does memory separate the 'twins'?** Can a calibrated model separate the "
+        "quiet-threat simulation (slowburn) from the benign pagefault workload in memory alone, "
+        "out-of-sample -- which would rewrite the characterization-not-detection spine?"]),
+    h3("Theme B -- Characterisation and taxonomy (the split-out theme)"),
+    ul(["**RQ3 -- Are families cohesive?** Do the workloads of a family resemble each other in "
+        "memory enough for a single 'family-normal' model to represent them? Cohesion is "
+        "**measured** per family, not assumed.",
+        "**RQ4 -- Does a family-normal model generalise?** Trained on some members of a family, "
+        "does it accept a held-out, unseen member and reject other families (supervised "
+        "within-family generalisation)?",
+        "**RQ5 -- Does memory respect our taxonomy?** With no labels, do data-driven clusters of "
+        "the memory signal recover the semantic families, or carve the space differently?",
+        "**RQ6 -- Bank or reject-option?** For open-set recognition, does a per-family one-class "
+        "bank beat a discriminative classifier with a reject option -- or are they "
+        "indistinguishable at this sample size?"]),
+    h3("Theme C -- Signal and capture economy"),
+    ul(["**RQ7 -- Do magnitude-aware metrics catch stealth?** Does mean-Hamming-per-changed-page "
+        "expose the simulated encryptor (slowburn) that APF's changed-page count cannot see?",
+        "**RQ8 -- How cheap can capture be?** What is the minimum useful trace length, and how "
         "coarsely can we sample, before the signal degrades -- which sets the budget for "
         "expanding the workload set?"]),
+    p("Every outcome is a publishable finding; none of the eight is assumed. RQ3--RQ6 are the "
+      "characterisation core and are deliberately kept as separate, equally weighted questions."),
 ]),
 ("data-model", "How we look at the data", [
     p("The experiment is built on a **nested data model**. Each level is both a statistical unit "
@@ -173,12 +209,19 @@ SECTIONS = [
       "false confidence."),
     fig("tree", "The nested data model and how holding out each level maps to a "
         "cross-validation protocol of increasing honesty."),
-    p("The binding rule the tree makes explicit: **nothing below a workload counts as an "
-      "independent workload.** Repetitions and analysis windows characterise within-workload "
-      "variance (they matter precisely because the signal is stochastic -- scheduler, memory "
-      "layout, cache and host noise vary run to run), but a generalization claim must hold out a "
-      "whole workload (LOWO) or a whole family (LOFO). Duration is a controlled within-workload "
-      "factor; a repetition is within-(workload, duration) noise."),
+    p("**Duration and repetition are different axes, and the distinction matters.** A "
+      "**repetition** is the *exact same workload at the same length, run again* -- it differs "
+      "only through the signal's stochasticity (scheduler, memory layout, cache, host noise), so "
+      "repetitions characterise within-workload variance. **Duration** (120 / 300 / 600 s) is a "
+      "separate, controlled factor that exists in the current dataset only to answer RQ8 -- how "
+      "short a capture can be. The go-forward design is therefore: use the duration sweep *once* "
+      "to fix a working length, then capture **many repetitions at that single fixed length**. "
+      "The current 3-durations x 2-repetitions structure is the RQ8 probe, not the permanent "
+      "shape of the data."),
+    p("The binding rule the tree enforces: **nothing below a workload counts as an independent "
+      "workload.** A generalization claim must hold out a whole workload (LOWO) or a whole family "
+      "(LOFO); repetitions and analysis windows feed variance estimation only. (All cell and "
+      "family counts in this document are current figures and grow as we capture.)"),
 ]),
 ("overview", "Plan overview", [
     p("Work proceeds on two tracks in parallel -- offline analysis on data in hand, and (gated) "
@@ -217,21 +260,25 @@ SECTIONS = [
       "and it costs a few scalars per snapshot, not per-page storage."),
 ]),
 ("tests", "Tests: what we have and what to capture", [
-    p("The existing dataset is 11 workloads across 5 families. The families are small and uneven "
+    p("The current dataset is 11 workloads across 5 families. The families are small and uneven "
       "in their number of distinct workloads, and that -- not the cell count -- is the binding "
-      "constraint on the per-family work."),
+      "constraint on the per-family work. (These figures are provisional and grow with capture.)"),
     FAM_TABLE,
-    p("Because server access is available, we expand the thin families. The priority is "
-      "**distinct workloads** (which test generalization), with repetitions as a secondary axis "
-      "(which estimate variance, and matter because the signal is stochastic). Critically, the "
-      "executables for most needed workloads **already exist**: app can grow from 1 to 6 by "
-      "capture alone, with no new code; only scanner -- a threat family -- needs new programs "
-      "written."),
+    p("But the 66-cell subset is only a fraction of what is available. The built catalogue is far "
+      "larger -- whole families (IO, IDLE) and several app and mem variants were never captured -- "
+      "and the capture plan should draw on **all** of it for diversity, not merely fill the thin "
+      "families."),
+    CATALOG_TABLE,
+    p("Because server access is available, we capture broadly. The priority axis is **distinct "
+      "workloads** (which test generalisation); **repetitions at a fixed length** are the second "
+      "axis (which estimate variance). Most of the expansion is **capture-only** -- the "
+      "executables already exist -- so it costs server time, not new code; only the scanner family "
+      "needs new programs written."),
     CAPTURE_TABLE,
     p("On duration: even 120 s already clears the analysis-window floor, so short captures are "
-      "viable. We recommend **300 s** as the working length (a good window yield at half the "
-      "cost of 600 s), and we will confirm the true minimum offline by **truncating** existing "
-      "600 s traces before committing capture time."),
+      "viable. We recommend **300 s** as the working length (a good window yield at half the cost "
+      "of 600 s), confirm the true minimum offline by **truncating** existing 600 s traces, and "
+      "thereafter capture repetitions at that single fixed length."),
     fig("windows", "Windows per cell versus capture duration (measured). Even the shortest "
         "duration clears the starvation floor; 300 s is the recommended balance."),
     WINDOWS_TABLE,
@@ -344,7 +391,9 @@ SECTIONS = [
 # ---------------------------------------------------------------- inline markup
 def _md(s, esc):
     s = esc(s)
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"\*(.+?)\*", r"<i>\1</i>", s)   # single-asterisk italics
+    return s
 
 def _esc_html(s): return _html.escape(s, quote=False)
 def _esc_rl(s): return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

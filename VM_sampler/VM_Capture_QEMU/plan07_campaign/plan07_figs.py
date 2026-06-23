@@ -101,7 +101,9 @@ def fig_tree():
         _box(ax, x, 51, 7.0, 6.5, w, PAL["panel2"], tc=PAL["ink"], fs=7.3)
     # durations x reps under one workload
     _arrow(ax, wxs[2], 47.7, wxs[2], 40, PAL["muted"], 0.8)
-    _box(ax, wxs[2], 36, 22, 7, "{120, 300, 600 s} x {rep1, rep2}\n= 6 cells / workload", PAL["panel"], tc=PAL["ink"], fs=7.6)
+    _box(ax, wxs[2], 36, 26, 8.5,
+         "durations {120,300,600 s}: probe RQ8 only\nrepetitions = SAME length, re-run (variance)\ncurrent dataset: 6 cells / workload",
+         PAL["panel"], tc=PAL["ink"], fs=6.9)
     ax.text(58, 52, "...each family expands into its distinct workloads;\neach workload into durations x repetitions.",
             fontsize=8.6, color=PAL["muted"], va="center")
     # CV mapping panel
