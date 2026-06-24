@@ -30,7 +30,10 @@ SEC_SRCS := \
 	security_like_safe/sandbox_ransom_batched.c \
 	security_like_safe/sandbox_ransom_slowburn.c \
 	security_like_safe/sandbox_ransom_selective.c \
-	security_like_safe/sandbox_scanner_metadata.c
+	security_like_safe/sandbox_scanner_metadata.c \
+	security_like_safe/sandbox_stealth_microwrite.c \
+	security_like_safe/sandbox_stealth_scattered.c \
+	security_like_safe/sandbox_stealth_paced.c
 
 APP_SRCS := \
 	app_realistic/app_hashtable_intensive_v2.c

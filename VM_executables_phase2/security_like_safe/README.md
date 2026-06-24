@@ -12,6 +12,14 @@ can study whether such behaviour can be detected and characterised. **They are n
   (stat → read → transform → write → rename), in sequential / batched / paced / selective
   variants.
 - `sandbox_scanner_metadata` — simulates staged file-metadata enumeration.
+- `sandbox_stealth_microwrite`, `sandbox_stealth_scattered`, `sandbox_stealth_paced` — the
+  **STEALTH subfamily**: single-page (4096 B) rewrites in a steady / spatially-scattered /
+  time-jittered pattern, producing a **low page-change count but a full per-page bit-flip**.
+  These are **defensive test cases** for the detector — a quiet-but-intense writer that the
+  Active Page Fraction (which only counts *how many* pages changed) is blind to but the
+  per-page magnitude (Hamming) metric should catch. They do **not** evade anything; they are
+  named for the memory *footprint* they produce, and obey the same reversible-XOR / sandbox
+  rules as every other program here.
 
 They are named after the **benchmark pattern they imitate**, not after any real capability.
 

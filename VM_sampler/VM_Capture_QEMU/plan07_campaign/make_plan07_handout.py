@@ -68,7 +68,7 @@ CATALOG_TABLE = table(
      ["NETWORK", "0", "--", "tcp_loopback_stream, udp_burst, many_small_messages"],
      ["MIXED", "0", "--", "mixed_mem_io, mixed_cpu_mem, mixed_cpu_io"],
      ["APP", "1", "6 (sqlite x2, gzip x2, json, hashtable)", "--"],
-     ["SECURITY-like", "5", "5 (4 ransom + scanner)", "additional scanner variants"]],
+     ["SECURITY-like", "5", "8 (4 ransom + scanner + 3 NEW stealth)", "more scanner / stealth variants"]],
     "The **designed corpus**: ~10 behaviour families and ~39 workloads (the next-generation "
     "specifications in VM_executables). About 22 are already built; the rest are specced and "
     "to be authored. Today's 66-cell dataset captures only 11. Building and sampling this corpus "
@@ -460,12 +460,25 @@ SECTIONS = [
     callout("warn", "Five questions the gate must confront",
       "(1) Can family cohesion even be measured with a CI clearing the 0.545 prior at n=3-4 "
       "workloads, or is the pilot 'inconclusive' and a small targeted capture needed before a real "
-      "gate decision? (2) No low-APF / high-Hamming stealth workload exists yet -- fast-track one "
-      "through generation so the Hamming axis can be tested at the pilot. (3) Open-set ROC over 5 "
+      "gate decision? (2) A low-APF / high-Hamming stealth family now exists "
+      "(sandbox_stealth_microwrite / scattered / paced); capture it early so the Hamming axis can "
+      "be tested at the pilot. (3) Open-set ROC over 5 "
       "families (2 testable) may be anecdotal until the corpus reaches ~10. (4) The agnostic feature "
       "whitelist needs its own leakage audit -- feature choice must be independent of family labels. "
       "(5) Capture-economy decimation must not break the pilot's significance floor: measure the "
       "economy curve on full-length data before scaling up on shorter traces."),
+    h3("When the gate is inconclusive: a pre-gate cohesion capture"),
+    p("The gate is not strictly pass/fail. With only n=3-4 workloads in the two testable families, "
+      "the cohesion confidence interval may be too wide to clear the 0.545 prior in either "
+      "direction; the honest verdict is then **inconclusive** -- a third outcome beside pass and "
+      "fail. The remedy is a **small, bounded, targeted capture before the gate**, not after: add "
+      "a few distinct workloads to the families that already have >=3 members (ransomware, "
+      "mem_sweep), just enough to lift n until cohesion is measurable with a confidence interval. "
+      "This pre-gate capture is tiny and specific -- distinct from the large post-gate scale-up -- "
+      "and it converts an unanswerable gate into a real decision. The gate therefore sequences as: "
+      "measure cohesion; if inconclusive, run the small targeted capture and re-measure; only then "
+      "decide. A pre-gate capture is cheap insurance against spending the large scale-up on a "
+      "verdict the pilot could never have reached."),
 ]),
 ("risks", "Risks and honest scope", [
     ul(["**Small n -- a current state, not a fixed limit.** The *offline* analyses are bounded by "
