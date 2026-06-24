@@ -58,29 +58,32 @@ METRIC_TABLE = table(
     "(XOR + popcount in the page comparison APF already performs) -- a few scalars, no per-page storage.")
 
 CATALOG_TABLE = table(
-    ["Family", "Captured (66-cell)", "Available now (built)", "Also specced (design docs)"],
-    [["app", "1 (hashtable)", "6: + sqlite_oltp / sqlite_analytical / gzip_compress / gzip_decompress / json_parse", "--"],
-     ["mem", "5 (sweep + fault)", "8: + phase-1 mem_stream / mem_pointer_chase / mem_alloc_touch_pages", "mem_random_write_pages, mem_stride_sweep_large"],
-     ["IO", "0", "3: phase-1 io_seq_fsync / io_rand_rw / io_many_files", "next-gen IO family"],
-     ["IDLE", "0", "0", "idle baselines (negative / reference family)"],
-     ["ransomware", "4", "4 (seq / batched / slowburn / selective)", "--"],
-     ["scanner", "1", "1 (scanner_metadata)", "additional scanner variants"]],
-    "The available catalogue is much larger than the 66-cell subset: roughly 22 built workloads "
-    "(16 in VM_executables_phase2 + 6 phase-1) plus whole specced families (IO, IDLE) we never "
-    "captured. The capture plan should draw on all of it, not just fill the thin families.")
+    ["Behaviour family", "Captured (66-cell)", "Built now", "Specced (next-gen)"],
+    [["IDLE", "0", "run_idle", "idle_long_baseline, idle_post_workload_recovery"],
+     ["MEM", "5", "+ stream / pointer_chase / alloc_touch_pages", "random_write_pages, stride_sweep_large"],
+     ["IO", "0", "rand_rw / seq_fsync / many_files", "read_cache_hit, direct_write_like"],
+     ["CPU", "0", "--", "hash_loop, matrix_mult, branch_random"],
+     ["CACHE", "0", "--", "hot_loop, cold_scan, stride_sweep"],
+     ["THREAD", "0", "--", "lock_contention, producer_consumer, parallel_alloc"],
+     ["NETWORK", "0", "--", "tcp_loopback_stream, udp_burst, many_small_messages"],
+     ["MIXED", "0", "--", "mixed_mem_io, mixed_cpu_mem, mixed_cpu_io"],
+     ["APP", "1", "6 (sqlite x2, gzip x2, json, hashtable)", "--"],
+     ["SECURITY-like", "5", "5 (4 ransom + scanner)", "additional scanner variants"]],
+    "The **designed corpus**: ~10 behaviour families and ~39 workloads (the next-generation "
+    "specifications in VM_executables). About 22 are already built; the rest are specced and "
+    "to be authored. Today's 66-cell dataset captures only 11. Building and sampling this corpus "
+    "on the server -- in parallel with the offline analysis -- is what dissolves the small-n "
+    "constraint; it is the plan, not a side task.")
 
 CAPTURE_TABLE = table(
-    ["Family", "Captured", "Capture plan (priority order)"],
-    [["app", "1", "capture all 6 built programs -- no new code; takes app 1 -> 6"],
-     ["IO", "0", "capture the 3 built IO programs -- an entire family currently absent"],
-     ["mem", "5", "add the 3 built phase-1 mem programs (+ specced variants) for within-family diversity"],
-     ["IDLE", "0", "capture idle baselines as a reference / negative family"],
-     ["scanner", "1", "author ~2 more scanner programs, then capture"],
-     ["ransomware", "4", "sufficient; optionally add variants for tighter intervals"]],
-    "Capture broadly for workload and family diversity (the real binding constraint), "
-    "prioritising families with too few distinct workloads and the entirely-absent IO and IDLE "
-    "families. Most of this is capture-only (the executables exist); only scanner needs new code. "
-    "All counts are current and grow with capture.")
+    ["Priority", "Action", "Effect"],
+    [["1 -- no code", "capture the built-but-uncaptured workloads: all 6 APP, the 3 phase-1 IO, the phase-1 MEM set, run_idle", "adds the IO family and several APP / MEM / IDLE members immediately"],
+     ["2 -- author", "build the specced families (CPU, CACHE, THREAD, NETWORK, MIXED) and the missing IDLE / IO / MEM variants", "takes the corpus to ~10 families / ~39 workloads"],
+     ["3 -- author", "additional security-like (scanner) variants", "lifts the only size-1 threat family"],
+     ["ongoing", "repetitions at the fixed length for every workload", "within-workload variance for the bootstrap"]],
+    "Capture runs continuously on the server while the offline analysis proceeds on existing data. "
+    "As families pass ~7 and workloads pass ~20, the leave-one-family-out / leave-one-workload-out "
+    "significance floors fall below 0.05 and the descriptive findings become testable.")
 
 WINDOWS_TABLE = table(
     ["Duration", "Windows per cell (range, W=8/H=4)", "Note"],
@@ -279,10 +282,13 @@ SECTIONS = [
       "in their number of distinct workloads, and that -- not the cell count -- is the binding "
       "constraint on the per-family work. (These figures are provisional and grow with capture.)"),
     FAM_TABLE,
-    p("But the 66-cell subset is only a fraction of what is available. The built catalogue is far "
-      "larger -- whole families (IO, IDLE) and several app and mem variants were never captured -- "
-      "and the capture plan should draw on **all** of it for diversity, not merely fill the thin "
-      "families."),
+    p("But the 66-cell subset is a small slice of a much larger **designed corpus**. The "
+      "next-generation specifications define ~10 behaviour families and ~39 workloads -- IDLE, "
+      "MEM, IO, CPU, CACHE, THREAD, NETWORK, MIXED, APP, and the security-like family -- of which "
+      "the captured 11 are only a fraction. Building and sampling this corpus on the server, in "
+      "parallel with the offline analysis, is the **primary mitigation for small n**, not a side "
+      "task: it lifts the family and workload counts until the leave-one-out significance floors "
+      "fall below 0.05."),
     CATALOG_TABLE,
     p("Because server access is available, we capture broadly. The priority axis is **distinct "
       "workloads** (which test generalisation); **repetitions at a fixed length** are the second "
@@ -390,8 +396,13 @@ SECTIONS = [
       "redirects the capture toward the granularity that does work. Neither path is a dead end."),
 ]),
 ("risks", "Risks and honest scope", [
-    ul(["**Small n.** 11 workloads / 5 families bound what any analysis can claim; several "
-        "current 'findings' are descriptive, not significant, by construction.",
+    ul(["**Small n -- a current state, not a fixed limit.** The *offline* analyses are bounded by "
+        "today's 11 workloads / 5 families, so several current findings are descriptive rather than "
+        "significant. This is **actively mitigated**, not accepted: the parallel capture track grows "
+        "the corpus toward the designed catalogue of ~10 behaviour families and ~39 workloads (the "
+        "next-generation specifications in VM_executables), at which point leave-one-family-out "
+        "(~0.002 floor at 10 families) and leave-one-workload-out fall well below 0.05 and the "
+        "descriptive findings become significance-capable.",
         "**Synthetic workloads.** External validity to real malware is untested; this is a "
         "controlled study of behaviour classes, not a field detector.",
         "**Capture-environment confound.** New captures must use the same host configuration as "
