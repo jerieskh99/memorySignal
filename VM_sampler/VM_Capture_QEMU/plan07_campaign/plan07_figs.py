@@ -384,9 +384,76 @@ def fig_sepmatrix():
     _emit(fig, "sepmatrix")
 
 
+# =====================================================================
+# 11. Execution dependency DAG (the checklist graph)
+# =====================================================================
+def fig_dag():
+    fig, ax = _canvas(11, 6.6)
+    ax.text(50, 97, "Execution dependency graph: two parallel tracks, one gate", ha="center", fontsize=13, fontweight="bold")
+    ax.text(50, 92, "edges = 'unlocks'; the two producer/consumer tracks are never coupled and join only at the gate",
+            ha="center", fontsize=8.2, color=PAL["muted"], style="italic")
+    GEN, OFF, MOD = PAL["app"], PAL["old"], PAL["new"]
+    # lane labels
+    ax.text(1.5, 82, "PRODUCER\n(parallel)", fontsize=8, fontweight="bold", color=GEN, va="center")
+    ax.text(1.5, 50, "ANALYSIS\n(frozen\nsnapshot)", fontsize=8, fontweight="bold", color=OFF, va="center")
+    ax.text(1.5, 17, "MODELS\n(reuse)", fontsize=8, fontweight="bold", color=MOD, va="center")
+    # PRODUCER lane
+    _box(ax, 14, 82, 12, 6, "author\nworkloads", GEN, fs=7.2)
+    _box(ax, 29, 82, 12, 6, "build +\nsmoke-test", GEN, fs=7.2)
+    _box(ax, 45, 82, 12, 6, "server\ncapture", GEN, fs=7.2)
+    ax.add_patch(FancyBboxPatch((64, 79), 14, 6, boxstyle="round,pad=0.01,rounding_size=0.06",
+                 fc="none", ec=GEN, lw=1.4, ls="--"))
+    ax.text(71, 82, "capture\nSCALE-UP", ha="center", va="center", color=GEN, fontsize=7.2, fontweight="bold")
+    _arrow(ax, 20, 82, 23, 82, GEN); _arrow(ax, 35, 82, 39, 82, GEN)
+    ax.text(45, 88.5, "continuous; never blocks analysis", ha="center", fontsize=7, color=GEN, style="italic")
+    # SEAM
+    _arrow(ax, 45, 79, 45, 70, PAL["muted"])
+    ax.add_patch(FancyBboxPatch((30, 64), 30, 5.5, boxstyle="round,pad=0.01,rounding_size=0.1",
+                 fc=PAL["panel2"], ec=PAL["ink"], lw=1.2))
+    ax.text(45, 66.7, "corpus-snapshot  --  decoupling seam (copy-on-read, req 2)", ha="center", va="center", fontsize=7.4, fontweight="bold", color=PAL["ink"])
+    _arrow(ax, 40, 64, 18, 56, PAL["muted"])
+    # ANALYSIS lane
+    _box(ax, 14, 50, 12, 6, "cells-build", OFF, fs=7.4)
+    _box(ax, 30, 50, 13, 7, "feature extract\n(+Hamming)", OFF, fs=7.2)
+    ax.text(30, 43.5, "guard: leakage + unit", ha="center", fontsize=6.6, color=PAL["refute"], style="italic")
+    _box(ax, 48, 57, 12, 5.5, "separability\nmatrix", OFF, fs=7)
+    _box(ax, 48, 47, 12, 5.5, "cohesion", OFF, fs=7.4)
+    _box(ax, 66, 57, 12, 5.5, "open-set +\nbank-vs-reject", OFF, fs=6.9)
+    _box(ax, 66, 47, 12, 5.5, "pilot CIs +\nsignificance", OFF, fs=6.9)
+    _box(ax, 90, 50, 11, 6, "synthesis", OFF, fs=7.4)
+    _arrow(ax, 20, 50, 23.5, 50, OFF); _arrow(ax, 36.5, 50, 42, 53, OFF); _arrow(ax, 36.5, 50, 42, 48, OFF)
+    _arrow(ax, 54, 57, 60, 57, OFF); _arrow(ax, 54, 47, 60, 47, OFF)
+    _arrow(ax, 72, 57, 85, 52, OFF); _arrow(ax, 72, 47, 85, 50, OFF)
+    # MODELS lane (training-reuse, the fan-out)
+    _arrow(ax, 31, 46.5, 35, 24, MOD)
+    _box(ax, 38, 18, 13, 6, "train\nfamily-normal", MOD, fs=7)
+    _box(ax, 55, 18, 12, 7, "PICKLE\n(fan-out)", MOD, fs=7.6)
+    _arrow(ax, 44.5, 18, 49, 18, MOD)
+    _box(ax, 73, 27, 13, 5, "retrain same", MOD, fs=6.8)
+    _box(ax, 73, 18, 13, 5, "cross-train", MOD, fs=6.8)
+    _box(ax, 73, 9, 13, 5, "test unseen", MOD, fs=6.8)
+    for yy in (27, 18, 9):
+        _arrow(ax, 61, 18, 66.5, yy, MOD)
+    ax.text(55, 9, "one checkpoint,\n3 reuse edges (req 1)", ha="center", fontsize=6.6, color=MOD, style="italic")
+    _box(ax, 90, 18, 11, 5.5, "model bank", MOD, fs=7)
+    _arrow(ax, 79.5, 18, 84.5, 18, MOD)
+    # reuse edges feeding analysis
+    _arrow(ax, 79.5, 27, 66, 45, MOD, 1.0); _arrow(ax, 79.5, 9, 66, 45, MOD, 1.0)
+    # GATE
+    gx, gy = 84, 36
+    ax.add_patch(plt.Polygon([(gx, gy + 6), (gx + 9, gy), (gx, gy - 6), (gx - 9, gy)], closed=True, fc=PAL["gold"], ec="none", zorder=4))
+    ax.text(gx, gy, "GATE\npilot pass?", ha="center", va="center", color="white", fontsize=7, fontweight="bold", zorder=5)
+    ax.text(gx, gy - 9.5, "guard: sig-floor", ha="center", fontsize=6.6, color=PAL["refute"], style="italic")
+    _arrow(ax, 54, 47, 75, 37, PAL["muted"], 1.0); _arrow(ax, 72, 45.5, 76, 38, PAL["muted"], 1.0)
+    _arrow(ax, 84, 42, 71, 78.5, PAL["confirm"], 1.3, style="-|>")
+    ax.text(80, 60, "PASS ->\nscale-up", fontsize=6.8, color=PAL["confirm"], fontweight="bold")
+    _emit(fig, "dag")
+
+
 def build_all():
     fig_tree(); fig_overview(); fig_ladder(); fig_features(); fig_two_paths()
     fig_flavors(); fig_windows(); fig_results(); fig_masquerade(); fig_sepmatrix()
+    fig_dag()
     return FIGS
 
 

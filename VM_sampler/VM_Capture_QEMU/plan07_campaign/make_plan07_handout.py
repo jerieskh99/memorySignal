@@ -121,6 +121,27 @@ EXPECTED_TABLE = table(
       "threat families are not recognisable as families -> memory recognises kinds but not threat-ness (an honest negative)"]],
     "Every experiment is win/win. The spine is the per-family recogniser (b); detection (a) is derived from it.")
 
+CHECKLIST_TABLE = table(
+    ["Stage", "Unlocked once...", "Do in parallel"],
+    [["1", "start", "pin provenance (git / qemu / vm-image / sklearn versions)"],
+     ["2", "provenance pinned", "author workloads (producer) AND stand up the model registry"],
+     ["3", "workloads authored", "build + smoke-test; server capture (continuous, non-blocking)"],
+     ["4", "cells captured (or the existing 66)", "validate cells (schema / provenance); freeze the corpus-snapshot (seam)"],
+     ["5", "snapshot pinned", "build the cells-dir (sets unit of analysis = workload)"],
+     ["6", "cells built", "extract the one feature matrix (+Hamming) -- guards leakage + unit are BLOCKING here"],
+     ["7", "features ready", "separability matrix; train the family-normals; train the reject-option classifier"],
+     ["8", "family-normal trained + registry up", "pickle the models (the fan-out node)"],
+     ["9", "models pickled", "reuse edges: retrain-same-family; cross-train-other; test-on-unseen"],
+     ["10", "pickles + cross-train done", "compose the per-family pickles into the model bank"],
+     ["11", "reuse edges + bank + reject ready", "measure family cohesion; open-set novelty + bank-vs-reject bake-off"],
+     ["12", "test-unseen + open-set done", "pilot CIs + permutation significance -- guard sig-floor is BLOCKING into the gate"],
+     ["13", "cohesion + pilot CIs + pickles done", "THE GATE: pass -> authorise capture scale-up; fail -> stop at the recogniser + characterisation"],
+     ["14", "all analysis + gate done", "synthesis / writeup"]],
+    "The checklist. Each stage lists the nodes you can tick off **in parallel** once its prerequisite "
+    "is met. The two producer/consumer tracks run concurrently throughout; on the existing 66 cells "
+    "the offline chain (stages 4-14) can start immediately while the server captures the corpus in the "
+    "background. The gate (stage 13) gates only the large CAPTURE scale-up -- it never gates generation.")
+
 SECTIONS = [
 ("summary", "Summary", [
     p("**Plan 07 builds a behaviour recogniser from a single host-side memory signal.** Watching "
@@ -395,6 +416,57 @@ SECTIONS = [
       "signal carves behaviour differently from our taxonomy), reported with error bars, and it "
       "redirects the capture toward the granularity that does work. Neither path is a dead end."),
 ]),
+("dag", "Execution dependency graph (the checklist)", [
+    p("The program is organised as a **dependency graph, not a schedule**: an edge means one step "
+      "*unlocks* another, and steps with no edge between them run in parallel. The graph has two "
+      "**never-coupled tracks** -- a parallel producer (generate and capture the growing corpus) "
+      "and a consumer (offline analysis on a frozen snapshot) -- joined at a single decision gate. "
+      "It is meant as a checklist: at any moment you can see what is unblocked and what may proceed "
+      "together."),
+    fig("dag", "The dependency graph. Producer track (top, green) runs continuously and never "
+        "blocks analysis; the corpus-snapshot is the copy-on-read seam that decouples the two "
+        "tracks; the analysis track (blue) consumes a frozen snapshot; the models track (gold) "
+        "turns one trained family-normal into a reusable pickle with three fan-out reuse edges; the "
+        "gate joins them and gates only the large capture scale-up."),
+    h3("Three structural properties"),
+    ul(["**Generation is a parallel, non-blocking producer.** Authoring and capturing new workloads "
+        "feeds the corpus but has no edge back into analysis; analysis pins one immutable snapshot, "
+        "so generation can keep appending without disturbing any in-flight analysis. Neither side "
+        "ever blocks the other.",
+        "**Trained models are reusable artifacts, not one-shot results.** A fitted family-normal is "
+        "serialised once into a first-class *pickle* node, from which three non-destructive, "
+        "parallel reuse edges open -- retrain on the same family, cross-train against others, test "
+        "on unseen data. Many checkpoints with kept lineage, not one model.",
+        "**The graph is acyclic and parallelism is explicit.** Even the retrain 'loop' is acyclic: "
+        "each refit is a new registry entry pointing back at its parent (a data attribute), not an "
+        "edge into the parent node. Three guardrails (leakage, unit-of-analysis, significance floor) "
+        "sit *on* edges and must be clean before the edge is traversed."]),
+    p("The checklist below is the graph read as stages. Each stage names the nodes you can do in "
+      "parallel once its prerequisite is met."),
+    CHECKLIST_TABLE,
+    callout("info", "Critical path (the longest required chain)",
+      "pin provenance -> server capture -> validate -> corpus-snapshot -> cells-build -> feature "
+      "extract -> train family-normal -> pickle -> test-unseen -> open-set -> pilot CIs -> GATE -> "
+      "synthesis. Everything off this chain (the separability matrix, cross-training, the reject "
+      "classifier, generation) runs in parallel beside it."),
+    callout("new", "Model reuse (req 1): one pickle, many uses",
+      "The pickle node is content-addressed by a model_id (hash of training code + feature matrix + "
+      "the sorted training cell ids + the family split + hyperparameters). From it: (a) retrain on "
+      "more same-family traces yields a *child* checkpoint (parent_model_id set, so lineage chains "
+      "stay acyclic); (b) cross-training against other families is pure inference and produces the "
+      "off-diagonal reject matrix; (c) test-on-unseen serves both within-family generalisation "
+      "(held-out member) and open-set novelty (held-out whole family). The bank is a composite over "
+      "the per-family pickles."),
+    callout("warn", "Five questions the gate must confront",
+      "(1) Can family cohesion even be measured with a CI clearing the 0.545 prior at n=3-4 "
+      "workloads, or is the pilot 'inconclusive' and a small targeted capture needed before a real "
+      "gate decision? (2) No low-APF / high-Hamming stealth workload exists yet -- fast-track one "
+      "through generation so the Hamming axis can be tested at the pilot. (3) Open-set ROC over 5 "
+      "families (2 testable) may be anecdotal until the corpus reaches ~10. (4) The agnostic feature "
+      "whitelist needs its own leakage audit -- feature choice must be independent of family labels. "
+      "(5) Capture-economy decimation must not break the pilot's significance floor: measure the "
+      "economy curve on full-length data before scaling up on shorter traces."),
+]),
 ("risks", "Risks and honest scope", [
     ul(["**Small n -- a current state, not a fixed limit.** The *offline* analyses are bounded by "
         "today's 11 workloads / 5 families, so several current findings are descriptive rather than "
@@ -424,7 +496,7 @@ SECTIONS = [
 # Lead the body with the recogniser architecture (paths + granularity), right after the
 # plan overview; keep the separability ladder after Metrics (it needs the feature taxonomy).
 _ORDER = ["summary", "motivation", "questions", "data-model", "overview", "paths",
-          "flavors", "metrics", "tests", "ladder", "methodology", "expected", "risks"]
+          "flavors", "metrics", "tests", "ladder", "methodology", "expected", "dag", "risks"]
 SECTIONS = sorted(SECTIONS, key=lambda s: _ORDER.index(s[0]))
 
 # ---------------------------------------------------------------- inline markup
