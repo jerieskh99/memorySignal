@@ -1,0 +1,87 @@
+//! Per-page feature substrate. Composition root: builds the shared precompute once,
+//! then asks each family to compute its slice, and assembles `PageMetrics`.
+//!
+//! CONVENTION: every channel is a CHANGE reading -- 0 = no change, larger = more
+//! change. Identical pages short-circuit to all-zeros (see `page_metrics`).
+
+pub mod common;
+pub mod family_a;
+pub mod family_b;
+
+use common::Shared;
+use hamming::distance;
+
+pub const PAGE_SIZE: usize = 4096; // 4KB
+
+/// One row of the substrate: Family A (amount) + Family B (direction), composed.
+#[derive(Clone, Default, Debug)]
+pub struct PageMetrics {
+    pub a: family_a::Amount,
+    pub b: family_b::Direction,
+}
+
+impl PageMetrics {
+    /// Backward-compatible single-metric accessors (for the legacy hamming/cosine files).
+    pub fn hamming(&self) -> u32 {
+        self.a.positional.hamming
+    }
+    pub fn cosine(&self) -> f32 {
+        self.b.structure.cosine
+    }
+}
+
+/// Compute every per-page metric for one page pair.
+pub fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
+    let hamming = distance(p, q) as u32;
+    if hamming == 0 {
+        // Identical page = no change. Every channel is 0; skip all the work
+        // (unchanged pages are the bulk of a real dump).
+        return PageMetrics::default();
+    }
+    let sh = Shared::new(p, q, hamming);
+    PageMetrics {
+        a: family_a::compute(&sh, p, q),
+        b: family_b::compute(&sh, p, q),
+    }
+}
+
+/// One PageMetrics per page in the chunk.
+pub fn process_chunk(chunk1: &[u8], chunk2: &[u8]) -> Vec<PageMetrics> {
+    let num_pages = chunk1.len() / PAGE_SIZE;
+    (0..num_pages)
+        .map(|i| {
+            let start = i * PAGE_SIZE;
+            let end = start + PAGE_SIZE;
+            page_metrics(&chunk1[start..end], &chunk2[start..end])
+        })
+        .collect()
+}
+
+/// CSV column names, in row order (no trailing newline).
+pub fn csv_header() -> &'static str {
+    "hamming,cosine,l0,l1,l2,linf,mean_abs,gradient_mag,tv,chi2,hellinger,kl,js,wasserstein,bhattacharyya,hist_inter_dist,ent_delta,csize_delta,ncd,struct_ent_change,lz_change,pearson,ssim_struct,mean_shift,ssim_lum,median_shift,var_ratio,std_delta,ssim_contrast,range_delta,iqr_delta,polarity,sign_delta_ent,zero_mass_delta,spearman,kendall,cross_corr_lag,phase_corr,byte_rotation"
+}
+
+/// One CSV row for a page (no trailing newline). Column order matches `csv_header`.
+pub fn csv_row(m: &PageMetrics) -> String {
+    let p = &m.a.positional;
+    let d = &m.a.distributional;
+    let i = &m.a.informational;
+    let s = &m.b.structure;
+    let l = &m.b.level;
+    let sp = &m.b.spread;
+    let po = &m.b.polarity;
+    let dd = &m.b.dist_direction;
+    let xc = &m.b.spatial;
+    format!(
+        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\
+         {},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        p.hamming, s.cosine, p.l0, p.l1, p.l2, p.linf, p.mean_abs, p.gradient_mag,
+        d.tv, d.chi2, d.hellinger, d.kl, d.js, d.wasserstein, d.bhattacharyya,
+        d.hist_inter_dist, i.ent_delta, i.csize_delta, i.ncd, i.struct_ent_change,
+        i.lz_change, s.pearson, s.ssim_struct, l.mean_shift, l.ssim_lum, l.median_shift,
+        sp.var_ratio, sp.std_delta, sp.ssim_contrast, sp.range_delta, sp.iqr_delta,
+        po.polarity, po.sign_delta_ent, dd.zero_mass_delta, s.spearman, s.kendall,
+        xc.cross_corr_lag, xc.phase_corr, xc.byte_rotation
+    )
+}

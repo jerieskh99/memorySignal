@@ -1,0 +1,16 @@
+[package]
+name = "live_delta_calc_modular"
+version = "0.1.0"
+edition = "2021"
+
+# Modular rewrite of ../live_delta_calc (left untouched). Same behaviour, organised
+# as a lib (the metrics, family by family) + a thin binary (IO / threading / output).
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+hamming = "0.1.3"
+distances = "1.7.1"
+flate2 = "1"
+rustfft = "6"
+rayon = "1.10.0"
+chrono = "0.4"
