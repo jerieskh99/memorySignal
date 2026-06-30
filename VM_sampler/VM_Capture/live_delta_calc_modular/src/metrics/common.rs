@@ -372,3 +372,116 @@ pub fn xcorr_metrics(p: &[u8], q: &[u8]) -> (f32, f32, f32) {
         signed(lag_ph) as f32,
     )
 }
+
+/// Shannon entropy (bits) of the adjacent-byte-pair distribution of a page -- local
+/// structure (pointers / tables vs random).
+pub fn bigram_entropy(page: &[u8]) -> f64 {
+    let mut bg = vec![0u32; 256 * 256];
+    for w in page.windows(2) {
+        bg[w[0] as usize * 256 + w[1] as usize] += 1;
+    }
+    let total = page.len().saturating_sub(1) as f64;
+    if total <= 0.0 {
+        return 0.0;
+    }
+    let mut e = 0.0;
+    for &c in bg.iter() {
+        if c > 0 {
+            let pr = c as f64 / total;
+            e -= pr * pr.log2();
+        }
+    }
+    e
+}
+
+/// Peak of the (normalised) circular autocorrelation of a page at lag in [1, n/2) --
+/// within-page periodicity / self-similarity (0 = aperiodic, ~1 = periodic/constant).
+pub fn autocorr_peak(page: &[u8]) -> f32 {
+    let n = page.len();
+    let (fwd, inv) = ffts();
+    let mut f: Vec<Complex<f32>> = page.iter().map(|&x| Complex::new(x as f32, 0.0)).collect();
+    fwd.process(&mut f);
+    let mut power: Vec<Complex<f32>> = f.iter().map(|&c| Complex::new(c.norm_sqr(), 0.0)).collect();
+    inv.process(&mut power);
+    let ac0 = power[0].re;
+    if ac0 <= 0.0 {
+        return 0.0;
+    }
+    let mut best = 0.0f32;
+    for k in 1..n / 2 {
+        let v = power[k].re / ac0;
+        if v > best {
+            best = v;
+        }
+    }
+    best
+}
+
+/// Haralick texture features from the adjacent-byte co-occurrence matrix of a page:
+/// (contrast, homogeneity, energy/ASM, correlation).
+pub fn glcm_haralick(page: &[u8]) -> (f64, f64, f64, f64) {
+    let mut g = vec![0u32; 256 * 256];
+    let mut total: u64 = 0;
+    for w in page.windows(2) {
+        g[w[0] as usize * 256 + w[1] as usize] += 1;
+        total += 1;
+    }
+    if total == 0 {
+        return (0.0, 0.0, 0.0, 0.0);
+    }
+    let t = total as f64;
+    let (mut contrast, mut homog, mut energy, mut mu_i, mut mu_j) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for i in 0..256 {
+        for j in 0..256 {
+            let c = g[i * 256 + j];
+            if c == 0 {
+                continue;
+            }
+            let pij = c as f64 / t;
+            let di = i as f64 - j as f64;
+            contrast += di * di * pij;
+            homog += pij / (1.0 + di.abs());
+            energy += pij * pij;
+            mu_i += i as f64 * pij;
+            mu_j += j as f64 * pij;
+        }
+    }
+    let (mut si, mut sj, mut cor) = (0.0, 0.0, 0.0);
+    for i in 0..256 {
+        for j in 0..256 {
+            let c = g[i * 256 + j];
+            if c == 0 {
+                continue;
+            }
+            let pij = c as f64 / t;
+            si += (i as f64 - mu_i).powi(2) * pij;
+            sj += (j as f64 - mu_j).powi(2) * pij;
+            cor += (i as f64 - mu_i) * (j as f64 - mu_j) * pij;
+        }
+    }
+    let (si, sj) = (si.sqrt(), sj.sqrt());
+    let correlation = if si > 0.0 && sj > 0.0 { cor / (si * sj) } else { 0.0 };
+    (contrast, homog, energy, correlation)
+}
+
+/// Fraction of a page's spectral energy (excluding DC) in the high-frequency band
+/// (k in [n/4, 3n/4)). Smooth pages low, fine-textured / high-frequency pages high.
+pub fn high_freq_frac(page: &[u8]) -> f32 {
+    let n = page.len();
+    let (fwd, _) = ffts();
+    let mut f: Vec<Complex<f32>> = page.iter().map(|&x| Complex::new(x as f32, 0.0)).collect();
+    fwd.process(&mut f);
+    let (mut total, mut high) = (0.0f64, 0.0f64);
+    for k in 1..n {
+        let p = f[k].norm_sqr() as f64;
+        total += p;
+        if k >= n / 4 && k < 3 * n / 4 {
+            high += p;
+        }
+    }
+    if total > 0.0 {
+        (high / total) as f32
+    } else {
+        0.0
+    }
+}

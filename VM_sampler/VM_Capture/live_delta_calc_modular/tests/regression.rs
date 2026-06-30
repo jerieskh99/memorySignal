@@ -8,8 +8,15 @@ fn page(byte: u8) -> Vec<u8> {
 }
 
 #[test]
-fn header_has_39_columns() {
-    assert_eq!(metrics::csv_header().split(',').count(), 39);
+fn header_column_count() {
+    // 20 (A) + 19 (cosine + B) + 13 (C) + 12 (D) = 64
+    assert_eq!(metrics::csv_header().split(',').count(), 64);
+    // header and a row must have the same number of fields
+    let m = page_metrics(&page(0x10), &page(0x20));
+    assert_eq!(
+        metrics::csv_row(&m).split(',').count(),
+        metrics::csv_header().split(',').count()
+    );
 }
 
 #[test]
@@ -96,4 +103,91 @@ fn spatial_shift_detected() {
     assert_eq!(m.b.spatial.cross_corr_lag.abs(), 100.0, "lag={}", m.b.spatial.cross_corr_lag);
     assert_eq!(m.b.spatial.byte_rotation.abs(), 100.0, "rot={}", m.b.spatial.byte_rotation);
     assert!((m.b.spatial.phase_corr - 1.0).abs() < 1e-3, "phase_corr={}", m.b.spatial.phase_corr);
+}
+
+#[test]
+fn content_all_zero_q() {
+    // changed page (p != q) whose new content q is all 0x00
+    let m = page_metrics(&page(0x01), &page(0x00));
+    let c = &m.c;
+    assert_eq!(c.distinct_bytes, 1);
+    assert_eq!(c.zero_frac, 1.0);
+    assert_eq!(c.fill_frac, 1.0);
+    assert_eq!(c.ent_q, 0.0);
+    assert_eq!(c.printable_frac, 0.0); // 0x00 is not printable
+    assert_eq!(c.mean_q, 0.0);
+    assert_eq!(c.var_q, 0.0);
+    assert_eq!(c.bigram_ent, 0.0);
+    assert_eq!(c.autocorr_peak, 0.0); // zero-energy guard
+}
+
+#[test]
+fn content_uniform_q() {
+    // q = every byte value 16x (uniform histogram, periodic period 256)
+    let q: Vec<u8> = (0..4096).map(|i| (i % 256) as u8).collect();
+    let m = page_metrics(&page(0x00), &q);
+    let c = &m.c;
+    assert_eq!(c.distinct_bytes, 256);
+    assert!((c.ent_q - 8.0).abs() < 1e-5, "ent_q={}", c.ent_q); // uniform -> 8 bits/byte
+    assert!(c.chi2_uniform < 1e-3, "chi2_uniform={}", c.chi2_uniform); // perfectly uniform -> 0
+    assert!((c.fill_frac - 16.0 / 4096.0).abs() < 1e-6);
+    assert!((c.printable_frac - 95.0 / 256.0).abs() < 1e-4); // 0x20..=0x7E = 95 values
+    assert!(c.autocorr_peak > 0.99, "autocorr_peak={}", c.autocorr_peak); // period 256
+}
+
+#[test]
+fn change_location_full_and_local() {
+    // full change: every byte differs
+    let m = page_metrics(&page(0x10), &page(0x20));
+    let cl = &m.d.change_location;
+    assert_eq!(cl.changed_runs, 1);
+    assert_eq!(cl.change_span, 4096);
+    assert_eq!(cl.longest_changed_run, 4096);
+    assert_eq!(cl.change_density, 1.0);
+    assert!((cl.change_centroid - 2047.5).abs() < 1e-1);
+
+    // localized: bytes 100..104 differ
+    let p = page(0x00);
+    let mut q = page(0x00);
+    for x in q.iter_mut().take(104).skip(100) {
+        *x = 0xFF;
+    }
+    let cl2 = page_metrics(&p, &q).d.change_location;
+    assert_eq!(cl2.changed_runs, 1);
+    assert_eq!(cl2.change_span, 4);
+    assert_eq!(cl2.longest_changed_run, 4);
+    assert!((cl2.change_centroid - 101.5).abs() < 1e-3);
+}
+
+#[test]
+fn change_location_two_runs() {
+    let p = page(0x00);
+    let mut q = page(0x00);
+    q[10] = 1;
+    q[11] = 1; // run 1 (len 2)
+    q[100] = 1;
+    q[101] = 1;
+    q[102] = 1; // run 2 (len 3)
+    let cl = page_metrics(&p, &q).d.change_location;
+    assert_eq!(cl.changed_runs, 2);
+    assert_eq!(cl.longest_changed_run, 3);
+    assert_eq!(cl.change_span, 93); // 102 - 10 + 1
+}
+
+#[test]
+fn texture_constant_vs_alternating() {
+    // constant q: max run = whole page, no edges, no high-freq, zero GLCM contrast
+    let tx = page_metrics(&page(0x01), &page(0x10)).d.texture;
+    assert_eq!(tx.max_run_len, 4096);
+    assert_eq!(tx.edge_energy, 0.0);
+    assert_eq!(tx.high_freq_frac, 0.0);
+    assert_eq!(tx.glcm_contrast, 0.0);
+
+    // alternating 0,255,0,255...: max edges, all energy at Nyquist, run length 1
+    let p = page(0x00);
+    let q: Vec<u8> = (0..4096).map(|i| if i % 2 == 0 { 0u8 } else { 255u8 }).collect();
+    let tx2 = page_metrics(&p, &q).d.texture;
+    assert_eq!(tx2.max_run_len, 1);
+    assert!(tx2.edge_energy > 0.0);
+    assert!((tx2.high_freq_frac - 1.0).abs() < 1e-3, "high_freq={}", tx2.high_freq_frac);
 }
