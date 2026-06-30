@@ -1,0 +1,177 @@
+<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Substrate Implementation Tracker</title><style>
+:root{--ink:#1A1A1A;--muted:#5B5B5B;--line:#DDD9CF;--paper:#fff;--panel:#F5F3EE;
+ --gold:#B9822A;--blue:#3F6CA8;--green:#2E7D52;--amber:#C58A1E;--bg:#ECEAE3;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;font-size:15px}
+header{position:sticky;top:0;z-index:10;background:var(--paper);border-bottom:1px solid var(--line);
+ padding:14px 22px;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+h1{font-size:20px;margin:0 0 8px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px 80px}
+.bars{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:13px}
+.barwrap{flex:1;min-width:220px}
+.bar{height:9px;background:var(--panel);border-radius:5px;overflow:hidden;margin-top:3px}
+.bar>span{display:block;height:100%;width:0;transition:width .25s}
+.bar.impl>span{background:var(--blue)} .bar.test>span{background:var(--green)}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+button{font:inherit;font-size:13px;padding:5px 11px;border:1px solid var(--line);background:var(--paper);
+ border-radius:6px;cursor:pointer}
+button:hover{background:var(--panel)}
+.filter button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fam{background:var(--paper);border:1px solid var(--line);border-radius:10px;margin:18px 0;overflow:hidden}
+.fam>.fh{padding:13px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+.fh h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fh .intro{font-size:12.5px;color:var(--muted);margin:6px 0 0;max-width:80ch}
+.badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.02em}
+.badge.p1{background:#E7F0E9;color:var(--green)} .badge.p2{background:#F0E7D6;color:var(--gold)}
+.fminibars{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.fminibars .barwrap{min-width:150px;max-width:240px}
+.grp{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);
+ padding:12px 18px 2px}
+.m{padding:11px 18px;border-top:1px solid #F0EEE8}
+.m:first-of-type{border-top:none}
+.m .top{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+.m .name{font-weight:700;font-size:14.5px}
+.m .meta{font-size:12px;color:var(--muted);margin:3px 0 0;max-width:78ch}
+.m .meta b{color:#444}
+.m code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:#F0EEE8;padding:1px 5px;border-radius:4px}
+.controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px}
+label.cb{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none}
+label.cb input{width:16px;height:16px;cursor:pointer}
+.pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px}
+.pill.todo{background:#EEE;color:#777} .pill.prog{background:#FBF0DA;color:var(--amber)}
+.pill.done{background:#E1F0E7;color:var(--green)}
+.ts{font-size:11px;color:#999;margin-left:auto}
+.noteBtn{font-size:12px;color:var(--blue);background:none;border:none;cursor:pointer;padding:2px 4px}
+.notes{margin-top:8px;display:none}
+.notes textarea{width:100%;min-height:54px;font:inherit;font-size:12.5px;padding:7px 9px;
+ border:1px solid var(--line);border-radius:6px;resize:vertical;background:#FCFBF8}
+.deferred .m{opacity:.62}
+.foot{color:var(--muted);font-size:12px;margin-top:24px;text-align:center}
+.m .meta code.term{position:relative;cursor:help;border-bottom:1px dotted var(--gold)}
+.m .meta code.term:hover::after{content:attr(data-def);position:absolute;left:0;top:150%;z-index:50;
+ width:max-content;max-width:340px;background:#0d0f12;color:#fff;border:1px solid #333;border-radius:6px;
+ padding:8px 11px;font-size:12px;font-weight:400;line-height:1.45;white-space:normal;font-family:system-ui,sans-serif;
+ box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.m .meta .eqlabel{color:var(--muted);font-size:11px;margin-right:5px}
+</style></head><body>
+<header><h1>Substrate Implementation Tracker
+ <span style="font-size:13px;font-weight:400;color:var(--muted)">&mdash; Rust, family by family, metric by metric</span></h1>
+<div class="bars">
+ <div class="barwrap">Implemented <b id="oi">0/0</b><div class="bar impl"><span id="oib"></span></div></div>
+ <div class="barwrap">Tested <b id="ot">0/0</b><div class="bar test"><span id="otb"></span></div></div>
+</div>
+<div class="ctrls">
+ <span class="filter" style="display:inline-flex;gap:6px">
+   <button data-flt="all" class="on">All</button>
+   <button data-flt="todo">To do</button>
+   <button data-flt="prog">In progress</button>
+   <button data-flt="done">Done</button>
+ </span>
+ <span style="flex:1"></span>
+ <button onclick="expJSON()">Export JSON</button>
+ <button onclick="impJSON()">Import JSON</button>
+ <button onclick="resetAll()">Reset</button>
+</div></header>
+<div class="wrap"><div id="families"></div>
+<p class="foot">Progress is saved in this browser (localStorage). Use Export JSON to back it up.
+Phase 1 = families A&ndash;F (trackable); Phase 2 = G, H (deferred reference).
+Generated by plan07_campaign/make_substrate_progress.py.</p></div>
+<script>const DATA=[{"id": "A", "title": "Amount of change  (alternatives to Hamming)", "intro": "Amount = how much one page changed. Hamming measures it in bit-position space. The SAME question has different answers in three representation SPACES: positional (where the bytes sit), distributional (the byte histogram, position-free), and informational (compressibility). A memmove is huge positionally but ~zero distributionally; encryption is huge distributionally and informationally. Each row is a magnitude heat-map channel.", "grouped": true, "group_label": "Space", "phase": 1, "metrics": [{"id": "A-hamming-bit", "group": "Positional", "name": "Hamming (bit)", "measures": "popcount(p XOR q)", "catches": "bits flipped -- total bit churn (the baseline)"}, {"id": "A-byte-hamming-l0", "group": "Positional", "name": "Byte-Hamming / L0", "measures": "count(p_j != q_j)", "catches": "how many BYTES changed (vs how many bits) -- spread of change"}, {"id": "A-l1-sad", "group": "Positional", "name": "L1 / SAD", "measures": "sum abs(p_j - q_j)", "catches": "total byte-magnitude moved -- weights big byte jumps, not just that a byte changed"}, {"id": "A-l2-euclidean", "group": "Positional", "name": "L2 / Euclidean", "measures": "sqrt(sum (p_j - q_j)^2)", "catches": "Euclidean magnitude -- emphasises a few large byte changes"}, {"id": "A-l-inf-chebyshev", "group": "Positional", "name": "L-inf / Chebyshev", "measures": "max abs(p_j - q_j)", "catches": "the single biggest byte jump -- an outlier change a page-wide sum hides"}, {"id": "A-mean-abs-change", "group": "Positional", "name": "Mean abs change", "measures": "mean abs(p_j - q_j)", "catches": "average per-byte change -- size-normalised magnitude"}, {"id": "A-gradient-magnitude-change", "group": "Positional", "name": "Gradient-magnitude change", "measures": "energy of abs(grad q) - abs(grad p)", "catches": "change in local roughness -- did the page get smoother/jaggier"}, {"id": "A-total-variation", "group": "Distributional", "name": "Total Variation", "measures": "0.5 * sum abs(P_b - Q_b)", "catches": "max probability mass that moved -- coarse histogram shift"}, {"id": "A-chi-square", "group": "Distributional", "name": "Chi-square", "measures": "sum (P_b - Q_b)^2 / (P_b + Q_b)", "catches": "frequency-weighted histogram diff -- sensitive to spikes / rare bins"}, {"id": "A-hellinger", "group": "Distributional", "name": "Hellinger", "measures": "sqrt(sum (sqrt(P_b) - sqrt(Q_b))^2) / sqrt(2)", "catches": "bounded [0,1] metric -- balanced, well-behaved histogram distance"}, {"id": "A-kullback-leibler", "group": "Distributional", "name": "Kullback-Leibler", "measures": "sum P_b * log(P_b / Q_b)", "catches": "info lost approximating one by the other -- raw surprise (asymmetric, unbounded)"}, {"id": "A-jensen-shannon", "group": "Distributional", "name": "Jensen-Shannon", "measures": "symmetrised, bounded KL", "catches": "symmetric bounded version -- survives non-overlapping byte supports"}, {"id": "A-wasserstein-emd", "group": "Distributional", "name": "Wasserstein / EMD", "measures": "min transport cost P->Q", "catches": "how FAR byte-mass moved (geometry-aware) -- gradual shift vs spike; order matters"}, {"id": "A-bhattacharyya", "group": "Distributional", "name": "Bhattacharyya", "measures": "-ln sum sqrt(P_b * Q_b)", "catches": "distribution overlap -- close cousin of Hellinger"}, {"id": "A-histogram-intersection", "group": "Distributional", "name": "Histogram intersection", "measures": "sum min(P_b, Q_b)", "catches": "shared mass -- simple overlap similarity"}, {"id": "A-entropy-delta", "group": "Informational", "name": "Entropy delta", "measures": "H(q) - H(p)", "catches": "change in randomness -- toward/away from ciphertext (signed = also a direction)"}, {"id": "A-normalized-compression-distance", "group": "Informational", "name": "Normalized Compression Distance", "measures": "(C(pq) - min) / max", "catches": "shared compressible structure -- weak on high-entropy (encrypted) pages"}, {"id": "A-compressed-size-delta", "group": "Informational", "name": "Compressed-size delta", "measures": "len(C(q)) - len(C(p))", "catches": "change in raw complexity -- page got simpler / more complex"}, {"id": "A-structural-entropy-change", "group": "Informational", "name": "Structural-entropy change", "measures": "change in entropy-stream / wavelet signature", "catches": "byte-granularity structural shift -- the malware-classification feature"}, {"id": "A-lz-complexity-change", "group": "Informational", "name": "LZ-complexity change", "measures": "change in LZ77 factor count", "catches": "algorithmic-complexity change -- Kolmogorov proxy"}]}, {"id": "B", "title": "Direction of change  (alternatives to Cosine)", "intro": "Direction = which WAY a page changed. Cosine reads only the STRUCTURE (pattern) component. SSIM shows that similarity decomposes into structure + level + spread; add polarity, distributional-direction, and spatial-shift. Each row's direction sense says which way the change points.", "grouped": true, "group_label": "Reading", "phase": 1, "metrics": [{"id": "B-cosine-similarity", "group": "Structure", "name": "Cosine similarity", "measures": "dot(p,q) / (norm(p) * norm(q))", "catches": "angle between content vectors -- did the pattern stay aligned (the baseline)"}, {"id": "B-pearson-correlation", "group": "Structure", "name": "Pearson correlation", "measures": "centered cosine (mean removed)", "catches": "linear co-variation ignoring level shift -- pattern alignment minus brightness"}, {"id": "B-spearman-rank-corr", "group": "Structure", "name": "Spearman rank corr.", "measures": "correlation of byte ranks", "catches": "did the ORDERING of byte values persist -- monotonic structure even if rescaled"}, {"id": "B-kendall-tau", "group": "Structure", "name": "Kendall tau", "measures": "concordant-pair fraction", "catches": "ordinal agreement -- robust ordering persistence"}, {"id": "B-ssim-structure-term", "group": "Structure", "name": "SSIM structure term", "measures": "cov(p,q) / (std(p) * std(q))", "catches": "local structural similarity -- the 's' term of SSIM"}, {"id": "B-mean-shift-signed", "group": "Level", "name": "Mean shift (signed)", "measures": "mean(q) - mean(p)", "catches": "did bytes get bigger or smaller on average -- net 'brightness' direction"}, {"id": "B-ssim-luminance-term", "group": "Level", "name": "SSIM luminance term", "measures": "(2*mu_p*mu_q + c) / (mu_p^2 + mu_q^2 + c)", "catches": "closeness of means -- level agreement"}, {"id": "B-median-shift", "group": "Level", "name": "Median shift", "measures": "median(q) - median(p)", "catches": "robust level direction -- central-tendency move resistant to outliers"}, {"id": "B-variance-ratio", "group": "Spread", "name": "Variance ratio", "measures": "var(q) / var(p)", "catches": "got more or less varied -- densifying vs sparsifying direction"}, {"id": "B-std-dev-delta-signed", "group": "Spread", "name": "Std-dev delta (signed)", "measures": "std(q) - std(p)", "catches": "change in spread -- additive form of the contrast direction"}, {"id": "B-ssim-contrast-term", "group": "Spread", "name": "SSIM contrast term", "measures": "(2*std_p*std_q + c) / (var_p + var_q + c)", "catches": "spread agreement -- the 'c' term of SSIM"}, {"id": "B-range-iqr-delta", "group": "Spread", "name": "Range / IQR delta", "measures": "change in (max-min) or IQR", "catches": "dynamic-range direction -- widened vs narrowed value range"}, {"id": "B-fraction-up-vs-down", "group": "Polarity", "name": "Fraction up vs down", "measures": "count(q_j > p_j) vs count(q_j < p_j)", "catches": "which way the changed bytes moved -- the directional 'current'"}, {"id": "B-net-signed-drift", "group": "Polarity", "name": "Net signed drift", "measures": "sum (q_j - p_j)", "catches": "net byte-value flow -- accumulation vs erasure"}, {"id": "B-sign-of-delta-entropy", "group": "Polarity", "name": "Sign-of-delta entropy", "measures": "entropy of the up/down pattern", "catches": "is the direction coherent or a mixed-up wash"}, {"id": "B-entropy-delta-sign", "group": "Distributional dir.", "name": "Entropy delta sign", "measures": "sign(H(q) - H(p))", "catches": "toward random or toward structured -- encryption vs zeroing direction"}, {"id": "B-histogram-mean-shift-sign", "group": "Distributional dir.", "name": "Histogram-mean shift sign", "measures": "sign of byte-value mean move", "catches": "toward high or low byte values"}, {"id": "B-move-toward-uniform", "group": "Distributional dir.", "name": "Move-toward-uniform", "measures": "KL(q||unif) - KL(p||unif)", "catches": "approaching ciphertext -- uniformisation direction"}, {"id": "B-zero-mass-delta", "group": "Distributional dir.", "name": "Zero-mass delta", "measures": "Q_0 - P_0 (zero-bin mass change)", "catches": "toward zeroed / freed memory"}, {"id": "B-cross-correlation-lag", "group": "Spatial-shift", "name": "Cross-correlation lag", "measures": "argmax circular xcorr(p, q)", "catches": "content SHIFTED within the page (memmove/scroll) -- offset & direction"}, {"id": "B-phase-correlation-peak", "group": "Spatial-shift", "name": "Phase-correlation peak", "measures": "peak of normalised cross-power spectrum (FFT)", "catches": "translational shift -- robust shift estimate"}, {"id": "B-optimal-byte-rotation", "group": "Spatial-shift", "name": "Optimal byte-rotation", "measures": "best cyclic alignment offset", "catches": "content rotated within the page"}]}, {"id": "C", "title": "Content / character of q  (what it became; reference-free)", "intro": "Not amount, not direction -- describe the NEW page q itself, with no reference to p. Reference-free fingerprints of what the page became (ciphertext, zeros, text, pointers, ...).", "grouped": false, "group_label": "", "phase": 1, "metrics": [{"id": "C-shannon-entropy-of-q", "group": "", "name": "Shannon entropy of q", "measures": "-sum P_b * log2(P_b)", "catches": "randomness / compressibility -- ciphertext (~8) vs structured (4-5) vs sparse (low)"}, {"id": "C-structural-entropy", "group": "", "name": "Structural entropy", "measures": "entropy stream / wavelet energy over the page", "catches": "texture of randomness -- localised encrypted regions"}, {"id": "C-distinct-byte-count", "group": "", "name": "Distinct byte count", "measures": "count(b: count_b > 0)", "catches": "palette size -- full 256 = random/dense; few = structured"}, {"id": "C-zero-byte-fraction", "group": "", "name": "Zero-byte fraction", "measures": "count(byte == 0) / 4096", "catches": "emptiness -- zeroed / freed / sparse pages"}, {"id": "C-constant-fill-fraction", "group": "", "name": "Constant-fill fraction", "measures": "max_b count(b) / 4096 (e.g. 0xFF)", "catches": "fill patterns -- uninitialised / poisoned memory"}, {"id": "C-printable-ascii-fraction", "group": "", "name": "Printable-ASCII fraction", "measures": "count(0x20..0x7E) / 4096", "catches": "text-likeness -- strings / JSON / code vs binary"}, {"id": "C-byte-moments", "group": "", "name": "Byte moments", "measures": "mean, var, skew, kurtosis of bytes", "catches": "distribution shape -- coarse content fingerprint"}, {"id": "C-bigram-entropy", "group": "", "name": "Bigram entropy", "measures": "entropy over adjacent byte pairs", "catches": "local structure -- pointers / tables vs random"}, {"id": "C-autocorrelation-peak", "group": "", "name": "Autocorrelation peak", "measures": "max self-correlation at lag > 0", "catches": "periodicity within the page -- arrays / records / strides"}, {"id": "C-chi-square-uniformity", "group": "", "name": "Chi-square uniformity", "measures": "sum (count_b - E)^2 / E", "catches": "deviation from uniform -- the 'is it random' (encryption) test"}]}, {"id": "D", "title": "Internal structure / texture  (where & how, within the unit)", "intro": "WHERE the change sits inside the page, and how textured the content is. Two groups: the intra-page change mask (location of the change), and the texture of q (its spatial pattern).", "grouped": true, "group_label": "Group", "phase": 1, "metrics": [{"id": "D-changed-run-count", "group": "Change location", "name": "Changed-run count", "measures": "number of contiguous changed-byte segments", "catches": "clustered vs scattered change -- localised edit vs full rewrite"}, {"id": "D-change-span", "group": "Change location", "name": "Change span", "measures": "last - first changed offset", "catches": "extent of the touched region -- narrow patch vs whole page"}, {"id": "D-change-centroid", "group": "Change location", "name": "Change centroid", "measures": "center of mass of changed offsets", "catches": "where in the page -- header vs body edits"}, {"id": "D-longest-changed-run", "group": "Change location", "name": "Longest changed run", "measures": "max contiguous changed bytes", "catches": "biggest edited block -- block-overwrite size"}, {"id": "D-change-density-in-span", "group": "Change location", "name": "Change density in span", "measures": "changed bytes / span", "catches": "compactness of the edit"}, {"id": "D-gradient-edge-energy", "group": "Texture of q", "name": "Gradient / edge energy", "measures": "sum abs(q_{j+1} - q_j)", "catches": "local roughness -- smooth (zeros/text) vs jagged (random/binary)"}, {"id": "D-glcm-haralick", "group": "Texture of q", "name": "GLCM / Haralick", "measures": "contrast, homogeneity, energy, correlation of byte co-occurrence", "catches": "texture class -- structured vs noise"}, {"id": "D-lbp-histogram", "group": "Texture of q", "name": "LBP histogram", "measures": "local binary patterns over the byte sequence", "catches": "micro-texture -- repeated motifs"}, {"id": "D-spatial-frequency-energy", "group": "Texture of q", "name": "Spatial-frequency energy", "measures": "low- vs high-band FFT/DCT energy", "catches": "coarse vs fine structure -- periodic tables vs random"}, {"id": "D-run-length-distribution", "group": "Texture of q", "name": "Run-length distribution", "measures": "lengths of constant-byte runs", "catches": "fill / structure -- RLE-compressibility proxy"}]}, {"id": "E", "title": "Spatial field across pages  (the heat map AS an image)", "intro": "Lay any per-page channel (amount, direction, ...) across physical address -> a 2D image (512x512 for a 1 GB guest). These describe the change FIELD as an image. All are DERIVED offline from a per-page channel + page_index -- nothing extra is stored.", "grouped": false, "group_label": "", "phase": 1, "metrics": [{"id": "E-active-area-ratio-apf", "group": "", "name": "Active-area ratio (APF)", "measures": "changed pages / total pages", "catches": "overall breadth -- the foreground fraction (the baseline)"}, {"id": "E-moran-s-i", "group": "", "name": "Moran's I", "measures": "spatial autocorrelation of the field", "catches": "clustered / dispersed / random layout -- sequential sweep vs scattered random"}, {"id": "E-connected-component-count", "group": "", "name": "Connected-component count", "measures": "number of contiguous changed-page regions", "catches": "fragmentation -- one region vs many specks"}, {"id": "E-component-size-distribution", "group": "", "name": "Component size distribution", "measures": "sizes of changed-page clusters", "catches": "region scale -- big buffers vs scattered touches"}, {"id": "E-address-axis-fft-autocorr", "group": "", "name": "Address-axis FFT / autocorr.", "measures": "periodicity of the changed-page index set", "catches": "stride detection -- strided access (every Nth page)"}, {"id": "E-glcm-of-the-magnitude-field", "group": "", "name": "GLCM of the magnitude field", "measures": "Haralick texture of the heat map", "catches": "spatial change pattern / texture"}, {"id": "E-concentration-gini-entropy", "group": "", "name": "Concentration (Gini / entropy)", "measures": "inequality of magnitude across pages", "catches": "a few hot pages vs uniform spread"}, {"id": "E-field-edges-gradient", "group": "", "name": "Field edges / gradient", "measures": "boundaries of active regions", "catches": "working-set edges -- where activity starts/stops in address space"}, {"id": "E-centroid-dispersion", "group": "", "name": "Centroid & dispersion", "measures": "center and spread of the active set", "catches": "WHERE in RAM the work sits, and how concentrated"}]}, {"id": "F", "title": "Temporal dynamics  (the heat-map movie; needs page identity)", "intro": "Per-page over snapshots (requires storing page_index). The heat map as a MOVIE: how pages and the active region evolve over time. All DERIVED offline from page_index + the per-page channels.", "grouped": true, "group_label": "Level", "phase": 1, "metrics": [{"id": "F-revisit-rate", "group": "Per-page", "name": "Revisit rate", "measures": "snapshots a page changes / total", "catches": "page hotness -- hot loop (high) vs touched-once (low)"}, {"id": "F-inter-change-interval", "group": "Per-page", "name": "Inter-change interval", "measures": "gaps between a page's changes", "catches": "rhythm -- steady vs bursty"}, {"id": "F-burstiness", "group": "Per-page", "name": "Burstiness", "measures": "Fano factor / CV of intervals", "catches": "clumping of a page's writes"}, {"id": "F-change-series-autocorr", "group": "Per-page", "name": "Change-series autocorr.", "measures": "periodicity of a page's activity over time", "catches": "cyclic access to the same page"}, {"id": "F-page-change-point", "group": "Per-page", "name": "Page change-point", "measures": "when a page's behaviour shifts", "catches": "per-page phase transitions"}, {"id": "F-page-lifetime", "group": "Per-page", "name": "Page lifetime", "measures": "first-touch to last-touch span", "catches": "allocation -> free lifetime"}, {"id": "F-working-set-size", "group": "Field-level", "name": "Working-set size", "measures": "distinct pages active in a window", "catches": "footprint dynamics -- growing vs stable"}, {"id": "F-working-set-migration", "group": "Field-level", "name": "Working-set migration", "measures": "Jaccard between consecutive active sets", "catches": "does the hot region MOVE -- sweep (low overlap) vs hot loop (high)"}, {"id": "F-active-region-drift", "group": "Field-level", "name": "Active-region drift", "measures": "displacement of the activity centroid", "catches": "sweep direction & speed (optical-flow of the heat map)"}, {"id": "F-new-page-rate", "group": "Field-level", "name": "New-page rate", "measures": "newly-touched pages per step", "catches": "allocation / discovery rate"}]}, {"id": "G", "title": "Reference basis  (what we diff against; multiplies A-F)", "intro": "Every metric above diffs against SOMETHING. Hamming/cosine use t vs t-1. Changing the reference is a whole perspective family -- the memory-forensics standard is diff-vs-baseline. This multiplies every metric in A-F. Chosen offline by picking the reference snapshot. PHASE 2 (deferred): the non-consecutive references need a NEW capture state model -- a pinned baseline, an EWMA accumulator, or buffered lagged snapshots (the pipeline deletes prev immediately today). Only the histogram-space references are offline-derivable; positional baseline/lag diffs need the raw bytes at both times. May require a capture redesign.", "grouped": false, "group_label": "", "phase": 2, "metrics": [{"id": "G-consecutive-t-vs-t-1", "group": "", "name": "Consecutive (t vs t-1)", "measures": "adjacent snapshots", "catches": "instantaneous change -- the baseline (what Hamming/cosine use)"}, {"id": "G-baseline-idle", "group": "", "name": "Baseline / idle", "measures": "vs a fixed idle snapshot", "catches": "drift from rest -- total deviation from 'doing nothing' (forensics standard)"}, {"id": "G-self-ewma", "group": "", "name": "Self EWMA", "measures": "vs the page's own moving average", "catches": "self-anomaly -- unusual relative to that page's own habit"}, {"id": "G-n-lag-multi-scale", "group": "", "name": "N-lag / multi-scale", "measures": "vs t-k for several k", "catches": "slow drift vs fast churn -- separates timescales"}, {"id": "G-boot-origin", "group": "", "name": "Boot / origin", "measures": "vs the first snapshot", "catches": "cumulative change since start -- lifetime accumulation"}, {"id": "G-canonical-page", "group": "", "name": "Canonical page", "measures": "vs a reference page (e.g. zero page)", "catches": "absolute content type -- zero-distance, fill-distance"}]}, {"id": "H", "title": "Learned / embedding  (appendix; heavier; future work)", "intro": "Representations learned from data rather than computed in closed form. Heavier (training, and usually need the raw bytes), so out of scope for the first substrate, but listed for completeness as a distinct perspective family. PHASE 2 (deferred): the learned half (autoencoder, learned embeddings) needs a trained model + a TWO-PASS capture (store page samples -> train offline -> run inference at capture) + a model registry -- a new modelling paradigm. The fixed-hash sketches (SimHash, random projection) are the exception: data-independent, no training, so they already fit the Phase 1 form.", "grouped": false, "group_label": "", "phase": 2, "metrics": [{"id": "H-autoencoder-reconstruction-error", "group": "", "name": "Autoencoder reconstruction error", "measures": "distance from a learned 'normal' page manifold", "catches": "novelty of a page's content -- one-class page anomaly"}, {"id": "H-learned-page-embedding-distance", "group": "", "name": "Learned page embedding distance", "measures": "distance in a trained embedding space", "catches": "semantic page similarity"}, {"id": "H-simhash-fuzzy-hash-ssdeep", "group": "", "name": "SimHash / fuzzy hash (ssdeep)", "measures": "locality-sensitive hash distance", "catches": "cheap near-duplicate detection"}, {"id": "H-random-projection-sketch", "group": "", "name": "Random-projection sketch", "measures": "L2 in a Johnson-Lindenstrauss sketch", "catches": "cheap approximate L2 at low storage"}]}];
+
+const KEY='substrate_progress_v1';
+let state={}; try{state=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){state={}}
+let filter='all';
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+function st(id){return state[id]||{impl:false,test:false,notes:''}}
+function stamp(){return new Date().toISOString().slice(0,16).replace('T',' ')}
+function set(id,f,v){const s=st(id);s[f]=v;s.ts=stamp();state[id]=s;save();renderProgress();applyFilter()}
+function status(s){if(s.impl&&s.test)return'done';if(s.impl||s.test)return'prog';return'todo'}
+function phase1Metrics(){return DATA.filter(f=>f.phase===1).flatMap(f=>f.metrics)}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function metricHTML(m,track){
+  const s=st(m.id),pst=status(s);
+  const cbs= track ? `
+    <label class="cb"><input type="checkbox" data-id="${m.id}" data-f="impl" ${s.impl?'checked':''}> Implemented</label>
+    <label class="cb"><input type="checkbox" data-id="${m.id}" data-f="test" ${s.test?'checked':''}> Tested</label>
+    <span class="pill ${pst}">${pst==='done'?'done':pst==='prog'?'in progress':'to do'}</span>
+    ${s.ts?`<span class="ts">updated ${s.ts}</span>`:''}` : `<span class="pill todo">deferred</span>`;
+  const notes= track ? `
+    <button class="noteBtn" data-note="${m.id}">notes / log &#9662;</button>
+    <div class="notes" id="n-${m.id}"><textarea data-id="${m.id}" data-f="notes"
+      placeholder="log: what you implemented, the test you ran, the result, gotchas...">${esc(s.notes||'')}</textarea></div>` : '';
+  return `<div class="m" data-id="${m.id}" data-status="${pst}">
+    <div class="top"><div>
+      <div class="name">${esc(m.name)}</div>
+      <div class="meta"><span class="eqlabel">eq</span><code class="term" data-def="${esc(m.catches)}">${esc(m.measures)}</code></div>
+    </div></div>
+    <div class="controls">${cbs}</div>${notes}</div>`;
+}
+
+function familyHTML(f){
+  const track=f.phase===1;
+  let rows='',lastG=null;
+  for(const m of f.metrics){
+    if(f.grouped && m.group!==lastG){rows+=`<div class="grp">${esc(f.group_label)}: ${esc(m.group)}</div>`;lastG=m.group}
+    rows+=metricHTML(m,track);
+  }
+  const badge=track?'<span class="badge p1">Phase 1</span>':'<span class="badge p2">Phase 2 &middot; deferred</span>';
+  const mini=track?`<div class="fminibars">
+     <div class="barwrap">impl <span id="fi-${f.id}">0/${f.metrics.length}</span><div class="bar impl"><span id="fib-${f.id}"></span></div></div>
+     <div class="barwrap">test <span id="ft-${f.id}">0/${f.metrics.length}</span><div class="bar test"><span id="ftb-${f.id}"></span></div></div>
+   </div>`:'';
+  return `<section class="fam ${track?'':'deferred'}" data-fam="${f.id}">
+    <div class="fh"><h2>Family ${f.id} &mdash; ${esc(f.title)} ${badge}</h2>
+      <p class="intro">${esc(f.intro)}</p>${mini}</div>${rows}</section>`;
+}
+
+function render(){
+  document.getElementById('families').innerHTML=DATA.map(familyHTML).join('');
+  renderProgress(); applyFilter();
+}
+function renderProgress(){
+  const ms=phase1Metrics();
+  const ni=ms.filter(m=>st(m.id).impl).length, nt=ms.filter(m=>st(m.id).test).length, n=ms.length;
+  document.getElementById('oi').textContent=`${ni}/${n}`;
+  document.getElementById('ot').textContent=`${nt}/${n}`;
+  document.getElementById('oib').style.width=(100*ni/n)+'%';
+  document.getElementById('otb').style.width=(100*nt/n)+'%';
+  for(const f of DATA){ if(f.phase!==1)continue;
+    const fm=f.metrics, fi=fm.filter(m=>st(m.id).impl).length, ft=fm.filter(m=>st(m.id).test).length;
+    document.getElementById('fi-'+f.id).textContent=`${fi}/${fm.length}`;
+    document.getElementById('ft-'+f.id).textContent=`${ft}/${fm.length}`;
+    document.getElementById('fib-'+f.id).style.width=(100*fi/fm.length)+'%';
+    document.getElementById('ftb-'+f.id).style.width=(100*ft/fm.length)+'%';
+  }
+}
+function applyFilter(){
+  document.querySelectorAll('.m[data-status]').forEach(el=>{
+    const ok = filter==='all' || el.dataset.status===filter;
+    el.style.display = ok ? '' : 'none';
+  });
+}
+
+document.addEventListener('change',e=>{
+  const t=e.target; if(t.matches('input[type=checkbox][data-id]')) set(t.dataset.id,t.dataset.f,t.checked);
+});
+document.addEventListener('input',e=>{
+  const t=e.target; if(t.matches('textarea[data-id]')) set(t.dataset.id,t.dataset.f,t.value);
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-note]'); if(b){const d=document.getElementById('n-'+b.dataset.note);
+    d.style.display=d.style.display==='block'?'none':'block';}
+  const fb=e.target.closest('.filter button'); if(fb){filter=fb.dataset.flt;
+    document.querySelectorAll('.filter button').forEach(x=>x.classList.toggle('on',x===fb));applyFilter();}
+});
+function expJSON(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='substrate_progress.json';a.click();}
+function impJSON(){const i=document.createElement('input');i.type='file';i.accept='.json';
+  i.onchange=()=>{const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);
+    state=Object.assign(state,o);save();render();}catch(e){alert('bad json')}};r.readAsText(i.files[0]);};i.click();}
+function resetAll(){if(confirm('Clear ALL progress?')){state={};save();render();}}
+
+render();
+</script></body></html>
