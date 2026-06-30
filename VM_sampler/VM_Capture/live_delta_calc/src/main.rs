@@ -9,6 +9,8 @@ use distances::vectors::cosine;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write; // sync Write for the compressor (tokio's AsyncWriteExt is used elsewhere)
+use rustfft::{num_complex::Complex, Fft, FftPlanner};
+use std::sync::OnceLock;
 
 use std::sync::{Arc, Mutex}; // To enable shared access to file handles across threads
 use rayon::prelude::*; // For parallel iterator
@@ -119,6 +121,179 @@ fn lz_complexity(s: &[u8]) -> u32 {
     c
 }
 
+/// Smallest byte value whose cumulative histogram mass reaches `frac` of total.
+fn pctl(h: &[u32; 256], total: usize, frac: f64) -> u8 {
+    let target = (frac * total as f64).ceil() as u64;
+    let mut cum: u64 = 0;
+    for (v, &cnt) in h.iter().enumerate() {
+        cum += cnt as u64;
+        if cum >= target {
+            return v as u8;
+        }
+    }
+    255
+}
+
+/// Lowest / highest byte value present in the histogram (for range).
+fn lo_bin(h: &[u32; 256]) -> u8 {
+    (0..256).find(|&v| h[v] > 0).unwrap_or(0) as u8
+}
+fn hi_bin(h: &[u32; 256]) -> u8 {
+    (0..256).rev().find(|&v| h[v] > 0).unwrap_or(0) as u8
+}
+
+/// Average (tie-corrected) rank of each byte value, from its histogram.
+fn ranks(h: &[u32; 256]) -> [f64; 256] {
+    let mut r = [0.0f64; 256];
+    let mut cum: u64 = 0;
+    for v in 0..256 {
+        let c = h[v] as u64;
+        if c > 0 {
+            r[v] = cum as f64 + (c as f64 + 1.0) / 2.0;
+        }
+        cum += c;
+    }
+    r
+}
+
+/// Spearman rank correlation + Kendall tau-a, from the byte histograms and a joint
+/// histogram of (p,q) value pairs. Kendall is counted via 2D prefix sums over the
+/// 256x256 joint table (O(256^2)); ties are not corrected (tau-a).
+fn spearman_kendall(p: &[u8], q: &[u8], hp: &[u32; 256], hq: &[u32; 256]) -> (f64, f64) {
+    let n = p.len();
+    let nf = n as f64;
+    let rp = ranks(hp);
+    let rq = ranks(hq);
+    let mut j = vec![0u32; 256 * 256];
+    for (&a, &b) in p.iter().zip(q.iter()) {
+        j[a as usize * 256 + b as usize] += 1;
+    }
+    // Spearman = Pearson of the rank-transformed sequences.
+    let (mut srp, mut srq, mut srpp, mut srqq, mut srpq) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for v in 0..256 {
+        srp += hp[v] as f64 * rp[v];
+        srq += hq[v] as f64 * rq[v];
+        srpp += hp[v] as f64 * rp[v] * rp[v];
+        srqq += hq[v] as f64 * rq[v] * rq[v];
+    }
+    for a in 0..256 {
+        for b in 0..256 {
+            let c = j[a * 256 + b];
+            if c != 0 {
+                srpq += c as f64 * rp[a] * rq[b];
+            }
+        }
+    }
+    let (mrp, mrq) = (srp / nf, srq / nf);
+    let vrp = (srpp / nf - mrp * mrp).max(0.0);
+    let vrq = (srqq / nf - mrq * mrq).max(0.0);
+    let covr = srpq / nf - mrp * mrq;
+    let spearman = if vrp > 0.0 && vrq > 0.0 {
+        covr / (vrp.sqrt() * vrq.sqrt())
+    } else {
+        0.0
+    };
+    // Kendall tau-a: concordant - discordant over the joint table.
+    let mut pre = vec![0u64; 256 * 256];
+    for a in 0..256 {
+        for b in 0..256 {
+            let cur = j[a * 256 + b] as u64;
+            let up = if a > 0 { pre[(a - 1) * 256 + b] } else { 0 };
+            let left = if b > 0 { pre[a * 256 + (b - 1)] } else { 0 };
+            let diag = if a > 0 && b > 0 { pre[(a - 1) * 256 + (b - 1)] } else { 0 };
+            pre[a * 256 + b] = cur + up + left - diag;
+        }
+    }
+    let nn = n as i64;
+    let (mut conc, mut disc): (i64, i64) = (0, 0);
+    for a in 0..256 {
+        for b in 0..256 {
+            let jab = j[a * 256 + b] as i64;
+            if jab == 0 {
+                continue;
+            }
+            let p_a_last = pre[a * 256 + 255] as i64;
+            let p_last_b = pre[255 * 256 + b] as i64;
+            let p_a_b = pre[a * 256 + b] as i64;
+            let gt_gt = nn - p_a_last - p_last_b + p_a_b; // strictly greater in both
+            conc += jab * gt_gt;
+            let gt_lt = if b > 0 {
+                pre[255 * 256 + (b - 1)] as i64 - pre[a * 256 + (b - 1)] as i64
+            } else {
+                0
+            }; // greater in p, smaller in q
+            disc += jab * gt_lt;
+        }
+    }
+    let denom = nn * (nn - 1) / 2;
+    let kendall = if denom > 0 {
+        (conc - disc) as f64 / denom as f64
+    } else {
+        0.0
+    };
+    (spearman, kendall)
+}
+
+/// Shared 4096-point FFT plans (forward + inverse), built once, Send+Sync.
+fn ffts() -> &'static (std::sync::Arc<dyn Fft<f32>>, std::sync::Arc<dyn Fft<f32>>) {
+    static F: OnceLock<(std::sync::Arc<dyn Fft<f32>>, std::sync::Arc<dyn Fft<f32>>)> =
+        OnceLock::new();
+    F.get_or_init(|| {
+        let mut pl = FftPlanner::<f32>::new();
+        (pl.plan_fft_forward(PAGE_SIZE), pl.plan_fft_inverse(PAGE_SIZE))
+    })
+}
+
+/// Spatial-shift metrics via FFT cross-correlation: the lag of the best raw
+/// alignment, the phase-correlation peak (normalised cross-power), and the lag of
+/// that peak. Detects content SHIFTED within the page (e.g. a memmove).
+fn xcorr_metrics(p: &[u8], q: &[u8]) -> (f32, f32, f32) {
+    let n = p.len();
+    let (fwd, inv) = ffts();
+    let mut fp: Vec<Complex<f32>> = p.iter().map(|&x| Complex::new(x as f32, 0.0)).collect();
+    let mut fq: Vec<Complex<f32>> = q.iter().map(|&x| Complex::new(x as f32, 0.0)).collect();
+    fwd.process(&mut fp);
+    fwd.process(&mut fq);
+    let mut raw: Vec<Complex<f32>> = (0..n).map(|i| fp[i] * fq[i].conj()).collect();
+    let mut phase: Vec<Complex<f32>> = raw
+        .iter()
+        .map(|&c| {
+            let m = c.norm();
+            if m > 1e-12 {
+                c / m
+            } else {
+                Complex::new(0.0, 0.0)
+            }
+        })
+        .collect();
+    inv.process(&mut raw);
+    inv.process(&mut phase);
+    let signed = |k: usize| -> i64 {
+        if k > n / 2 {
+            k as i64 - n as i64
+        } else {
+            k as i64
+        }
+    };
+    let (mut best_raw, mut lag_raw) = (f32::MIN, 0usize);
+    let (mut best_ph, mut lag_ph) = (f32::MIN, 0usize);
+    for i in 0..n {
+        if raw[i].re > best_raw {
+            best_raw = raw[i].re;
+            lag_raw = i;
+        }
+        if phase[i].re > best_ph {
+            best_ph = phase[i].re;
+            lag_ph = i;
+        }
+    }
+    (
+        signed(lag_raw) as f32,
+        best_ph / n as f32, // inverse FFT is unnormalised (scales by n)
+        signed(lag_ph) as f32,
+    )
+}
+
 /// Per-page feature substrate: one struct per (prev, curr) page pair.
 ///
 /// CONVENTION: every channel is a CHANGE reading -- 0 = no change, larger = more
@@ -152,6 +327,34 @@ struct PageMetrics {
     ncd: f32,               // Normalized Compression Distance (0 = identical)
     struct_ent_change: f32, // change in windowed-entropy lumpiness (structural-entropy proxy)
     lz_change: f32,         // LZ76 factor-count change: lz(q) - lz(p)  (signed)
+    // === Family B: direction of change (alternatives to cosine; moment + histogram part) ===
+    // structure
+    pearson: f32,        // centered cosine of the byte vectors
+    ssim_struct: f32,    // SSIM structure term: (cov + c3) / (std_p*std_q + c3)
+    // level
+    mean_shift: f32,     // mean(q) - mean(p)  (signed)
+    ssim_lum: f32,       // SSIM luminance term
+    median_shift: f32,   // median(q) - median(p)  (signed)
+    // spread
+    var_ratio: f32,      // var(q) / var(p)
+    std_delta: f32,      // std(q) - std(p)  (signed)
+    ssim_contrast: f32,  // SSIM contrast term
+    range_delta: f32,    // (max-min)(q) - (max-min)(p)  (signed)
+    iqr_delta: f32,      // IQR(q) - IQR(p)  (signed)
+    // polarity
+    polarity: f32,       // (n_up - n_down) / n  (signed; direction of the byte current)
+    sign_delta_ent: f32, // entropy of the up/down/same pattern (direction coherence)
+    // distributional-direction
+    zero_mass_delta: f32, // Q_0 - P_0  (zero-byte mass change; signed)
+    // structure (rank-based) + spatial-shift (FFT)
+    spearman: f32,        // Spearman rank correlation
+    kendall: f32,         // Kendall tau-a (ties not corrected)
+    cross_corr_lag: f32,  // lag (signed) of max raw circular cross-correlation
+    phase_corr: f32,      // peak of the phase-correlation (normalised cross-power)
+    byte_rotation: f32,   // lag (signed) of the phase-correlation peak
+    // NOTE: ent_delta_sign = sign(ent_delta), hist_mean_shift_sign = sign(mean_shift),
+    // move_toward_uniform = -ent_delta, net_drift = mean_shift * 4096 are EXACT functions of
+    // stored columns -> derived offline, not stored.
 }
 
 /// Compute every per-page metric for one page pair in a single set of passes.
@@ -174,6 +377,9 @@ fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
     let mut l1: u64 = 0;
     let mut sse: u64 = 0;
     let mut linf: u8 = 0;
+    // Family B moment accumulators (means, variances, covariance, polarity).
+    let (mut sp, mut sq, mut spp, mut sqq, mut spq) = (0u64, 0u64, 0u64, 0u64, 0u64);
+    let (mut n_up, mut n_down) = (0u32, 0u32);
     for (&a, &b) in p.iter().zip(q.iter()) {
         let d = (a as i16 - b as i16).unsigned_abs(); // 0..=255
         if d != 0 {
@@ -183,6 +389,16 @@ fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
         sse += (d as u64) * (d as u64);
         if d as u8 > linf {
             linf = d as u8;
+        }
+        sp += a as u64;
+        sq += b as u64;
+        spp += (a as u64) * (a as u64);
+        sqq += (b as u64) * (b as u64);
+        spq += (a as u64) * (b as u64);
+        if b > a {
+            n_up += 1;
+        } else if b < a {
+            n_down += 1;
         }
     }
     let gradient_mag = grad_energy(q) as f32 - grad_energy(p) as f32;
@@ -243,6 +459,37 @@ fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
     let csz_pq = csize(&pq);
     let ncd = (csz_pq as f64 - csz_p.min(csz_q) as f64) / csz_p.max(csz_q).max(1) as f64;
 
+    // === Family B: direction -- moments (from the byte loop) + histogram percentiles ===
+    let nf = PAGE_SIZE as f64;
+    let mp = sp as f64 / nf;
+    let mq = sq as f64 / nf;
+    let vp = (spp as f64 / nf - mp * mp).max(0.0);
+    let vq = (sqq as f64 / nf - mq * mq).max(0.0);
+    let cov = spq as f64 / nf - mp * mq;
+    let sdp = vp.sqrt();
+    let sdq = vq.sqrt();
+    // SSIM stabilising constants for 8-bit data (dynamic range L = 255).
+    let c1 = (0.01 * 255.0f64).powi(2);
+    let c2 = (0.03 * 255.0f64).powi(2);
+    let c3 = c2 / 2.0;
+    let pearson = if vp > 0.0 && vq > 0.0 { cov / (sdp * sdq) } else { 0.0 };
+    let var_ratio = if vp > 0.0 { vq / vp } else { 0.0 };
+    let pu = n_up as f64 / nf;
+    let pd = n_down as f64 / nf;
+    let psame = 1.0 - pu - pd;
+    let mut sde = 0.0;
+    for &pr in &[pu, pd, psame] {
+        if pr > 0.0 {
+            sde -= pr * pr.log2();
+        }
+    }
+    let range_p = hi_bin(&hp) as f64 - lo_bin(&hp) as f64;
+    let range_q = hi_bin(&hq) as f64 - lo_bin(&hq) as f64;
+    let iqr_p = pctl(&hp, PAGE_SIZE, 0.75) as f64 - pctl(&hp, PAGE_SIZE, 0.25) as f64;
+    let iqr_q = pctl(&hq, PAGE_SIZE, 0.75) as f64 - pctl(&hq, PAGE_SIZE, 0.25) as f64;
+    let (spearman, kendall) = spearman_kendall(p, q, &hp, &hq);
+    let (cross_corr_lag, phase_corr, byte_rotation) = xcorr_metrics(p, q);
+
     PageMetrics {
         hamming,
         cosine: cos,
@@ -265,6 +512,25 @@ fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
         ncd: ncd as f32,
         struct_ent_change: (struct_entropy(q) - struct_entropy(p)) as f32,
         lz_change: lz_complexity(q) as f32 - lz_complexity(p) as f32,
+        // Family B
+        pearson: pearson as f32,
+        ssim_struct: ((cov + c3) / (sdp * sdq + c3)) as f32,
+        mean_shift: (mq - mp) as f32,
+        ssim_lum: ((2.0 * mp * mq + c1) / (mp * mp + mq * mq + c1)) as f32,
+        median_shift: (pctl(&hq, PAGE_SIZE, 0.5) as f64 - pctl(&hp, PAGE_SIZE, 0.5) as f64) as f32,
+        var_ratio: var_ratio as f32,
+        std_delta: (sdq - sdp) as f32,
+        ssim_contrast: ((2.0 * sdp * sdq + c2) / (vp + vq + c2)) as f32,
+        range_delta: (range_q - range_p) as f32,
+        iqr_delta: (iqr_q - iqr_p) as f32,
+        polarity: ((n_up as f64 - n_down as f64) / nf) as f32,
+        sign_delta_ent: sde as f32,
+        zero_mass_delta: ((hq[0] as f64 - hp[0] as f64) / nf) as f32,
+        spearman: spearman as f32,
+        kendall: kendall as f32,
+        cross_corr_lag,
+        phase_corr,
+        byte_rotation,
     }
 }
 
@@ -374,7 +640,7 @@ async fn main() -> io::Result<()> {
     let mut cosine_buffer = String::new();
     // Header row for the combined substrate CSV (one column per metric).
     let mut metrics_buffer = String::from(
-        "hamming,cosine,l0,l1,l2,linf,mean_abs,gradient_mag,tv,chi2,hellinger,kl,js,wasserstein,bhattacharyya,hist_inter_dist,ent_delta,csize_delta,ncd,struct_ent_change,lz_change\n",
+        "hamming,cosine,l0,l1,l2,linf,mean_abs,gradient_mag,tv,chi2,hellinger,kl,js,wasserstein,bhattacharyya,hist_inter_dist,ent_delta,csize_delta,ncd,struct_ent_change,lz_change,pearson,ssim_struct,mean_shift,ssim_lum,median_shift,var_ratio,std_delta,ssim_contrast,range_delta,iqr_delta,polarity,sign_delta_ent,zero_mass_delta,spearman,kendall,cross_corr_lag,phase_corr,byte_rotation\n",
     );
 
     for result_vec in &result_vecs {
@@ -384,11 +650,15 @@ async fn main() -> io::Result<()> {
             cosine_buffer.push_str(&format!("{}\n", m.cosine));
             // Combined substrate row: all metrics for this page.
             metrics_buffer.push_str(&format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\
+                 {},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
                 m.hamming, m.cosine, m.l0, m.l1, m.l2, m.linf, m.mean_abs, m.gradient_mag,
                 m.tv, m.chi2, m.hellinger, m.kl, m.js, m.wasserstein, m.bhattacharyya,
                 m.hist_inter_dist, m.ent_delta, m.csize_delta, m.ncd, m.struct_ent_change,
-                m.lz_change
+                m.lz_change, m.pearson, m.ssim_struct, m.mean_shift, m.ssim_lum, m.median_shift,
+                m.var_ratio, m.std_delta, m.ssim_contrast, m.range_delta, m.iqr_delta,
+                m.polarity, m.sign_delta_ent, m.zero_mass_delta, m.spearman, m.kendall,
+                m.cross_corr_lag, m.phase_corr, m.byte_rotation
             ));
         }
     }
