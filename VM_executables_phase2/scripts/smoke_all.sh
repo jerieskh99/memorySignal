@@ -56,6 +56,27 @@ c_targets=(
     "sandbox_ransom_selective;--files 5 --file-size-bytes 8192 --duration 30"
     "sandbox_scanner_metadata;--files 50 --subdirs 5 --file-size-bytes 4096 --passes 2 --duration 30"
     "app_hashtable_intensive_v2;--capacity-pow2 14 --inserts 4096 --lookups 8192 --duration 10"
+    # Next-generation benign system-behaviour families (CPU / CACHE / MEM / IO / THREAD / MIXED).
+    "cpu_hash_loop_v2;--duration 2 --block-kb 4"
+    "cpu_matrix_mult_v2;--dim 64 --duration 2"
+    "cpu_branch_random_v2;--duration 2 --table-kb 16"
+    "cache_hot_loop_v2;--buffer-kb 32 --duration 2"
+    "cache_cold_scan_v2;--working-set-mb 8 --mode rmw --duration 2"
+    "cache_stride_sweep_v2;--working-set-mb 8 --stride 4096 --duration 2"
+    "mem_random_write_pages_v2;--working-set-mb 8 --bytes-per-page 64 --duration 2 --warmup 1"
+    "mem_stride_sweep_large_v2;--working-set-mb 8 --stride 4096 --duration 2 --warmup 1"
+    "io_read_cache_hit_v2;--file-size-mb 4 --duration 2 --backing-dir /tmp"
+    "io_direct_write_like_v2;--file-size-mb 4 --mode seq --duration 2 --backing-dir /tmp"
+    "thread_lock_contention_v2;--threads 2 --duration 2"
+    "thread_producer_consumer_v2;--ring-size 256 --duration 2"
+    "thread_parallel_alloc_v2;--threads 2 --duration 2"
+    "mixed_mem_io_v2;--working-set-mb 8 --file-size-mb 4 --duration 2 --backing-dir /tmp"
+    "mixed_cpu_mem_v2;--working-set-mb 8 --duration 2"
+    "mixed_cpu_io_v2;--file-size-mb 4 --duration 2 --backing-dir /tmp"
+    # Compute-kernel family (Berkeley dwarfs).
+    "kernel_stencil_jacobi_v2;--grid-n 256 --duration 2"
+    "kernel_stencil_seidel_v2;--grid-n 256 --duration 2"
+    "kernel_multigrid_v2;--grid-n 129 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do

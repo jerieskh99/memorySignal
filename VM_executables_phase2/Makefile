@@ -23,7 +23,43 @@ MEM_SRCS := \
 	mem/mem_writemag_sweep_v2.c \
 	mem/mem_rmw_intensity_v2.c \
 	mem/mem_pagefault_density_v2.c \
-	mem/mem_mmap_traversal_v2.c
+	mem/mem_mmap_traversal_v2.c \
+	mem/mem_random_write_pages_v2.c \
+	mem/mem_stride_sweep_large_v2.c
+
+# Next-generation benign system-behaviour benchmark families (no network,
+# no persistence; see docs/SAFETY_MODEL.md). THREAD_SRCS and MIXED_SRCS link
+# with -pthread (see the per-directory pattern rules below).
+CPU_SRCS := \
+	cpu/cpu_hash_loop_v2.c \
+	cpu/cpu_matrix_mult_v2.c \
+	cpu/cpu_branch_random_v2.c
+
+CACHE_SRCS := \
+	cache/cache_hot_loop_v2.c \
+	cache/cache_cold_scan_v2.c \
+	cache/cache_stride_sweep_v2.c
+
+IO_SRCS := \
+	io/io_read_cache_hit_v2.c \
+	io/io_direct_write_like_v2.c
+
+THREAD_SRCS := \
+	thread/thread_lock_contention_v2.c \
+	thread/thread_producer_consumer_v2.c \
+	thread/thread_parallel_alloc_v2.c
+
+MIXED_SRCS := \
+	mixed/mixed_mem_io_v2.c \
+	mixed/mixed_cpu_mem_v2.c \
+	mixed/mixed_cpu_io_v2.c
+
+# Compute-kernel family (Berkeley dwarfs): structured-compute writers. Pure
+# memory + compute, no -pthread.
+KERNEL_SRCS := \
+	kernel/kernel_stencil_jacobi_v2.c \
+	kernel/kernel_stencil_seidel_v2.c \
+	kernel/kernel_multigrid_v2.c
 
 SEC_SRCS := \
 	security_like_safe/sandbox_ransom_seq.c \
@@ -38,7 +74,8 @@ SEC_SRCS := \
 APP_SRCS := \
 	app_realistic/app_hashtable_intensive_v2.c
 
-C_SRCS  := $(MEM_SRCS) $(SEC_SRCS) $(APP_SRCS)
+C_SRCS  := $(MEM_SRCS) $(SEC_SRCS) $(APP_SRCS) \
+	$(CPU_SRCS) $(CACHE_SRCS) $(IO_SRCS) $(THREAD_SRCS) $(MIXED_SRCS) $(KERNEL_SRCS)
 C_BINS  := $(patsubst %.c,$(BIN)/%,$(notdir $(C_SRCS)))
 
 PY_TESTS := \
@@ -63,6 +100,19 @@ $(BIN)/%: security_like_safe/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
 $(BIN)/%: app_realistic/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+$(BIN)/%: cpu/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+$(BIN)/%: cache/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+$(BIN)/%: io/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+$(BIN)/%: kernel/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+# THREAD and MIXED use pthreads -> link with -pthread.
+$(BIN)/%: thread/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -pthread
+$(BIN)/%: mixed/%.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -pthread
 
 $(BIN):
 	@mkdir -p $(BIN)

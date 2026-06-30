@@ -12,6 +12,15 @@ malware. Nothing here performs real encryption, persistence, evasion, network
 communication, privilege escalation, credential access, spreading, or any
 destructive action.
 
+The benign system-behaviour families -- MEM, CPU, CACHE, IO, THREAD, MIXED, and
+IDLE -- are ordinary benchmark generators (memory-access patterns, compute
+loops, cache/TLB pressure, file I/O confined to `/tmp` or `/var/tmp`, and thread
+synchronisation). They have no security-relevant behaviour. The NETWORK family
+listed in the workload catalogue is **deliberately NOT implemented** in this
+folder: it would require sockets, and this folder's standing guarantee is zero
+network code (see "No network" below). If a network workload is ever needed it
+must be added under its own separate, explicitly reviewed safety amendment.
+
 The strongest guarantees are needed for the SECURITY-LIKE family
 (`sandbox_ransom_*`, `sandbox_scanner_metadata`). These tests are
 **behavioral-pattern simulators only**: they mimic the *workload shape* of
@@ -111,15 +120,17 @@ roots.
 ```sh
 # 1. No network code.
 grep -RIn -E 'socket\(|connect\(|bind\(|sendto\(|sendmsg\(|recvfrom\(|recvmsg\(' \
-    common/ mem/ security_like_safe/ app_realistic/ methodology/ \
-    | grep -v 'README\|\.md' || echo "OK: no network syscalls in workload code"
+    common/ mem/ cpu/ cache/ io/ thread/ mixed/ security_like_safe/ app_realistic/ methodology/ \
+    | grep -v 'README\|\.md\|sqlite3\.connect' || echo "OK: no network syscalls in workload code"
+# (sqlite3.connect is a local DB-file open in the APP-REALISTIC Python tests --
+#  not a network connect; it is filtered above as a known-benign false positive.)
 
 grep -RIn -E '^\s*import\s+(socket|urllib|http|requests|httpx)' \
     common/ app_realistic/ methodology/ || echo "OK: no Python network imports"
 
 # 2. No exec.
 grep -RIn -E 'execve\(|system\(|popen\(' \
-    common/ mem/ security_like_safe/ app_realistic/ || echo "OK: no exec syscalls"
+    common/ mem/ cpu/ cache/ io/ thread/ mixed/ security_like_safe/ app_realistic/ || echo "OK: no exec syscalls"
 
 # 3. Sandbox validator is called before file generation.
 grep -RIn 'p2_sandbox_validate' security_like_safe/ common/
