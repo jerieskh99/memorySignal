@@ -450,10 +450,58 @@ def fig_dag():
     _emit(fig, "dag")
 
 
+# =====================================================================
+# 12. The depth axes: magnitude + entropy at two granularities (2x2 schematic)
+# =====================================================================
+def fig_depth():
+    fig, ax = _canvas(11, 6.7)
+    ax.text(50, 97.5, "The depth axes: weighted Hamming (magnitude) and byte entropy, at two granularities",
+            ha="center", fontsize=12, fontweight="bold")
+    ax.text(50, 93, "two senses (how hard each page changed / how random it looks) x two granularities "
+                    "(a distribution over pages / one pooled value),  with APF kept as the breadth baseline",
+            ha="center", fontsize=7.8, color=PAL["muted"], style="italic")
+    # APF baseline band (spans both columns)
+    _box(ax, 56, 85, 80, 6,
+         "APF baseline (kept, every snapshot):   apf = changed pages / total   =   BREADTH -- how many pages moved",
+         PAL["muted"], fs=8)
+    # column headers
+    ax.text(38, 77.5, "PER-PAGE  --  distribution\n(compute per changed page, summarise over pages)",
+            ha="center", fontsize=8.2, fontweight="bold", color=PAL["ink"])
+    ax.text(78, 77.5, "PER-SNAPSHOT  --  global\n(pool all changed content, one value)",
+            ha="center", fontsize=8.2, fontweight="bold", color=PAL["ink"])
+    ax.plot([58, 58], [12, 73], color=PAL["line"], lw=1, ls="--")
+    # magnitude row
+    ax.text(8, 60, "MAGNITUDE\nweighted\nHamming\n(bits flipped)\nDEPTH:\nhow hard",
+            ha="center", va="center", fontsize=7.8, fontweight="bold", color=PAL["new"])
+    _box(ax, 38, 60, 34, 13, "ham_mean    ham_max\nham_p95    ham_std\n\n= the 'magnitude distribution'", PAL["new"], fs=8.4)
+    _box(ax, 78, 60, 30, 13, "ham_sum\n(total bits flipped)\nham_frac\n(/ all memory bits)", PAL["new"], fs=8.4)
+    # entropy row
+    ax.text(8, 38, "BYTE\nENTROPY\n(bits/byte 0..8)\n~8 = random\nRANDOMNESS:\nhow it looks",
+            ha="center", va="center", fontsize=7.8, fontweight="bold", color=PAL["indigo"])
+    _box(ax, 38, 38, 34, 13, "ent_mean    ent_max\nent_p95    ent_std\n\n= the 'entropy distribution'", PAL["indigo"], fs=8.4)
+    _box(ax, 78, 38, 30, 13, "ent_pooled\n(entropy of all changed\nbytes merged into one\n256-bin histogram)", PAL["indigo"], fs=8.2)
+    # over-time strip
+    ax.add_patch(FancyBboxPatch((4, 18.5), 92, 7.4, boxstyle="round,pad=0.2,rounding_size=0.3",
+                 fc=PAL["panel"], ec=PAL["line"]))
+    ax.text(50, 22.2, "Third granularity, offline -- OVER TIME: each per-snapshot value becomes a series over the "
+                      "cell  ->  mean / max / p95 across snapshots",
+            ha="center", fontsize=8, color=PAL["ink"], fontweight="bold")
+    # stealth signature strip
+    ax.add_patch(FancyBboxPatch((4, 6.2), 92, 8.6, boxstyle="round,pad=0.2,rounding_size=0.3",
+                 fc="#FBF6EC", ec=PAL["new"], lw=1.3))
+    ax.text(50, 12.1, "Stealth tell:   low APF   +   high ham_mean / ham_max   +   high ent_max / ent_pooled",
+            ha="center", fontsize=8.6, fontweight="bold", color=PAL["new"])
+    ax.text(50, 8.3, "few pages touched, but each fully and randomly rewritten -- encryption hiding under a quiet "
+                     "page-count  (the per-page MAX is the detector)",
+            ha="center", fontsize=7.6, color=PAL["muted"])
+    _tag(ax, "schematic")
+    _emit(fig, "depth")
+
+
 def build_all():
     fig_tree(); fig_overview(); fig_ladder(); fig_features(); fig_two_paths()
     fig_flavors(); fig_windows(); fig_results(); fig_masquerade(); fig_sepmatrix()
-    fig_dag()
+    fig_dag(); fig_depth()
     return FIGS
 
 

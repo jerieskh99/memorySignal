@@ -50,30 +50,114 @@ METRIC_TABLE = table(
      ["apf_max, apf_p95", "peakvar -- magnitude", "existing", "level / loudness of churn"],
      ["apf_cov, peak2med, duty_gt05", "peakvar -- scale-invariant", "existing", "shape / burstiness (unitless)"],
      ["wr_rate, rd_rate, rd_frac", "disk (Plan 06)", "ablation only", "a second-channel comparison -- NOT part of the memory-only spine"],
-     ["APF (changed-page fraction)", "Hamming -- baseline", "kept", "the existing signal, retained for comparison"],
-     ["Hamming sum", "Hamming -- NEW", "additive", "total bits flipped per snapshot"],
-     ["mean Hamming / changed page", "Hamming -- NEW", "additive", "intensity per touched page -- the encryption tell"],
-     ["p95 / max Hamming per page", "Hamming -- NEW", "additive", "is any page heavily rewritten"]],
-    "Feature inventory. The new per-page Hamming scalars are computed additively at capture "
-    "(XOR + popcount in the page comparison APF already performs) -- a few scalars, no per-page storage.")
+     ["apf, n_changed", "depth -- APF baseline", "kept", "**breadth**: how many pages changed (the existing signal, kept beside the new axes for comparison)"],
+     ["ham_mean, ham_max, ham_p95, ham_std", "magnitude -- per-page", "NEW (additive)", "**depth distribution**: bits flipped per changed page -- the *magnitude distribution* (max = the encryption tell)"],
+     ["ham_sum, ham_frac", "magnitude -- per-snapshot", "NEW (additive)", "**depth, global**: total bits flipped this snapshot (and as a fraction of all memory bits)"],
+     ["ent_mean, ent_max, ent_p95, ent_std", "entropy -- per-page", "NEW (additive)", "**randomness distribution**: per-page byte entropy -- the *entropy distribution* (max = a page that looks encrypted)"],
+     ["ent_pooled", "entropy -- per-snapshot", "NEW (additive)", "**randomness, global**: entropy of all changed bytes pooled into one histogram"]],
+    "Feature inventory. APF (breadth) is kept as the baseline; the new **depth axes** -- weighted "
+    "Hamming (magnitude) and byte entropy (randomness), each as a per-page *distribution* and a "
+    "per-snapshot *global* value -- are computed additively inside the page comparison APF already "
+    "performs (one XOR + popcount + a byte histogram, on changed pages only). A few scalars per "
+    "snapshot, no per-page storage. Full design and single-pass algorithm: magnitude_entropy_spec.md. "
+    "The depth section below gives the 2x2 view, the equations, and a Q&A.")
+
+DEPTH_TABLE = table(
+    ["Axis (what it senses)", "Per-page -- distribution over the changed pages", "Per-snapshot -- one pooled value"],
+    [["**APF** -- *breadth*: how many pages moved. The baseline, kept beside the depth axes.",
+      "-- (APF is already a per-snapshot fraction; no per-page form)",
+      "**apf** = changed pages / total;  **n_changed**"],
+     ["**Magnitude** -- *weighted Hamming*: how hard each page changed. Per page, h = popcount(prev XOR curr) = bits flipped.",
+      "**ham_mean, ham_max, ham_p95, ham_std** -- the *magnitude distribution* across changed pages",
+      "**ham_sum** (total bits flipped),  **ham_frac** (bits flipped / all memory bits)"],
+     ["**Entropy** -- *byte randomness*: how random the changed content looks (bits/byte, 0--8; ~8 = ciphertext-like).",
+      "**ent_mean, ent_max, ent_p95, ent_std** -- the *entropy distribution* across changed pages",
+      "**ent_pooled** -- entropy of all changed bytes merged into one 256-bin histogram"]],
+    "The depth block: two senses (magnitude, entropy) at two granularities, with APF the breadth "
+    "baseline alongside. **Per-page** = compute on each changed page, then summarise the spread over "
+    "pages (a distribution: mean / max / p95 / std). **Per-snapshot** = pool everything into one value. "
+    "A single pooled value has no within-snapshot mean / max -- those reappear **offline**, taken over "
+    "the cell's snapshots (a third, over-time granularity that applies to every column). The per-page "
+    "**max** is the stealth detector: one fully-encrypted page among many quiet ones spikes ham_max / "
+    "ent_max while the pooled value and APF stay low.")
+
+QA_TABLE = table(
+    ["Question", "Answer"],
+    [["Do we still compute APF, or only the new metrics?",
+      "Both, every snapshot. APF is kept as the breadth baseline and sits in the same record next to "
+      "the depth axes, so the comparison 'what do magnitude / entropy add over APF?' is built in. Not "
+      "one or the other."],
+     ["What is the 'weighted Hamming' (magnitude)?",
+      "For each changed page, h = popcount(prev XOR curr) = how many bits flipped. 'Weighted' because "
+      "each page contributes *how hard* it changed, not a yes/no vote. APF counts changed pages; "
+      "magnitude weighs them by bit-distance."],
+     ["What is byte entropy?",
+      "For a changed page, histogram its 256 possible byte values and compute H = -sum p_b log2 p_b, "
+      "in 0--8 bits/byte. Near 8 the bytes look uniform -- the fingerprint of compressed or encrypted "
+      "data; nearer 4--5 the content is structured."],
+     ["Per page or per snapshot?",
+      "Both -- two granularities. Per-page: compute on each changed page, then summarise across pages "
+      "(mean / max / p95 / std) = the distribution. Per-snapshot: pool everything into one value. And "
+      "offline, every per-snapshot value is summarised over the cell's snapshots (a third, over-time view)."],
+     ["What is ent_pooled, and why no mean / max on it?",
+      "It pools every changed byte this snapshot into ONE histogram and computes entropy once = one "
+      "number ('overall randomness of everything that changed'). A single blob has nothing to average "
+      "within a snapshot. The entropy mean / max you'd want are ent_mean / ent_max (the per-page row). "
+      "ent_pooled is the global twin of ham_sum."],
+     ["Where is the 'magnitude distribution'?",
+      "It is ham_mean, ham_max, ham_p95, ham_std -- bits-flipped computed per changed page, then "
+      "summarised over pages. That set IS the magnitude distribution. ham_sum / ham_frac are the "
+      "global total beside it."],
+     ["Why per-page at all -- why not just pool everything?",
+      "Pooling dilutes localised encryption. One fully-random page hidden among many quiet ones barely "
+      "moves the pooled value or APF, but spikes the per-page max (ham_max, ent_max). The per-page max "
+      "is the stealth detector; the pooled value is the bulk / composition view. Different failure "
+      "modes, both kept."],
+     ["Does count(b) count bytes in a page or across the snapshot?",
+      "Per page (4096 bytes) for the per-page layer. The pooled layer's histogram is simply the sum of "
+      "the per-page histograms (K x 4096 bytes), so both granularities come from the same one pass."],
+     ["Do we normalise so the probabilities sum to 1?",
+      "Conceptually yes -- p_b = count_b / total. In code we use the equivalent count form "
+      "H = log2(B) - (1/B) sum_b c_b log2(c_b), which avoids per-bin division and reuses a precomputed "
+      "table T[k] = k log2 k; identical result."],
+     ["Why capture all of this -- isn't it a lot of features?",
+      "Capturing is the expensive, irreversible part (it needs the server); computing extra scalars "
+      "from pages we already compare is nearly free (shared XOR, summed histograms). So we capture "
+      "richly and let the offline feature selection decide what carries signal. More features is a "
+      "modelling-stage concern (handled by leakage controls + selection), not a reason to discard data "
+      "at capture time."],
+     ["Is this implemented in the capture yet?",
+      "Not yet. It is **Task C**: an additive, flag-gated emit (TIMING_MAGENT) that mirrors the Plan 06 "
+      "disk block and is byte-identical when off. Until it runs, captures carry APF only. Design: "
+      "magnitude_entropy_spec.md."],
+     ["What does a stealth workload look like in these features?",
+      "low apf + high ham_mean / ham_max + high ent_max / ent_pooled = few pages touched, but each "
+      "fully and randomly rewritten. That is the signature the sandbox_stealth_* workloads were built "
+      "to produce."]],
+    "The questions that came up while designing the depth axes, and the ones most likely to come up "
+    "next. The metric is intentionally redundant (two senses, two granularities, plus the APF "
+    "baseline) so that the offline analysis -- not a capture-time guess -- decides which scalars carry "
+    "the signal.")
 
 CATALOG_TABLE = table(
-    ["Behaviour family", "Captured (66-cell)", "Built now", "Specced (next-gen)"],
-    [["IDLE", "0", "run_idle", "idle_long_baseline, idle_post_workload_recovery"],
-     ["MEM", "5", "+ stream / pointer_chase / alloc_touch_pages", "random_write_pages, stride_sweep_large"],
-     ["IO", "0", "rand_rw / seq_fsync / many_files", "read_cache_hit, direct_write_like"],
-     ["CPU", "0", "--", "hash_loop, matrix_mult, branch_random"],
-     ["CACHE", "0", "--", "hot_loop, cold_scan, stride_sweep"],
-     ["THREAD", "0", "--", "lock_contention, producer_consumer, parallel_alloc"],
-     ["NETWORK", "0", "--", "tcp_loopback_stream, udp_burst, many_small_messages"],
-     ["MIXED", "0", "--", "mixed_mem_io, mixed_cpu_mem, mixed_cpu_io"],
-     ["APP", "1", "6 (sqlite x2, gzip x2, json, hashtable)", "--"],
-     ["SECURITY-like", "5", "8 (4 ransom + scanner + 3 NEW stealth)", "more scanner / stealth variants"]],
-    "The **designed corpus**: ~10 behaviour families and ~39 workloads (the next-generation "
-    "specifications in VM_executables). About 22 are already built; the rest are specced and "
-    "to be authored. Today's 66-cell dataset captures only 11. Building and sampling this corpus "
-    "on the server -- in parallel with the offline analysis -- is what dissolves the small-n "
-    "constraint; it is the plan, not a side task.")
+    ["Behaviour family", "Captured (66-cell)", "Built now", "Status"],
+    [["IDLE", "0", "run_idle + idle_long_baseline, idle_post_workload_recovery (NEW)", "ready to capture"],
+     ["MEM", "5", "5 + random_write_pages, stride_sweep_large (NEW C)", "ready to capture"],
+     ["IO", "0", "rand_rw / seq_fsync / many_files (py) + read_cache_hit, direct_write_like (NEW C)", "ready to capture"],
+     ["CPU", "0", "hash_loop, matrix_mult, branch_random (NEW C)", "ready to capture"],
+     ["CACHE", "0", "hot_loop, cold_scan, stride_sweep (NEW C)", "ready to capture"],
+     ["THREAD", "0", "lock_contention, producer_consumer, parallel_alloc (NEW C)", "ready to capture"],
+     ["NETWORK", "0", "-- (deliberately NOT built)", "excluded for safety -- would need sockets; preserves the repo's zero-network-code guarantee"],
+     ["MIXED", "0", "mixed_mem_io, mixed_cpu_mem, mixed_cpu_io (NEW C)", "ready to capture"],
+     ["APP", "1", "6 (sqlite x2, gzip x2, json, hashtable)", "captured: 1"],
+     ["SECURITY-like", "5", "8 (4 ransom + scanner + 3 stealth)", "captured: 5"]],
+    "The **designed corpus**: ~10 behaviour families. The six new benign system-behaviour families "
+    "(CPU, CACHE, MEM+2, IO, THREAD, MIXED) and the two new IDLE scripts are now **built and "
+    "smoke-tested** (16 new C binaries + 2 shell scripts), so the corpus they grow toward is ready "
+    "to capture on the server -- this is what dissolves the small-n constraint. The NETWORK family is "
+    "**deliberately excluded**: it would require sockets, and keeping zero network code in the "
+    "workload tree is a standing safety guarantee (see SAFETY_MODEL.md). All new workloads are benign "
+    "benchmarks: no network, no persistence, file I/O confined to a sandbox-validated scratch dir.")
 
 CAPTURE_TABLE = table(
     ["Priority", "Action", "Effect"],
@@ -298,6 +382,60 @@ SECTIONS = [
       "what APF cannot. It is stored next to APF (the baseline) so the comparison is built in, "
       "and it costs a few scalars per snapshot, not per-page storage."),
 ]),
+("depth", "The depth axes: magnitude, entropy, and two granularities", [
+    p("APF measures only **breadth** -- how many pages changed between two snapshots. It says "
+      "nothing about *how hard* each page changed or *what the new content looks like*, and a stealth "
+      "encryptor exploits exactly that blind spot: it rewrites few pages (low APF, looks quiet) but "
+      "fully encrypts each one. Plan 07 therefore adds two **depth axes** alongside APF, each measured "
+      "at two granularities. APF is not replaced -- it is kept, in the same per-snapshot record, as "
+      "the breadth baseline the depth axes are compared against."),
+    p("**Magnitude (weighted Hamming).** For each changed page we XOR it against its previous copy and "
+      "count the set bits: h = popcount(prev XOR curr) = the number of bits that flipped. This "
+      "*weights* each changed page by how hard it changed, where APF gave every changed page an equal "
+      "yes/no vote. Summed over the snapshot it is the total bit-churn; spread over the changed pages "
+      "it tells us whether change is thin and uniform or concentrated in a few heavily rewritten pages."),
+    p("**Byte entropy.** For a changed page we histogram its 256 possible byte values and compute "
+      "Shannon entropy, H = -sum p_b log2 p_b, in the range 0--8 bits per byte. Near 8 the bytes are "
+      "uniformly distributed -- the fingerprint of compressed or encrypted data; nearer 4--5 the "
+      "content is structured. This is the encryption tell that magnitude alone cannot give: a page can "
+      "flip many bits and still be structured, but a page that flips many bits *and* looks random is "
+      "the encryptor's signature."),
+    fig("depth", "The depth block at a glance. Two senses (magnitude, byte entropy) at two "
+        "granularities -- a distribution over changed pages, and a single pooled value per snapshot -- "
+        "with APF kept as the breadth baseline. The per-page max is the stealth detector; the pooled "
+        "values and APF are the bulk views. (Schematic of the feature layout, not data.)"),
+    DEPTH_TABLE,
+    h3("Why two granularities -- and where 'over time' comes in"),
+    p("The two columns are two ways to collapse a snapshot's changed pages into numbers. The "
+      "**per-page** column computes the metric on each changed page and then summarises the spread "
+      "*over pages* -- mean, max, p95, std -- which is why we call it a *distribution*. The "
+      "**per-snapshot** column instead pools all changed content into one blob and computes a single "
+      "number. They are complementary: the per-page max catches a single encrypted page that the "
+      "pooled value would average away, while the pooled value captures the overall composition of "
+      "everything that changed. There is also a third, implicit granularity that applies to every "
+      "column -- **over time**. A cell is a whole trajectory of snapshots, so offline each per-snapshot "
+      "scalar (including the single pooled values) becomes a time series, summarised again with "
+      "mean / max / p95 across the cell. That is where the mean and max of the pooled values come from; "
+      "within one snapshot a pooled value is necessarily single."),
+    callout("new", "The common confusion: ent_pooled vs ent_mean / ent_max",
+      "ent_pooled is *not* the average of the per-page entropies. It pools every changed byte into one "
+      "histogram and takes entropy once -- a single global number, the entropy twin of ham_sum. The "
+      "per-page entropy mean and max are separate scalars, ent_mean and ent_max, computed on each page "
+      "first and then summarised over pages. Use ent_mean for 'the typical page's randomness', ent_max "
+      "for 'the most random page', ent_pooled for 'the randomness of the changed memory as a whole'. "
+      "All three are kept; the same distinction holds for ham_mean / ham_max versus ham_sum."),
+    h3("The equations"),
+    p("Magnitude, per changed page: **h = popcount(prev XOR curr)** (bits). Byte entropy, per changed "
+      "page, in the count form we actually compute (it avoids per-bin division and reuses a precomputed "
+      "table T[k] = k log2 k): **H = log2(B) - (1/B) sum_b c_b log2(c_b)**, where B = 4096 bytes per "
+      "page and c_b is the count of byte value b on that page. The pooled entropy uses the same formula "
+      "on the summed histogram C_b = sum-over-pages of c_b, with total B*K over the K changed pages. "
+      "One page-diff feeds APF, the popcount, and the histogram together -- the full single-pass "
+      "algorithm is in magnitude_entropy_spec.md."),
+    h3("Questions and answers"),
+    p("The questions that came up while designing the depth axes, and the ones most likely next:"),
+    QA_TABLE,
+]),
 ("tests", "Tests: what we have and what to capture", [
     p("The current dataset is 11 workloads across 5 families. The families are small and uneven "
       "in their number of distinct workloads, and that -- not the cell count -- is the binding "
@@ -509,7 +647,7 @@ SECTIONS = [
 # Lead the body with the recogniser architecture (paths + granularity), right after the
 # plan overview; keep the separability ladder after Metrics (it needs the feature taxonomy).
 _ORDER = ["summary", "motivation", "questions", "data-model", "overview", "paths",
-          "flavors", "metrics", "tests", "ladder", "methodology", "expected", "dag", "risks"]
+          "flavors", "metrics", "depth", "tests", "ladder", "methodology", "expected", "dag", "risks"]
 SECTIONS = sorted(SECTIONS, key=lambda s: _ORDER.index(s[0]))
 
 # ---------------------------------------------------------------- inline markup
