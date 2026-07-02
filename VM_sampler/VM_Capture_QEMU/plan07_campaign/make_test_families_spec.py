@@ -124,17 +124,22 @@ DWARFS = [
     ("kernel_lbm_v2", "under-testing", "KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/D5_visible_structured_grids/kernel_lbm_v2.c)", "Visible++ (nine distribution arrays streamed each step)", "CFD: porous media, aerodynamics (OpenLB / Palabos)"),
     ("kernel_fdtd_v2", "under-testing", "KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/D5_visible_structured_grids/kernel_fdtd_v2.c)", "Visible++ (two coupled field grids, E<->H leapfrog)", "Antenna / radar / photonics simulation (Meep)"),
   ]},
- {"id": "D6", "name": "Unstructured Grids", "origin": "Colella-7", "vis": "Irregular", "maps": "KERNEL-irregular",
-  "what": "Irregular neighbour access via connectivity / adjacency lists; gather neighbour values, "
-          "accumulate, scatter back into mesh value arrays. The engineering-simulation backbone (FEM/FV) -- "
-          "no test built yet; the real algorithms are catalogued as candidates.",
-  "example": "FEM assembly, finite-volume, mesh smoothing, discontinuous Galerkin",
+ {"id": "D6", "name": "Unstructured Grids", "origin": "Colella-7", "vis": "Visible", "maps": "KERNEL (irregular access)",
+  "what": "The irregular cousin of D5: PDE computation on unstructured meshes, reaching neighbours through "
+          "explicit connectivity / adjacency lists (indirect gather). It writes real mesh/matrix arrays, so it "
+          "is visible -- but the honest nuance is that the irregular ACCESS is mostly reads (invisible), so a "
+          "plain unstructured relaxation writes the same footprint as a structured stencil. The genuinely "
+          "distinct write is the SCATTER-ACCUMULATE that structured grids do not do: assembling a global "
+          "matrix, or scatter-adding fluxes into cells. FEM matvec is the quieter member (a vector output, "
+          "the matrix-free analog of SpMV).",
+  "example": "FEM assembly, matrix-free FEM matvec, discontinuous Galerkin, mesh smoothing, unstructured finite-volume",
   "workloads": [
-    ("FEM stiffness assembly", "candidate", "KERNEL-irregular (candidate): scatter element matrices into a global sparse matrix", "Irregular (indexed scatter-accumulate)", "ANSYS / Abaqus structural & crash; aerospace"),
-    ("Unstructured finite-volume", "candidate", "KERNEL-irregular (candidate): flux gather over face lists, cell update", "Irregular (face-list gather, cell rewrite)", "OpenFOAM CFD; aerodynamics"),
-    ("Mesh Laplacian smoothing", "candidate", "KERNEL-irregular (candidate): average each vertex over its neighbours", "Irregular (adjacency gather, vertex rewrite)", "Graphics mesh processing; remeshing"),
-    ("Discontinuous Galerkin (DG)", "candidate", "KERNEL-irregular (candidate): per-element dense ops + face coupling", "Visible/irregular (element-local dense + flux)", "High-order CFD & seismic wave propagation"),
-    ("Mesh partitioning (METIS)", "candidate", "KERNEL-irregular (candidate): graph coarsen / partition / refine", "Irregular (graph rewrite)", "Parallel FEM domain decomposition"),
+    ("kernel_fem_assembly_v2", "under-testing", "KERNEL family: scatter-add element matrices into a global matrix (-> kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c)", "Visible (indexed scatter-accumulate into a large matrix)", "FEM assembly: ANSYS / Abaqus structural & crash; aerospace"),
+    ("kernel_fem_matvec_v2", "under-testing", "KERNEL family: matrix-free FEM matvec, element gather-apply-scatter (-> kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c)", "Quieter (scatter-add into a result VECTOR; the matrix-free SpMV analog)", "Large FEM/CFD iterative solvers (matrix-free)"),
+    ("kernel_dg_v2", "under-testing", "KERNEL family: discontinuous Galerkin step, per-element dense + face flux (-> kernel/D6_visible_unstructured_grids/kernel_dg_v2.c)", "Visible (per-element dense blocks rewritten + flux coupling)", "High-order CFD & seismic wave propagation"),
+    ("kernel_mesh_smooth_v2", "under-testing", "KERNEL family: unstructured Laplacian mesh smoothing (-> kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c)", "Visible (node-array rewrite; write ~ D5 stencil, distinct in access)", "Graphics mesh processing; remeshing"),
+    ("kernel_unstructured_fv_v2", "under-testing", "KERNEL family: finite-volume, conservative face-flux scatter-add into cells (-> kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c)", "Visible (face-list gather + conservative cell scatter-add)", "OpenFOAM CFD; aerodynamics"),
+    ("Mesh partitioning (METIS)", "candidate", "KERNEL-irregular (candidate): graph coarsen / partition / refine", "Irregular (graph rewrite; closer to D9)", "Parallel FEM domain decomposition"),
   ]},
  {"id": "D7", "name": "MapReduce / Monte Carlo", "origin": "Colella-7", "vis": "Partial", "maps": "split",
   "what": "Embarrassingly parallel map (writes intermediates) + reduce (small); or RNG accumulate. "
@@ -352,6 +357,11 @@ FAMILIES = [
     ("kernel_spgemm_v2", "Sparse Linear Algebra", "SpGEMM: sparse x sparse -> new sparse matrix, fill-in (kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c)"),
     ("kernel_sddmm_v2", "Sparse Linear Algebra", "SDDMM: sampled dense-dense -> sparse output at mask positions (kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c)"),
     ("kernel_moe_dispatch_v2", "Sparse Linear Algebra", "MoE dispatch: token-permutation scatter into expert buffers + combine (kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c)"),
+    ("kernel_fem_assembly_v2", "Unstructured Grids", "FEM stiffness assembly: scatter-add element matrices into a global matrix (kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c)"),
+    ("kernel_fem_matvec_v2", "Unstructured Grids", "matrix-free FEM matvec: element gather-apply-scatter into a result vector (kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c)"),
+    ("kernel_dg_v2", "Unstructured Grids", "discontinuous Galerkin step: per-element dense volume + face-flux coupling (kernel/D6_visible_unstructured_grids/kernel_dg_v2.c)"),
+    ("kernel_mesh_smooth_v2", "Unstructured Grids", "unstructured Laplacian mesh smoothing over an adjacency list (kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c)"),
+    ("kernel_unstructured_fv_v2", "Unstructured Grids", "finite-volume: conservative face-flux scatter-add into cells (kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c)"),
   ]},
 ]
 N_WORKLOADS = sum(len(f["workloads"]) for f in FAMILIES)
@@ -428,6 +438,11 @@ STATUS = {
     "kernel_spgemm_v2": "under-testing",
     "kernel_sddmm_v2": "under-testing",
     "kernel_moe_dispatch_v2": "under-testing",
+    "kernel_fem_assembly_v2": "under-testing",
+    "kernel_fem_matvec_v2": "under-testing",
+    "kernel_dg_v2": "under-testing",
+    "kernel_mesh_smooth_v2": "under-testing",
+    "kernel_unstructured_fv_v2": "under-testing",
 }
 STATUS_ORDER = ["candidate", "covered", "planned", "under-development", "under-testing", "exists"]
 STATUS_COLOR = {"candidate": "#8A6D9E", "covered": "#2E7D7D", "planned": "#8A8A8A",
@@ -663,6 +678,11 @@ GLOSSARY = {
  "kernel_spgemm_v2": "Sparse matrix times sparse matrix producing a new sparse matrix, computed row by row with a dense accumulator. Writing the new (filled-in) sparse result is the signature write. It drives algebraic-multigrid setup, triangle counting and graph contraction.",
  "kernel_sddmm_v2": "Sampled dense-dense matrix multiplication: it computes full dense dot products but only at the non-zero positions of a sparse mask, writing a scattered sparse output. Used in graph-attention networks and recommender systems.",
  "kernel_moe_dispatch_v2": "The Mixture-of-Experts dispatch/combine step: each token's feature vector is scattered into its assigned expert's buffer (a counting-sort permutation) and later gathered back. The token-permutation scatter is the signature write. Used in modern MoE large language models.",
+ "kernel_fem_assembly_v2": "Finite-element stiffness assembly: it computes each element's small local matrix and scatter-adds it into a large global matrix through the mesh connectivity. That indexed scatter-accumulate into a big matrix is the distinctive write. The first heavy step of structural and crash simulation (ANSYS/Abaqus).",
+ "kernel_fem_matvec_v2": "A matrix-free finite-element matrix-vector product: instead of assembling the global matrix it visits each element, gathers the local solution, applies the element operator, and scatter-adds into a result vector. The quieter member of the dwarf (a vector output, the matrix-free analog of sparse matrix-vector multiply).",
+ "kernel_dg_v2": "A discontinuous Galerkin time step: every element carries a small dense block of unknowns updated by an element-local dense operator (the volume term) plus a conservative flux exchange with neighbouring elements. It rewrites the whole per-element solution array each step. Used for high-order CFD and seismic simulation.",
+ "kernel_mesh_smooth_v2": "Unstructured Laplacian mesh smoothing: each node is moved toward the average of its neighbours, reached through an irregular adjacency list, rewriting the node value array. The unstructured cousin of a grid stencil; used in mesh processing and remeshing.",
+ "kernel_unstructured_fv_v2": "An unstructured finite-volume update: conserved quantities on cells are changed by fluxes across faces, each flux scatter-added equal-and-opposite into the two cells it separates (so the total is exactly conserved). The face-based conservative scatter is the distinctive write. The basis of OpenFOAM and industrial CFD.",
  "kernel_lu_v2": "In-place LU factorisation: it decomposes a matrix into lower/upper triangular factors to solve linear systems, overwriting the matrix as it goes so the active region shrinks toward the bottom-right. The workhorse behind circuit simulation, finite-element solvers and optimisation.",
  "kernel_qr_v2": "Gram-Schmidt / QR orthogonalisation: it rewrites each column to be orthogonal to all the previous ones, so the dependency front grows as it advances. Used in least-squares regression and the inner loop of iterative eigen/linear solvers such as GMRES and Arnoldi.",
  "kernel_attention_v2": "Scaled dot-product attention, the core of every transformer: it scores each token against every other (Q times K-transpose), normalises the scores with a row-wise softmax, then mixes the values. The single most-run compute pattern in modern AI.",

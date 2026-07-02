@@ -1,6 +1,6 @@
 # Workload Corpus -- two orthogonal divisions (behaviour families + the 13 dwarfs)
 
-*First division: 75 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
+*First division: 80 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
 
 The corpus has TWO orthogonal divisions of the SAME workloads. (1) The behaviour FAMILIES, organised by MEMORY SIGNATURE (what the write-signal actually clusters), kept as finalised: IDLE -- near-zero writes (CPU is its warm/active boundary); MEM -- working-set writes (CACHE is a footprint/locality sub-family); IO -- page-cache + metadata writes (cold reads count here); THREAD -- shared-line + allocator writes; BULK-REWRITE / encryptor -- high-entropy full rewrites (the ransomware cluster); ENUMERATION / metadata -- scanner-like; STEALTH / trickle -- low-rate, high-intensity; APP; and MIXED. This is the 'which behaviour' division -- designed by signature, validated by cohesion. (2) This document is a SECOND, CROSS-CUTTING division by the Berkeley 13 dwarfs (Colella's seven, 2004, + Berkeley's six, A View from Berkeley, 2006) -- the 'which computation motif' division. Every workload keeps its family label AND gets a dwarf label where one applies; the two taxonomies coexist, they do not replace each other. A dwarf is an algorithmic method that captures a pattern of computation and communication -- largely a MEMORY-ACCESS pattern, which is what the host memory signal sees.
 
@@ -8,7 +8,7 @@ We filter every dwarf by WRITE-visibility, because the signal only sees pages th
 
 Rules: a workload that already exists in another family is POINTED to (status 'exists', with its family), never duplicated. Each dwarf targets 4-5 distinct workloads. v1 pre-fills only the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, in iterations (edit the WORKLOADS lists in the generator and re-run).
 
-## Part 1 -- First division: behaviour families (by signature) -- 75 workloads
+## Part 1 -- First division: behaviour families (by signature) -- 80 workloads
 
 Every workload (built and planned), grouped by its memory-signature family. The Status column tracks implementation (planned -> under-development -> under-testing -> exists); the Dwarf column cross-references Part 2 (`--` = an access/IO/concurrency primitive, no motif).
 
@@ -174,10 +174,15 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | kernel_spgemm_v2 | under-testing | Sparse Linear Algebra | SpGEMM: sparse x sparse -> new sparse matrix, fill-in (kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c) |
 | kernel_sddmm_v2 | under-testing | Sparse Linear Algebra | SDDMM: sampled dense-dense -> sparse output at mask positions (kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c) |
 | kernel_moe_dispatch_v2 | under-testing | Sparse Linear Algebra | MoE dispatch: token-permutation scatter into expert buffers + combine (kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c) |
+| kernel_fem_assembly_v2 | under-testing | Unstructured Grids | FEM stiffness assembly: scatter-add element matrices into a global matrix (kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c) |
+| kernel_fem_matvec_v2 | under-testing | Unstructured Grids | matrix-free FEM matvec: element gather-apply-scatter into a result vector (kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c) |
+| kernel_dg_v2 | under-testing | Unstructured Grids | discontinuous Galerkin step: per-element dense volume + face-flux coupling (kernel/D6_visible_unstructured_grids/kernel_dg_v2.c) |
+| kernel_mesh_smooth_v2 | under-testing | Unstructured Grids | unstructured Laplacian mesh smoothing over an adjacency list (kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c) |
+| kernel_unstructured_fv_v2 | under-testing | Unstructured Grids | finite-volume: conservative face-flux scatter-add into cells (kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c) |
 
-*KERNEL (compute motifs): 36 workloads.*
+*KERNEL (compute motifs): 41 workloads.*
 
-**First division total: 75 workloads across 10 signature families** -- exists 38, under-testing 37, under-development 0, planned 0.
+**First division total: 80 workloads across 10 signature families** -- exists 38, under-testing 42, under-development 0, planned 0.
 
 *Status legend: candidate (violet, a real domain algorithm catalogued but not built) / planned (grey) -> under-development (blue) -> under-testing (gold) -> exists (green).*
 
@@ -192,7 +197,7 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | D3 Spectral Methods | Colella-7 | Visible++ | KERNEL | 5 | 4-5 |
 | D4 N-Body Methods | Colella-7 | Visible | KERNEL | 6 | 4-5 |
 | D5 Structured Grids | Colella-7 | Visible++ | KERNEL | 5 | 4-5 |
-| D6 Unstructured Grids | Colella-7 | Irregular | KERNEL-irregular | 0 | 4-5 |
+| D6 Unstructured Grids | Colella-7 | Visible | KERNEL (irregular access) | 5 | 4-5 |
 | D7 MapReduce / Monte Carlo | Colella-7 | Partial | split | 1 | 4-5 |
 | D8 Combinational Logic | Berkeley+6 | Quiet / Visible | control OR threat-labeled | 4 | 4-5 |
 | D9 Graph Traversal | Berkeley+6 | Irregular | KERNEL-irregular / scanner | 1 | 4-5 |
@@ -201,7 +206,7 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | D12 Graphical Models | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
 | D13 Finite State Machines | Berkeley+6 | Quiet | CPU/IDLE control / parser | 2 | 4-5 |
 
-Covered (>=1 workload): **11/13** dwarfs. Existing workloads pointed in: **46**. Empty dwarfs to fill: **2**.
+Covered (>=1 workload): **12/13** dwarfs. Existing workloads pointed in: **51**. Empty dwarfs to fill: **1**.
 
 ## D1 -- Dense Linear Algebra  (Visible)
 
@@ -298,21 +303,22 @@ Regular neighbour sweep over a grid, iterative; rewrites the grid each iteration
 | kernel_lbm_v2 | under-testing | KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/D5_visible_structured_grids/kernel_lbm_v2.c) | Visible++ (nine distribution arrays streamed each step) | CFD: porous media, aerodynamics (OpenLB / Palabos) |
 | kernel_fdtd_v2 | under-testing | KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/D5_visible_structured_grids/kernel_fdtd_v2.c) | Visible++ (two coupled field grids, E<->H leapfrog) | Antenna / radar / photonics simulation (Meep) |
 
-## D6 -- Unstructured Grids  (Irregular)
+## D6 -- Unstructured Grids  (Visible)
 
-*Colella-7. Maps to: KERNEL-irregular. Example: FEM assembly, finite-volume, mesh smoothing, discontinuous Galerkin.*
+*Colella-7. Maps to: KERNEL (irregular access). Example: FEM assembly, matrix-free FEM matvec, discontinuous Galerkin, mesh smoothing, unstructured finite-volume.*
 
-Irregular neighbour access via connectivity / adjacency lists; gather neighbour values, accumulate, scatter back into mesh value arrays. The engineering-simulation backbone (FEM/FV) -- no test built yet; the real algorithms are catalogued as candidates.
+The irregular cousin of D5: PDE computation on unstructured meshes, reaching neighbours through explicit connectivity / adjacency lists (indirect gather). It writes real mesh/matrix arrays, so it is visible -- but the honest nuance is that the irregular ACCESS is mostly reads (invisible), so a plain unstructured relaxation writes the same footprint as a structured stencil. The genuinely distinct write is the SCATTER-ACCUMULATE that structured grids do not do: assembling a global matrix, or scatter-adding fluxes into cells. FEM matvec is the quieter member (a vector output, the matrix-free analog of SpMV).
 
-**Target 4-5 workloads -- have 0.**
+**Target 4-5 workloads -- have 5.**
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| FEM stiffness assembly | candidate | KERNEL-irregular (candidate): scatter element matrices into a global sparse matrix | Irregular (indexed scatter-accumulate) | ANSYS / Abaqus structural & crash; aerospace |
-| Unstructured finite-volume | candidate | KERNEL-irregular (candidate): flux gather over face lists, cell update | Irregular (face-list gather, cell rewrite) | OpenFOAM CFD; aerodynamics |
-| Mesh Laplacian smoothing | candidate | KERNEL-irregular (candidate): average each vertex over its neighbours | Irregular (adjacency gather, vertex rewrite) | Graphics mesh processing; remeshing |
-| Discontinuous Galerkin (DG) | candidate | KERNEL-irregular (candidate): per-element dense ops + face coupling | Visible/irregular (element-local dense + flux) | High-order CFD & seismic wave propagation |
-| Mesh partitioning (METIS) | candidate | KERNEL-irregular (candidate): graph coarsen / partition / refine | Irregular (graph rewrite) | Parallel FEM domain decomposition |
+| kernel_fem_assembly_v2 | under-testing | KERNEL family: scatter-add element matrices into a global matrix (-> kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c) | Visible (indexed scatter-accumulate into a large matrix) | FEM assembly: ANSYS / Abaqus structural & crash; aerospace |
+| kernel_fem_matvec_v2 | under-testing | KERNEL family: matrix-free FEM matvec, element gather-apply-scatter (-> kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c) | Quieter (scatter-add into a result VECTOR; the matrix-free SpMV analog) | Large FEM/CFD iterative solvers (matrix-free) |
+| kernel_dg_v2 | under-testing | KERNEL family: discontinuous Galerkin step, per-element dense + face flux (-> kernel/D6_visible_unstructured_grids/kernel_dg_v2.c) | Visible (per-element dense blocks rewritten + flux coupling) | High-order CFD & seismic wave propagation |
+| kernel_mesh_smooth_v2 | under-testing | KERNEL family: unstructured Laplacian mesh smoothing (-> kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c) | Visible (node-array rewrite; write ~ D5 stencil, distinct in access) | Graphics mesh processing; remeshing |
+| kernel_unstructured_fv_v2 | under-testing | KERNEL family: finite-volume, conservative face-flux scatter-add into cells (-> kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c) | Visible (face-list gather + conservative cell scatter-add) | OpenFOAM CFD; aerodynamics |
+| Mesh partitioning (METIS) | candidate | KERNEL-irregular (candidate): graph coarsen / partition / refine | Irregular (graph rewrite; closer to D9) | Parallel FEM domain decomposition |
 
 ## D7 -- MapReduce / Monte Carlo  (Partial)
 

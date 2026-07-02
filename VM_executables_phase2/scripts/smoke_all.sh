@@ -111,6 +111,11 @@ c_targets=(
     "kernel_spgemm_v2;--rows 256 --inner 256 --cols 256 --nnz-per-row 6 --duration 2"
     "kernel_sddmm_v2;--rows 512 --cols 512 --feat 16 --nnz-per-row 16 --duration 2"
     "kernel_moe_dispatch_v2;--tokens 4096 --dim 64 --experts 8 --duration 2"
+    "kernel_fem_assembly_v2;--nodes 512 --elements 2048 --npe 4 --duration 2"
+    "kernel_fem_matvec_v2;--nodes 100000 --elements 200000 --npe 4 --duration 2"
+    "kernel_dg_v2;--elements 8192 --dofs 16 --neighbors 3 --duration 2"
+    "kernel_mesh_smooth_v2;--nodes 100000 --degree 6 --duration 2"
+    "kernel_unstructured_fv_v2;--cells 100000 --faces-per-cell 3 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do
