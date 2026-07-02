@@ -59,7 +59,36 @@ MIXED_SRCS := \
 KERNEL_SRCS := \
 	kernel/kernel_stencil_jacobi_v2.c \
 	kernel/kernel_stencil_seidel_v2.c \
-	kernel/kernel_multigrid_v2.c
+	kernel/kernel_multigrid_v2.c \
+	kernel/kernel_fft_v2.c \
+	kernel/kernel_gemm_v2.c \
+	kernel/kernel_spmv_v2.c \
+	kernel/kernel_nbody_v2.c \
+	kernel/kernel_dp_v2.c \
+	kernel/kernel_hmm_v2.c \
+	kernel/kernel_lu_v2.c \
+	kernel/kernel_qr_v2.c \
+	kernel/kernel_attention_v2.c \
+	kernel/kernel_conv_v2.c \
+	kernel/kernel_ntt_v2.c \
+	kernel/kernel_dct_v2.c \
+	kernel/kernel_dwt_v2.c \
+	kernel/kernel_fft2d_v2.c \
+	kernel/kernel_barnes_hut_v2.c \
+	kernel/kernel_md_lj_v2.c \
+	kernel/kernel_pic_v2.c \
+	kernel/kernel_fmm_v2.c \
+	kernel/kernel_sph_v2.c \
+	kernel/kernel_lbm_v2.c \
+	kernel/kernel_fdtd_v2.c \
+	kernel/kernel_floyd_v2.c \
+	kernel/kernel_matrixchain_v2.c \
+	kernel/kernel_knapsack_v2.c \
+	kernel/kernel_smithwaterman_v2.c \
+	kernel/kernel_beliefprop_v2.c \
+	kernel/kernel_kalman_v2.c \
+	kernel/kernel_gibbs_v2.c \
+	kernel/kernel_ldpc_v2.c
 
 SEC_SRCS := \
 	security_like_safe/sandbox_ransom_seq.c \
@@ -107,7 +136,7 @@ $(BIN)/%: cache/%.c | $(BIN)
 $(BIN)/%: io/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
 $(BIN)/%: kernel/%.c | $(BIN)
-	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -lm
 # THREAD and MIXED use pthreads -> link with -pthread.
 $(BIN)/%: thread/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -pthread
