@@ -55,40 +55,10 @@ MIXED_SRCS := \
 	mixed/mixed_cpu_io_v2.c
 
 # Compute-kernel family (Berkeley dwarfs): structured-compute writers. Pure
-# memory + compute, no -pthread.
-KERNEL_SRCS := \
-	kernel/kernel_stencil_jacobi_v2.c \
-	kernel/kernel_stencil_seidel_v2.c \
-	kernel/kernel_multigrid_v2.c \
-	kernel/kernel_fft_v2.c \
-	kernel/kernel_gemm_v2.c \
-	kernel/kernel_spmv_v2.c \
-	kernel/kernel_nbody_v2.c \
-	kernel/kernel_dp_v2.c \
-	kernel/kernel_hmm_v2.c \
-	kernel/kernel_lu_v2.c \
-	kernel/kernel_qr_v2.c \
-	kernel/kernel_attention_v2.c \
-	kernel/kernel_conv_v2.c \
-	kernel/kernel_ntt_v2.c \
-	kernel/kernel_dct_v2.c \
-	kernel/kernel_dwt_v2.c \
-	kernel/kernel_fft2d_v2.c \
-	kernel/kernel_barnes_hut_v2.c \
-	kernel/kernel_md_lj_v2.c \
-	kernel/kernel_pic_v2.c \
-	kernel/kernel_fmm_v2.c \
-	kernel/kernel_sph_v2.c \
-	kernel/kernel_lbm_v2.c \
-	kernel/kernel_fdtd_v2.c \
-	kernel/kernel_floyd_v2.c \
-	kernel/kernel_matrixchain_v2.c \
-	kernel/kernel_knapsack_v2.c \
-	kernel/kernel_smithwaterman_v2.c \
-	kernel/kernel_beliefprop_v2.c \
-	kernel/kernel_kalman_v2.c \
-	kernel/kernel_gibbs_v2.c \
-	kernel/kernel_ldpc_v2.c
+# memory + compute, no -pthread. Sources are organised into per-dwarf
+# subdirectories kernel/D<n>_<visible|quiet>_<name>/, where the directory name
+# also marks whether that dwarf is write-VISIBLE or QUIET in the host signal.
+KERNEL_SRCS := $(wildcard kernel/*/*.c)
 
 SEC_SRCS := \
 	security_like_safe/sandbox_ransom_seq.c \
@@ -135,8 +105,13 @@ $(BIN)/%: cache/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
 $(BIN)/%: io/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS)
-$(BIN)/%: kernel/%.c | $(BIN)
-	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -lm
+# Kernel dwarfs: sources live one level deeper (kernel/D<n>_.../*.c). vpath lets
+# Make locate them by basename; -iquote kernel keeps the "../common" includes
+# resolving from the deeper directory. This generic rule only fires for files
+# vpath can find (the kernel subdirs), so the specific rules above are unaffected.
+vpath %.c $(sort $(dir $(KERNEL_SRCS)))
+$(BIN)/%: %.c | $(BIN)
+	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -iquote kernel -o $@ $< $(LDFLAGS) -lm
 # THREAD and MIXED use pthreads -> link with -pthread.
 $(BIN)/%: thread/%.c | $(BIN)
 	$(CC) $(CSTD) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LDFLAGS) -pthread

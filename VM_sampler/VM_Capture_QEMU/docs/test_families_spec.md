@@ -1,6 +1,6 @@
 # Workload Corpus -- two orthogonal divisions (behaviour families + the 13 dwarfs)
 
-*First division: 70 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
+*First division: 75 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
 
 The corpus has TWO orthogonal divisions of the SAME workloads. (1) The behaviour FAMILIES, organised by MEMORY SIGNATURE (what the write-signal actually clusters), kept as finalised: IDLE -- near-zero writes (CPU is its warm/active boundary); MEM -- working-set writes (CACHE is a footprint/locality sub-family); IO -- page-cache + metadata writes (cold reads count here); THREAD -- shared-line + allocator writes; BULK-REWRITE / encryptor -- high-entropy full rewrites (the ransomware cluster); ENUMERATION / metadata -- scanner-like; STEALTH / trickle -- low-rate, high-intensity; APP; and MIXED. This is the 'which behaviour' division -- designed by signature, validated by cohesion. (2) This document is a SECOND, CROSS-CUTTING division by the Berkeley 13 dwarfs (Colella's seven, 2004, + Berkeley's six, A View from Berkeley, 2006) -- the 'which computation motif' division. Every workload keeps its family label AND gets a dwarf label where one applies; the two taxonomies coexist, they do not replace each other. A dwarf is an algorithmic method that captures a pattern of computation and communication -- largely a MEMORY-ACCESS pattern, which is what the host memory signal sees.
 
@@ -8,7 +8,7 @@ We filter every dwarf by WRITE-visibility, because the signal only sees pages th
 
 Rules: a workload that already exists in another family is POINTED to (status 'exists', with its family), never duplicated. Each dwarf targets 4-5 distinct workloads. v1 pre-fills only the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, in iterations (edit the WORKLOADS lists in the generator and re-run).
 
-## Part 1 -- First division: behaviour families (by signature) -- 70 workloads
+## Part 1 -- First division: behaviour families (by signature) -- 75 workloads
 
 Every workload (built and planned), grouped by its memory-signature family. The Status column tracks implementation (planned -> under-development -> under-testing -> exists); the Dwarf column cross-references Part 2 (`--` = an access/IO/concurrency primitive, no motif).
 
@@ -24,7 +24,7 @@ The no-write floor. CPU-bound workloads sit here as the warm/active boundary (pu
 | cpu_hash_loop_v2 | exists | Combinational Logic | register-resident hash; near-idle (CPU boundary) |
 | cpu_branch_random_v2 | exists | Finite State Machines | random branches; near-idle (CPU boundary) |
 | cpu_matrix_mult_v2 | exists | Dense Linear Algebra | matmul; writes output C -> drifts to MEM |
-| kernel_spmv_v2 | under-testing | Sparse Linear Algebra | SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/kernel_spmv_v2.c) |
+| kernel_spmv_v2 | under-testing | Sparse Linear Algebra | SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_quiet_sparse_linear_algebra/kernel_spmv_v2.c) |
 
 *IDLE (+ CPU boundary): 7 workloads.*
 
@@ -138,41 +138,46 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 
 | Workload | Status | Dwarf (Part 2) | Mechanism / note |
 |---|---|---|---|
-| kernel_stencil_jacobi_v2 | under-testing | Structured Grids | 2D 5-point Jacobi; full-grid rewrite, double-buffer (kernel/kernel_stencil_jacobi_v2.c) |
-| kernel_stencil_seidel_v2 | under-testing | Structured Grids | Gauss-Seidel red-black, in-place; checkerboard writes (kernel/kernel_stencil_seidel_v2.c) |
-| kernel_multigrid_v2 | under-testing | Structured Grids | geometric multigrid V-cycle; multi-scale, time-varying footprint (kernel/kernel_multigrid_v2.c) |
-| kernel_fft_v2 | under-testing | Spectral Methods | in-place radix-2 FFT; stage-varying-stride butterfly + bit-reversal scatter (kernel/kernel_fft_v2.c) |
-| kernel_gemm_v2 | under-testing | Dense Linear Algebra | blocked dense matmul C=A*B; large output-C rewrite (kernel/kernel_gemm_v2.c) |
-| kernel_nbody_v2 | under-testing | N-Body Methods | 2D particle sim; four compact arrays rewritten per step, smooth evolution (kernel/kernel_nbody_v2.c) |
-| kernel_dp_v2 | under-testing | Dynamic Programming | edit-distance DP table fill; row-major wavefront (kernel/kernel_dp_v2.c) |
-| kernel_hmm_v2 | under-testing | Graphical Models | scaled HMM forward; probability-trellis column fill + dense transition matvec (kernel/kernel_hmm_v2.c) |
-| kernel_lu_v2 | under-testing | Dense Linear Algebra | in-place LU factorisation; shrinking trailing-submatrix front (kernel/kernel_lu_v2.c) |
-| kernel_qr_v2 | under-testing | Dense Linear Algebra | modified Gram-Schmidt / QR; growing orthogonalised-column front (kernel/kernel_qr_v2.c) |
-| kernel_attention_v2 | under-testing | Dense Linear Algebra | scaled dot-product attention (QK^T, row softmax, *V); transformer core (kernel/kernel_attention_v2.c) |
-| kernel_conv_v2 | under-testing | Dense Linear Algebra | 2D convolution / CNN layer; overlapping-window MAC, feature-map rewrite (kernel/kernel_conv_v2.c) |
-| kernel_ntt_v2 | under-testing | Spectral Methods | multi-limb number-theoretic transform (modular butterfly); CKKS/lattice core, no crypto (kernel/kernel_ntt_v2.c) |
-| kernel_dct_v2 | under-testing | Spectral Methods | blocked 8x8 2D DCT-II (JPEG transform); many small block rewrites (kernel/kernel_dct_v2.c) |
-| kernel_dwt_v2 | under-testing | Spectral Methods | multi-level 2D Haar wavelet; shrinking multi-resolution pyramid (kernel/kernel_dwt_v2.c) |
-| kernel_fft2d_v2 | under-testing | Spectral Methods | 2D FFT (row FFTs, transpose, column FFTs); transpose scatter (kernel/kernel_fft2d_v2.c) |
-| kernel_barnes_hut_v2 | under-testing | N-Body Methods | Barnes-Hut quadtree N-body; tree rebuilt each step + particle integrate (kernel/kernel_barnes_hut_v2.c) |
-| kernel_md_lj_v2 | under-testing | N-Body Methods | Lennard-Jones molecular dynamics; cell list rebuilt each step + velocity-Verlet integrate (kernel/kernel_md_lj_v2.c) |
-| kernel_pic_v2 | under-testing | N-Body Methods | electrostatic particle-in-cell; CIC scatter/gather + Jacobi Poisson solve on a grid (kernel/kernel_pic_v2.c) |
-| kernel_fmm_v2 | under-testing | N-Body Methods | single-level fast multipole; per-box complex expansion coefficients + far eval (kernel/kernel_fmm_v2.c) |
-| kernel_sph_v2 | under-testing | N-Body Methods | smoothed-particle hydrodynamics; two-pass neighbour sum with per-particle density/pressure fields (kernel/kernel_sph_v2.c) |
-| kernel_lbm_v2 | under-testing | Structured Grids | Lattice-Boltzmann D2Q9; 9 distribution arrays streamed + BGK collide each step (kernel/kernel_lbm_v2.c) |
-| kernel_fdtd_v2 | under-testing | Structured Grids | 2D FDTD electromagnetics; coupled E/H field grids in Yee leapfrog (kernel/kernel_fdtd_v2.c) |
-| kernel_floyd_v2 | under-testing | Dynamic Programming | Floyd-Warshall all-pairs shortest paths; whole matrix relaxed n times (kernel/kernel_floyd_v2.c) |
-| kernel_matrixchain_v2 | under-testing | Dynamic Programming | matrix-chain optimal parenthesisation; anti-diagonal fill, O(n^3) (kernel/kernel_matrixchain_v2.c) |
-| kernel_knapsack_v2 | under-testing | Dynamic Programming | 0/1 knapsack, space-optimised 1D rolling capacity array (kernel/kernel_knapsack_v2.c) |
-| kernel_smithwaterman_v2 | under-testing | Dynamic Programming | Smith-Waterman local alignment; wavefront fill + traceback (kernel/kernel_smithwaterman_v2.c) |
-| kernel_beliefprop_v2 | under-testing | Graphical Models | loopy sum-product belief propagation on a grid MRF; iterated message arrays (kernel/kernel_beliefprop_v2.c) |
-| kernel_kalman_v2 | under-testing | Graphical Models | ensemble of Kalman filters; small dense covariance matrices updated per step (kernel/kernel_kalman_v2.c) |
-| kernel_gibbs_v2 | under-testing | Graphical Models | Gibbs sampling on a Potts/Ising grid; stochastic per-cell resample sweep (kernel/kernel_gibbs_v2.c) |
-| kernel_ldpc_v2 | under-testing | Graphical Models | LDPC min-sum decoder; bipartite Tanner-graph message passing (kernel/kernel_ldpc_v2.c) |
+| kernel_stencil_jacobi_v2 | under-testing | Structured Grids | 2D 5-point Jacobi; full-grid rewrite, double-buffer (kernel/D5_visible_structured_grids/kernel_stencil_jacobi_v2.c) |
+| kernel_stencil_seidel_v2 | under-testing | Structured Grids | Gauss-Seidel red-black, in-place; checkerboard writes (kernel/D5_visible_structured_grids/kernel_stencil_seidel_v2.c) |
+| kernel_multigrid_v2 | under-testing | Structured Grids | geometric multigrid V-cycle; multi-scale, time-varying footprint (kernel/D5_visible_structured_grids/kernel_multigrid_v2.c) |
+| kernel_fft_v2 | under-testing | Spectral Methods | in-place radix-2 FFT; stage-varying-stride butterfly + bit-reversal scatter (kernel/D3_visible_spectral_methods/kernel_fft_v2.c) |
+| kernel_gemm_v2 | under-testing | Dense Linear Algebra | blocked dense matmul C=A*B; large output-C rewrite (kernel/D1_visible_dense_linear_algebra/kernel_gemm_v2.c) |
+| kernel_nbody_v2 | under-testing | N-Body Methods | 2D particle sim; four compact arrays rewritten per step, smooth evolution (kernel/D4_visible_nbody_methods/kernel_nbody_v2.c) |
+| kernel_dp_v2 | under-testing | Dynamic Programming | edit-distance DP table fill; row-major wavefront (kernel/D10_visible_dynamic_programming/kernel_dp_v2.c) |
+| kernel_hmm_v2 | under-testing | Graphical Models | scaled HMM forward; probability-trellis column fill + dense transition matvec (kernel/D12_visible_graphical_models/kernel_hmm_v2.c) |
+| kernel_lu_v2 | under-testing | Dense Linear Algebra | in-place LU factorisation; shrinking trailing-submatrix front (kernel/D1_visible_dense_linear_algebra/kernel_lu_v2.c) |
+| kernel_qr_v2 | under-testing | Dense Linear Algebra | modified Gram-Schmidt / QR; growing orthogonalised-column front (kernel/D1_visible_dense_linear_algebra/kernel_qr_v2.c) |
+| kernel_attention_v2 | under-testing | Dense Linear Algebra | scaled dot-product attention (QK^T, row softmax, *V); transformer core (kernel/D1_visible_dense_linear_algebra/kernel_attention_v2.c) |
+| kernel_conv_v2 | under-testing | Dense Linear Algebra | 2D convolution / CNN layer; overlapping-window MAC, feature-map rewrite (kernel/D1_visible_dense_linear_algebra/kernel_conv_v2.c) |
+| kernel_ntt_v2 | under-testing | Spectral Methods | multi-limb number-theoretic transform (modular butterfly); CKKS/lattice core, no crypto (kernel/D3_visible_spectral_methods/kernel_ntt_v2.c) |
+| kernel_dct_v2 | under-testing | Spectral Methods | blocked 8x8 2D DCT-II (JPEG transform); many small block rewrites (kernel/D3_visible_spectral_methods/kernel_dct_v2.c) |
+| kernel_dwt_v2 | under-testing | Spectral Methods | multi-level 2D Haar wavelet; shrinking multi-resolution pyramid (kernel/D3_visible_spectral_methods/kernel_dwt_v2.c) |
+| kernel_fft2d_v2 | under-testing | Spectral Methods | 2D FFT (row FFTs, transpose, column FFTs); transpose scatter (kernel/D3_visible_spectral_methods/kernel_fft2d_v2.c) |
+| kernel_barnes_hut_v2 | under-testing | N-Body Methods | Barnes-Hut quadtree N-body; tree rebuilt each step + particle integrate (kernel/D4_visible_nbody_methods/kernel_barnes_hut_v2.c) |
+| kernel_md_lj_v2 | under-testing | N-Body Methods | Lennard-Jones molecular dynamics; cell list rebuilt each step + velocity-Verlet integrate (kernel/D4_visible_nbody_methods/kernel_md_lj_v2.c) |
+| kernel_pic_v2 | under-testing | N-Body Methods | electrostatic particle-in-cell; CIC scatter/gather + Jacobi Poisson solve on a grid (kernel/D4_visible_nbody_methods/kernel_pic_v2.c) |
+| kernel_fmm_v2 | under-testing | N-Body Methods | single-level fast multipole; per-box complex expansion coefficients + far eval (kernel/D4_visible_nbody_methods/kernel_fmm_v2.c) |
+| kernel_sph_v2 | under-testing | N-Body Methods | smoothed-particle hydrodynamics; two-pass neighbour sum with per-particle density/pressure fields (kernel/D4_visible_nbody_methods/kernel_sph_v2.c) |
+| kernel_lbm_v2 | under-testing | Structured Grids | Lattice-Boltzmann D2Q9; 9 distribution arrays streamed + BGK collide each step (kernel/D5_visible_structured_grids/kernel_lbm_v2.c) |
+| kernel_fdtd_v2 | under-testing | Structured Grids | 2D FDTD electromagnetics; coupled E/H field grids in Yee leapfrog (kernel/D5_visible_structured_grids/kernel_fdtd_v2.c) |
+| kernel_floyd_v2 | under-testing | Dynamic Programming | Floyd-Warshall all-pairs shortest paths; whole matrix relaxed n times (kernel/D10_visible_dynamic_programming/kernel_floyd_v2.c) |
+| kernel_matrixchain_v2 | under-testing | Dynamic Programming | matrix-chain optimal parenthesisation; anti-diagonal fill, O(n^3) (kernel/D10_visible_dynamic_programming/kernel_matrixchain_v2.c) |
+| kernel_knapsack_v2 | under-testing | Dynamic Programming | 0/1 knapsack, space-optimised 1D rolling capacity array (kernel/D10_visible_dynamic_programming/kernel_knapsack_v2.c) |
+| kernel_smithwaterman_v2 | under-testing | Dynamic Programming | Smith-Waterman local alignment; wavefront fill + traceback (kernel/D10_visible_dynamic_programming/kernel_smithwaterman_v2.c) |
+| kernel_beliefprop_v2 | under-testing | Graphical Models | loopy sum-product belief propagation on a grid MRF; iterated message arrays (kernel/D12_visible_graphical_models/kernel_beliefprop_v2.c) |
+| kernel_kalman_v2 | under-testing | Graphical Models | ensemble of Kalman filters; small dense covariance matrices updated per step (kernel/D12_visible_graphical_models/kernel_kalman_v2.c) |
+| kernel_gibbs_v2 | under-testing | Graphical Models | Gibbs sampling on a Potts/Ising grid; stochastic per-cell resample sweep (kernel/D12_visible_graphical_models/kernel_gibbs_v2.c) |
+| kernel_ldpc_v2 | under-testing | Graphical Models | LDPC min-sum decoder; bipartite Tanner-graph message passing (kernel/D12_visible_graphical_models/kernel_ldpc_v2.c) |
+| kernel_spmm_v2 | under-testing | Sparse Linear Algebra | SpMM: sparse x dense -> dense output; the GNN aggregation kernel (kernel/D2_visible_sparse_linear_algebra/kernel_spmm_v2.c) |
+| kernel_sparse_cholesky_v2 | under-testing | Sparse Linear Algebra | banded sparse Cholesky; factor fills in within the band (kernel/D2_visible_sparse_linear_algebra/kernel_sparse_cholesky_v2.c) |
+| kernel_spgemm_v2 | under-testing | Sparse Linear Algebra | SpGEMM: sparse x sparse -> new sparse matrix, fill-in (kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c) |
+| kernel_sddmm_v2 | under-testing | Sparse Linear Algebra | SDDMM: sampled dense-dense -> sparse output at mask positions (kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c) |
+| kernel_moe_dispatch_v2 | under-testing | Sparse Linear Algebra | MoE dispatch: token-permutation scatter into expert buffers + combine (kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c) |
 
-*KERNEL (compute motifs): 31 workloads.*
+*KERNEL (compute motifs): 36 workloads.*
 
-**First division total: 70 workloads across 10 signature families** -- exists 38, under-testing 32, under-development 0, planned 0.
+**First division total: 75 workloads across 10 signature families** -- exists 38, under-testing 37, under-development 0, planned 0.
 
 *Status legend: candidate (violet, a real domain algorithm catalogued but not built) / planned (grey) -> under-development (blue) -> under-testing (gold) -> exists (green).*
 
@@ -183,7 +188,7 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | Dwarf | Origin | Visibility | Maps to | Have | Target |
 |---|---|---|---|---|---|
 | D1 Dense Linear Algebra | Colella-7 | Visible | KERNEL | 6 | 4-5 |
-| D2 Sparse Linear Algebra | Colella-7 | Quiet | CPU/IDLE control | 1 | 4-5 |
+| D2 Sparse Linear Algebra | Colella-7 | Visible | split: IDLE (spmv control) + KERNEL (writers) | 6 | 4-5 |
 | D3 Spectral Methods | Colella-7 | Visible++ | KERNEL | 5 | 4-5 |
 | D4 N-Body Methods | Colella-7 | Visible | KERNEL | 6 | 4-5 |
 | D5 Structured Grids | Colella-7 | Visible++ | KERNEL | 5 | 4-5 |
@@ -196,7 +201,7 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | D12 Graphical Models | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
 | D13 Finite State Machines | Berkeley+6 | Quiet | CPU/IDLE control / parser | 2 | 4-5 |
 
-Covered (>=1 workload): **11/13** dwarfs. Existing workloads pointed in: **41**. Empty dwarfs to fill: **2**.
+Covered (>=1 workload): **11/13** dwarfs. Existing workloads pointed in: **46**. Empty dwarfs to fill: **2**.
 
 ## D1 -- Dense Linear Algebra  (Visible)
 
@@ -208,30 +213,34 @@ O(n^3) compute on O(n^2) data; regular, blocked access; rewrites the output / fa
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_gemm_v2 | under-testing | KERNEL family: blocked dense matmul (-> kernel/kernel_gemm_v2.c) | Visible (static full output-C rewrite) | Every neural-net layer; BLAS-3 (cuBLAS/MKL); scientific computing |
+| kernel_gemm_v2 | under-testing | KERNEL family: blocked dense matmul (-> kernel/D1_visible_dense_linear_algebra/kernel_gemm_v2.c) | Visible (static full output-C rewrite) | Every neural-net layer; BLAS-3 (cuBLAS/MKL); scientific computing |
 | cpu_matrix_mult_v2 | exists | CPU family: naive square matmul, writes output C | Visible (regular; small-scale GEMM) | Small-scale GEMM control |
-| kernel_lu_v2 | under-testing | KERNEL family: in-place LU factorisation (-> kernel/kernel_lu_v2.c) | Visible (shrinking trailing-submatrix front) | Linear solve: SPICE circuit sim, finite-element, optimisation (LAPACK dgetrf) |
-| kernel_qr_v2 | under-testing | KERNEL family: Gram-Schmidt / QR orthogonalisation (-> kernel/kernel_qr_v2.c) | Visible (growing orthogonalised-column front) | Least-squares regression; GMRES/Arnoldi eigensolvers |
-| kernel_attention_v2 | under-testing | KERNEL family: scaled dot-product attention QK^T/softmax/*V (-> kernel/kernel_attention_v2.c) | Visible (transformer core; ~GEMM + row-softmax) | Every transformer / LLM (the per-token core) |
-| kernel_conv_v2 | under-testing | KERNEL family: 2D convolution / CNN layer, sliding-window MAC (-> kernel/kernel_conv_v2.c) | Visible (overlapping-window feature-map rewrite) | CNNs: image & video vision models |
+| kernel_lu_v2 | under-testing | KERNEL family: in-place LU factorisation (-> kernel/D1_visible_dense_linear_algebra/kernel_lu_v2.c) | Visible (shrinking trailing-submatrix front) | Linear solve: SPICE circuit sim, finite-element, optimisation (LAPACK dgetrf) |
+| kernel_qr_v2 | under-testing | KERNEL family: Gram-Schmidt / QR orthogonalisation (-> kernel/D1_visible_dense_linear_algebra/kernel_qr_v2.c) | Visible (growing orthogonalised-column front) | Least-squares regression; GMRES/Arnoldi eigensolvers |
+| kernel_attention_v2 | under-testing | KERNEL family: scaled dot-product attention QK^T/softmax/*V (-> kernel/D1_visible_dense_linear_algebra/kernel_attention_v2.c) | Visible (transformer core; ~GEMM + row-softmax) | Every transformer / LLM (the per-token core) |
+| kernel_conv_v2 | under-testing | KERNEL family: 2D convolution / CNN layer, sliding-window MAC (-> kernel/D1_visible_dense_linear_algebra/kernel_conv_v2.c) | Visible (overlapping-window feature-map rewrite) | CNNs: image & video vision models |
 | Cholesky factorisation | candidate | KERNEL (candidate): in-place symmetric factorisation, triangular shrinking front | Visible (LU-like triangular front) | Kalman filters, finance covariance, normal-equation least-squares |
 | Triangular solve (TRSM) | candidate | KERNEL (candidate): forward/back substitution, column wavefront | Visible (column-wise solve front) | The solve step inside LU/Cholesky; preconditioners |
 
-## D2 -- Sparse Linear Algebra  (Quiet)
+## D2 -- Sparse Linear Algebra  (Visible)
 
-*Colella-7. Maps to: CPU/IDLE control. Example: SpMV, PageRank, Conjugate Gradient, sparse triangular solve, SpGEMM.*
+*Colella-7. Maps to: split: IDLE (spmv control) + KERNEL (writers). Example: SpMV (quiet control), SpMM, sparse Cholesky, SpGEMM, SDDMM, MoE dispatch.*
 
-Indirect gather/scatter via index arrays; irregular reads, small output write. Heavily used (PageRank, Conjugate Gradient) but near-invisible to the write-signal -- the 'important but invisible' cluster: gather-dominated with tiny writes.
+Sparse linear algebra is QUIET only when the OUTPUT is small: SpMV reads a big sparse matrix by indirect gather but writes just a vector, so it is near-idle -- the classic 'important but invisible' case (kept as kernel_spmv_v2, the control). But sparse work that produces a LARGE output IS write-visible, and that is most of modern practice: SpMM (a dense output, the graph-neural-network aggregation kernel), sparse Cholesky (fill-in factors), SpGEMM (a new sparse matrix, algebraic multigrid), SDDMM (a sampled sparse output, graph attention), and MoE dispatch (a token-permutation scatter, modern LLMs). So D2 spans a quiet half and a visible half.
 
-**Target 4-5 workloads -- have 1.**
+**Target 4-5 workloads -- have 6.**
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_spmv_v2 | under-testing | IDLE family (quiet control): CSR SpMV, gather-dominated (-> kernel/kernel_spmv_v2.c) | Quiet / near-idle (sparse structure read-only) | Inner loop of CG/GMRES solvers; recommenders; graph-as-matrix |
-| PageRank | candidate | IDLE (candidate): repeated SpMV on the web graph + rank vector update | Quiet (gather + small rank-vector rewrite) | Google web ranking; centrality; link/citation analysis |
-| Conjugate Gradient (CG) | candidate | IDLE (candidate): SpMV + vector AXPY/dot per iteration | Quiet (SpMV-bound; small vector writes) | FEM/CFD symmetric-positive-definite linear solvers (the standard iterative solver) |
-| Sparse triangular solve (SpTRSV) | candidate | IDLE (candidate): dependency-ordered sparse forward/back solve | Quiet (serial dependency, tiny writes) | ILU preconditioners; sparse direct solvers |
-| Sparse matrix-matrix (SpGEMM) | candidate | IDLE (candidate): symbolic + numeric sparse C=A*B | Quiet-ish (irregular accumulation) | Algebraic multigrid; triangle counting; graph contraction |
+| kernel_spmv_v2 | under-testing | IDLE family (QUIET control): CSR SpMV, gather-dominated, tiny vector write (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c) | Quiet / near-idle (the invisible baseline) | Inner loop of CG/GMRES solvers; recommenders; graph-as-matrix |
+| kernel_spmm_v2 | under-testing | KERNEL family (VISIBLE): sparse x dense -> dense output (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmm_v2.c) | Visible (large dense output rewritten each pass) | Graph neural networks (the aggregation kernel; DGL/PyG) |
+| kernel_sparse_cholesky_v2 | under-testing | KERNEL family (VISIBLE): banded sparse Cholesky, fill-in (-> kernel/D2_visible_sparse_linear_algebra/kernel_sparse_cholesky_v2.c) | Visible (factor fills in within the band; progressive write) | Direct solvers (CHOLMOD/MUMPS): FEM, circuits, optimisation |
+| kernel_spgemm_v2 | under-testing | KERNEL family (VISIBLE): sparse x sparse -> new sparse matrix (-> kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c) | Visible (writes a new sparse matrix with fill-in) | Algebraic multigrid setup; triangle counting; graph contraction |
+| kernel_sddmm_v2 | under-testing | KERNEL family (VISIBLE): sampled dense-dense -> sparse output (-> kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c) | Visible (scattered writes at the sparse mask positions) | Graph-attention networks; recommender systems |
+| kernel_moe_dispatch_v2 | under-testing | KERNEL family (VISIBLE): MoE token dispatch/combine scatter-gather (-> kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c) | Visible (token-permutation scatter into expert buffers) | Mixture-of-Experts LLMs (Mixtral, DeepSeek); >60% of 2025-26 releases |
+| PageRank | covered | covered by kernel_spmv_v2 (repeated SpMV; same quiet gather + small vector write) | same quiet gather | Google web ranking; centrality; link analysis |
+| Conjugate Gradient (CG) | covered | covered by kernel_spmv_v2 (SpMV-bound iteration, small vector writes) | same quiet gather | FEM/CFD SPD iterative solver |
+| Sparse triangular solve (SpTRSV) | covered | covered by kernel_spmv_v2 (dependency-ordered sparse solve, tiny writes) | same quiet gather | ILU preconditioners |
 
 ## D3 -- Spectral Methods  (Visible++)
 
@@ -243,11 +252,11 @@ Butterfly / bit-reversed, strided, multi-pass; in-place rewrite of the whole arr
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_fft_v2 | under-testing | KERNEL family: in-place radix-2 FFT (-> kernel/kernel_fft_v2.c) | Visible++ (1D butterfly; bit-reversal scatter) | All DSP: audio, radio/5G, MRI, image filtering |
-| kernel_ntt_v2 | under-testing | KERNEL family: RNS multi-limb number-theoretic transform, CKKS/lattice core (-> kernel/kernel_ntt_v2.c) | Visible++ (multi-stream modular butterfly; integer content) | Lattice crypto / CKKS homomorphic encryption; big-integer multiply |
-| kernel_dct_v2 | under-testing | KERNEL family: blocked 8x8 discrete cosine transform (-> kernel/kernel_dct_v2.c) | Visible (many small blocks; real content) | JPEG / MPEG / H.264 image & video compression |
-| kernel_dwt_v2 | under-testing | KERNEL family: discrete wavelet transform, filter+downsample pyramid (-> kernel/kernel_dwt_v2.c) | Visible (halving multi-resolution pyramid) | JPEG2000, denoising, audio/image compression |
-| kernel_fft2d_v2 | under-testing | KERNEL family: 2D FFT (row FFTs, transpose, column FFTs) (-> kernel/kernel_fft2d_v2.c) | Visible++ (transpose scatter + two-direction passes) | Image/optics spectral filtering, turbulence DNS, crystallography |
+| kernel_fft_v2 | under-testing | KERNEL family: in-place radix-2 FFT (-> kernel/D3_visible_spectral_methods/kernel_fft_v2.c) | Visible++ (1D butterfly; bit-reversal scatter) | All DSP: audio, radio/5G, MRI, image filtering |
+| kernel_ntt_v2 | under-testing | KERNEL family: RNS multi-limb number-theoretic transform, CKKS/lattice core (-> kernel/D3_visible_spectral_methods/kernel_ntt_v2.c) | Visible++ (multi-stream modular butterfly; integer content) | Lattice crypto / CKKS homomorphic encryption; big-integer multiply |
+| kernel_dct_v2 | under-testing | KERNEL family: blocked 8x8 discrete cosine transform (-> kernel/D3_visible_spectral_methods/kernel_dct_v2.c) | Visible (many small blocks; real content) | JPEG / MPEG / H.264 image & video compression |
+| kernel_dwt_v2 | under-testing | KERNEL family: discrete wavelet transform, filter+downsample pyramid (-> kernel/D3_visible_spectral_methods/kernel_dwt_v2.c) | Visible (halving multi-resolution pyramid) | JPEG2000, denoising, audio/image compression |
+| kernel_fft2d_v2 | under-testing | KERNEL family: 2D FFT (row FFTs, transpose, column FFTs) (-> kernel/D3_visible_spectral_methods/kernel_fft2d_v2.c) | Visible++ (transpose scatter + two-direction passes) | Image/optics spectral filtering, turbulence DNS, crystallography |
 | DTFT / direct DFT | covered | covered by kernel_fft_v2 (computable DTFT = DFT = FFT; naive DFT = dense matvec) | same 1D-butterfly signature | Frequency analysis (textbook form of the FFT) |
 | Cepstrum | covered | covered by kernel_fft_v2 (FFT -> log\|.\| -> inverse FFT) | two butterfly passes + pointwise | Pitch detection, echo / speaker analysis |
 | MFCC | covered | covered by kernel_fft_v2 + kernel_dct_v2 (FFT -> mel filterbank -> log -> DCT) | butterfly + blocked cosine | The classic speech-recognition audio feature |
@@ -265,12 +274,12 @@ N particles interacting pairwise; rewrites compact particle arrays (position/vel
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_nbody_v2 | under-testing | KERNEL family: 2D K-sampled gravity (-> kernel/kernel_nbody_v2.c) | Visible (four compact arrays rewritten per step, smooth) | 2D gravity model; astrophysics, particle effects |
-| kernel_barnes_hut_v2 | under-testing | KERNEL family: quadtree build + traversal, O(n log n) (-> kernel/kernel_barnes_hut_v2.c) | Visible/irregular (tree nodes rebuilt each step + particle rewrite) | Cosmology (GADGET), galaxy formation |
-| kernel_md_lj_v2 | under-testing | KERNEL family: Lennard-Jones MD with cell lists (-> kernel/kernel_md_lj_v2.c) | Visible (periodic cell-list rebuild + position/velocity rewrite) | GROMACS / NAMD / AMBER: drug discovery, protein folding, materials |
-| kernel_pic_v2 | under-testing | KERNEL family: particle-in-cell (scatter to grid, field solve, gather) (-> kernel/kernel_pic_v2.c) | Visible (particle->grid scatter-deposit + grid rewrite) | Plasma physics, accelerators, semiconductor device sim |
-| kernel_fmm_v2 | under-testing | KERNEL family: fast multipole (multipole/local expansion arrays on a tree) (-> kernel/kernel_fmm_v2.c) | Visible (expansion-coefficient arrays + particle rewrite) | Electrostatics, acoustics, fast O(n) far-field |
-| kernel_sph_v2 | under-testing | KERNEL family: smoothed-particle hydrodynamics (density/pressure fields) (-> kernel/kernel_sph_v2.c) | Visible (extra per-particle fields + particle rewrite) | Fluid sim, film VFX (water/lava), astrophysics |
+| kernel_nbody_v2 | under-testing | KERNEL family: 2D K-sampled gravity (-> kernel/D4_visible_nbody_methods/kernel_nbody_v2.c) | Visible (four compact arrays rewritten per step, smooth) | 2D gravity model; astrophysics, particle effects |
+| kernel_barnes_hut_v2 | under-testing | KERNEL family: quadtree build + traversal, O(n log n) (-> kernel/D4_visible_nbody_methods/kernel_barnes_hut_v2.c) | Visible/irregular (tree nodes rebuilt each step + particle rewrite) | Cosmology (GADGET), galaxy formation |
+| kernel_md_lj_v2 | under-testing | KERNEL family: Lennard-Jones MD with cell lists (-> kernel/D4_visible_nbody_methods/kernel_md_lj_v2.c) | Visible (periodic cell-list rebuild + position/velocity rewrite) | GROMACS / NAMD / AMBER: drug discovery, protein folding, materials |
+| kernel_pic_v2 | under-testing | KERNEL family: particle-in-cell (scatter to grid, field solve, gather) (-> kernel/D4_visible_nbody_methods/kernel_pic_v2.c) | Visible (particle->grid scatter-deposit + grid rewrite) | Plasma physics, accelerators, semiconductor device sim |
+| kernel_fmm_v2 | under-testing | KERNEL family: fast multipole (multipole/local expansion arrays on a tree) (-> kernel/D4_visible_nbody_methods/kernel_fmm_v2.c) | Visible (expansion-coefficient arrays + particle rewrite) | Electrostatics, acoustics, fast O(n) far-field |
+| kernel_sph_v2 | under-testing | KERNEL family: smoothed-particle hydrodynamics (density/pressure fields) (-> kernel/D4_visible_nbody_methods/kernel_sph_v2.c) | Visible (extra per-particle fields + particle rewrite) | Fluid sim, film VFX (water/lava), astrophysics |
 | All-pairs direct N-body | covered | covered by kernel_nbody_v2 (same particle-array writes; differs only in the force READS) | same smooth particle rewrite | Exact small-N molecular dynamics; reference force |
 
 ## D5 -- Structured Grids  (Visible++)
@@ -283,11 +292,11 @@ Regular neighbour sweep over a grid, iterative; rewrites the grid each iteration
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_stencil_jacobi_v2 | under-testing | KERNEL family: 2D 5-point Jacobi, double-buffer (-> kernel/kernel_stencil_jacobi_v2.c) | Visible++ (periodic full rewrite, ~2x footprint) | Finite-difference PDE: heat / Poisson / diffusion solvers |
-| kernel_stencil_seidel_v2 | under-testing | KERNEL family: Gauss-Seidel red-black, in-place (-> kernel/kernel_stencil_seidel_v2.c) | Visible++ (checkerboard in-place, ~1x footprint) | PDE relaxation; smoother inside multigrid |
-| kernel_multigrid_v2 | under-testing | KERNEL family: multigrid V-cycle (-> kernel/kernel_multigrid_v2.c) | Visible++ (multi-scale, time-varying footprint) | The optimal PDE solver; CFD, electrostatics |
-| kernel_lbm_v2 | under-testing | KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/kernel_lbm_v2.c) | Visible++ (nine distribution arrays streamed each step) | CFD: porous media, aerodynamics (OpenLB / Palabos) |
-| kernel_fdtd_v2 | under-testing | KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/kernel_fdtd_v2.c) | Visible++ (two coupled field grids, E<->H leapfrog) | Antenna / radar / photonics simulation (Meep) |
+| kernel_stencil_jacobi_v2 | under-testing | KERNEL family: 2D 5-point Jacobi, double-buffer (-> kernel/D5_visible_structured_grids/kernel_stencil_jacobi_v2.c) | Visible++ (periodic full rewrite, ~2x footprint) | Finite-difference PDE: heat / Poisson / diffusion solvers |
+| kernel_stencil_seidel_v2 | under-testing | KERNEL family: Gauss-Seidel red-black, in-place (-> kernel/D5_visible_structured_grids/kernel_stencil_seidel_v2.c) | Visible++ (checkerboard in-place, ~1x footprint) | PDE relaxation; smoother inside multigrid |
+| kernel_multigrid_v2 | under-testing | KERNEL family: multigrid V-cycle (-> kernel/D5_visible_structured_grids/kernel_multigrid_v2.c) | Visible++ (multi-scale, time-varying footprint) | The optimal PDE solver; CFD, electrostatics |
+| kernel_lbm_v2 | under-testing | KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/D5_visible_structured_grids/kernel_lbm_v2.c) | Visible++ (nine distribution arrays streamed each step) | CFD: porous media, aerodynamics (OpenLB / Palabos) |
+| kernel_fdtd_v2 | under-testing | KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/D5_visible_structured_grids/kernel_fdtd_v2.c) | Visible++ (two coupled field grids, E<->H leapfrog) | Antenna / radar / photonics simulation (Meep) |
 
 ## D6 -- Unstructured Grids  (Irregular)
 
@@ -366,11 +375,11 @@ Fill a 1D/2D table, each cell from neighbours; regular monotone fill front (wave
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_dp_v2 | under-testing | KERNEL family: edit-distance table fill (-> kernel/kernel_dp_v2.c) | Visible (row-major wavefront; migrating band on a large table) | git diff, spell-check, fuzzy matching |
-| kernel_floyd_v2 | under-testing | KERNEL family: Floyd-Warshall all-pairs shortest paths (-> kernel/kernel_floyd_v2.c) | Visible (whole n*n matrix rewritten n times per solve) | All-pairs shortest path; routing; transitive closure |
-| kernel_matrixchain_v2 | under-testing | KERNEL family: matrix-chain optimal parenthesisation (-> kernel/kernel_matrixchain_v2.c) | Visible (anti-diagonal fill by chain length, O(n^3) inner) | Compiler / query-plan optimisation, NLP parsing |
-| kernel_knapsack_v2 | under-testing | KERNEL family: 0/1 knapsack, space-optimised 1D rolling array (-> kernel/kernel_knapsack_v2.c) | Visible (single capacity vector repainted in reverse per item) | Resource allocation, scheduling, finance |
-| kernel_smithwaterman_v2 | under-testing | KERNEL family: Smith-Waterman local alignment, fill + traceback (-> kernel/kernel_smithwaterman_v2.c) | Visible (row-major wavefront + backward traceback path) | Genomics local alignment (BLAST family) |
+| kernel_dp_v2 | under-testing | KERNEL family: edit-distance table fill (-> kernel/D10_visible_dynamic_programming/kernel_dp_v2.c) | Visible (row-major wavefront; migrating band on a large table) | git diff, spell-check, fuzzy matching |
+| kernel_floyd_v2 | under-testing | KERNEL family: Floyd-Warshall all-pairs shortest paths (-> kernel/D10_visible_dynamic_programming/kernel_floyd_v2.c) | Visible (whole n*n matrix rewritten n times per solve) | All-pairs shortest path; routing; transitive closure |
+| kernel_matrixchain_v2 | under-testing | KERNEL family: matrix-chain optimal parenthesisation (-> kernel/D10_visible_dynamic_programming/kernel_matrixchain_v2.c) | Visible (anti-diagonal fill by chain length, O(n^3) inner) | Compiler / query-plan optimisation, NLP parsing |
+| kernel_knapsack_v2 | under-testing | KERNEL family: 0/1 knapsack, space-optimised 1D rolling array (-> kernel/D10_visible_dynamic_programming/kernel_knapsack_v2.c) | Visible (single capacity vector repainted in reverse per item) | Resource allocation, scheduling, finance |
+| kernel_smithwaterman_v2 | under-testing | KERNEL family: Smith-Waterman local alignment, fill + traceback (-> kernel/D10_visible_dynamic_programming/kernel_smithwaterman_v2.c) | Visible (row-major wavefront + backward traceback path) | Genomics local alignment (BLAST family) |
 | Needleman-Wunsch | covered | covered by kernel_dp_v2 (identical global-alignment row-major wavefront) | same row-major wavefront | Global DNA / protein sequence alignment |
 | Viterbi decoding | covered | covered by kernel_hmm_v2 (same trellis column-fill, max-product instead of sum) | same column-fill front | Speech recognition, error-correction decode, POS tagging |
 
@@ -400,11 +409,11 @@ Probability ops over a graph; writes belief/message tables (matrix-like).
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| kernel_hmm_v2 | under-testing | KERNEL family: scaled HMM forward, trellis fill (-> kernel/kernel_hmm_v2.c) | Visible (column-fill front + dense matvec; normalised-probability content) | Speech recognition, gene finding, time-series |
-| kernel_beliefprop_v2 | under-testing | KERNEL family: loopy sum-product belief propagation on a grid MRF (-> kernel/kernel_beliefprop_v2.c) | Visible (iterated message arrays per grid cell) | Stereo vision, image denoising, MRF / CRF |
-| kernel_kalman_v2 | under-testing | KERNEL family: ensemble of Kalman filters, dense covariance updates (-> kernel/kernel_kalman_v2.c) | Visible (many small d*d covariance matrices rewritten per step) | GPS/INS navigation, object tracking, sensor fusion |
-| kernel_gibbs_v2 | under-testing | KERNEL family: Gibbs sampling on a Potts/Ising grid (-> kernel/kernel_gibbs_v2.c) | Visible (stochastic per-cell resample sweep of the grid) | Bayesian inference, topic models (LDA) |
-| kernel_ldpc_v2 | under-testing | KERNEL family: LDPC min-sum decoder, message passing on a Tanner graph (-> kernel/kernel_ldpc_v2.c) | Visible (bipartite edge-message arrays iterated) | 5G / WiFi / SSD / satellite error correction |
+| kernel_hmm_v2 | under-testing | KERNEL family: scaled HMM forward, trellis fill (-> kernel/D12_visible_graphical_models/kernel_hmm_v2.c) | Visible (column-fill front + dense matvec; normalised-probability content) | Speech recognition, gene finding, time-series |
+| kernel_beliefprop_v2 | under-testing | KERNEL family: loopy sum-product belief propagation on a grid MRF (-> kernel/D12_visible_graphical_models/kernel_beliefprop_v2.c) | Visible (iterated message arrays per grid cell) | Stereo vision, image denoising, MRF / CRF |
+| kernel_kalman_v2 | under-testing | KERNEL family: ensemble of Kalman filters, dense covariance updates (-> kernel/D12_visible_graphical_models/kernel_kalman_v2.c) | Visible (many small d*d covariance matrices rewritten per step) | GPS/INS navigation, object tracking, sensor fusion |
+| kernel_gibbs_v2 | under-testing | KERNEL family: Gibbs sampling on a Potts/Ising grid (-> kernel/D12_visible_graphical_models/kernel_gibbs_v2.c) | Visible (stochastic per-cell resample sweep of the grid) | Bayesian inference, topic models (LDA) |
+| kernel_ldpc_v2 | under-testing | KERNEL family: LDPC min-sum decoder, message passing on a Tanner graph (-> kernel/D12_visible_graphical_models/kernel_ldpc_v2.c) | Visible (bipartite edge-message arrays iterated) | 5G / WiFi / SSD / satellite error correction |
 
 ## D13 -- Finite State Machines  (Quiet)
 

@@ -106,6 +106,11 @@ c_targets=(
     "kernel_kalman_v2;--ensemble 1024 --dim 6 --meas 3 --steps 8 --duration 2"
     "kernel_gibbs_v2;--width 256 --height 256 --duration 2"
     "kernel_ldpc_v2;--bits 1024 --duration 2"
+    "kernel_spmm_v2;--rows 512 --inner 512 --cols 32 --nnz-per-row 8 --duration 2"
+    "kernel_sparse_cholesky_v2;--dim 1024 --bandwidth 32 --duration 2"
+    "kernel_spgemm_v2;--rows 256 --inner 256 --cols 256 --nnz-per-row 6 --duration 2"
+    "kernel_sddmm_v2;--rows 512 --cols 512 --feat 16 --nnz-per-row 16 --duration 2"
+    "kernel_moe_dispatch_v2;--tokens 4096 --dim 64 --experts 8 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do
