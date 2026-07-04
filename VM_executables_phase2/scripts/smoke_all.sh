@@ -141,6 +141,15 @@ c_targets=(
     "kernel_graph_coloring_v2;--vertices 2000 --degree 6 --colors 6 --duration 2"
     "kernel_bnb_tsp_v2;--cities 10 --duration 2"
     "kernel_bnb_knapsack_v2;--items 30 --capacity 500 --duration 2"
+    # D13 Finite State Machines: dfa_match is the QUIET control (stream read +
+    # tiny state). The rest are write-VISIBLE: token-array append (lexer),
+    # dense transition-table build (dfa_build), automaton build + match-list
+    # (aho_corasick), and an output stream ~ input size (fsm_transduce).
+    "kernel_dfa_match_v2;--input-mb 8 --duration 2"
+    "kernel_lexer_v2;--input-mb 8 --duration 2"
+    "kernel_dfa_build_v2;--nfa-states 10 --alphabet 4 --duration 2"
+    "kernel_aho_corasick_v2;--patterns 200 --pattern-len 6 --text-mb 2 --duration 2"
+    "kernel_fsm_transduce_v2;--input-mb 8 --esc-density 16 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do

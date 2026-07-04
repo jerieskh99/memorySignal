@@ -224,17 +224,21 @@ DWARFS = [
     ("kernel_gibbs_v2", "under-testing", "KERNEL family: Gibbs sampling on a Potts/Ising grid (-> kernel/D12_visible_graphical_models/kernel_gibbs_v2.c)", "Visible (stochastic per-cell resample sweep of the grid)", "Bayesian inference, topic models (LDA)"),
     ("kernel_ldpc_v2", "under-testing", "KERNEL family: LDPC min-sum decoder, message passing on a Tanner graph (-> kernel/D12_visible_graphical_models/kernel_ldpc_v2.c)", "Visible (bipartite edge-message arrays iterated)", "5G / WiFi / SSD / satellite error correction"),
   ]},
- {"id": "D13", "name": "Finite State Machines", "origin": "Berkeley+6", "vis": "Quiet", "maps": "CPU/IDLE control / parser",
-  "what": "Read a stream, transition through states via table lookup; tiny memory write. Ubiquitous in "
-          "systems software (parsing, regex, protocol decode) but quiet -- stream read + branch, tiny state.",
-  "example": "JSON parse, regex/DFA, Aho-Corasick, HTTP parser, lexer",
+ {"id": "D13", "name": "Finite State Machines", "origin": "Berkeley+6", "vis": "Quiet + Visible", "maps": "recognise=quiet; emit output=visible",
+  "what": "Read a stream, transition through states via table lookup. QUIET when it only RECOGNISES (stream read + "
+          "tiny state write -- the classic invisible FSM). VISIBLE when it EMITS a large output: a token stream "
+          "(lexer), a transition TABLE built by subset construction (dfa_build), an automaton + match list "
+          "(aho_corasick), or an output stream ~ input size (transducer).",
+  "example": "regex/DFA match, JSON parse, lexer, NFA->DFA construction, Aho-Corasick, escape/transcode transducer",
   "workloads": [
-    ("app_json_parse_v2", "exists", "APP family: streaming JSON parse (the canonical FSM)", "Quiet (read + branch)", "Every REST / JSON API; config parsing"),
+    ("app_json_parse_v2", "exists", "APP family: streaming JSON parse (the canonical quiet FSM)", "Quiet (read + branch)", "Every REST / JSON API; config parsing"),
+    ("kernel_dfa_match_v2", "under-testing", "IDLE family (QUIET control): table-driven DFA recogniser scans a read-only stream, writes only a state word + match counter (-> kernel/D13_visible_finite_state_machines/kernel_dfa_match_v2.c)", "Quiet / near-idle (stream READ + scalar; the invisible baseline)", "grep, input validation, log processing"),
+    ("kernel_lexer_v2", "under-testing", "KERNEL family (VISIBLE) emit output: character-class FSM emits one token record per lexeme into a large token array (-> kernel/D13_visible_finite_state_machines/kernel_lexer_v2.c)", "Visible (token-array append; the tokens tile the input)", "Every compiler / interpreter front-end"),
+    ("kernel_dfa_build_v2", "under-testing", "KERNEL family (VISIBLE) build the machine: NFA->DFA subset construction writes a dense transition table (~2^(K-1) states) (-> kernel/D13_visible_finite_state_machines/kernel_dfa_build_v2.c)", "Visible (dense transition-table construction; the inverse of running a DFA)", "regex compilation; lexer generators (flex); protocol codegen"),
+    ("kernel_aho_corasick_v2", "under-testing", "KERNEL family (VISIBLE) build + match list: build goto/fail automaton over many patterns, scan text appending every match position (-> kernel/D13_visible_finite_state_machines/kernel_aho_corasick_v2.c)", "Visible (automaton build + match-list append)", "Multi-pattern scan: log processing, intrusion detection (Snort), bio sequence search"),
+    ("kernel_fsm_transduce_v2", "under-testing", "KERNEL family (VISIBLE) output stream: Mealy escape/framing transducer emits an output stream ~ input size (-> kernel/D13_visible_finite_state_machines/kernel_fsm_transduce_v2.c)", "Visible (output stream ~ input size; benign reversible framing, not crypto)", "Serialisers, protocol framers, escaping / transcoding"),
+    ("HTTP / protocol parser", "covered", "covered by kernel_dfa_match_v2 (byte-by-byte protocol recogniser = same quiet stream-scan + tiny parse-state writes)", "same quiet stream-scan", "Web servers (nginx), TCP/IP stacks, deep-packet inspection"),
     ("cpu_branch_random_v2", "exists", "CPU family (loose): data-dependent random branches", "Quiet", "Branch-predictor control"),
-    ("Regex / DFA matcher", "candidate", "CPU/IDLE (candidate): table-driven state transitions over a stream", "Quiet (state-table lookups, tiny writes)", "grep, input validation, log processing"),
-    ("Aho-Corasick", "candidate", "CPU/IDLE (candidate): multi-pattern automaton over a stream", "Quiet (goto/fail table reads)", "Antivirus / IDS multi-pattern scan (ClamAV / Snort)"),
-    ("HTTP / protocol parser", "candidate", "CPU/IDLE (candidate): byte-by-byte protocol state machine", "Quiet (small parse-state writes)", "Web servers (nginx), TCP/IP stacks, deep-packet inspection"),
-    ("Lexer / tokenizer", "candidate", "CPU/IDLE (candidate): character-class FSM emitting tokens", "Quiet (token-buffer writes)", "Every compiler / interpreter front-end"),
   ]},
 ]
 
@@ -258,6 +262,7 @@ FAMILIES = [
     ("kernel_bfs_v2", "Graph Traversal", "BFS quiet control: static graph traversed, only visited/frontier writes -> near-idle (kernel/D9_visible_graph_traversal/kernel_bfs_v2.c)"),
     ("kernel_mc_pi_v2", "MapReduce / Monte Carlo", "MC-pi quiet control: RNG sample + scalar/partials accumulate -> near-idle (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c)"),
     ("kernel_nqueens_count_v2", "Backtrack / Branch-and-Bound", "N-queens count quiet control: bitmask backtracking, scalar counter only -> near-idle despite exponential search (kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c)"),
+    ("kernel_dfa_match_v2", "Finite State Machines", "DFA recogniser quiet control: scan a read-only stream, write only a state word + match counter -> near-idle (kernel/D13_visible_finite_state_machines/kernel_dfa_match_v2.c)"),
   ]},
  {"id": "S2", "name": "MEM (+ CACHE sub-family)", "sig": "working-set writes",
   "intro": "Anonymous working-set writes. CACHE workloads are a footprint/locality sub-family "
@@ -392,6 +397,10 @@ FAMILIES = [
     ("kernel_graph_coloring_v2", "Backtrack / Branch-and-Bound", "CSP m-colouring; forward-checking colour+domain table over a big graph, genuine backtracking (prune/RESTORE churn) at the default threshold-m (kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c)"),
     ("kernel_bnb_tsp_v2", "Backtrack / Branch-and-Bound", "TSP best-first branch-and-bound; explicit partial-tour priority-queue frontier (kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c)"),
     ("kernel_bnb_knapsack_v2", "Backtrack / Branch-and-Bound", "0/1-knapsack best-first B&B; subset-node frontier heap, cross-checks D10 DP (kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c)"),
+    ("kernel_lexer_v2", "Finite State Machines", "character-class FSM emitting a token record per lexeme into a large token array (kernel/D13_visible_finite_state_machines/kernel_lexer_v2.c)"),
+    ("kernel_dfa_build_v2", "Finite State Machines", "NFA->DFA subset construction; builds a dense transition table (~2^(K-1) states) (kernel/D13_visible_finite_state_machines/kernel_dfa_build_v2.c)"),
+    ("kernel_aho_corasick_v2", "Finite State Machines", "Aho-Corasick multi-pattern automaton build + match-position list append (kernel/D13_visible_finite_state_machines/kernel_aho_corasick_v2.c)"),
+    ("kernel_fsm_transduce_v2", "Finite State Machines", "Mealy escape/framing transducer emitting an output stream ~ input size (kernel/D13_visible_finite_state_machines/kernel_fsm_transduce_v2.c)"),
   ]},
 ]
 N_WORKLOADS = sum(len(f["workloads"]) for f in FAMILIES)
