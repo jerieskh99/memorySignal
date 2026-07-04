@@ -196,16 +196,23 @@ DWARFS = [
     ("Needleman-Wunsch", "covered", "covered by kernel_dp_v2 (identical global-alignment row-major wavefront)", "same row-major wavefront", "Global DNA / protein sequence alignment"),
     ("Viterbi decoding", "covered", "covered by kernel_hmm_v2 (same trellis column-fill, max-product instead of sum)", "same column-fill front", "Speech recognition, error-correction decode, POS tagging"),
   ]},
- {"id": "D11", "name": "Backtrack / Branch-and-Bound", "origin": "Berkeley+6", "vis": "Quiet", "maps": "CPU/IDLE control",
-  "what": "Explore + prune a search tree; writes a small search stack / current solution. Real and heavily "
-          "used (SAT, MILP) but quiet -- deep recursion over a tiny working set. No test built yet.",
-  "example": "N-queens, Sudoku, DPLL/CDCL SAT, branch-and-bound MILP, TSP",
+ {"id": "D11", "name": "Backtrack / Branch-and-Bound", "origin": "Berkeley+6", "vis": "Quiet + Visible", "maps": "count=quiet; store/state/frontier=visible",
+  "what": "Explore + prune a search tree (place a choice, recurse, undo). QUIET when it only COUNTS or finds one "
+          "solution -- a tiny working set, near-idle even over exponential compute. VISIBLE three ways: (a) MATERIALISE "
+          "the whole solution set, (b) a LARGE WORKING STATE (a big grid, or a colour+domain table over a graph), "
+          "(c) an explicit best-first FRONTIER. The count-vs-store return type is the quiet->visible switch.",
+  "example": "N-queens (count vs enumerate), balanced brackets, maze solving, graph colouring, TSP / knapsack B&B, DPLL SAT, MILP",
   "workloads": [
-    ("N-queens", "candidate", "CPU/IDLE (candidate): place + backtrack over a board", "Quiet (tiny board state)", "Classic constraint-satisfaction benchmark"),
-    ("Sudoku solver", "candidate", "CPU/IDLE (candidate): constraint propagation + backtracking", "Quiet (81-cell grid)", "Constraint-propagation teaching / puzzle solvers"),
-    ("DPLL / CDCL SAT", "candidate", "CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack", "Quiet (clause DB reads, small writes)", "Hardware/chip verification, planning (MiniSat / Z3)"),
-    ("Branch-and-bound MILP", "candidate", "CPU/IDLE (candidate): LP-relaxation bound, branch, prune", "Quiet (search tree, small writes)", "Logistics, scheduling, optimisation (Gurobi / CPLEX)"),
-    ("TSP branch-and-bound", "candidate", "CPU/IDLE (candidate): tour bound + prune search", "Quiet (path/stack writes)", "Routing, VLSI, operations research"),
+    ("kernel_nqueens_count_v2", "under-testing", "IDLE family (QUIET control): N-queens counter, three-bitmask backtracking, scalar reduce -> near-idle despite exponential compute (-> kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c)", "Quiet / near-idle (only a counter is written; no solutions stored)", "Classic constraint-satisfaction benchmark"),
+    ("kernel_nqueens_enum_v2", "under-testing", "KERNEL family (VISIBLE) source (a) materialise output: the SAME search as the count control but STORES every solution -> bulk append (-> kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c)", "Visible (whole solution set appended; the return flips quiet->visible)", "Enumerate all placements; the count-vs-store contrast"),
+    ("kernel_brackets_enum_v2", "under-testing", "KERNEL family (VISIBLE) source (a) materialise output: enumerate all balanced-parenthesis strings, append each (-> kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c)", "Visible (Catalan(n) strings materialised)", "Combinatorial generation; grammar / parser test corpora"),
+    ("kernel_maze_backtrack_v2", "under-testing", "KERNEL family (VISIBLE) source (b) large working state: DFS solve marks a large visited/parent grid across the search (-> kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c)", "Visible (large grid marked/unmarked; ~58% of cells touched per solve)", "Maze / route solving; robot path planning"),
+    ("kernel_graph_coloring_v2", "under-testing", "KERNEL family (VISIBLE) source (b) large working state: CSP m-colouring, forward-checking prunes/restores a colour+domain table over a big graph; default m is near the chromatic threshold so it GENUINELY backtracks (-> kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c)", "Visible (colour+domain prune/RESTORE churn; the restore is the backtrack signature vs label_prop; best conflict-free partial under a budget)", "Register allocation, scheduling, frequency assignment"),
+    ("kernel_bnb_tsp_v2", "under-testing", "KERNEL family (VISIBLE) source (c) frontier: best-first branch-and-bound, explicit priority-queue of partial tours (-> kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c)", "Visible (explicit best-first frontier churned; millions of push/pop)", "Routing, VLSI, operations research"),
+    ("kernel_bnb_knapsack_v2", "under-testing", "KERNEL family (VISIBLE) source (c) frontier: best-first B&B over include/exclude subsets; a strongly-correlated instance keeps a large live frontier (-> kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c)", "Visible (subset-node frontier heap; optimum cross-checks D10 DP knapsack)", "Budget / resource allocation, cutting-stock"),
+    ("Sudoku solver", "covered", "covered by kernel_nqueens_count_v2 (same quiet place/undo backtracking over a tiny grid; scalar / near-idle writes)", "same quiet place/undo", "Constraint-propagation solvers / puzzles"),
+    ("DPLL / CDCL SAT", "candidate", "CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack", "Quiet-ish (clause DB reads, learned-clause writes)", "Hardware/chip verification, planning (MiniSat / Z3)"),
+    ("Branch-and-bound MILP", "candidate", "CPU/IDLE (candidate): LP-relaxation bound, branch, prune", "Visible-ish (frontier + LP tableaux)", "Logistics, scheduling, optimisation (Gurobi / CPLEX)"),
   ]},
  {"id": "D12", "name": "Graphical Models", "origin": "Berkeley+6", "vis": "Visible", "maps": "KERNEL",
   "what": "Probability ops over a graph; writes belief/message tables (matrix-like).",
@@ -250,6 +257,7 @@ FAMILIES = [
     ("kernel_spmv_v2", "Sparse Linear Algebra", "SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c)"),
     ("kernel_bfs_v2", "Graph Traversal", "BFS quiet control: static graph traversed, only visited/frontier writes -> near-idle (kernel/D9_visible_graph_traversal/kernel_bfs_v2.c)"),
     ("kernel_mc_pi_v2", "MapReduce / Monte Carlo", "MC-pi quiet control: RNG sample + scalar/partials accumulate -> near-idle (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c)"),
+    ("kernel_nqueens_count_v2", "Backtrack / Branch-and-Bound", "N-queens count quiet control: bitmask backtracking, scalar counter only -> near-idle despite exponential search (kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c)"),
   ]},
  {"id": "S2", "name": "MEM (+ CACHE sub-family)", "sig": "working-set writes",
   "intro": "Anonymous working-set writes. CACHE workloads are a footprint/locality sub-family "
@@ -378,6 +386,12 @@ FAMILIES = [
     ("kernel_mc_option_v2", "MapReduce / Monte Carlo", "Monte-Carlo option pricing; stores all GBM price paths, then discounted-mean payoff (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c)"),
     ("kernel_path_trace_v2", "MapReduce / Monte Carlo", "Monte-Carlo path tracer; accumulates random rays into an image buffer (kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c)"),
     ("kernel_diffusion_v2", "MapReduce / Monte Carlo", "diffusion-model sampler; iterative whole-image denoise rewrite, ping-pong buffers (kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c)"),
+    ("kernel_nqueens_enum_v2", "Backtrack / Branch-and-Bound", "N-queens enumerate: same search as the count control but stores every solution -> bulk append (kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c)"),
+    ("kernel_brackets_enum_v2", "Backtrack / Branch-and-Bound", "balanced-parenthesis enumeration; append all Catalan(n) strings (kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c)"),
+    ("kernel_maze_backtrack_v2", "Backtrack / Branch-and-Bound", "maze DFS solver; marks a large visited/parent grid across the search (kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c)"),
+    ("kernel_graph_coloring_v2", "Backtrack / Branch-and-Bound", "CSP m-colouring; forward-checking colour+domain table over a big graph, genuine backtracking (prune/RESTORE churn) at the default threshold-m (kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c)"),
+    ("kernel_bnb_tsp_v2", "Backtrack / Branch-and-Bound", "TSP best-first branch-and-bound; explicit partial-tour priority-queue frontier (kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c)"),
+    ("kernel_bnb_knapsack_v2", "Backtrack / Branch-and-Bound", "0/1-knapsack best-first B&B; subset-node frontier heap, cross-checks D10 DP (kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c)"),
   ]},
 ]
 N_WORKLOADS = sum(len(f["workloads"]) for f in FAMILIES)

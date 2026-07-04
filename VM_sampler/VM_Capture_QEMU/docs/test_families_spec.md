@@ -1,6 +1,6 @@
 # Workload Corpus -- two orthogonal divisions (behaviour families + the 13 dwarfs)
 
-*First division: 90 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
+*First division: 97 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
 
 The corpus has TWO orthogonal divisions of the SAME workloads. (1) The behaviour FAMILIES, organised by MEMORY SIGNATURE (what the write-signal actually clusters), kept as finalised: IDLE -- near-zero writes (CPU is its warm/active boundary); MEM -- working-set writes (CACHE is a footprint/locality sub-family); IO -- page-cache + metadata writes (cold reads count here); THREAD -- shared-line + allocator writes; BULK-REWRITE / encryptor -- high-entropy full rewrites (the ransomware cluster); ENUMERATION / metadata -- scanner-like; STEALTH / trickle -- low-rate, high-intensity; APP; and MIXED. This is the 'which behaviour' division -- designed by signature, validated by cohesion. (2) This document is a SECOND, CROSS-CUTTING division by the Berkeley 13 dwarfs (Colella's seven, 2004, + Berkeley's six, A View from Berkeley, 2006) -- the 'which computation motif' division. Every workload keeps its family label AND gets a dwarf label where one applies; the two taxonomies coexist, they do not replace each other. A dwarf is an algorithmic method that captures a pattern of computation and communication -- largely a MEMORY-ACCESS pattern, which is what the host memory signal sees.
 
@@ -8,7 +8,7 @@ We filter every dwarf by WRITE-visibility, because the signal only sees pages th
 
 Rules: a workload that already exists in another family is POINTED to (status 'exists', with its family), never duplicated. Each dwarf targets 4-5 distinct workloads. v1 pre-fills only the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, in iterations (edit the WORKLOADS lists in the generator and re-run).
 
-## Part 1 -- First division: behaviour families (by signature) -- 90 workloads
+## Part 1 -- First division: behaviour families (by signature) -- 97 workloads
 
 Every workload (built and planned), grouped by its memory-signature family. The Status column tracks implementation (planned -> under-development -> under-testing -> exists); the Dwarf column cross-references Part 2 (`--` = an access/IO/concurrency primitive, no motif).
 
@@ -27,8 +27,9 @@ The no-write floor. CPU-bound workloads sit here as the warm/active boundary (pu
 | kernel_spmv_v2 | under-testing | Sparse Linear Algebra | SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c) |
 | kernel_bfs_v2 | under-testing | Graph Traversal | BFS quiet control: static graph traversed, only visited/frontier writes -> near-idle (kernel/D9_visible_graph_traversal/kernel_bfs_v2.c) |
 | kernel_mc_pi_v2 | exists | MapReduce / Monte Carlo | MC-pi quiet control: RNG sample + scalar/partials accumulate -> near-idle (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c) |
+| kernel_nqueens_count_v2 | exists | Backtrack / Branch-and-Bound | N-queens count quiet control: bitmask backtracking, scalar counter only -> near-idle despite exponential search (kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c) |
 
-*IDLE (+ CPU boundary): 9 workloads.*
+*IDLE (+ CPU boundary): 10 workloads.*
 
 ### S2 -- MEM (+ CACHE sub-family)  (working-set writes)
 
@@ -189,10 +190,16 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | kernel_mc_option_v2 | exists | MapReduce / Monte Carlo | Monte-Carlo option pricing; stores all GBM price paths, then discounted-mean payoff (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c) |
 | kernel_path_trace_v2 | exists | MapReduce / Monte Carlo | Monte-Carlo path tracer; accumulates random rays into an image buffer (kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c) |
 | kernel_diffusion_v2 | exists | MapReduce / Monte Carlo | diffusion-model sampler; iterative whole-image denoise rewrite, ping-pong buffers (kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c) |
+| kernel_nqueens_enum_v2 | exists | Backtrack / Branch-and-Bound | N-queens enumerate: same search as the count control but stores every solution -> bulk append (kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c) |
+| kernel_brackets_enum_v2 | exists | Backtrack / Branch-and-Bound | balanced-parenthesis enumeration; append all Catalan(n) strings (kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c) |
+| kernel_maze_backtrack_v2 | exists | Backtrack / Branch-and-Bound | maze DFS solver; marks a large visited/parent grid across the search (kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c) |
+| kernel_graph_coloring_v2 | exists | Backtrack / Branch-and-Bound | CSP m-colouring; forward-checking colour+domain table over a big graph, genuine backtracking (prune/RESTORE churn) at the default threshold-m (kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c) |
+| kernel_bnb_tsp_v2 | exists | Backtrack / Branch-and-Bound | TSP best-first branch-and-bound; explicit partial-tour priority-queue frontier (kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c) |
+| kernel_bnb_knapsack_v2 | exists | Backtrack / Branch-and-Bound | 0/1-knapsack best-first B&B; subset-node frontier heap, cross-checks D10 DP (kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c) |
 
-*KERNEL (compute motifs): 49 workloads.*
+*KERNEL (compute motifs): 55 workloads.*
 
-**First division total: 90 workloads across 10 signature families** -- exists 43, under-testing 47, under-development 0, planned 0.
+**First division total: 97 workloads across 10 signature families** -- exists 50, under-testing 47, under-development 0, planned 0.
 
 *Status legend: candidate (violet, a real domain algorithm catalogued but not built) / planned (grey) -> under-development (blue) -> under-testing (gold) -> exists (green).*
 
@@ -212,11 +219,11 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | D8 Combinational Logic | Berkeley+6 | Quiet / Visible | control OR threat-labeled | 4 | 4-5 |
 | D9 Graph Traversal | Berkeley+6 | Visible | split: IDLE (bfs control) + KERNEL (graph writers) | 6 | 4-5 |
 | D10 Dynamic Programming | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
-| D11 Backtrack / Branch-and-Bound | Berkeley+6 | Quiet | CPU/IDLE control | 0 | 4-5 |
+| D11 Backtrack / Branch-and-Bound | Berkeley+6 | Quiet + Visible | count=quiet; store/state/frontier=visible | 7 | 4-5 |
 | D12 Graphical Models | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
 | D13 Finite State Machines | Berkeley+6 | Quiet | CPU/IDLE control / parser | 2 | 4-5 |
 
-Covered (>=1 workload): **12/13** dwarfs. Existing workloads pointed in: **61**. Empty dwarfs to fill: **1**.
+Covered (>=1 workload): **13/13** dwarfs. Existing workloads pointed in: **68**. Empty dwarfs to fill: **0**.
 
 ## D1 -- Dense Linear Algebra  (Visible)
 
@@ -402,21 +409,26 @@ Fill a 1D/2D table, each cell from neighbours; regular monotone fill front (wave
 | Needleman-Wunsch | covered | covered by kernel_dp_v2 (identical global-alignment row-major wavefront) | same row-major wavefront | Global DNA / protein sequence alignment |
 | Viterbi decoding | covered | covered by kernel_hmm_v2 (same trellis column-fill, max-product instead of sum) | same column-fill front | Speech recognition, error-correction decode, POS tagging |
 
-## D11 -- Backtrack / Branch-and-Bound  (Quiet)
+## D11 -- Backtrack / Branch-and-Bound  (Quiet + Visible)
 
-*Berkeley+6. Maps to: CPU/IDLE control. Example: N-queens, Sudoku, DPLL/CDCL SAT, branch-and-bound MILP, TSP.*
+*Berkeley+6. Maps to: count=quiet; store/state/frontier=visible. Example: N-queens (count vs enumerate), balanced brackets, maze solving, graph colouring, TSP / knapsack B&B, DPLL SAT, MILP.*
 
-Explore + prune a search tree; writes a small search stack / current solution. Real and heavily used (SAT, MILP) but quiet -- deep recursion over a tiny working set. No test built yet.
+Explore + prune a search tree (place a choice, recurse, undo). QUIET when it only COUNTS or finds one solution -- a tiny working set, near-idle even over exponential compute. VISIBLE three ways: (a) MATERIALISE the whole solution set, (b) a LARGE WORKING STATE (a big grid, or a colour+domain table over a graph), (c) an explicit best-first FRONTIER. The count-vs-store return type is the quiet->visible switch.
 
-**Target 4-5 workloads -- have 0.**
+**Target 4-5 workloads -- have 7.**
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| N-queens | candidate | CPU/IDLE (candidate): place + backtrack over a board | Quiet (tiny board state) | Classic constraint-satisfaction benchmark |
-| Sudoku solver | candidate | CPU/IDLE (candidate): constraint propagation + backtracking | Quiet (81-cell grid) | Constraint-propagation teaching / puzzle solvers |
-| DPLL / CDCL SAT | candidate | CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack | Quiet (clause DB reads, small writes) | Hardware/chip verification, planning (MiniSat / Z3) |
-| Branch-and-bound MILP | candidate | CPU/IDLE (candidate): LP-relaxation bound, branch, prune | Quiet (search tree, small writes) | Logistics, scheduling, optimisation (Gurobi / CPLEX) |
-| TSP branch-and-bound | candidate | CPU/IDLE (candidate): tour bound + prune search | Quiet (path/stack writes) | Routing, VLSI, operations research |
+| kernel_nqueens_count_v2 | under-testing | IDLE family (QUIET control): N-queens counter, three-bitmask backtracking, scalar reduce -> near-idle despite exponential compute (-> kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c) | Quiet / near-idle (only a counter is written; no solutions stored) | Classic constraint-satisfaction benchmark |
+| kernel_nqueens_enum_v2 | under-testing | KERNEL family (VISIBLE) source (a) materialise output: the SAME search as the count control but STORES every solution -> bulk append (-> kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c) | Visible (whole solution set appended; the return flips quiet->visible) | Enumerate all placements; the count-vs-store contrast |
+| kernel_brackets_enum_v2 | under-testing | KERNEL family (VISIBLE) source (a) materialise output: enumerate all balanced-parenthesis strings, append each (-> kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c) | Visible (Catalan(n) strings materialised) | Combinatorial generation; grammar / parser test corpora |
+| kernel_maze_backtrack_v2 | under-testing | KERNEL family (VISIBLE) source (b) large working state: DFS solve marks a large visited/parent grid across the search (-> kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c) | Visible (large grid marked/unmarked; ~58% of cells touched per solve) | Maze / route solving; robot path planning |
+| kernel_graph_coloring_v2 | under-testing | KERNEL family (VISIBLE) source (b) large working state: CSP m-colouring, forward-checking prunes/restores a colour+domain table over a big graph; default m is near the chromatic threshold so it GENUINELY backtracks (-> kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c) | Visible (colour+domain prune/RESTORE churn; the restore is the backtrack signature vs label_prop; best conflict-free partial under a budget) | Register allocation, scheduling, frequency assignment |
+| kernel_bnb_tsp_v2 | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first branch-and-bound, explicit priority-queue of partial tours (-> kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c) | Visible (explicit best-first frontier churned; millions of push/pop) | Routing, VLSI, operations research |
+| kernel_bnb_knapsack_v2 | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first B&B over include/exclude subsets; a strongly-correlated instance keeps a large live frontier (-> kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c) | Visible (subset-node frontier heap; optimum cross-checks D10 DP knapsack) | Budget / resource allocation, cutting-stock |
+| Sudoku solver | covered | covered by kernel_nqueens_count_v2 (same quiet place/undo backtracking over a tiny grid; scalar / near-idle writes) | same quiet place/undo | Constraint-propagation solvers / puzzles |
+| DPLL / CDCL SAT | candidate | CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack | Quiet-ish (clause DB reads, learned-clause writes) | Hardware/chip verification, planning (MiniSat / Z3) |
+| Branch-and-bound MILP | candidate | CPU/IDLE (candidate): LP-relaxation bound, branch, prune | Visible-ish (frontier + LP tableaux) | Logistics, scheduling, optimisation (Gurobi / CPLEX) |
 
 ## D12 -- Graphical Models  (Visible)
 

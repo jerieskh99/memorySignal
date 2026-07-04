@@ -129,6 +129,18 @@ c_targets=(
     "kernel_mc_option_v2;--paths 8192 --steps 16 --duration 2"
     "kernel_path_trace_v2;--width 128 --height 128 --samples 16 --duration 2"
     "kernel_diffusion_v2;--width 128 --height 128 --steps 50 --duration 2"
+    # D11 Backtrack / Branch-and-Bound: nqueens_count is the QUIET control
+    # (scalar reduce). The rest are write-VISIBLE: (a) materialize the whole
+    # solution set (nqueens_enum, brackets_enum), (b) large working state
+    # (maze grid, graph colour+domain arrays), (c) explicit B&B frontier
+    # (tsp, knapsack).
+    "kernel_nqueens_count_v2;--n 10 --duration 2"
+    "kernel_nqueens_enum_v2;--n 10 --duration 2"
+    "kernel_brackets_enum_v2;--n 10 --duration 2"
+    "kernel_maze_backtrack_v2;--width 128 --height 128 --duration 2"
+    "kernel_graph_coloring_v2;--vertices 2000 --degree 6 --colors 6 --duration 2"
+    "kernel_bnb_tsp_v2;--cities 10 --duration 2"
+    "kernel_bnb_knapsack_v2;--items 30 --capacity 500 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do
