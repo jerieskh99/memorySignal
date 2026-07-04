@@ -143,16 +143,17 @@ DWARFS = [
   ]},
  {"id": "D7", "name": "MapReduce / Monte Carlo", "origin": "Colella-7", "vis": "Partial", "maps": "split",
   "what": "Embarrassingly parallel map (writes intermediates) + reduce (small); or RNG accumulate. "
-          "sqlite_analytical is a loose proxy; the real members are Monte-Carlo (quiet RNG-accumulate) and "
-          "histogram/word-count (visible scatter-write map).",
-  "example": "Monte-Carlo integration, option pricing, MCMC, word-count, path tracing",
+          "sqlite_analytical is a loose proxy. Now built: a quiet MC-pi control + four visible writers "
+          "(histogram scatter, MC-option bulk path store, path-trace image accumulate, diffusion whole-image rewrite).",
+  "example": "Monte-Carlo integration, option pricing, MCMC, histogram/word-count, path tracing, diffusion sampling",
   "workloads": [
     ("app_sqlite_analytical_v2", "exists", "APP family (loose): read-heavy aggregation/scan over a DB", "Quiet-ish (read-dominated)", "Analytical SQL scan / aggregate (OLAP)"),
-    ("Monte-Carlo integration", "candidate", "IDLE (candidate): RNG sample + running accumulate", "Quiet (register-resident accumulate)", "Physics, finance, Bayesian; high-dimensional integrals"),
-    ("Monte-Carlo option pricing", "candidate", "IDLE (candidate): simulate many price paths, average payoff", "Quiet (RNG + small accumulators)", "Quant finance: derivatives, VaR, risk"),
-    ("MCMC (Metropolis-Hastings)", "candidate", "IDLE (candidate): proposal + accept/reject random walk", "Quiet (small state rewrite)", "Bayesian inference (Stan / PyMC), statistical physics"),
-    ("Histogram / word-count", "candidate", "MEM (candidate): scatter increments into bins / a hash map", "Visible-ish (scattered bin writes)", "MapReduce / Spark ETL; analytics"),
-    ("Path tracing", "candidate", "MEM (candidate): trace random rays, accumulate into an image buffer", "Visible (image-buffer accumulation)", "Film & game rendering (RenderMan, Blender Cycles)"),
+    ("kernel_mc_pi_v2", "under-testing", "IDLE family (QUIET control): MC-pi/integration, RNG sample + scalar/partials accumulate (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c)", "Quiet / near-idle (scalar accumulate; the invisible baseline)", "Physics, finance, Bayesian; high-dimensional integrals"),
+    ("kernel_histogram_v2", "under-testing", "KERNEL family (VISIBLE): scatter-increment N samples into a large bins array (-> kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c)", "Visible (random scatter across the whole bins array)", "MapReduce / Spark ETL; analytics; the canonical reduce"),
+    ("kernel_mc_option_v2", "under-testing", "KERNEL family (VISIBLE): Monte-Carlo option pricing, stores all E x T GBM paths then averages payoff (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c)", "Visible (bulk path-array storage rewritten each pass)", "Quant finance: derivatives, VaR, risk"),
+    ("kernel_path_trace_v2", "under-testing", "KERNEL family (VISIBLE): Monte-Carlo path tracer, accumulate random rays into an image buffer (-> kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c)", "Visible (image-buffer accumulation; whole grid reswept each pass)", "Film & game rendering (RenderMan, Blender Cycles)"),
+    ("kernel_diffusion_v2", "under-testing", "KERNEL family (VISIBLE): diffusion-model sampler, iterative whole-image denoise rewrite (-> kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c)", "Visible (whole image/latent rewritten every step)", "Generative-AI image sampling (Stable Diffusion, DALL-E)"),
+    ("MCMC (Metropolis-Hastings)", "covered", "covered by kernel_gibbs_v2 (Gibbs sampling is an MCMC method; same propose + small-state resample write)", "same quiet small-state rewrite", "Bayesian inference (Stan / PyMC), statistical physics"),
   ]},
  {"id": "D8", "name": "Combinational Logic", "origin": "Berkeley+6", "vis": "Quiet / Visible", "maps": "control OR threat-labeled",
   "what": "Simple bit-level ops over large data. CRC/hash = quiet; ENCRYPTION = visible high-entropy rewrite.",
@@ -166,17 +167,22 @@ DWARFS = [
     ("AES block cipher", "covered", "covered by sandbox_ransom_* (same high-entropy full-rewrite signature)", "Visible (high-entropy output rewrite)", "HTTPS/TLS, disk encryption (BitLocker / FileVault), VPN"),
     ("CRC32", "candidate", "CPU/IDLE (candidate): table-driven rolling checksum", "Quiet (register-resident)", "Ethernet, ZIP, storage error detection"),
   ]},
- {"id": "D9", "name": "Graph Traversal", "origin": "Berkeley+6", "vis": "Irregular", "maps": "KERNEL-irregular / scanner",
-  "what": "Visit objects via indirect lookups, little compute; writes visited/frontier/distance arrays. "
-          "scanner_metadata is a directory-walk proxy; the real member is BFS (Graph500). Heavily used, "
-          "but quiet (gather-dominated, small frontier/visited writes).",
-  "example": "BFS, DFS, Dijkstra/A*, connected components",
+ {"id": "D9", "name": "Graph Traversal", "origin": "Berkeley+6", "vis": "Visible", "maps": "split: IDLE (bfs control) + KERNEL (graph writers)",
+  "what": "Traversal is QUIET only when the graph is STATIC: BFS/DFS/Dijkstra read the (read-only) adjacency "
+          "by indirect gather and write just a small visited/frontier/distance array -- near-idle (kept as "
+          "kernel_bfs_v2, the control, with the graph built once and only traversed). But a graph that CHANGES "
+          "or is GENERATED writes the large object -- the graph structure itself: R-MAT generation writes the "
+          "edge list (Graph500 construction), streaming insertion grows the adjacency, and label-propagation / "
+          "union-find rewrite label / parent arrays. So D9 spans a quiet half and a visible half.",
+  "example": "BFS (quiet control), R-MAT generation, streaming insertion, label propagation, union-find",
   "workloads": [
-    ("sandbox_scanner_metadata", "exists", "SECURITY family (loose): directory enumeration via stat", "Quiet / metadata", "Directory-walk proxy"),
-    ("Breadth-first search (BFS)", "candidate", "KERNEL-irregular (candidate): frontier expand + visited-bitmap churn", "Quiet/irregular (frontier + visited writes)", "Graph500; shortest unweighted path; GC mark; social graph"),
-    ("Depth-first search (DFS)", "candidate", "KERNEL-irregular (candidate): explicit stack, visited marks", "Quiet (stack + visited writes)", "Topological sort, cycle detection, package resolvers (npm/cargo)"),
-    ("Dijkstra / A* shortest path", "candidate", "KERNEL-irregular (candidate): priority-queue relax, distance array", "Quiet (heap + distance writes)", "GPS routing, network routing, game pathfinding"),
-    ("Connected components", "candidate", "KERNEL-irregular (candidate): union-find or label propagation", "Quiet (label array writes)", "Clustering, image segmentation, fraud-ring detection"),
+    ("kernel_bfs_v2", "under-testing", "IDLE family (QUIET control): BFS on a STATIC graph, built once and only traversed (-> kernel/D9_visible_graph_traversal/kernel_bfs_v2.c)", "Quiet / near-idle (read-only graph; only visited/frontier writes)", "Graph500 traversal; shortest-hops; GC mark"),
+    ("kernel_rmat_gen_v2", "under-testing", "KERNEL family (VISIBLE): R-MAT graph generation, writes the edge list (-> kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c)", "Visible (bulk edge-list write, the large object)", "Graph500 construction; synthetic scale-free graphs"),
+    ("kernel_graph_stream_v2", "under-testing", "KERNEL family (VISIBLE): streaming edge insertion into a growing adjacency (-> kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c)", "Visible (the graph structure itself is written/grown)", "Streaming / temporal graph analytics"),
+    ("kernel_label_prop_v2", "under-testing", "KERNEL family (VISIBLE): connected-components by min-label propagation (-> kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c)", "Visible (iterated node-label array rewrite; a graph stencil)", "Community detection; connected components"),
+    ("kernel_union_find_v2", "under-testing", "KERNEL family (VISIBLE): union-find with path compression (-> kernel/D9_visible_graph_traversal/kernel_union_find_v2.c)", "Visible (parent-pointer array rewritten by unions + path compression)", "Connected components; Kruskal MST"),
+    ("sandbox_scanner_metadata", "exists", "SECURITY family (loose): directory enumeration via stat -- a tree/graph walk proxy", "Quiet / metadata", "Directory-walk proxy"),
+    ("DFS / Dijkstra / A*", "covered", "covered by kernel_bfs_v2 (same quiet static-traversal write pattern: small visited/distance/heap state)", "same quiet traversal", "Topological sort, GPS routing, pathfinding"),
   ]},
  {"id": "D10", "name": "Dynamic Programming", "origin": "Berkeley+6", "vis": "Visible", "maps": "KERNEL",
   "what": "Fill a 1D/2D table, each cell from neighbours; regular monotone fill front (wavefront).",
@@ -241,7 +247,9 @@ FAMILIES = [
     ("cpu_hash_loop_v2", "Combinational Logic", "register-resident hash; near-idle (CPU boundary)"),
     ("cpu_branch_random_v2", "Finite State Machines", "random branches; near-idle (CPU boundary)"),
     ("cpu_matrix_mult_v2", "Dense Linear Algebra", "matmul; writes output C -> drifts to MEM"),
-    ("kernel_spmv_v2", "Sparse Linear Algebra", "SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_quiet_sparse_linear_algebra/kernel_spmv_v2.c)"),
+    ("kernel_spmv_v2", "Sparse Linear Algebra", "SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c)"),
+    ("kernel_bfs_v2", "Graph Traversal", "BFS quiet control: static graph traversed, only visited/frontier writes -> near-idle (kernel/D9_visible_graph_traversal/kernel_bfs_v2.c)"),
+    ("kernel_mc_pi_v2", "MapReduce / Monte Carlo", "MC-pi quiet control: RNG sample + scalar/partials accumulate -> near-idle (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c)"),
   ]},
  {"id": "S2", "name": "MEM (+ CACHE sub-family)", "sig": "working-set writes",
   "intro": "Anonymous working-set writes. CACHE workloads are a footprint/locality sub-family "
@@ -362,6 +370,14 @@ FAMILIES = [
     ("kernel_dg_v2", "Unstructured Grids", "discontinuous Galerkin step: per-element dense volume + face-flux coupling (kernel/D6_visible_unstructured_grids/kernel_dg_v2.c)"),
     ("kernel_mesh_smooth_v2", "Unstructured Grids", "unstructured Laplacian mesh smoothing over an adjacency list (kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c)"),
     ("kernel_unstructured_fv_v2", "Unstructured Grids", "finite-volume: conservative face-flux scatter-add into cells (kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c)"),
+    ("kernel_rmat_gen_v2", "Graph Traversal", "R-MAT graph generation; writes the edge list (Graph500 construction) (kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c)"),
+    ("kernel_graph_stream_v2", "Graph Traversal", "streaming edge insertion; grows a dynamic adjacency structure (kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c)"),
+    ("kernel_label_prop_v2", "Graph Traversal", "connected components by iterated min-label propagation (kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c)"),
+    ("kernel_union_find_v2", "Graph Traversal", "union-find with path compression; rewrites the parent-pointer array (kernel/D9_visible_graph_traversal/kernel_union_find_v2.c)"),
+    ("kernel_histogram_v2", "MapReduce / Monte Carlo", "histogram / word-count reduce; scatter-increments into a large bins array (kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c)"),
+    ("kernel_mc_option_v2", "MapReduce / Monte Carlo", "Monte-Carlo option pricing; stores all GBM price paths, then discounted-mean payoff (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c)"),
+    ("kernel_path_trace_v2", "MapReduce / Monte Carlo", "Monte-Carlo path tracer; accumulates random rays into an image buffer (kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c)"),
+    ("kernel_diffusion_v2", "MapReduce / Monte Carlo", "diffusion-model sampler; iterative whole-image denoise rewrite, ping-pong buffers (kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c)"),
   ]},
 ]
 N_WORKLOADS = sum(len(f["workloads"]) for f in FAMILIES)
@@ -443,6 +459,11 @@ STATUS = {
     "kernel_dg_v2": "under-testing",
     "kernel_mesh_smooth_v2": "under-testing",
     "kernel_unstructured_fv_v2": "under-testing",
+    "kernel_bfs_v2": "under-testing",
+    "kernel_rmat_gen_v2": "under-testing",
+    "kernel_graph_stream_v2": "under-testing",
+    "kernel_label_prop_v2": "under-testing",
+    "kernel_union_find_v2": "under-testing",
 }
 STATUS_ORDER = ["candidate", "covered", "planned", "under-development", "under-testing", "exists"]
 STATUS_COLOR = {"candidate": "#8A6D9E", "covered": "#2E7D7D", "planned": "#8A8A8A",
@@ -683,6 +704,12 @@ GLOSSARY = {
  "kernel_dg_v2": "A discontinuous Galerkin time step: every element carries a small dense block of unknowns updated by an element-local dense operator (the volume term) plus a conservative flux exchange with neighbouring elements. It rewrites the whole per-element solution array each step. Used for high-order CFD and seismic simulation.",
  "kernel_mesh_smooth_v2": "Unstructured Laplacian mesh smoothing: each node is moved toward the average of its neighbours, reached through an irregular adjacency list, rewriting the node value array. The unstructured cousin of a grid stencil; used in mesh processing and remeshing.",
  "kernel_unstructured_fv_v2": "An unstructured finite-volume update: conserved quantities on cells are changed by fluxes across faces, each flux scatter-added equal-and-opposite into the two cells it separates (so the total is exactly conserved). The face-based conservative scatter is the distinctive write. The basis of OpenFOAM and industrial CFD.",
+ "kernel_bfs_v2": "Breadth-first search on a STATIC graph, kept as the quiet control: the graph is built once and only read, so the sole writes are a small visited/distance array and a frontier queue -- near-idle. The baseline that shows plain graph traversal is nearly invisible to a write-signal.",
+ "kernel_rmat_gen_v2": "R-MAT (recursive-matrix) graph generation: it draws each edge by recursively choosing an adjacency-matrix quadrant, writing a large edge list of a scale-free graph. Generating (writing) the graph is the visible work, unlike quiet traversal. The construction phase of the Graph500 benchmark.",
+ "kernel_graph_stream_v2": "A streaming/dynamic graph: edges are inserted one after another into a growing bucketed adjacency, so the graph structure itself is continually written. The pattern of modern streaming and temporal graph analytics.",
+ "kernel_label_prop_v2": "Connected components by label propagation: each node repeatedly takes the minimum label among its neighbours, rewriting a node-label array iteration after iteration until every node holds its component's minimum id. An iterated graph stencil; used in community detection.",
+ "kernel_union_find_v2": "Union-Find (disjoint sets) for connected components: it processes edges by merging sets, and each lookup path-compresses the parent-pointer array. Those pointer rewrites are the distinctive write. Used for connected components and Kruskal's minimum spanning tree.",
+ "DFS / Dijkstra / A*": "Depth-first search, Dijkstra and A* shortest-path traversals: like BFS they read a static graph and write only small state (a stack or priority queue plus a distance/visited array), so they share the quiet static-traversal write pattern and are covered by the BFS control. Used in topological sort, GPS routing and pathfinding.",
  "kernel_lu_v2": "In-place LU factorisation: it decomposes a matrix into lower/upper triangular factors to solve linear systems, overwriting the matrix as it goes so the active region shrinks toward the bottom-right. The workhorse behind circuit simulation, finite-element solvers and optimisation.",
  "kernel_qr_v2": "Gram-Schmidt / QR orthogonalisation: it rewrites each column to be orthogonal to all the previous ones, so the dependency front grows as it advances. Used in least-squares regression and the inner loop of iterative eigen/linear solvers such as GMRES and Arnoldi.",
  "kernel_attention_v2": "Scaled dot-product attention, the core of every transformer: it scores each token against every other (Q times K-transpose), normalises the scores with a row-wise softmax, then mixes the values. The single most-run compute pattern in modern AI.",

@@ -1,6 +1,6 @@
 # Workload Corpus -- two orthogonal divisions (behaviour families + the 13 dwarfs)
 
-*First division: 80 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
+*First division: 90 workloads by memory-signature family. Second division: the Berkeley 13 dwarfs. June 2026.*
 
 The corpus has TWO orthogonal divisions of the SAME workloads. (1) The behaviour FAMILIES, organised by MEMORY SIGNATURE (what the write-signal actually clusters), kept as finalised: IDLE -- near-zero writes (CPU is its warm/active boundary); MEM -- working-set writes (CACHE is a footprint/locality sub-family); IO -- page-cache + metadata writes (cold reads count here); THREAD -- shared-line + allocator writes; BULK-REWRITE / encryptor -- high-entropy full rewrites (the ransomware cluster); ENUMERATION / metadata -- scanner-like; STEALTH / trickle -- low-rate, high-intensity; APP; and MIXED. This is the 'which behaviour' division -- designed by signature, validated by cohesion. (2) This document is a SECOND, CROSS-CUTTING division by the Berkeley 13 dwarfs (Colella's seven, 2004, + Berkeley's six, A View from Berkeley, 2006) -- the 'which computation motif' division. Every workload keeps its family label AND gets a dwarf label where one applies; the two taxonomies coexist, they do not replace each other. A dwarf is an algorithmic method that captures a pattern of computation and communication -- largely a MEMORY-ACCESS pattern, which is what the host memory signal sees.
 
@@ -8,7 +8,7 @@ We filter every dwarf by WRITE-visibility, because the signal only sees pages th
 
 Rules: a workload that already exists in another family is POINTED to (status 'exists', with its family), never duplicated. Each dwarf targets 4-5 distinct workloads. v1 pre-fills only the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, in iterations (edit the WORKLOADS lists in the generator and re-run).
 
-## Part 1 -- First division: behaviour families (by signature) -- 80 workloads
+## Part 1 -- First division: behaviour families (by signature) -- 90 workloads
 
 Every workload (built and planned), grouped by its memory-signature family. The Status column tracks implementation (planned -> under-development -> under-testing -> exists); the Dwarf column cross-references Part 2 (`--` = an access/IO/concurrency primitive, no motif).
 
@@ -24,9 +24,11 @@ The no-write floor. CPU-bound workloads sit here as the warm/active boundary (pu
 | cpu_hash_loop_v2 | exists | Combinational Logic | register-resident hash; near-idle (CPU boundary) |
 | cpu_branch_random_v2 | exists | Finite State Machines | random branches; near-idle (CPU boundary) |
 | cpu_matrix_mult_v2 | exists | Dense Linear Algebra | matmul; writes output C -> drifts to MEM |
-| kernel_spmv_v2 | under-testing | Sparse Linear Algebra | SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_quiet_sparse_linear_algebra/kernel_spmv_v2.c) |
+| kernel_spmv_v2 | under-testing | Sparse Linear Algebra | SpMV quiet control: gather-dominated, read-only structure -> near-idle (kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c) |
+| kernel_bfs_v2 | under-testing | Graph Traversal | BFS quiet control: static graph traversed, only visited/frontier writes -> near-idle (kernel/D9_visible_graph_traversal/kernel_bfs_v2.c) |
+| kernel_mc_pi_v2 | exists | MapReduce / Monte Carlo | MC-pi quiet control: RNG sample + scalar/partials accumulate -> near-idle (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c) |
 
-*IDLE (+ CPU boundary): 7 workloads.*
+*IDLE (+ CPU boundary): 9 workloads.*
 
 ### S2 -- MEM (+ CACHE sub-family)  (working-set writes)
 
@@ -179,10 +181,18 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | kernel_dg_v2 | under-testing | Unstructured Grids | discontinuous Galerkin step: per-element dense volume + face-flux coupling (kernel/D6_visible_unstructured_grids/kernel_dg_v2.c) |
 | kernel_mesh_smooth_v2 | under-testing | Unstructured Grids | unstructured Laplacian mesh smoothing over an adjacency list (kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c) |
 | kernel_unstructured_fv_v2 | under-testing | Unstructured Grids | finite-volume: conservative face-flux scatter-add into cells (kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c) |
+| kernel_rmat_gen_v2 | under-testing | Graph Traversal | R-MAT graph generation; writes the edge list (Graph500 construction) (kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c) |
+| kernel_graph_stream_v2 | under-testing | Graph Traversal | streaming edge insertion; grows a dynamic adjacency structure (kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c) |
+| kernel_label_prop_v2 | under-testing | Graph Traversal | connected components by iterated min-label propagation (kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c) |
+| kernel_union_find_v2 | under-testing | Graph Traversal | union-find with path compression; rewrites the parent-pointer array (kernel/D9_visible_graph_traversal/kernel_union_find_v2.c) |
+| kernel_histogram_v2 | exists | MapReduce / Monte Carlo | histogram / word-count reduce; scatter-increments into a large bins array (kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c) |
+| kernel_mc_option_v2 | exists | MapReduce / Monte Carlo | Monte-Carlo option pricing; stores all GBM price paths, then discounted-mean payoff (kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c) |
+| kernel_path_trace_v2 | exists | MapReduce / Monte Carlo | Monte-Carlo path tracer; accumulates random rays into an image buffer (kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c) |
+| kernel_diffusion_v2 | exists | MapReduce / Monte Carlo | diffusion-model sampler; iterative whole-image denoise rewrite, ping-pong buffers (kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c) |
 
-*KERNEL (compute motifs): 41 workloads.*
+*KERNEL (compute motifs): 49 workloads.*
 
-**First division total: 80 workloads across 10 signature families** -- exists 38, under-testing 42, under-development 0, planned 0.
+**First division total: 90 workloads across 10 signature families** -- exists 43, under-testing 47, under-development 0, planned 0.
 
 *Status legend: candidate (violet, a real domain algorithm catalogued but not built) / planned (grey) -> under-development (blue) -> under-testing (gold) -> exists (green).*
 
@@ -198,15 +208,15 @@ Structured-compute writers -- the Berkeley dwarf kernels. Regular / periodic wri
 | D4 N-Body Methods | Colella-7 | Visible | KERNEL | 6 | 4-5 |
 | D5 Structured Grids | Colella-7 | Visible++ | KERNEL | 5 | 4-5 |
 | D6 Unstructured Grids | Colella-7 | Visible | KERNEL (irregular access) | 5 | 4-5 |
-| D7 MapReduce / Monte Carlo | Colella-7 | Partial | split | 1 | 4-5 |
+| D7 MapReduce / Monte Carlo | Colella-7 | Partial | split | 6 | 4-5 |
 | D8 Combinational Logic | Berkeley+6 | Quiet / Visible | control OR threat-labeled | 4 | 4-5 |
-| D9 Graph Traversal | Berkeley+6 | Irregular | KERNEL-irregular / scanner | 1 | 4-5 |
+| D9 Graph Traversal | Berkeley+6 | Visible | split: IDLE (bfs control) + KERNEL (graph writers) | 6 | 4-5 |
 | D10 Dynamic Programming | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
 | D11 Backtrack / Branch-and-Bound | Berkeley+6 | Quiet | CPU/IDLE control | 0 | 4-5 |
 | D12 Graphical Models | Berkeley+6 | Visible | KERNEL | 5 | 4-5 |
 | D13 Finite State Machines | Berkeley+6 | Quiet | CPU/IDLE control / parser | 2 | 4-5 |
 
-Covered (>=1 workload): **12/13** dwarfs. Existing workloads pointed in: **51**. Empty dwarfs to fill: **1**.
+Covered (>=1 workload): **12/13** dwarfs. Existing workloads pointed in: **61**. Empty dwarfs to fill: **1**.
 
 ## D1 -- Dense Linear Algebra  (Visible)
 
@@ -322,20 +332,21 @@ The irregular cousin of D5: PDE computation on unstructured meshes, reaching nei
 
 ## D7 -- MapReduce / Monte Carlo  (Partial)
 
-*Colella-7. Maps to: split. Example: Monte-Carlo integration, option pricing, MCMC, word-count, path tracing.*
+*Colella-7. Maps to: split. Example: Monte-Carlo integration, option pricing, MCMC, histogram/word-count, path tracing, diffusion sampling.*
 
-Embarrassingly parallel map (writes intermediates) + reduce (small); or RNG accumulate. sqlite_analytical is a loose proxy; the real members are Monte-Carlo (quiet RNG-accumulate) and histogram/word-count (visible scatter-write map).
+Embarrassingly parallel map (writes intermediates) + reduce (small); or RNG accumulate. sqlite_analytical is a loose proxy. Now built: a quiet MC-pi control + four visible writers (histogram scatter, MC-option bulk path store, path-trace image accumulate, diffusion whole-image rewrite).
 
-**Target 4-5 workloads -- have 1.**
+**Target 4-5 workloads -- have 6.**
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
 | app_sqlite_analytical_v2 | exists | APP family (loose): read-heavy aggregation/scan over a DB | Quiet-ish (read-dominated) | Analytical SQL scan / aggregate (OLAP) |
-| Monte-Carlo integration | candidate | IDLE (candidate): RNG sample + running accumulate | Quiet (register-resident accumulate) | Physics, finance, Bayesian; high-dimensional integrals |
-| Monte-Carlo option pricing | candidate | IDLE (candidate): simulate many price paths, average payoff | Quiet (RNG + small accumulators) | Quant finance: derivatives, VaR, risk |
-| MCMC (Metropolis-Hastings) | candidate | IDLE (candidate): proposal + accept/reject random walk | Quiet (small state rewrite) | Bayesian inference (Stan / PyMC), statistical physics |
-| Histogram / word-count | candidate | MEM (candidate): scatter increments into bins / a hash map | Visible-ish (scattered bin writes) | MapReduce / Spark ETL; analytics |
-| Path tracing | candidate | MEM (candidate): trace random rays, accumulate into an image buffer | Visible (image-buffer accumulation) | Film & game rendering (RenderMan, Blender Cycles) |
+| kernel_mc_pi_v2 | under-testing | IDLE family (QUIET control): MC-pi/integration, RNG sample + scalar/partials accumulate (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c) | Quiet / near-idle (scalar accumulate; the invisible baseline) | Physics, finance, Bayesian; high-dimensional integrals |
+| kernel_histogram_v2 | under-testing | KERNEL family (VISIBLE): scatter-increment N samples into a large bins array (-> kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c) | Visible (random scatter across the whole bins array) | MapReduce / Spark ETL; analytics; the canonical reduce |
+| kernel_mc_option_v2 | under-testing | KERNEL family (VISIBLE): Monte-Carlo option pricing, stores all E x T GBM paths then averages payoff (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c) | Visible (bulk path-array storage rewritten each pass) | Quant finance: derivatives, VaR, risk |
+| kernel_path_trace_v2 | under-testing | KERNEL family (VISIBLE): Monte-Carlo path tracer, accumulate random rays into an image buffer (-> kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c) | Visible (image-buffer accumulation; whole grid reswept each pass) | Film & game rendering (RenderMan, Blender Cycles) |
+| kernel_diffusion_v2 | under-testing | KERNEL family (VISIBLE): diffusion-model sampler, iterative whole-image denoise rewrite (-> kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c) | Visible (whole image/latent rewritten every step) | Generative-AI image sampling (Stable Diffusion, DALL-E) |
+| MCMC (Metropolis-Hastings) | covered | covered by kernel_gibbs_v2 (Gibbs sampling is an MCMC method; same propose + small-state resample write) | same quiet small-state rewrite | Bayesian inference (Stan / PyMC), statistical physics |
 
 ## D8 -- Combinational Logic  (Quiet / Visible)
 
@@ -355,21 +366,23 @@ Simple bit-level ops over large data. CRC/hash = quiet; ENCRYPTION = visible hig
 | AES block cipher | covered | covered by sandbox_ransom_* (same high-entropy full-rewrite signature) | Visible (high-entropy output rewrite) | HTTPS/TLS, disk encryption (BitLocker / FileVault), VPN |
 | CRC32 | candidate | CPU/IDLE (candidate): table-driven rolling checksum | Quiet (register-resident) | Ethernet, ZIP, storage error detection |
 
-## D9 -- Graph Traversal  (Irregular)
+## D9 -- Graph Traversal  (Visible)
 
-*Berkeley+6. Maps to: KERNEL-irregular / scanner. Example: BFS, DFS, Dijkstra/A*, connected components.*
+*Berkeley+6. Maps to: split: IDLE (bfs control) + KERNEL (graph writers). Example: BFS (quiet control), R-MAT generation, streaming insertion, label propagation, union-find.*
 
-Visit objects via indirect lookups, little compute; writes visited/frontier/distance arrays. scanner_metadata is a directory-walk proxy; the real member is BFS (Graph500). Heavily used, but quiet (gather-dominated, small frontier/visited writes).
+Traversal is QUIET only when the graph is STATIC: BFS/DFS/Dijkstra read the (read-only) adjacency by indirect gather and write just a small visited/frontier/distance array -- near-idle (kept as kernel_bfs_v2, the control, with the graph built once and only traversed). But a graph that CHANGES or is GENERATED writes the large object -- the graph structure itself: R-MAT generation writes the edge list (Graph500 construction), streaming insertion grows the adjacency, and label-propagation / union-find rewrite label / parent arrays. So D9 spans a quiet half and a visible half.
 
-**Target 4-5 workloads -- have 1.**
+**Target 4-5 workloads -- have 6.**
 
 | Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |
 |---|---|---|---|---|
-| sandbox_scanner_metadata | exists | SECURITY family (loose): directory enumeration via stat | Quiet / metadata | Directory-walk proxy |
-| Breadth-first search (BFS) | candidate | KERNEL-irregular (candidate): frontier expand + visited-bitmap churn | Quiet/irregular (frontier + visited writes) | Graph500; shortest unweighted path; GC mark; social graph |
-| Depth-first search (DFS) | candidate | KERNEL-irregular (candidate): explicit stack, visited marks | Quiet (stack + visited writes) | Topological sort, cycle detection, package resolvers (npm/cargo) |
-| Dijkstra / A* shortest path | candidate | KERNEL-irregular (candidate): priority-queue relax, distance array | Quiet (heap + distance writes) | GPS routing, network routing, game pathfinding |
-| Connected components | candidate | KERNEL-irregular (candidate): union-find or label propagation | Quiet (label array writes) | Clustering, image segmentation, fraud-ring detection |
+| kernel_bfs_v2 | under-testing | IDLE family (QUIET control): BFS on a STATIC graph, built once and only traversed (-> kernel/D9_visible_graph_traversal/kernel_bfs_v2.c) | Quiet / near-idle (read-only graph; only visited/frontier writes) | Graph500 traversal; shortest-hops; GC mark |
+| kernel_rmat_gen_v2 | under-testing | KERNEL family (VISIBLE): R-MAT graph generation, writes the edge list (-> kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c) | Visible (bulk edge-list write, the large object) | Graph500 construction; synthetic scale-free graphs |
+| kernel_graph_stream_v2 | under-testing | KERNEL family (VISIBLE): streaming edge insertion into a growing adjacency (-> kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c) | Visible (the graph structure itself is written/grown) | Streaming / temporal graph analytics |
+| kernel_label_prop_v2 | under-testing | KERNEL family (VISIBLE): connected-components by min-label propagation (-> kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c) | Visible (iterated node-label array rewrite; a graph stencil) | Community detection; connected components |
+| kernel_union_find_v2 | under-testing | KERNEL family (VISIBLE): union-find with path compression (-> kernel/D9_visible_graph_traversal/kernel_union_find_v2.c) | Visible (parent-pointer array rewritten by unions + path compression) | Connected components; Kruskal MST |
+| sandbox_scanner_metadata | exists | SECURITY family (loose): directory enumeration via stat -- a tree/graph walk proxy | Quiet / metadata | Directory-walk proxy |
+| DFS / Dijkstra / A* | covered | covered by kernel_bfs_v2 (same quiet static-traversal write pattern: small visited/distance/heap state) | same quiet traversal | Topological sort, GPS routing, pathfinding |
 
 ## D10 -- Dynamic Programming  (Visible)
 

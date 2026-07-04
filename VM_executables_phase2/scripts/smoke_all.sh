@@ -116,6 +116,19 @@ c_targets=(
     "kernel_dg_v2;--elements 8192 --dofs 16 --neighbors 3 --duration 2"
     "kernel_mesh_smooth_v2;--nodes 100000 --degree 6 --duration 2"
     "kernel_unstructured_fv_v2;--cells 100000 --faces-per-cell 3 --duration 2"
+    "kernel_bfs_v2;--nodes 100000 --degree 16 --duration 2"
+    "kernel_rmat_gen_v2;--scale 14 --edge-factor 16 --duration 2"
+    "kernel_graph_stream_v2;--nodes 50000 --capacity 32 --edges 400000 --duration 2"
+    "kernel_label_prop_v2;--nodes 50000 --degree 8 --iters 20 --duration 2"
+    "kernel_union_find_v2;--nodes 200000 --edges 400000 --duration 2"
+    # D7 MapReduce / Monte Carlo: mc_pi is the QUIET control (scalar accumulate);
+    # the other four are write-VISIBLE (bin scatter / bulk path store / image
+    # accumulate / iterative whole-image rewrite).
+    "kernel_mc_pi_v2;--samples 1000000 --blocks 4096 --duration 2"
+    "kernel_histogram_v2;--samples 1000000 --bins 65536 --duration 2"
+    "kernel_mc_option_v2;--paths 8192 --steps 16 --duration 2"
+    "kernel_path_trace_v2;--width 128 --height 128 --samples 16 --duration 2"
+    "kernel_diffusion_v2;--width 128 --height 128 --steps 50 --duration 2"
 )
 
 for entry in "${c_targets[@]}"; do
