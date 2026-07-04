@@ -514,6 +514,27 @@ def _row(w):
     return name, status, ptr, sig, used
 
 
+def _family(ptr):
+    # Extract the first-division signature family (Part 1) from a dwarf workload's
+    # pointer string, so the two-axis (family, dwarf) label can be shown per row:
+    #   "KERNEL family (VISIBLE) ..."   -> "KERNEL"
+    #   "IDLE family (QUIET control): " -> "IDLE"
+    #   "APP family: ..."               -> "APP"
+    #   "covered by kernel_x (...)"     -> "covered"
+    #   "CPU/IDLE (candidate): ..."     -> "CPU/IDLE"
+    # Returns "--" when no family is recognised.
+    p = ptr.strip()
+    if p.startswith("covered by"):
+        return "covered"
+    if " family" in p:
+        head = p.split(" family", 1)[0].split()
+        return head[-1].upper() if head else "--"
+    if "(candidate)" in p:
+        head = p.split("(candidate)", 1)[0].split()
+        return head[-1] if head else "--"
+    return "--"
+
+
 # ---------------------------------------------------------------- markdown renderer
 def _mdc(s):
     return s.replace("|", r"\|")
@@ -565,15 +586,15 @@ def render_md():
         out.append(d["what"]); out.append("")
         out.append(f"**Target {TARGET} workloads -- have {have(d)}.**")
         out.append("")
-        out.append("| Workload / Algorithm | Status | Mechanism / points-to | Memory signature | Used in (real world) |")
-        out.append("|---|---|---|---|---|")
+        out.append("| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |")
+        out.append("|---|---|---|---|---|---|")
         if d["workloads"]:
             for w in d["workloads"]:
                 name, status, ptr, sig, used = _row(w)
-                out.append(f"| {_mdc(name)} | {status_cell((name,status,ptr,sig))} | {_mdc(ptr)} "
+                out.append(f"| {_mdc(name)} | {_mdc(_family(ptr))} / {d['id']} | {status_cell((name,status,ptr,sig))} | {_mdc(ptr)} "
                            f"| {_mdc(sig)} | {_mdc(used) if used else '--'} |")
         else:
-            out.append("| _(to define together -- iteration pending)_ | planned | -- | -- | -- |")
+            out.append("| _(to define together -- iteration pending)_ | -- | planned | -- | -- | -- |")
         out.append("")
     out += ["## Sources", ""]
     for name, url in SOURCES:
@@ -666,19 +687,21 @@ def render_pdf():
                 Paragraph(f'<i>{_esc(d["origin"])}. Maps to: {_esc(d["maps"])}. Example: {_esc(d["example"])}.</i>', LEAD),
                 Paragraph(_esc(d["what"]), BODY),
                 Paragraph(f'<b>Target {TARGET} workloads &mdash; have {have(d)}.</b>', BODY)]
-        cols = ["Workload / Algorithm", "Status", "Mechanism / points-to", "Memory signature", "Used in (real world)"]
-        widths = [1.45 * inch, 0.6 * inch, 2.05 * inch, 1.35 * inch, 1.55 * inch]
+        cols = ["Workload / Algorithm", "Family / Dwarf", "Status", "Mechanism / points-to", "Memory signature", "Used in (real world)"]
+        widths = [1.3 * inch, 0.9 * inch, 0.55 * inch, 1.75 * inch, 1.2 * inch, 1.3 * inch]
         wdata = [[Paragraph(_esc(c), TH) for c in cols]]
         if d["workloads"]:
             for w in d["workloads"]:
                 name, status, ptr, sig, used = _row(w)
                 stt = status_cell((name, status, ptr, sig))
                 wdata.append([Paragraph(_esc(name), CELLB),
+                              Paragraph(f'{_esc(_family(ptr))} / {d["id"]}', CELL),
                               Paragraph(f'<font color="{STATUS_COLOR[stt]}">{_esc(stt)}</font>', CELL),
                               Paragraph(_esc(ptr), CELL), Paragraph(_esc(sig), CELL),
                               Paragraph(_esc(used) if used else "--", CELL)])
         else:
             wdata.append([Paragraph("<i>(to define together &mdash; iteration pending)</i>", CELL),
+                          Paragraph("--", CELL),
                           Paragraph("planned", CELL), Paragraph("--", CELL), Paragraph("--", CELL),
                           Paragraph("--", CELL)])
         wt = Table(wdata, colWidths=widths, repeatRows=1)
@@ -889,6 +912,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0 14px;font-size:13px}
 th,td{border:1px solid #E2DFD6;padding:5px 8px;text-align:left;vertical-align:top}
 th{background:#F5F3EE} tr:nth-child(even) td{background:#FAF9F5}
 td.wl{font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:nowrap}
+td.fam{font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap;color:#5B5B5B}
 .badge{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px}
 .legend .badge{margin-right:5px} .total{margin:8px 0} a{color:#3F6CA8}
 .gl{cursor:help;border-bottom:1px dotted #B9822A;position:relative}
@@ -946,15 +970,15 @@ def render_html():
                  f"Example: {_esc(d['example'])}.</i></p>")
         o.append(f"<p>{_esc(d['what'])}</p>")
         o.append(f"<p class='total'><b>Target {TARGET} workloads &mdash; have {have(d)}.</b></p>")
-        o.append("<table><thead><tr><th>Workload / Algorithm</th><th>Status</th><th>Mechanism / points-to</th>"
+        o.append("<table><thead><tr><th>Workload / Algorithm</th><th>Family / Dwarf</th><th>Status</th><th>Mechanism / points-to</th>"
                  "<th>Memory signature</th><th>Used in (real world)</th></tr></thead><tbody>")
         if d["workloads"]:
             for w in d["workloads"]:
                 name, status, ptr, sig, used = _row(w)
-                o.append(f"<tr><td class='wl'>{_wl(name)}</td><td>{_badge(status_cell((name,status,ptr,sig)))}</td>"
+                o.append(f"<tr><td class='wl'>{_wl(name)}</td><td class='fam'>{_esc(_family(ptr))} / {d['id']}</td><td>{_badge(status_cell((name,status,ptr,sig)))}</td>"
                          f"<td>{_esc(ptr)}</td><td>{_esc(sig)}</td><td class='use'>{_esc(used) if used else '--'}</td></tr>")
         else:
-            o.append("<tr><td colspan='5'><i>(to define together -- iteration pending)</i></td></tr>")
+            o.append("<tr><td colspan='6'><i>(to define together -- iteration pending)</i></td></tr>")
         o.append("</tbody></table>")
     o.append("<h2>Sources</h2><ul>")
     for name, url in SOURCES:
