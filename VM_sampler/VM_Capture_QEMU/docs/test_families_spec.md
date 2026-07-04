@@ -8,6 +8,8 @@ We filter every dwarf by WRITE-visibility, because the signal only sees pages th
 
 Rules: a workload that already exists in another family is POINTED to (status 'exists', with its family), never duplicated. Each dwarf targets 4-5 distinct workloads. v1 pre-fills only the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, in iterations (edit the WORKLOADS lists in the generator and re-run).
 
+PREDICTED CONFUSION (the payoff of running both divisions together): the write-signal does not see 'which dwarf' -- it sees a WRITE SHAPE. So most dwarf kernels, though filed under the KERNEL family (a provenance bucket, not itself a signature), are PREDICTED to be CONFUSED WITH a small set of signature archetypes -- IDLE (near-zero), WORKING-SET (large regular rewrite ~ a memory sweep), SCATTER (random target ~ random-page writes), SEQUENTIAL-GROW (monotone append ~ a bulk sequential write), or FRONTIER-CHURN. The 'Predicted signal' column names that archetype per built kernel. It is a PROVISIONAL hypothesis: the capture measures the actual confusion matrix -- whether each kernel's feature vector really clusters with that archetype's non-compute occupants. Predicted distribution: WORKING-SET 33, SCATTER 12, SEQUENTIAL-GROW 11, IDLE 6, FRONTIER-CHURN 2 -- i.e. ~half of all compute is predicted to be indistinguishable, by writes alone, from a plain memory working-set sweep.
+
 ## Part 1 -- First division: behaviour families (by signature) -- 102 workloads
 
 Every workload (built and planned), grouped by its memory-signature family. The Status column tracks implementation (planned -> under-development -> under-testing -> exists); the Dwarf column cross-references Part 2 (`--` = an access/IO/concurrency primitive, no motif).
@@ -238,16 +240,16 @@ O(n^3) compute on O(n^2) data; regular, blocked access; rewrites the output / fa
 
 **Target 4-5 workloads -- have 6.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_gemm_v2 | KERNEL / D1 | under-testing | KERNEL family: blocked dense matmul (-> kernel/D1_visible_dense_linear_algebra/kernel_gemm_v2.c) | Visible (static full output-C rewrite) | Every neural-net layer; BLAS-3 (cuBLAS/MKL); scientific computing |
-| cpu_matrix_mult_v2 | CPU / D1 | exists | CPU family: naive square matmul, writes output C | Visible (regular; small-scale GEMM) | Small-scale GEMM control |
-| kernel_lu_v2 | KERNEL / D1 | under-testing | KERNEL family: in-place LU factorisation (-> kernel/D1_visible_dense_linear_algebra/kernel_lu_v2.c) | Visible (shrinking trailing-submatrix front) | Linear solve: SPICE circuit sim, finite-element, optimisation (LAPACK dgetrf) |
-| kernel_qr_v2 | KERNEL / D1 | under-testing | KERNEL family: Gram-Schmidt / QR orthogonalisation (-> kernel/D1_visible_dense_linear_algebra/kernel_qr_v2.c) | Visible (growing orthogonalised-column front) | Least-squares regression; GMRES/Arnoldi eigensolvers |
-| kernel_attention_v2 | KERNEL / D1 | under-testing | KERNEL family: scaled dot-product attention QK^T/softmax/*V (-> kernel/D1_visible_dense_linear_algebra/kernel_attention_v2.c) | Visible (transformer core; ~GEMM + row-softmax) | Every transformer / LLM (the per-token core) |
-| kernel_conv_v2 | KERNEL / D1 | under-testing | KERNEL family: 2D convolution / CNN layer, sliding-window MAC (-> kernel/D1_visible_dense_linear_algebra/kernel_conv_v2.c) | Visible (overlapping-window feature-map rewrite) | CNNs: image & video vision models |
-| Cholesky factorisation | KERNEL / D1 | candidate | KERNEL (candidate): in-place symmetric factorisation, triangular shrinking front | Visible (LU-like triangular front) | Kalman filters, finance covariance, normal-equation least-squares |
-| Triangular solve (TRSM) | KERNEL / D1 | candidate | KERNEL (candidate): forward/back substitution, column wavefront | Visible (column-wise solve front) | The solve step inside LU/Cholesky; preconditioners |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_gemm_v2 | KERNEL / D1 | WORKING-SET | under-testing | KERNEL family: blocked dense matmul (-> kernel/D1_visible_dense_linear_algebra/kernel_gemm_v2.c) | Visible (static full output-C rewrite) | Every neural-net layer; BLAS-3 (cuBLAS/MKL); scientific computing |
+| cpu_matrix_mult_v2 | CPU / D1 | -- | exists | CPU family: naive square matmul, writes output C | Visible (regular; small-scale GEMM) | Small-scale GEMM control |
+| kernel_lu_v2 | KERNEL / D1 | WORKING-SET | under-testing | KERNEL family: in-place LU factorisation (-> kernel/D1_visible_dense_linear_algebra/kernel_lu_v2.c) | Visible (shrinking trailing-submatrix front) | Linear solve: SPICE circuit sim, finite-element, optimisation (LAPACK dgetrf) |
+| kernel_qr_v2 | KERNEL / D1 | SEQUENTIAL-GROW | under-testing | KERNEL family: Gram-Schmidt / QR orthogonalisation (-> kernel/D1_visible_dense_linear_algebra/kernel_qr_v2.c) | Visible (growing orthogonalised-column front) | Least-squares regression; GMRES/Arnoldi eigensolvers |
+| kernel_attention_v2 | KERNEL / D1 | WORKING-SET | under-testing | KERNEL family: scaled dot-product attention QK^T/softmax/*V (-> kernel/D1_visible_dense_linear_algebra/kernel_attention_v2.c) | Visible (transformer core; ~GEMM + row-softmax) | Every transformer / LLM (the per-token core) |
+| kernel_conv_v2 | KERNEL / D1 | WORKING-SET | under-testing | KERNEL family: 2D convolution / CNN layer, sliding-window MAC (-> kernel/D1_visible_dense_linear_algebra/kernel_conv_v2.c) | Visible (overlapping-window feature-map rewrite) | CNNs: image & video vision models |
+| Cholesky factorisation | KERNEL / D1 | -- | candidate | KERNEL (candidate): in-place symmetric factorisation, triangular shrinking front | Visible (LU-like triangular front) | Kalman filters, finance covariance, normal-equation least-squares |
+| Triangular solve (TRSM) | KERNEL / D1 | -- | candidate | KERNEL (candidate): forward/back substitution, column wavefront | Visible (column-wise solve front) | The solve step inside LU/Cholesky; preconditioners |
 
 ## D2 -- Sparse Linear Algebra  (Visible)
 
@@ -257,17 +259,17 @@ Sparse linear algebra is QUIET only when the OUTPUT is small: SpMV reads a big s
 
 **Target 4-5 workloads -- have 6.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_spmv_v2 | IDLE / D2 | under-testing | IDLE family (QUIET control): CSR SpMV, gather-dominated, tiny vector write (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c) | Quiet / near-idle (the invisible baseline) | Inner loop of CG/GMRES solvers; recommenders; graph-as-matrix |
-| kernel_spmm_v2 | KERNEL / D2 | under-testing | KERNEL family (VISIBLE): sparse x dense -> dense output (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmm_v2.c) | Visible (large dense output rewritten each pass) | Graph neural networks (the aggregation kernel; DGL/PyG) |
-| kernel_sparse_cholesky_v2 | KERNEL / D2 | under-testing | KERNEL family (VISIBLE): banded sparse Cholesky, fill-in (-> kernel/D2_visible_sparse_linear_algebra/kernel_sparse_cholesky_v2.c) | Visible (factor fills in within the band; progressive write) | Direct solvers (CHOLMOD/MUMPS): FEM, circuits, optimisation |
-| kernel_spgemm_v2 | KERNEL / D2 | under-testing | KERNEL family (VISIBLE): sparse x sparse -> new sparse matrix (-> kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c) | Visible (writes a new sparse matrix with fill-in) | Algebraic multigrid setup; triangle counting; graph contraction |
-| kernel_sddmm_v2 | KERNEL / D2 | under-testing | KERNEL family (VISIBLE): sampled dense-dense -> sparse output (-> kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c) | Visible (scattered writes at the sparse mask positions) | Graph-attention networks; recommender systems |
-| kernel_moe_dispatch_v2 | KERNEL / D2 | under-testing | KERNEL family (VISIBLE): MoE token dispatch/combine scatter-gather (-> kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c) | Visible (token-permutation scatter into expert buffers) | Mixture-of-Experts LLMs (Mixtral, DeepSeek); >60% of 2025-26 releases |
-| PageRank | covered / D2 | covered | covered by kernel_spmv_v2 (repeated SpMV; same quiet gather + small vector write) | same quiet gather | Google web ranking; centrality; link analysis |
-| Conjugate Gradient (CG) | covered / D2 | covered | covered by kernel_spmv_v2 (SpMV-bound iteration, small vector writes) | same quiet gather | FEM/CFD SPD iterative solver |
-| Sparse triangular solve (SpTRSV) | covered / D2 | covered | covered by kernel_spmv_v2 (dependency-ordered sparse solve, tiny writes) | same quiet gather | ILU preconditioners |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_spmv_v2 | IDLE / D2 | IDLE | under-testing | IDLE family (QUIET control): CSR SpMV, gather-dominated, tiny vector write (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c) | Quiet / near-idle (the invisible baseline) | Inner loop of CG/GMRES solvers; recommenders; graph-as-matrix |
+| kernel_spmm_v2 | KERNEL / D2 | WORKING-SET | under-testing | KERNEL family (VISIBLE): sparse x dense -> dense output (-> kernel/D2_visible_sparse_linear_algebra/kernel_spmm_v2.c) | Visible (large dense output rewritten each pass) | Graph neural networks (the aggregation kernel; DGL/PyG) |
+| kernel_sparse_cholesky_v2 | KERNEL / D2 | WORKING-SET | under-testing | KERNEL family (VISIBLE): banded sparse Cholesky, fill-in (-> kernel/D2_visible_sparse_linear_algebra/kernel_sparse_cholesky_v2.c) | Visible (factor fills in within the band; progressive write) | Direct solvers (CHOLMOD/MUMPS): FEM, circuits, optimisation |
+| kernel_spgemm_v2 | KERNEL / D2 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE): sparse x sparse -> new sparse matrix (-> kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c) | Visible (writes a new sparse matrix with fill-in) | Algebraic multigrid setup; triangle counting; graph contraction |
+| kernel_sddmm_v2 | KERNEL / D2 | SCATTER | under-testing | KERNEL family (VISIBLE): sampled dense-dense -> sparse output (-> kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c) | Visible (scattered writes at the sparse mask positions) | Graph-attention networks; recommender systems |
+| kernel_moe_dispatch_v2 | KERNEL / D2 | SCATTER | under-testing | KERNEL family (VISIBLE): MoE token dispatch/combine scatter-gather (-> kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c) | Visible (token-permutation scatter into expert buffers) | Mixture-of-Experts LLMs (Mixtral, DeepSeek); >60% of 2025-26 releases |
+| PageRank | covered / D2 | -- | covered | covered by kernel_spmv_v2 (repeated SpMV; same quiet gather + small vector write) | same quiet gather | Google web ranking; centrality; link analysis |
+| Conjugate Gradient (CG) | covered / D2 | -- | covered | covered by kernel_spmv_v2 (SpMV-bound iteration, small vector writes) | same quiet gather | FEM/CFD SPD iterative solver |
+| Sparse triangular solve (SpTRSV) | covered / D2 | -- | covered | covered by kernel_spmv_v2 (dependency-ordered sparse solve, tiny writes) | same quiet gather | ILU preconditioners |
 
 ## D3 -- Spectral Methods  (Visible++)
 
@@ -277,19 +279,19 @@ Butterfly / bit-reversed, strided, multi-pass; in-place rewrite of the whole arr
 
 **Target 4-5 workloads -- have 5.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_fft_v2 | KERNEL / D3 | under-testing | KERNEL family: in-place radix-2 FFT (-> kernel/D3_visible_spectral_methods/kernel_fft_v2.c) | Visible++ (1D butterfly; bit-reversal scatter) | All DSP: audio, radio/5G, MRI, image filtering |
-| kernel_ntt_v2 | KERNEL / D3 | under-testing | KERNEL family: RNS multi-limb number-theoretic transform, CKKS/lattice core (-> kernel/D3_visible_spectral_methods/kernel_ntt_v2.c) | Visible++ (multi-stream modular butterfly; integer content) | Lattice crypto / CKKS homomorphic encryption; big-integer multiply |
-| kernel_dct_v2 | KERNEL / D3 | under-testing | KERNEL family: blocked 8x8 discrete cosine transform (-> kernel/D3_visible_spectral_methods/kernel_dct_v2.c) | Visible (many small blocks; real content) | JPEG / MPEG / H.264 image & video compression |
-| kernel_dwt_v2 | KERNEL / D3 | under-testing | KERNEL family: discrete wavelet transform, filter+downsample pyramid (-> kernel/D3_visible_spectral_methods/kernel_dwt_v2.c) | Visible (halving multi-resolution pyramid) | JPEG2000, denoising, audio/image compression |
-| kernel_fft2d_v2 | KERNEL / D3 | under-testing | KERNEL family: 2D FFT (row FFTs, transpose, column FFTs) (-> kernel/D3_visible_spectral_methods/kernel_fft2d_v2.c) | Visible++ (transpose scatter + two-direction passes) | Image/optics spectral filtering, turbulence DNS, crystallography |
-| DTFT / direct DFT | covered / D3 | covered | covered by kernel_fft_v2 (computable DTFT = DFT = FFT; naive DFT = dense matvec) | same 1D-butterfly signature | Frequency analysis (textbook form of the FFT) |
-| Cepstrum | covered / D3 | covered | covered by kernel_fft_v2 (FFT -> log\|.\| -> inverse FFT) | two butterfly passes + pointwise | Pitch detection, echo / speaker analysis |
-| MFCC | covered / D3 | covered | covered by kernel_fft_v2 + kernel_dct_v2 (FFT -> mel filterbank -> log -> DCT) | butterfly + blocked cosine | The classic speech-recognition audio feature |
-| STFT / spectrogram | covered / D3 | covered | covered by kernel_fft_v2 (sliding windowed FFTs filling a spectrogram) | repeated 1D butterfly (sliding window) | Every audio ML front-end; speech, music |
-| Wavelet scattering (WST) | covered / D3 | covered | covered by kernel_dwt_v2 (cascade of wavelet transforms + modulus) | repeated pyramid | Audio / image classification features |
-| FFT convolution | covered / D3 | covered | covered by kernel_fft_v2 (forward FFT, pointwise multiply, inverse FFT) | two butterfly passes + pointwise | Large-kernel convolution; polynomial / big-integer multiply |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_fft_v2 | KERNEL / D3 | SCATTER | under-testing | KERNEL family: in-place radix-2 FFT (-> kernel/D3_visible_spectral_methods/kernel_fft_v2.c) | Visible++ (1D butterfly; bit-reversal scatter) | All DSP: audio, radio/5G, MRI, image filtering |
+| kernel_ntt_v2 | KERNEL / D3 | WORKING-SET | under-testing | KERNEL family: RNS multi-limb number-theoretic transform, CKKS/lattice core (-> kernel/D3_visible_spectral_methods/kernel_ntt_v2.c) | Visible++ (multi-stream modular butterfly; integer content) | Lattice crypto / CKKS homomorphic encryption; big-integer multiply |
+| kernel_dct_v2 | KERNEL / D3 | WORKING-SET | under-testing | KERNEL family: blocked 8x8 discrete cosine transform (-> kernel/D3_visible_spectral_methods/kernel_dct_v2.c) | Visible (many small blocks; real content) | JPEG / MPEG / H.264 image & video compression |
+| kernel_dwt_v2 | KERNEL / D3 | WORKING-SET | under-testing | KERNEL family: discrete wavelet transform, filter+downsample pyramid (-> kernel/D3_visible_spectral_methods/kernel_dwt_v2.c) | Visible (halving multi-resolution pyramid) | JPEG2000, denoising, audio/image compression |
+| kernel_fft2d_v2 | KERNEL / D3 | SCATTER | under-testing | KERNEL family: 2D FFT (row FFTs, transpose, column FFTs) (-> kernel/D3_visible_spectral_methods/kernel_fft2d_v2.c) | Visible++ (transpose scatter + two-direction passes) | Image/optics spectral filtering, turbulence DNS, crystallography |
+| DTFT / direct DFT | covered / D3 | -- | covered | covered by kernel_fft_v2 (computable DTFT = DFT = FFT; naive DFT = dense matvec) | same 1D-butterfly signature | Frequency analysis (textbook form of the FFT) |
+| Cepstrum | covered / D3 | -- | covered | covered by kernel_fft_v2 (FFT -> log\|.\| -> inverse FFT) | two butterfly passes + pointwise | Pitch detection, echo / speaker analysis |
+| MFCC | covered / D3 | -- | covered | covered by kernel_fft_v2 + kernel_dct_v2 (FFT -> mel filterbank -> log -> DCT) | butterfly + blocked cosine | The classic speech-recognition audio feature |
+| STFT / spectrogram | covered / D3 | -- | covered | covered by kernel_fft_v2 (sliding windowed FFTs filling a spectrogram) | repeated 1D butterfly (sliding window) | Every audio ML front-end; speech, music |
+| Wavelet scattering (WST) | covered / D3 | -- | covered | covered by kernel_dwt_v2 (cascade of wavelet transforms + modulus) | repeated pyramid | Audio / image classification features |
+| FFT convolution | covered / D3 | -- | covered | covered by kernel_fft_v2 (forward FFT, pointwise multiply, inverse FFT) | two butterfly passes + pointwise | Large-kernel convolution; polynomial / big-integer multiply |
 
 ## D4 -- N-Body Methods  (Visible)
 
@@ -299,15 +301,15 @@ N particles interacting pairwise; rewrites compact particle arrays (position/vel
 
 **Target 4-5 workloads -- have 6.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_nbody_v2 | KERNEL / D4 | under-testing | KERNEL family: 2D K-sampled gravity (-> kernel/D4_visible_nbody_methods/kernel_nbody_v2.c) | Visible (four compact arrays rewritten per step, smooth) | 2D gravity model; astrophysics, particle effects |
-| kernel_barnes_hut_v2 | KERNEL / D4 | under-testing | KERNEL family: quadtree build + traversal, O(n log n) (-> kernel/D4_visible_nbody_methods/kernel_barnes_hut_v2.c) | Visible/irregular (tree nodes rebuilt each step + particle rewrite) | Cosmology (GADGET), galaxy formation |
-| kernel_md_lj_v2 | KERNEL / D4 | under-testing | KERNEL family: Lennard-Jones MD with cell lists (-> kernel/D4_visible_nbody_methods/kernel_md_lj_v2.c) | Visible (periodic cell-list rebuild + position/velocity rewrite) | GROMACS / NAMD / AMBER: drug discovery, protein folding, materials |
-| kernel_pic_v2 | KERNEL / D4 | under-testing | KERNEL family: particle-in-cell (scatter to grid, field solve, gather) (-> kernel/D4_visible_nbody_methods/kernel_pic_v2.c) | Visible (particle->grid scatter-deposit + grid rewrite) | Plasma physics, accelerators, semiconductor device sim |
-| kernel_fmm_v2 | KERNEL / D4 | under-testing | KERNEL family: fast multipole (multipole/local expansion arrays on a tree) (-> kernel/D4_visible_nbody_methods/kernel_fmm_v2.c) | Visible (expansion-coefficient arrays + particle rewrite) | Electrostatics, acoustics, fast O(n) far-field |
-| kernel_sph_v2 | KERNEL / D4 | under-testing | KERNEL family: smoothed-particle hydrodynamics (density/pressure fields) (-> kernel/D4_visible_nbody_methods/kernel_sph_v2.c) | Visible (extra per-particle fields + particle rewrite) | Fluid sim, film VFX (water/lava), astrophysics |
-| All-pairs direct N-body | covered / D4 | covered | covered by kernel_nbody_v2 (same particle-array writes; differs only in the force READS) | same smooth particle rewrite | Exact small-N molecular dynamics; reference force |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_nbody_v2 | KERNEL / D4 | WORKING-SET | under-testing | KERNEL family: 2D K-sampled gravity (-> kernel/D4_visible_nbody_methods/kernel_nbody_v2.c) | Visible (four compact arrays rewritten per step, smooth) | 2D gravity model; astrophysics, particle effects |
+| kernel_barnes_hut_v2 | KERNEL / D4 | SCATTER | under-testing | KERNEL family: quadtree build + traversal, O(n log n) (-> kernel/D4_visible_nbody_methods/kernel_barnes_hut_v2.c) | Visible/irregular (tree nodes rebuilt each step + particle rewrite) | Cosmology (GADGET), galaxy formation |
+| kernel_md_lj_v2 | KERNEL / D4 | WORKING-SET | under-testing | KERNEL family: Lennard-Jones MD with cell lists (-> kernel/D4_visible_nbody_methods/kernel_md_lj_v2.c) | Visible (periodic cell-list rebuild + position/velocity rewrite) | GROMACS / NAMD / AMBER: drug discovery, protein folding, materials |
+| kernel_pic_v2 | KERNEL / D4 | SCATTER | under-testing | KERNEL family: particle-in-cell (scatter to grid, field solve, gather) (-> kernel/D4_visible_nbody_methods/kernel_pic_v2.c) | Visible (particle->grid scatter-deposit + grid rewrite) | Plasma physics, accelerators, semiconductor device sim |
+| kernel_fmm_v2 | KERNEL / D4 | WORKING-SET | under-testing | KERNEL family: fast multipole (multipole/local expansion arrays on a tree) (-> kernel/D4_visible_nbody_methods/kernel_fmm_v2.c) | Visible (expansion-coefficient arrays + particle rewrite) | Electrostatics, acoustics, fast O(n) far-field |
+| kernel_sph_v2 | KERNEL / D4 | WORKING-SET | under-testing | KERNEL family: smoothed-particle hydrodynamics (density/pressure fields) (-> kernel/D4_visible_nbody_methods/kernel_sph_v2.c) | Visible (extra per-particle fields + particle rewrite) | Fluid sim, film VFX (water/lava), astrophysics |
+| All-pairs direct N-body | covered / D4 | -- | covered | covered by kernel_nbody_v2 (same particle-array writes; differs only in the force READS) | same smooth particle rewrite | Exact small-N molecular dynamics; reference force |
 
 ## D5 -- Structured Grids  (Visible++)
 
@@ -317,13 +319,13 @@ Regular neighbour sweep over a grid, iterative; rewrites the grid each iteration
 
 **Target 4-5 workloads -- have 5.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_stencil_jacobi_v2 | KERNEL / D5 | under-testing | KERNEL family: 2D 5-point Jacobi, double-buffer (-> kernel/D5_visible_structured_grids/kernel_stencil_jacobi_v2.c) | Visible++ (periodic full rewrite, ~2x footprint) | Finite-difference PDE: heat / Poisson / diffusion solvers |
-| kernel_stencil_seidel_v2 | KERNEL / D5 | under-testing | KERNEL family: Gauss-Seidel red-black, in-place (-> kernel/D5_visible_structured_grids/kernel_stencil_seidel_v2.c) | Visible++ (checkerboard in-place, ~1x footprint) | PDE relaxation; smoother inside multigrid |
-| kernel_multigrid_v2 | KERNEL / D5 | under-testing | KERNEL family: multigrid V-cycle (-> kernel/D5_visible_structured_grids/kernel_multigrid_v2.c) | Visible++ (multi-scale, time-varying footprint) | The optimal PDE solver; CFD, electrostatics |
-| kernel_lbm_v2 | KERNEL / D5 | under-testing | KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/D5_visible_structured_grids/kernel_lbm_v2.c) | Visible++ (nine distribution arrays streamed each step) | CFD: porous media, aerodynamics (OpenLB / Palabos) |
-| kernel_fdtd_v2 | KERNEL / D5 | under-testing | KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/D5_visible_structured_grids/kernel_fdtd_v2.c) | Visible++ (two coupled field grids, E<->H leapfrog) | Antenna / radar / photonics simulation (Meep) |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_stencil_jacobi_v2 | KERNEL / D5 | WORKING-SET | under-testing | KERNEL family: 2D 5-point Jacobi, double-buffer (-> kernel/D5_visible_structured_grids/kernel_stencil_jacobi_v2.c) | Visible++ (periodic full rewrite, ~2x footprint) | Finite-difference PDE: heat / Poisson / diffusion solvers |
+| kernel_stencil_seidel_v2 | KERNEL / D5 | WORKING-SET | under-testing | KERNEL family: Gauss-Seidel red-black, in-place (-> kernel/D5_visible_structured_grids/kernel_stencil_seidel_v2.c) | Visible++ (checkerboard in-place, ~1x footprint) | PDE relaxation; smoother inside multigrid |
+| kernel_multigrid_v2 | KERNEL / D5 | WORKING-SET | under-testing | KERNEL family: multigrid V-cycle (-> kernel/D5_visible_structured_grids/kernel_multigrid_v2.c) | Visible++ (multi-scale, time-varying footprint) | The optimal PDE solver; CFD, electrostatics |
+| kernel_lbm_v2 | KERNEL / D5 | WORKING-SET | under-testing | KERNEL family: Lattice-Boltzmann D2Q9, stream + collide over 9 distribution arrays (-> kernel/D5_visible_structured_grids/kernel_lbm_v2.c) | Visible++ (nine distribution arrays streamed each step) | CFD: porous media, aerodynamics (OpenLB / Palabos) |
+| kernel_fdtd_v2 | KERNEL / D5 | WORKING-SET | under-testing | KERNEL family: 2D TM FDTD, leapfrog of coupled E/H field grids (-> kernel/D5_visible_structured_grids/kernel_fdtd_v2.c) | Visible++ (two coupled field grids, E<->H leapfrog) | Antenna / radar / photonics simulation (Meep) |
 
 ## D6 -- Unstructured Grids  (Visible)
 
@@ -333,14 +335,14 @@ The irregular cousin of D5: PDE computation on unstructured meshes, reaching nei
 
 **Target 4-5 workloads -- have 5.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_fem_assembly_v2 | KERNEL / D6 | under-testing | KERNEL family: scatter-add element matrices into a global matrix (-> kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c) | Visible (indexed scatter-accumulate into a large matrix) | FEM assembly: ANSYS / Abaqus structural & crash; aerospace |
-| kernel_fem_matvec_v2 | KERNEL / D6 | under-testing | KERNEL family: matrix-free FEM matvec, element gather-apply-scatter (-> kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c) | Quieter (scatter-add into a result VECTOR; the matrix-free SpMV analog) | Large FEM/CFD iterative solvers (matrix-free) |
-| kernel_dg_v2 | KERNEL / D6 | under-testing | KERNEL family: discontinuous Galerkin step, per-element dense + face flux (-> kernel/D6_visible_unstructured_grids/kernel_dg_v2.c) | Visible (per-element dense blocks rewritten + flux coupling) | High-order CFD & seismic wave propagation |
-| kernel_mesh_smooth_v2 | KERNEL / D6 | under-testing | KERNEL family: unstructured Laplacian mesh smoothing (-> kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c) | Visible (node-array rewrite; write ~ D5 stencil, distinct in access) | Graphics mesh processing; remeshing |
-| kernel_unstructured_fv_v2 | KERNEL / D6 | under-testing | KERNEL family: finite-volume, conservative face-flux scatter-add into cells (-> kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c) | Visible (face-list gather + conservative cell scatter-add) | OpenFOAM CFD; aerodynamics |
-| Mesh partitioning (METIS) | KERNEL-irregular / D6 | candidate | KERNEL-irregular (candidate): graph coarsen / partition / refine | Irregular (graph rewrite; closer to D9) | Parallel FEM domain decomposition |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_fem_assembly_v2 | KERNEL / D6 | SCATTER | under-testing | KERNEL family: scatter-add element matrices into a global matrix (-> kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c) | Visible (indexed scatter-accumulate into a large matrix) | FEM assembly: ANSYS / Abaqus structural & crash; aerospace |
+| kernel_fem_matvec_v2 | KERNEL / D6 | IDLE | under-testing | KERNEL family: matrix-free FEM matvec, element gather-apply-scatter (-> kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c) | Quieter (scatter-add into a result VECTOR; the matrix-free SpMV analog) | Large FEM/CFD iterative solvers (matrix-free) |
+| kernel_dg_v2 | KERNEL / D6 | WORKING-SET | under-testing | KERNEL family: discontinuous Galerkin step, per-element dense + face flux (-> kernel/D6_visible_unstructured_grids/kernel_dg_v2.c) | Visible (per-element dense blocks rewritten + flux coupling) | High-order CFD & seismic wave propagation |
+| kernel_mesh_smooth_v2 | KERNEL / D6 | WORKING-SET | under-testing | KERNEL family: unstructured Laplacian mesh smoothing (-> kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c) | Visible (node-array rewrite; write ~ D5 stencil, distinct in access) | Graphics mesh processing; remeshing |
+| kernel_unstructured_fv_v2 | KERNEL / D6 | SCATTER | under-testing | KERNEL family: finite-volume, conservative face-flux scatter-add into cells (-> kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c) | Visible (face-list gather + conservative cell scatter-add) | OpenFOAM CFD; aerodynamics |
+| Mesh partitioning (METIS) | KERNEL-irregular / D6 | -- | candidate | KERNEL-irregular (candidate): graph coarsen / partition / refine | Irregular (graph rewrite; closer to D9) | Parallel FEM domain decomposition |
 
 ## D7 -- MapReduce / Monte Carlo  (Partial)
 
@@ -350,15 +352,15 @@ Embarrassingly parallel map (writes intermediates) + reduce (small); or RNG accu
 
 **Target 4-5 workloads -- have 6.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| app_sqlite_analytical_v2 | APP / D7 | exists | APP family (loose): read-heavy aggregation/scan over a DB | Quiet-ish (read-dominated) | Analytical SQL scan / aggregate (OLAP) |
-| kernel_mc_pi_v2 | IDLE / D7 | under-testing | IDLE family (QUIET control): MC-pi/integration, RNG sample + scalar/partials accumulate (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c) | Quiet / near-idle (scalar accumulate; the invisible baseline) | Physics, finance, Bayesian; high-dimensional integrals |
-| kernel_histogram_v2 | KERNEL / D7 | under-testing | KERNEL family (VISIBLE): scatter-increment N samples into a large bins array (-> kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c) | Visible (random scatter across the whole bins array) | MapReduce / Spark ETL; analytics; the canonical reduce |
-| kernel_mc_option_v2 | KERNEL / D7 | under-testing | KERNEL family (VISIBLE): Monte-Carlo option pricing, stores all E x T GBM paths then averages payoff (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c) | Visible (bulk path-array storage rewritten each pass) | Quant finance: derivatives, VaR, risk |
-| kernel_path_trace_v2 | KERNEL / D7 | under-testing | KERNEL family (VISIBLE): Monte-Carlo path tracer, accumulate random rays into an image buffer (-> kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c) | Visible (image-buffer accumulation; whole grid reswept each pass) | Film & game rendering (RenderMan, Blender Cycles) |
-| kernel_diffusion_v2 | KERNEL / D7 | under-testing | KERNEL family (VISIBLE): diffusion-model sampler, iterative whole-image denoise rewrite (-> kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c) | Visible (whole image/latent rewritten every step) | Generative-AI image sampling (Stable Diffusion, DALL-E) |
-| MCMC (Metropolis-Hastings) | covered / D7 | covered | covered by kernel_gibbs_v2 (Gibbs sampling is an MCMC method; same propose + small-state resample write) | same quiet small-state rewrite | Bayesian inference (Stan / PyMC), statistical physics |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| app_sqlite_analytical_v2 | APP / D7 | -- | exists | APP family (loose): read-heavy aggregation/scan over a DB | Quiet-ish (read-dominated) | Analytical SQL scan / aggregate (OLAP) |
+| kernel_mc_pi_v2 | IDLE / D7 | IDLE | under-testing | IDLE family (QUIET control): MC-pi/integration, RNG sample + scalar/partials accumulate (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c) | Quiet / near-idle (scalar accumulate; the invisible baseline) | Physics, finance, Bayesian; high-dimensional integrals |
+| kernel_histogram_v2 | KERNEL / D7 | SCATTER | under-testing | KERNEL family (VISIBLE): scatter-increment N samples into a large bins array (-> kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c) | Visible (random scatter across the whole bins array) | MapReduce / Spark ETL; analytics; the canonical reduce |
+| kernel_mc_option_v2 | KERNEL / D7 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE): Monte-Carlo option pricing, stores all E x T GBM paths then averages payoff (-> kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c) | Visible (bulk path-array storage rewritten each pass) | Quant finance: derivatives, VaR, risk |
+| kernel_path_trace_v2 | KERNEL / D7 | WORKING-SET | under-testing | KERNEL family (VISIBLE): Monte-Carlo path tracer, accumulate random rays into an image buffer (-> kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c) | Visible (image-buffer accumulation; whole grid reswept each pass) | Film & game rendering (RenderMan, Blender Cycles) |
+| kernel_diffusion_v2 | KERNEL / D7 | WORKING-SET | under-testing | KERNEL family (VISIBLE): diffusion-model sampler, iterative whole-image denoise rewrite (-> kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c) | Visible (whole image/latent rewritten every step) | Generative-AI image sampling (Stable Diffusion, DALL-E) |
+| MCMC (Metropolis-Hastings) | covered / D7 | -- | covered | covered by kernel_gibbs_v2 (Gibbs sampling is an MCMC method; same propose + small-state resample write) | same quiet small-state rewrite | Bayesian inference (Stan / PyMC), statistical physics |
 
 ## D8 -- Combinational Logic  (Quiet / Visible)
 
@@ -368,15 +370,15 @@ Simple bit-level ops over large data. CRC/hash = quiet; ENCRYPTION = visible hig
 
 **Target 4-5 workloads -- have 4.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| app_compress_gzip_v2 | APP / D8 | exists | APP family: LZ77+Huffman stream compress, writes output | Visible (entropy-changing) | Web (HTTP gzip), storage, backups (DEFLATE) |
-| app_decompress_gzip_v2 | APP / D8 | exists | APP family: inverse, small read -> large write | Visible | Web / storage decompression |
-| cpu_hash_loop_v2 | CPU / D8 | exists | CPU family: FNV hash over a stream | Quiet (register-resident) | Hash tables, checksums |
-| sandbox_ransom_* (4 variants) | SECURITY / D8 | exists | SECURITY family (THREAT-labeled): discover->read->XOR->write->rename | Visible++ (high-entropy rewrite) | Benign XOR; encryption-shaped rewrite control |
-| SHA-256 | CPU/IDLE / D8 | candidate | CPU/IDLE (candidate): streaming compression function, tiny digest | Quiet (stream read, 32-byte write) | git, blockchain, TLS certificates, dedup, integrity |
-| AES block cipher | covered / D8 | covered | covered by sandbox_ransom_* (same high-entropy full-rewrite signature) | Visible (high-entropy output rewrite) | HTTPS/TLS, disk encryption (BitLocker / FileVault), VPN |
-| CRC32 | CPU/IDLE / D8 | candidate | CPU/IDLE (candidate): table-driven rolling checksum | Quiet (register-resident) | Ethernet, ZIP, storage error detection |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| app_compress_gzip_v2 | APP / D8 | -- | exists | APP family: LZ77+Huffman stream compress, writes output | Visible (entropy-changing) | Web (HTTP gzip), storage, backups (DEFLATE) |
+| app_decompress_gzip_v2 | APP / D8 | -- | exists | APP family: inverse, small read -> large write | Visible | Web / storage decompression |
+| cpu_hash_loop_v2 | CPU / D8 | -- | exists | CPU family: FNV hash over a stream | Quiet (register-resident) | Hash tables, checksums |
+| sandbox_ransom_* (4 variants) | SECURITY / D8 | -- | exists | SECURITY family (THREAT-labeled): discover->read->XOR->write->rename | Visible++ (high-entropy rewrite) | Benign XOR; encryption-shaped rewrite control |
+| SHA-256 | CPU/IDLE / D8 | -- | candidate | CPU/IDLE (candidate): streaming compression function, tiny digest | Quiet (stream read, 32-byte write) | git, blockchain, TLS certificates, dedup, integrity |
+| AES block cipher | covered / D8 | -- | covered | covered by sandbox_ransom_* (same high-entropy full-rewrite signature) | Visible (high-entropy output rewrite) | HTTPS/TLS, disk encryption (BitLocker / FileVault), VPN |
+| CRC32 | CPU/IDLE / D8 | -- | candidate | CPU/IDLE (candidate): table-driven rolling checksum | Quiet (register-resident) | Ethernet, ZIP, storage error detection |
 
 ## D9 -- Graph Traversal  (Visible)
 
@@ -386,15 +388,15 @@ Traversal is QUIET only when the graph is STATIC: BFS/DFS/Dijkstra read the (rea
 
 **Target 4-5 workloads -- have 6.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_bfs_v2 | IDLE / D9 | under-testing | IDLE family (QUIET control): BFS on a STATIC graph, built once and only traversed (-> kernel/D9_visible_graph_traversal/kernel_bfs_v2.c) | Quiet / near-idle (read-only graph; only visited/frontier writes) | Graph500 traversal; shortest-hops; GC mark |
-| kernel_rmat_gen_v2 | KERNEL / D9 | under-testing | KERNEL family (VISIBLE): R-MAT graph generation, writes the edge list (-> kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c) | Visible (bulk edge-list write, the large object) | Graph500 construction; synthetic scale-free graphs |
-| kernel_graph_stream_v2 | KERNEL / D9 | under-testing | KERNEL family (VISIBLE): streaming edge insertion into a growing adjacency (-> kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c) | Visible (the graph structure itself is written/grown) | Streaming / temporal graph analytics |
-| kernel_label_prop_v2 | KERNEL / D9 | under-testing | KERNEL family (VISIBLE): connected-components by min-label propagation (-> kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c) | Visible (iterated node-label array rewrite; a graph stencil) | Community detection; connected components |
-| kernel_union_find_v2 | KERNEL / D9 | under-testing | KERNEL family (VISIBLE): union-find with path compression (-> kernel/D9_visible_graph_traversal/kernel_union_find_v2.c) | Visible (parent-pointer array rewritten by unions + path compression) | Connected components; Kruskal MST |
-| sandbox_scanner_metadata | SECURITY / D9 | exists | SECURITY family (loose): directory enumeration via stat -- a tree/graph walk proxy | Quiet / metadata | Directory-walk proxy |
-| DFS / Dijkstra / A* | covered / D9 | covered | covered by kernel_bfs_v2 (same quiet static-traversal write pattern: small visited/distance/heap state) | same quiet traversal | Topological sort, GPS routing, pathfinding |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_bfs_v2 | IDLE / D9 | IDLE | under-testing | IDLE family (QUIET control): BFS on a STATIC graph, built once and only traversed (-> kernel/D9_visible_graph_traversal/kernel_bfs_v2.c) | Quiet / near-idle (read-only graph; only visited/frontier writes) | Graph500 traversal; shortest-hops; GC mark |
+| kernel_rmat_gen_v2 | KERNEL / D9 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE): R-MAT graph generation, writes the edge list (-> kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c) | Visible (bulk edge-list write, the large object) | Graph500 construction; synthetic scale-free graphs |
+| kernel_graph_stream_v2 | KERNEL / D9 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE): streaming edge insertion into a growing adjacency (-> kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c) | Visible (the graph structure itself is written/grown) | Streaming / temporal graph analytics |
+| kernel_label_prop_v2 | KERNEL / D9 | WORKING-SET | under-testing | KERNEL family (VISIBLE): connected-components by min-label propagation (-> kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c) | Visible (iterated node-label array rewrite; a graph stencil) | Community detection; connected components |
+| kernel_union_find_v2 | KERNEL / D9 | SCATTER | under-testing | KERNEL family (VISIBLE): union-find with path compression (-> kernel/D9_visible_graph_traversal/kernel_union_find_v2.c) | Visible (parent-pointer array rewritten by unions + path compression) | Connected components; Kruskal MST |
+| sandbox_scanner_metadata | SECURITY / D9 | -- | exists | SECURITY family (loose): directory enumeration via stat -- a tree/graph walk proxy | Quiet / metadata | Directory-walk proxy |
+| DFS / Dijkstra / A* | covered / D9 | -- | covered | covered by kernel_bfs_v2 (same quiet static-traversal write pattern: small visited/distance/heap state) | same quiet traversal | Topological sort, GPS routing, pathfinding |
 
 ## D10 -- Dynamic Programming  (Visible)
 
@@ -404,15 +406,15 @@ Fill a 1D/2D table, each cell from neighbours; regular monotone fill front (wave
 
 **Target 4-5 workloads -- have 5.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_dp_v2 | KERNEL / D10 | under-testing | KERNEL family: edit-distance table fill (-> kernel/D10_visible_dynamic_programming/kernel_dp_v2.c) | Visible (row-major wavefront; migrating band on a large table) | git diff, spell-check, fuzzy matching |
-| kernel_floyd_v2 | KERNEL / D10 | under-testing | KERNEL family: Floyd-Warshall all-pairs shortest paths (-> kernel/D10_visible_dynamic_programming/kernel_floyd_v2.c) | Visible (whole n*n matrix rewritten n times per solve) | All-pairs shortest path; routing; transitive closure |
-| kernel_matrixchain_v2 | KERNEL / D10 | under-testing | KERNEL family: matrix-chain optimal parenthesisation (-> kernel/D10_visible_dynamic_programming/kernel_matrixchain_v2.c) | Visible (anti-diagonal fill by chain length, O(n^3) inner) | Compiler / query-plan optimisation, NLP parsing |
-| kernel_knapsack_v2 | KERNEL / D10 | under-testing | KERNEL family: 0/1 knapsack, space-optimised 1D rolling array (-> kernel/D10_visible_dynamic_programming/kernel_knapsack_v2.c) | Visible (single capacity vector repainted in reverse per item) | Resource allocation, scheduling, finance |
-| kernel_smithwaterman_v2 | KERNEL / D10 | under-testing | KERNEL family: Smith-Waterman local alignment, fill + traceback (-> kernel/D10_visible_dynamic_programming/kernel_smithwaterman_v2.c) | Visible (row-major wavefront + backward traceback path) | Genomics local alignment (BLAST family) |
-| Needleman-Wunsch | covered / D10 | covered | covered by kernel_dp_v2 (identical global-alignment row-major wavefront) | same row-major wavefront | Global DNA / protein sequence alignment |
-| Viterbi decoding | covered / D10 | covered | covered by kernel_hmm_v2 (same trellis column-fill, max-product instead of sum) | same column-fill front | Speech recognition, error-correction decode, POS tagging |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_dp_v2 | KERNEL / D10 | WORKING-SET | under-testing | KERNEL family: edit-distance table fill (-> kernel/D10_visible_dynamic_programming/kernel_dp_v2.c) | Visible (row-major wavefront; migrating band on a large table) | git diff, spell-check, fuzzy matching |
+| kernel_floyd_v2 | KERNEL / D10 | WORKING-SET | under-testing | KERNEL family: Floyd-Warshall all-pairs shortest paths (-> kernel/D10_visible_dynamic_programming/kernel_floyd_v2.c) | Visible (whole n*n matrix rewritten n times per solve) | All-pairs shortest path; routing; transitive closure |
+| kernel_matrixchain_v2 | KERNEL / D10 | WORKING-SET | under-testing | KERNEL family: matrix-chain optimal parenthesisation (-> kernel/D10_visible_dynamic_programming/kernel_matrixchain_v2.c) | Visible (anti-diagonal fill by chain length, O(n^3) inner) | Compiler / query-plan optimisation, NLP parsing |
+| kernel_knapsack_v2 | KERNEL / D10 | WORKING-SET | under-testing | KERNEL family: 0/1 knapsack, space-optimised 1D rolling array (-> kernel/D10_visible_dynamic_programming/kernel_knapsack_v2.c) | Visible (single capacity vector repainted in reverse per item) | Resource allocation, scheduling, finance |
+| kernel_smithwaterman_v2 | KERNEL / D10 | WORKING-SET | under-testing | KERNEL family: Smith-Waterman local alignment, fill + traceback (-> kernel/D10_visible_dynamic_programming/kernel_smithwaterman_v2.c) | Visible (row-major wavefront + backward traceback path) | Genomics local alignment (BLAST family) |
+| Needleman-Wunsch | covered / D10 | -- | covered | covered by kernel_dp_v2 (identical global-alignment row-major wavefront) | same row-major wavefront | Global DNA / protein sequence alignment |
+| Viterbi decoding | covered / D10 | -- | covered | covered by kernel_hmm_v2 (same trellis column-fill, max-product instead of sum) | same column-fill front | Speech recognition, error-correction decode, POS tagging |
 
 ## D11 -- Backtrack / Branch-and-Bound  (Quiet + Visible)
 
@@ -422,18 +424,18 @@ Explore + prune a search tree (place a choice, recurse, undo). QUIET when it onl
 
 **Target 4-5 workloads -- have 7.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_nqueens_count_v2 | IDLE / D11 | under-testing | IDLE family (QUIET control): N-queens counter, three-bitmask backtracking, scalar reduce -> near-idle despite exponential compute (-> kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c) | Quiet / near-idle (only a counter is written; no solutions stored) | Classic constraint-satisfaction benchmark |
-| kernel_nqueens_enum_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (a) materialise output: the SAME search as the count control but STORES every solution -> bulk append (-> kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c) | Visible (whole solution set appended; the return flips quiet->visible) | Enumerate all placements; the count-vs-store contrast |
-| kernel_brackets_enum_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (a) materialise output: enumerate all balanced-parenthesis strings, append each (-> kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c) | Visible (Catalan(n) strings materialised) | Combinatorial generation; grammar / parser test corpora |
-| kernel_maze_backtrack_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (b) large working state: DFS solve marks a large visited/parent grid across the search (-> kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c) | Visible (large grid marked/unmarked; ~58% of cells touched per solve) | Maze / route solving; robot path planning |
-| kernel_graph_coloring_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (b) large working state: CSP m-colouring, forward-checking prunes/restores a colour+domain table over a big graph; default m is near the chromatic threshold so it GENUINELY backtracks (-> kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c) | Visible (colour+domain prune/RESTORE churn; the restore is the backtrack signature vs label_prop; best conflict-free partial under a budget) | Register allocation, scheduling, frequency assignment |
-| kernel_bnb_tsp_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first branch-and-bound, explicit priority-queue of partial tours (-> kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c) | Visible (explicit best-first frontier churned; millions of push/pop) | Routing, VLSI, operations research |
-| kernel_bnb_knapsack_v2 | KERNEL / D11 | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first B&B over include/exclude subsets; a strongly-correlated instance keeps a large live frontier (-> kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c) | Visible (subset-node frontier heap; optimum cross-checks D10 DP knapsack) | Budget / resource allocation, cutting-stock |
-| Sudoku solver | covered / D11 | covered | covered by kernel_nqueens_count_v2 (same quiet place/undo backtracking over a tiny grid; scalar / near-idle writes) | same quiet place/undo | Constraint-propagation solvers / puzzles |
-| DPLL / CDCL SAT | CPU/IDLE / D11 | candidate | CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack | Quiet-ish (clause DB reads, learned-clause writes) | Hardware/chip verification, planning (MiniSat / Z3) |
-| Branch-and-bound MILP | CPU/IDLE / D11 | candidate | CPU/IDLE (candidate): LP-relaxation bound, branch, prune | Visible-ish (frontier + LP tableaux) | Logistics, scheduling, optimisation (Gurobi / CPLEX) |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_nqueens_count_v2 | IDLE / D11 | IDLE | under-testing | IDLE family (QUIET control): N-queens counter, three-bitmask backtracking, scalar reduce -> near-idle despite exponential compute (-> kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c) | Quiet / near-idle (only a counter is written; no solutions stored) | Classic constraint-satisfaction benchmark |
+| kernel_nqueens_enum_v2 | KERNEL / D11 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) source (a) materialise output: the SAME search as the count control but STORES every solution -> bulk append (-> kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c) | Visible (whole solution set appended; the return flips quiet->visible) | Enumerate all placements; the count-vs-store contrast |
+| kernel_brackets_enum_v2 | KERNEL / D11 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) source (a) materialise output: enumerate all balanced-parenthesis strings, append each (-> kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c) | Visible (Catalan(n) strings materialised) | Combinatorial generation; grammar / parser test corpora |
+| kernel_maze_backtrack_v2 | KERNEL / D11 | SCATTER | under-testing | KERNEL family (VISIBLE) source (b) large working state: DFS solve marks a large visited/parent grid across the search (-> kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c) | Visible (large grid marked/unmarked; ~58% of cells touched per solve) | Maze / route solving; robot path planning |
+| kernel_graph_coloring_v2 | KERNEL / D11 | SCATTER | under-testing | KERNEL family (VISIBLE) source (b) large working state: CSP m-colouring, forward-checking prunes/restores a colour+domain table over a big graph; default m is near the chromatic threshold so it GENUINELY backtracks (-> kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c) | Visible (colour+domain prune/RESTORE churn; the restore is the backtrack signature vs label_prop; best conflict-free partial under a budget) | Register allocation, scheduling, frequency assignment |
+| kernel_bnb_tsp_v2 | KERNEL / D11 | FRONTIER-CHURN | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first branch-and-bound, explicit priority-queue of partial tours (-> kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c) | Visible (explicit best-first frontier churned; millions of push/pop) | Routing, VLSI, operations research |
+| kernel_bnb_knapsack_v2 | KERNEL / D11 | FRONTIER-CHURN | under-testing | KERNEL family (VISIBLE) source (c) frontier: best-first B&B over include/exclude subsets; a strongly-correlated instance keeps a large live frontier (-> kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c) | Visible (subset-node frontier heap; optimum cross-checks D10 DP knapsack) | Budget / resource allocation, cutting-stock |
+| Sudoku solver | covered / D11 | -- | covered | covered by kernel_nqueens_count_v2 (same quiet place/undo backtracking over a tiny grid; scalar / near-idle writes) | same quiet place/undo | Constraint-propagation solvers / puzzles |
+| DPLL / CDCL SAT | CPU/IDLE / D11 | -- | candidate | CPU/IDLE (candidate): unit-propagate, decide, learn clauses, backtrack | Quiet-ish (clause DB reads, learned-clause writes) | Hardware/chip verification, planning (MiniSat / Z3) |
+| Branch-and-bound MILP | CPU/IDLE / D11 | -- | candidate | CPU/IDLE (candidate): LP-relaxation bound, branch, prune | Visible-ish (frontier + LP tableaux) | Logistics, scheduling, optimisation (Gurobi / CPLEX) |
 
 ## D12 -- Graphical Models  (Visible)
 
@@ -443,13 +445,13 @@ Probability ops over a graph; writes belief/message tables (matrix-like).
 
 **Target 4-5 workloads -- have 5.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| kernel_hmm_v2 | KERNEL / D12 | under-testing | KERNEL family: scaled HMM forward, trellis fill (-> kernel/D12_visible_graphical_models/kernel_hmm_v2.c) | Visible (column-fill front + dense matvec; normalised-probability content) | Speech recognition, gene finding, time-series |
-| kernel_beliefprop_v2 | KERNEL / D12 | under-testing | KERNEL family: loopy sum-product belief propagation on a grid MRF (-> kernel/D12_visible_graphical_models/kernel_beliefprop_v2.c) | Visible (iterated message arrays per grid cell) | Stereo vision, image denoising, MRF / CRF |
-| kernel_kalman_v2 | KERNEL / D12 | under-testing | KERNEL family: ensemble of Kalman filters, dense covariance updates (-> kernel/D12_visible_graphical_models/kernel_kalman_v2.c) | Visible (many small d*d covariance matrices rewritten per step) | GPS/INS navigation, object tracking, sensor fusion |
-| kernel_gibbs_v2 | KERNEL / D12 | under-testing | KERNEL family: Gibbs sampling on a Potts/Ising grid (-> kernel/D12_visible_graphical_models/kernel_gibbs_v2.c) | Visible (stochastic per-cell resample sweep of the grid) | Bayesian inference, topic models (LDA) |
-| kernel_ldpc_v2 | KERNEL / D12 | under-testing | KERNEL family: LDPC min-sum decoder, message passing on a Tanner graph (-> kernel/D12_visible_graphical_models/kernel_ldpc_v2.c) | Visible (bipartite edge-message arrays iterated) | 5G / WiFi / SSD / satellite error correction |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| kernel_hmm_v2 | KERNEL / D12 | WORKING-SET | under-testing | KERNEL family: scaled HMM forward, trellis fill (-> kernel/D12_visible_graphical_models/kernel_hmm_v2.c) | Visible (column-fill front + dense matvec; normalised-probability content) | Speech recognition, gene finding, time-series |
+| kernel_beliefprop_v2 | KERNEL / D12 | WORKING-SET | under-testing | KERNEL family: loopy sum-product belief propagation on a grid MRF (-> kernel/D12_visible_graphical_models/kernel_beliefprop_v2.c) | Visible (iterated message arrays per grid cell) | Stereo vision, image denoising, MRF / CRF |
+| kernel_kalman_v2 | KERNEL / D12 | WORKING-SET | under-testing | KERNEL family: ensemble of Kalman filters, dense covariance updates (-> kernel/D12_visible_graphical_models/kernel_kalman_v2.c) | Visible (many small d*d covariance matrices rewritten per step) | GPS/INS navigation, object tracking, sensor fusion |
+| kernel_gibbs_v2 | KERNEL / D12 | WORKING-SET | under-testing | KERNEL family: Gibbs sampling on a Potts/Ising grid (-> kernel/D12_visible_graphical_models/kernel_gibbs_v2.c) | Visible (stochastic per-cell resample sweep of the grid) | Bayesian inference, topic models (LDA) |
+| kernel_ldpc_v2 | KERNEL / D12 | WORKING-SET | under-testing | KERNEL family: LDPC min-sum decoder, message passing on a Tanner graph (-> kernel/D12_visible_graphical_models/kernel_ldpc_v2.c) | Visible (bipartite edge-message arrays iterated) | 5G / WiFi / SSD / satellite error correction |
 
 ## D13 -- Finite State Machines  (Quiet + Visible)
 
@@ -459,16 +461,16 @@ Read a stream, transition through states via table lookup. QUIET when it only RE
 
 **Target 4-5 workloads -- have 7.**
 
-| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |
-|---|---|---|---|---|---|
-| app_json_parse_v2 | APP / D13 | exists | APP family: streaming JSON parse (the canonical quiet FSM) | Quiet (read + branch) | Every REST / JSON API; config parsing |
-| kernel_dfa_match_v2 | IDLE / D13 | under-testing | IDLE family (QUIET control): table-driven DFA recogniser scans a read-only stream, writes only a state word + match counter (-> kernel/D13_visible_finite_state_machines/kernel_dfa_match_v2.c) | Quiet / near-idle (stream READ + scalar; the invisible baseline) | grep, input validation, log processing |
-| kernel_lexer_v2 | KERNEL / D13 | under-testing | KERNEL family (VISIBLE) emit output: character-class FSM emits one token record per lexeme into a large token array (-> kernel/D13_visible_finite_state_machines/kernel_lexer_v2.c) | Visible (token-array append; the tokens tile the input) | Every compiler / interpreter front-end |
-| kernel_dfa_build_v2 | KERNEL / D13 | under-testing | KERNEL family (VISIBLE) build the machine: NFA->DFA subset construction writes a dense transition table (~2^(K-1) states) (-> kernel/D13_visible_finite_state_machines/kernel_dfa_build_v2.c) | Visible (dense transition-table construction; the inverse of running a DFA) | regex compilation; lexer generators (flex); protocol codegen |
-| kernel_aho_corasick_v2 | KERNEL / D13 | under-testing | KERNEL family (VISIBLE) build + match list: build goto/fail automaton over many patterns, scan text appending every match position (-> kernel/D13_visible_finite_state_machines/kernel_aho_corasick_v2.c) | Visible (automaton build + match-list append) | Multi-pattern scan: log processing, intrusion detection (Snort), bio sequence search |
-| kernel_fsm_transduce_v2 | KERNEL / D13 | under-testing | KERNEL family (VISIBLE) output stream: Mealy escape/framing transducer emits an output stream ~ input size (-> kernel/D13_visible_finite_state_machines/kernel_fsm_transduce_v2.c) | Visible (output stream ~ input size; benign reversible framing, not crypto) | Serialisers, protocol framers, escaping / transcoding |
-| HTTP / protocol parser | covered / D13 | covered | covered by kernel_dfa_match_v2 (byte-by-byte protocol recogniser = same quiet stream-scan + tiny parse-state writes) | same quiet stream-scan | Web servers (nginx), TCP/IP stacks, deep-packet inspection |
-| cpu_branch_random_v2 | CPU / D13 | exists | CPU family (loose): data-dependent random branches | Quiet | Branch-predictor control |
+| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |
+|---|---|---|---|---|---|---|
+| app_json_parse_v2 | APP / D13 | -- | exists | APP family: streaming JSON parse (the canonical quiet FSM) | Quiet (read + branch) | Every REST / JSON API; config parsing |
+| kernel_dfa_match_v2 | IDLE / D13 | IDLE | under-testing | IDLE family (QUIET control): table-driven DFA recogniser scans a read-only stream, writes only a state word + match counter (-> kernel/D13_visible_finite_state_machines/kernel_dfa_match_v2.c) | Quiet / near-idle (stream READ + scalar; the invisible baseline) | grep, input validation, log processing |
+| kernel_lexer_v2 | KERNEL / D13 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) emit output: character-class FSM emits one token record per lexeme into a large token array (-> kernel/D13_visible_finite_state_machines/kernel_lexer_v2.c) | Visible (token-array append; the tokens tile the input) | Every compiler / interpreter front-end |
+| kernel_dfa_build_v2 | KERNEL / D13 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) build the machine: NFA->DFA subset construction writes a dense transition table (~2^(K-1) states) (-> kernel/D13_visible_finite_state_machines/kernel_dfa_build_v2.c) | Visible (dense transition-table construction; the inverse of running a DFA) | regex compilation; lexer generators (flex); protocol codegen |
+| kernel_aho_corasick_v2 | KERNEL / D13 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) build + match list: build goto/fail automaton over many patterns, scan text appending every match position (-> kernel/D13_visible_finite_state_machines/kernel_aho_corasick_v2.c) | Visible (automaton build + match-list append) | Multi-pattern scan: log processing, intrusion detection (Snort), bio sequence search |
+| kernel_fsm_transduce_v2 | KERNEL / D13 | SEQUENTIAL-GROW | under-testing | KERNEL family (VISIBLE) output stream: Mealy escape/framing transducer emits an output stream ~ input size (-> kernel/D13_visible_finite_state_machines/kernel_fsm_transduce_v2.c) | Visible (output stream ~ input size; benign reversible framing, not crypto) | Serialisers, protocol framers, escaping / transcoding |
+| HTTP / protocol parser | covered / D13 | -- | covered | covered by kernel_dfa_match_v2 (byte-by-byte protocol recogniser = same quiet stream-scan + tiny parse-state writes) | same quiet stream-scan | Web servers (nginx), TCP/IP stacks, deep-packet inspection |
+| cpu_branch_random_v2 | CPU / D13 | -- | exists | CPU family (loose): data-dependent random branches | Quiet | Branch-predictor control |
 
 ## Sources
 

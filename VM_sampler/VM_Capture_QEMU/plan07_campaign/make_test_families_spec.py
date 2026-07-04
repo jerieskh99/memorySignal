@@ -405,6 +405,56 @@ FAMILIES = [
 ]
 N_WORKLOADS = sum(len(f["workloads"]) for f in FAMILIES)
 
+# --------------------------------------------------------------------------
+# PREDICTED CONFUSION (axis-1 hypothesis) -- the point of the two divisions.
+# The first-division family is a provenance/structural label; most dwarf kernels
+# sit in the KERNEL bucket. But the host WRITE-signal does not see "which dwarf"
+# -- it sees a WRITE SHAPE. So each built kernel is tagged with the signature
+# archetype its shape should be CONFUSED WITH at capture: a GEMM's full-output
+# rewrite looks like a plain working-set sweep; a histogram's bin scatter looks
+# like random-page writes; a quiet control looks idle. The capture then measures
+# the actual CONFUSION MATRIX (does the captured feature vector cluster with that
+# archetype's non-compute occupants?). PROVISIONAL -- to be confirmed or redrawn
+# by the clustering of captured signals.
+ARCHETYPES = {
+    "IDLE":            "near-zero writes; confuses with run_idle / cpu_hash_loop / cpu_branch_random",
+    "WORKING-SET":     "large regular full-buffer rewrite; confuses with mem_workingset_sweep / mem_writemag_sweep / cache_cold_scan",
+    "SCATTER":         "random / irregular target writes; confuses with mem_random_write_pages / mem_stride_sweep_large",
+    "SEQUENTIAL-GROW": "monotone front-to-back append / build; confuses with io_direct_write_like(seq) / app_decompress",
+    "FRONTIER-CHURN":  "grow/shrink a live heap; weak non-compute anchor (closest: thread ring buffer) -- capture decides",
+}
+PREDICTED_CONFUSION = {
+    # IDLE (near-idle): the 5 designated controls + the quiet matrix-free D6 member
+    "kernel_spmv_v2": "IDLE", "kernel_bfs_v2": "IDLE", "kernel_mc_pi_v2": "IDLE",
+    "kernel_nqueens_count_v2": "IDLE", "kernel_dfa_match_v2": "IDLE", "kernel_fem_matvec_v2": "IDLE",
+    # WORKING-SET (dense, regular full rewrite ~ a memory sweep)
+    "kernel_gemm_v2": "WORKING-SET", "kernel_conv_v2": "WORKING-SET", "kernel_attention_v2": "WORKING-SET",
+    "kernel_lu_v2": "WORKING-SET", "kernel_spmm_v2": "WORKING-SET", "kernel_sparse_cholesky_v2": "WORKING-SET",
+    "kernel_stencil_jacobi_v2": "WORKING-SET", "kernel_stencil_seidel_v2": "WORKING-SET",
+    "kernel_multigrid_v2": "WORKING-SET", "kernel_lbm_v2": "WORKING-SET", "kernel_fdtd_v2": "WORKING-SET",
+    "kernel_dct_v2": "WORKING-SET", "kernel_dwt_v2": "WORKING-SET", "kernel_ntt_v2": "WORKING-SET",
+    "kernel_dp_v2": "WORKING-SET", "kernel_floyd_v2": "WORKING-SET", "kernel_matrixchain_v2": "WORKING-SET",
+    "kernel_knapsack_v2": "WORKING-SET", "kernel_smithwaterman_v2": "WORKING-SET", "kernel_hmm_v2": "WORKING-SET",
+    "kernel_beliefprop_v2": "WORKING-SET", "kernel_kalman_v2": "WORKING-SET", "kernel_gibbs_v2": "WORKING-SET",
+    "kernel_ldpc_v2": "WORKING-SET", "kernel_dg_v2": "WORKING-SET", "kernel_mesh_smooth_v2": "WORKING-SET",
+    "kernel_nbody_v2": "WORKING-SET", "kernel_md_lj_v2": "WORKING-SET", "kernel_fmm_v2": "WORKING-SET",
+    "kernel_sph_v2": "WORKING-SET", "kernel_diffusion_v2": "WORKING-SET", "kernel_path_trace_v2": "WORKING-SET",
+    "kernel_label_prop_v2": "WORKING-SET",
+    # SCATTER (random / irregular ~ random-page writes)
+    "kernel_histogram_v2": "SCATTER", "kernel_sddmm_v2": "SCATTER", "kernel_moe_dispatch_v2": "SCATTER",
+    "kernel_pic_v2": "SCATTER", "kernel_fem_assembly_v2": "SCATTER", "kernel_unstructured_fv_v2": "SCATTER",
+    "kernel_fft_v2": "SCATTER", "kernel_fft2d_v2": "SCATTER", "kernel_union_find_v2": "SCATTER",
+    "kernel_graph_coloring_v2": "SCATTER", "kernel_maze_backtrack_v2": "SCATTER", "kernel_barnes_hut_v2": "SCATTER",
+    # SEQUENTIAL-GROW (monotone append / build ~ a bulk sequential write)
+    "kernel_qr_v2": "SEQUENTIAL-GROW", "kernel_spgemm_v2": "SEQUENTIAL-GROW", "kernel_mc_option_v2": "SEQUENTIAL-GROW",
+    "kernel_rmat_gen_v2": "SEQUENTIAL-GROW", "kernel_graph_stream_v2": "SEQUENTIAL-GROW",
+    "kernel_brackets_enum_v2": "SEQUENTIAL-GROW", "kernel_nqueens_enum_v2": "SEQUENTIAL-GROW",
+    "kernel_lexer_v2": "SEQUENTIAL-GROW", "kernel_aho_corasick_v2": "SEQUENTIAL-GROW",
+    "kernel_dfa_build_v2": "SEQUENTIAL-GROW", "kernel_fsm_transduce_v2": "SEQUENTIAL-GROW",
+    # FRONTIER-CHURN (grow/shrink a live search frontier)
+    "kernel_bnb_tsp_v2": "FRONTIER-CHURN", "kernel_bnb_knapsack_v2": "FRONTIER-CHURN",
+}
+
 INTRO = [
  "The corpus has TWO orthogonal divisions of the SAME workloads. (1) The behaviour FAMILIES, "
  "organised by MEMORY SIGNATURE (what the write-signal actually clusters), kept as finalised: "
@@ -428,6 +478,16 @@ INTRO = [
  "family), never duplicated. Each dwarf targets " + TARGET + " distinct workloads. v1 pre-fills only "
  "the existing pointers and leaves the gaps; the new workloads are chosen together, dwarf by dwarf, "
  "in iterations (edit the WORKLOADS lists in the generator and re-run).",
+ "PREDICTED CONFUSION (the payoff of running both divisions together): the write-signal does not see "
+ "'which dwarf' -- it sees a WRITE SHAPE. So most dwarf kernels, though filed under the KERNEL family "
+ "(a provenance bucket, not itself a signature), are PREDICTED to be CONFUSED WITH a small set of "
+ "signature archetypes -- IDLE (near-zero), WORKING-SET (large regular rewrite ~ a memory sweep), "
+ "SCATTER (random target ~ random-page writes), SEQUENTIAL-GROW (monotone append ~ a bulk sequential "
+ "write), or FRONTIER-CHURN. The 'Predicted signal' column names that archetype per built kernel. It is "
+ "a PROVISIONAL hypothesis: the capture measures the actual confusion matrix -- whether each kernel's "
+ "feature vector really clusters with that archetype's non-compute occupants. Predicted distribution: "
+ "WORKING-SET 33, SCATTER 12, SEQUENTIAL-GROW 11, IDLE 6, FRONTIER-CHURN 2 -- i.e. ~half of all compute "
+ "is predicted to be indistinguishable, by writes alone, from a plain memory working-set sweep.",
 ]
 
 SOURCES = [
@@ -535,6 +595,12 @@ def _family(ptr):
     return "--"
 
 
+def _predict(name):
+    # The axis-1 signature archetype this built kernel is PREDICTED to be confused
+    # with at capture (see PREDICTED_CONFUSION). "--" for non-built rows.
+    return PREDICTED_CONFUSION.get(name, "--")
+
+
 # ---------------------------------------------------------------- markdown renderer
 def _mdc(s):
     return s.replace("|", r"\|")
@@ -586,15 +652,15 @@ def render_md():
         out.append(d["what"]); out.append("")
         out.append(f"**Target {TARGET} workloads -- have {have(d)}.**")
         out.append("")
-        out.append("| Workload / Algorithm | Family / Dwarf | Status | Mechanism / points-to | Memory signature | Used in (real world) |")
-        out.append("|---|---|---|---|---|---|")
+        out.append("| Workload / Algorithm | Family / Dwarf | Predicted signal | Status | Mechanism / points-to | Memory signature | Used in (real world) |")
+        out.append("|---|---|---|---|---|---|---|")
         if d["workloads"]:
             for w in d["workloads"]:
                 name, status, ptr, sig, used = _row(w)
-                out.append(f"| {_mdc(name)} | {_mdc(_family(ptr))} / {d['id']} | {status_cell((name,status,ptr,sig))} | {_mdc(ptr)} "
+                out.append(f"| {_mdc(name)} | {_mdc(_family(ptr))} / {d['id']} | {_mdc(_predict(name))} | {status_cell((name,status,ptr,sig))} | {_mdc(ptr)} "
                            f"| {_mdc(sig)} | {_mdc(used) if used else '--'} |")
         else:
-            out.append("| _(to define together -- iteration pending)_ | -- | planned | -- | -- | -- |")
+            out.append("| _(to define together -- iteration pending)_ | -- | -- | planned | -- | -- | -- |")
         out.append("")
     out += ["## Sources", ""]
     for name, url in SOURCES:
@@ -687,8 +753,8 @@ def render_pdf():
                 Paragraph(f'<i>{_esc(d["origin"])}. Maps to: {_esc(d["maps"])}. Example: {_esc(d["example"])}.</i>', LEAD),
                 Paragraph(_esc(d["what"]), BODY),
                 Paragraph(f'<b>Target {TARGET} workloads &mdash; have {have(d)}.</b>', BODY)]
-        cols = ["Workload / Algorithm", "Family / Dwarf", "Status", "Mechanism / points-to", "Memory signature", "Used in (real world)"]
-        widths = [1.3 * inch, 0.9 * inch, 0.55 * inch, 1.75 * inch, 1.2 * inch, 1.3 * inch]
+        cols = ["Workload / Algorithm", "Family / Dwarf", "Predicted signal", "Status", "Mechanism / points-to", "Memory signature", "Used in (real world)"]
+        widths = [1.15 * inch, 0.8 * inch, 0.85 * inch, 0.5 * inch, 1.55 * inch, 1.05 * inch, 1.1 * inch]
         wdata = [[Paragraph(_esc(c), TH) for c in cols]]
         if d["workloads"]:
             for w in d["workloads"]:
@@ -696,12 +762,13 @@ def render_pdf():
                 stt = status_cell((name, status, ptr, sig))
                 wdata.append([Paragraph(_esc(name), CELLB),
                               Paragraph(f'{_esc(_family(ptr))} / {d["id"]}', CELL),
+                              Paragraph(_esc(_predict(name)), CELL),
                               Paragraph(f'<font color="{STATUS_COLOR[stt]}">{_esc(stt)}</font>', CELL),
                               Paragraph(_esc(ptr), CELL), Paragraph(_esc(sig), CELL),
                               Paragraph(_esc(used) if used else "--", CELL)])
         else:
             wdata.append([Paragraph("<i>(to define together &mdash; iteration pending)</i>", CELL),
-                          Paragraph("--", CELL),
+                          Paragraph("--", CELL), Paragraph("--", CELL),
                           Paragraph("planned", CELL), Paragraph("--", CELL), Paragraph("--", CELL),
                           Paragraph("--", CELL)])
         wt = Table(wdata, colWidths=widths, repeatRows=1)
@@ -913,6 +980,7 @@ th,td{border:1px solid #E2DFD6;padding:5px 8px;text-align:left;vertical-align:to
 th{background:#F5F3EE} tr:nth-child(even) td{background:#FAF9F5}
 td.wl{font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:nowrap}
 td.fam{font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap;color:#5B5B5B}
+td.pred{font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:nowrap;font-weight:600;color:#3F6CA8}
 .badge{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px}
 .legend .badge{margin-right:5px} .total{margin:8px 0} a{color:#3F6CA8}
 .gl{cursor:help;border-bottom:1px dotted #B9822A;position:relative}
@@ -970,15 +1038,15 @@ def render_html():
                  f"Example: {_esc(d['example'])}.</i></p>")
         o.append(f"<p>{_esc(d['what'])}</p>")
         o.append(f"<p class='total'><b>Target {TARGET} workloads &mdash; have {have(d)}.</b></p>")
-        o.append("<table><thead><tr><th>Workload / Algorithm</th><th>Family / Dwarf</th><th>Status</th><th>Mechanism / points-to</th>"
+        o.append("<table><thead><tr><th>Workload / Algorithm</th><th>Family / Dwarf</th><th>Predicted signal</th><th>Status</th><th>Mechanism / points-to</th>"
                  "<th>Memory signature</th><th>Used in (real world)</th></tr></thead><tbody>")
         if d["workloads"]:
             for w in d["workloads"]:
                 name, status, ptr, sig, used = _row(w)
-                o.append(f"<tr><td class='wl'>{_wl(name)}</td><td class='fam'>{_esc(_family(ptr))} / {d['id']}</td><td>{_badge(status_cell((name,status,ptr,sig)))}</td>"
+                o.append(f"<tr><td class='wl'>{_wl(name)}</td><td class='fam'>{_esc(_family(ptr))} / {d['id']}</td><td class='pred'>{_esc(_predict(name))}</td><td>{_badge(status_cell((name,status,ptr,sig)))}</td>"
                          f"<td>{_esc(ptr)}</td><td>{_esc(sig)}</td><td class='use'>{_esc(used) if used else '--'}</td></tr>")
         else:
-            o.append("<tr><td colspan='6'><i>(to define together -- iteration pending)</i></td></tr>")
+            o.append("<tr><td colspan='7'><i>(to define together -- iteration pending)</i></td></tr>")
         o.append("</tbody></table>")
     o.append("<h2>Sources</h2><ul>")
     for name, url in SOURCES:
