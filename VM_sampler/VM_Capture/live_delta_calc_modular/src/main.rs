@@ -18,7 +18,7 @@ const THREAD_COUNT: usize = 16; // Number of threads to be used for parallel pro
 const HELP: &str = "live_delta_calc_modular -- per-page memory-delta feature substrate.
 
 USAGE:
-    live_delta_calc_modular [--speed N] <prev_image> <new_image> <output_dir>
+    live_delta_calc_modular [--speed N] [--sparse] <prev_image> <new_image> <output_dir>
     live_delta_calc_modular --help
 
 Reads two raw guest-memory dumps and writes one CSV row per 4096-byte page to
@@ -29,6 +29,10 @@ OPTIONS:
     --speed N   Completeness/speed tradeoff, N = 0..4 (default 0). Higher = faster,
                 fewer metrics computed. Dropped metrics emit 0; the 64-column CSV
                 schema is identical at every level.
+    --sparse    Emit only changed pages (hamming != 0), each row prefixed with a
+                page_index column, and skip the legacy hamming/ and cosine/ files.
+                ~20x smaller at 5% activity, no info lost (absent page = unchanged).
+                Default is dense: every page, position-encoded, all three files.
     --help, -h  This message.
 
 SPEED LEVELS  (cost measured on a 1 GB dump pair, ~5% of pages changed):
@@ -78,9 +82,13 @@ async fn main() -> io::Result<()> {
         args.drain(pos..=pos + 1);
     }
 
+    // --sparse: only changed pages + a page_index column; skip legacy hamming/cosine files.
+    let sparse = args.iter().any(|a| a == "--sparse");
+    args.retain(|a| a != "--sparse");
+
     if args.len() != 4 {
         eprintln!(
-            "Usage: {} [--speed N] <prev_image> <new_image> <output_dir>   (--help for levels)",
+            "Usage: {} [--speed N] [--sparse] <prev_image> <new_image> <output_dir>   (--help for levels)",
             prog
         );
         std::process::exit(1);
@@ -101,15 +109,28 @@ async fn main() -> io::Result<()> {
         format!("{}/cosine/memory_dump_cosine_results_par-{}.txt", output_dir, timestamp);
     let metrics_csv_path = format!("{}/metrics/page_metrics-{}.csv", output_dir, timestamp);
 
-    // Ensure output subdirs exist (additive; harmless if already present).
-    for sub in ["hamming", "cosine", "metrics"] {
+    // Ensure output subdirs exist (additive; harmless if already present). Sparse mode
+    // writes only the metrics CSV, so it skips the legacy hamming/ and cosine/ dirs.
+    let subdirs: &[&str] = if sparse {
+        &["metrics"]
+    } else {
+        &["hamming", "cosine", "metrics"]
+    };
+    for sub in subdirs {
         let _ = std::fs::create_dir_all(format!("{}/{}", output_dir, sub));
     }
 
     let file1 = Arc::new(Mutex::new(File::open(file1_path).await?));
     let file2 = Arc::new(Mutex::new(File::open(file2_path).await?));
-    let hamming_result_file = Arc::new(Mutex::new(File::create(hamming_result_file_path).await?));
-    let cosine_result_file = Arc::new(Mutex::new(File::create(cosine_result_file_path).await?));
+    // Legacy per-page hamming/cosine files: dense mode only (None when --sparse).
+    let (hamming_result_file, cosine_result_file) = if sparse {
+        (None, None)
+    } else {
+        (
+            Some(Arc::new(Mutex::new(File::create(hamming_result_file_path).await?))),
+            Some(Arc::new(Mutex::new(File::create(cosine_result_file_path).await?))),
+        )
+    };
     let metrics_result_file = Arc::new(Mutex::new(File::create(metrics_csv_path).await?));
 
     let file1_size = file1.lock().unwrap().metadata().await?.len();
@@ -156,28 +177,45 @@ async fn main() -> io::Result<()> {
         });
     });
 
-    let mut hamming_result_file = hamming_result_file.lock().unwrap();
-    let mut cosine_result_file = cosine_result_file.lock().unwrap();
     let mut metrics_result_file = metrics_result_file.lock().unwrap();
-
     let result_vecs = Arc::try_unwrap(result_vecs).unwrap().into_inner().unwrap();
 
     let mut hamming_buffer = String::new();
     let mut cosine_buffer = String::new();
-    let mut metrics_buffer = String::from(metrics::csv_header());
+    let mut metrics_buffer = String::new();
+    if sparse {
+        metrics_buffer.push_str("page_index,");
+    }
+    metrics_buffer.push_str(metrics::csv_header());
     metrics_buffer.push('\n');
 
+    // page_index is the global 4096-byte-page position. Thread segments are page-aligned
+    // and concatenated in order, so this running counter is the true page number.
+    let mut page_index: u32 = 0;
     for result_vec in &result_vecs {
         for m in result_vec.iter() {
-            hamming_buffer.push_str(&format!("{}\n", m.hamming()));
-            cosine_buffer.push_str(&format!("{}\n", m.cosine()));
-            metrics_buffer.push_str(&metrics::csv_row(m));
-            metrics_buffer.push('\n');
+            if sparse {
+                // Only pages that actually changed (hamming != 0); tag with page_index.
+                if m.hamming() != 0 {
+                    metrics_buffer.push_str(&format!("{},{}\n", page_index, metrics::csv_row(m)));
+                }
+            } else {
+                hamming_buffer.push_str(&format!("{}\n", m.hamming()));
+                cosine_buffer.push_str(&format!("{}\n", m.cosine()));
+                metrics_buffer.push_str(&metrics::csv_row(m));
+                metrics_buffer.push('\n');
+            }
+            page_index += 1;
         }
     }
 
-    hamming_result_file.write_all(hamming_buffer.as_bytes()).await?;
-    cosine_result_file.write_all(cosine_buffer.as_bytes()).await?;
+    // Legacy hamming/cosine files are written only in dense mode (skipped when sparse).
+    if let Some(f) = &hamming_result_file {
+        f.lock().unwrap().write_all(hamming_buffer.as_bytes()).await?;
+    }
+    if let Some(f) = &cosine_result_file {
+        f.lock().unwrap().write_all(cosine_buffer.as_bytes()).await?;
+    }
     metrics_result_file.write_all(metrics_buffer.as_bytes()).await?;
 
     Ok(())
