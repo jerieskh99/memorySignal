@@ -407,6 +407,20 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
             print(f"[CONTROL] CAPTURE_METRIC=apf -> producer streams APF to {apf_jsonl} (delta consumer skipped)")
         else:
             print(f"[CONTROL] CAPTURE_METRIC=apf_queue -> apf_calc consumer writes APF to {apf_jsonl}")
+    if CAPTURE_METRIC == "substrate":
+        # Substrate: producer ENQUEUES (like apf_queue) and the modular differ consumer
+        # writes sparse per-page feature vectors, one seq-stamped block per snapshot, to a
+        # per-step trajectory CSV. Skips run_matrix/streaming; prev is deleted as usual.
+        base = run_matrix_path or os.path.join(CAPTURE_ROOT, "apf_capture")
+        substrate_csv = f"{base}.substrate_trajectory.csv"
+        try:
+            if os.path.isfile(substrate_csv):
+                os.remove(substrate_csv)
+        except OSError:
+            pass
+        env_prefix += f"CAPTURE_METRIC=substrate SUBSTRATE_CSV={shlex.quote(substrate_csv)} "
+        print(f"[CONTROL] CAPTURE_METRIC=substrate -> modular differ (--sparse) writes "
+              f"per-page vectors to {substrate_csv}")
     if CAPTURE_DISKIO:
         base = run_matrix_path or os.path.join(CAPTURE_ROOT, "apf_capture")
         diskio_jsonl = f"{base}.diskio_trajectory.jsonl"

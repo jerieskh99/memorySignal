@@ -7,6 +7,8 @@
   "outputDir": "/project/homes/jeries/memory_traces/output_dir",
   "rustDeltaCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc/target/release/live_delta_calc",
   "apfCalculationProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/apf_calc/target/release/apf_calc",
+  "substrateProgram": "/project/homes/jeries/memorySignal/VM_sampler/VM_Capture/live_delta_calc_modular/target/release/live_delta_calc_modular",
+  "substrateSpeed": 2,
   "intervalMsec": 500,
   "queueDir": "/project/homes/jeries/memory_traces/queue_dir",
   "streaming": {

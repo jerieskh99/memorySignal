@@ -24,6 +24,10 @@ fi
 
 rustDeltaCalculationProgram=$(jq -r '.rustDeltaCalculationProgram' "$CONFIG")
 apfCalculationProgram=$(jq -r '.apfCalculationProgram // ""' "$CONFIG")
+# Substrate metric: the modular per-page feature differ (live_delta_calc_modular), run
+# with --speed N --sparse. Used when CAPTURE_METRIC=substrate (see process_job below).
+substrateProgram=$(jq -r '.substrateProgram // ""' "$CONFIG")
+substrateSpeed=$(jq -r '.substrateSpeed // 2' "$CONFIG")
 # Capture metric, inherited from the orchestrator env: "delta" (default;
 # Cosine/Hamming via rustDeltaCalculationProgram) or "apf_queue" (run apf_calc and
 # append one line per pair to apf_trajectory.jsonl, skipping run_matrix/streaming).
@@ -266,6 +270,39 @@ process_job() {
     printf '{"seq":%d,"t_emit_epoch":%s,"prev":"%s","curr":"%s","apf":%s}\n' \
       "$APF_SEQ" "$(date +%s)" "$prev" "$curr" "$apfVal" >> "$apfTraj"
     echo "[CONSUMER] APF seq=$APF_SEQ apf=$apfVal -> $apfTraj"
+    APF_SEQ=$((APF_SEQ + 1))
+  elif [[ "$CAPTURE_METRIC" == "substrate" ]]; then
+    # Substrate metric: compute the sparse per-page feature vectors with the modular
+    # differ (--speed N --sparse), then append this snapshot's changed-page rows -- each
+    # stamped with the snapshot seq -- to a per-cell trajectory CSV. Skips the
+    # Cosine/Hamming delta + run_matrix + streaming; the shared prev-delete runs below.
+    echo "[CONSUMER] Running substrate (--speed $substrateSpeed --sparse): prev=$(basename "$prev") curr=$(basename "$curr")"
+    if [[ -z "$substrateProgram" ]]; then
+      echo "[CONSUMER] ERROR: CAPTURE_METRIC=substrate but .substrateProgram is unset in $CONFIG"
+      mv "$jobPath" "$qFailed/"
+      return 1
+    fi
+    if ! "$substrateProgram" --speed "$substrateSpeed" --sparse "$prev" "$curr" "$output"; then
+      echo "[CONSUMER] ERROR: substrate differ failed (rc=$?)"
+      mv "$jobPath" "$qFailed/"
+      return 1
+    fi
+    local metFile substrateTraj metRows
+    metFile=$(ls -t "$output/metrics"/page_metrics-*.csv 2>/dev/null | head -1)
+    substrateTraj="${SUBSTRATE_CSV:-$output/substrate_trajectory.csv}"
+    if [[ -z "$metFile" || ! -f "$metFile" ]]; then
+      echo "[CONSUMER] WARNING: no substrate CSV found under $output/metrics"
+    else
+      # Write the seq-prefixed header once (the differ header is "page_index,<metrics>").
+      if [[ ! -s "$substrateTraj" ]]; then
+        printf 'seq,%s\n' "$(head -1 "$metFile")" > "$substrateTraj"
+      fi
+      # Append this snapshot's changed-page rows, each stamped with the snapshot seq.
+      metRows=$(( $(wc -l < "$metFile") - 1 ))
+      awk -v seq="$APF_SEQ" 'NR>1{print seq","$0}' "$metFile" >> "$substrateTraj"
+      rm -f "$metFile" 2>/dev/null || true
+      echo "[CONSUMER] substrate seq=$APF_SEQ rows=$metRows -> $substrateTraj"
+    fi
     APF_SEQ=$((APF_SEQ + 1))
   else
   echo "[CONSUMER] Running delta: prev=$(basename "$prev") curr=$(basename "$curr")"
