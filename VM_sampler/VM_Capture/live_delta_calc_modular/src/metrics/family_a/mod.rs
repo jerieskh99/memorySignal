@@ -13,10 +13,10 @@ pub struct Amount {
     pub informational: informational::Informational,
 }
 
-pub fn compute(sh: &Shared, p: &[u8], q: &[u8]) -> Amount {
+pub fn compute(sh: &Shared, p: &[u8], q: &[u8], speed: u8) -> Amount {
     Amount {
         positional: positional::compute(sh, p, q),
         distributional: distributional::compute(sh),
-        informational: informational::compute(sh, p, q),
+        informational: informational::compute(sh, p, q, speed),
     }
 }

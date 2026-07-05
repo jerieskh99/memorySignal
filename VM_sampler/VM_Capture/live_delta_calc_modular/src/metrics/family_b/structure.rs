@@ -1,6 +1,6 @@
 //! Family B / structure: did the pattern persist (cosine, Pearson, rank correlations, SSIM-s).
 
-use crate::metrics::common::{spearman_kendall, ssim_consts, Shared};
+use crate::metrics::common::{spearman_fast, spearman_kendall, ssim_consts, Shared};
 use distances::vectors::cosine;
 
 #[derive(Clone, Default, Debug)]
@@ -12,7 +12,7 @@ pub struct Structure {
     pub kendall: f32,     // Kendall tau-a (ties not corrected)
 }
 
-pub fn compute(sh: &Shared, p: &[u8], q: &[u8]) -> Structure {
+pub fn compute(sh: &Shared, p: &[u8], q: &[u8], speed: u8) -> Structure {
     // Page differs here (orchestrator early-returns identical pages), so cosine needs
     // no guard -- the `distances` crate maps an all-zero side to 1 = max.
     let p_f32: Vec<f32> = p.iter().map(|&x| x as f32).collect();
@@ -26,7 +26,13 @@ pub fn compute(sh: &Shared, p: &[u8], q: &[u8]) -> Structure {
     } else {
         0.0
     };
-    let (spearman, kendall) = spearman_kendall(p, q, &sh.hp, &sh.hq);
+    // Kendall (256x256 prefix-sums + 768 KB) is part of the heavy 12, dropped at speed
+    // >= 2; Spearman then falls back to its O(n) path (identical value).
+    let (spearman, kendall) = if speed >= 2 {
+        (spearman_fast(p, q, &sh.hp, &sh.hq), 0.0)
+    } else {
+        spearman_kendall(p, q, &sh.hp, &sh.hq)
+    };
 
     Structure {
         cosine: cos,

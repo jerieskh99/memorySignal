@@ -15,6 +15,37 @@ use live_delta_calc_modular::metrics::{self, PageMetrics};
 const CHUNK_SIZE: usize = 262144; // 256KB
 const THREAD_COUNT: usize = 16; // Number of threads to be used for parallel processing
 
+const HELP: &str = "live_delta_calc_modular -- per-page memory-delta feature substrate.
+
+USAGE:
+    live_delta_calc_modular [--speed N] <prev_image> <new_image> <output_dir>
+    live_delta_calc_modular --help
+
+Reads two raw guest-memory dumps and writes one CSV row per 4096-byte page to
+<output_dir>/metrics/page_metrics-<ts>.csv (plus legacy hamming/ and cosine/ files).
+Convention: 0 = no change on every channel; identical pages emit all-zeros.
+
+OPTIONS:
+    --speed N   Completeness/speed tradeoff, N = 0..4 (default 0). Higher = faster,
+                fewer metrics computed. Dropped metrics emit 0; the 64-column CSV
+                schema is identical at every level.
+    --help, -h  This message.
+
+SPEED LEVELS  (cost measured on a 1 GB dump pair, ~5% of pages changed):
+
+    N  computed  ~time/pair  drops (cumulative)
+    -  --------  ----------  ------------------
+    0     64       ~39 s     none -- full substrate (offline only)
+    1     63       ~5.5 s    lz_change         (O(n^2) LZ76, the dominant cost)
+    2     51       ~2.1 s    + heavy 12        (FFT spatial/autocorr/high-freq,
+                                                GLCM x4, Kendall, bigram, ncd)
+    3     50       ~1.5 s    + csize_delta     (2 deflates/page)
+    4     48       ~1.2 s    + struct_entropy  (windowed-entropy lumpiness)
+
+Times are laptop estimates; they scale with dump size and % of pages changed.
+For live capture at a 500 ms cadence use --speed 2, 3, or 4.
+";
+
 // Asynchronously read a chunk from a file at the given offset
 async fn read_chunk(file: &mut File, offset: u64) -> io::Result<Vec<u8>> {
     let mut buffer = vec![0; CHUNK_SIZE];
@@ -26,9 +57,32 @@ async fn read_chunk(file: &mut File, offset: u64) -> io::Result<Vec<u8>> {
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
+    let prog = args[0].clone();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        print!("{}", HELP);
+        return Ok(());
+    }
+
+    // --speed N (0..4, default 0 = full). Higher = faster, fewer metrics computed.
+    let mut speed: u8 = 0;
+    if let Some(pos) = args.iter().position(|a| a == "--speed") {
+        match args.get(pos + 1).and_then(|s| s.parse::<u8>().ok()) {
+            Some(n) => speed = n.min(4),
+            None => {
+                eprintln!("--speed needs a number 0-4 (see --help)");
+                std::process::exit(1);
+            }
+        }
+        args.drain(pos..=pos + 1);
+    }
+
     if args.len() != 4 {
-        eprintln!("Usage: {} <prev_image> <new_image> <output_dir>", args[0]);
+        eprintln!(
+            "Usage: {} [--speed N] <prev_image> <new_image> <output_dir>   (--help for levels)",
+            prog
+        );
         std::process::exit(1);
     }
 
@@ -93,7 +147,7 @@ async fn main() -> io::Result<()> {
                     break;
                 }
 
-                local_results.extend(metrics::process_chunk(&chunk1, &chunk2));
+                local_results.extend(metrics::process_chunk(&chunk1, &chunk2, speed));
 
                 offset += CHUNK_SIZE as u64;
             }

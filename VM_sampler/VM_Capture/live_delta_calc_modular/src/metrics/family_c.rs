@@ -22,7 +22,7 @@ pub struct Content {
     pub autocorr_peak: f32,  // within-page periodicity / self-similarity
 }
 
-pub fn compute(sh: &Shared, q: &[u8]) -> Content {
+pub fn compute(sh: &Shared, q: &[u8], speed: u8) -> Content {
     let n = PAGE_SIZE as f64;
     let hq = &sh.hq;
 
@@ -74,7 +74,7 @@ pub fn compute(sh: &Shared, q: &[u8]) -> Content {
 
     Content {
         ent_q: ent as f32,
-        struct_ent_q: struct_entropy(q) as f32,
+        struct_ent_q: if speed >= 4 { 0.0 } else { struct_entropy(q) as f32 },
         distinct_bytes: distinct,
         zero_frac: (hq[0] as f64 / n) as f32,
         fill_frac: (fill_max as f64 / n) as f32,
@@ -84,7 +84,8 @@ pub fn compute(sh: &Shared, q: &[u8]) -> Content {
         skew_q: skew as f32,
         kurt_q: kurt as f32,
         chi2_uniform: chi2u as f32,
-        bigram_ent: bigram_entropy(q) as f32,
-        autocorr_peak: autocorr_peak(q),
+        // bigram entropy (256x256 hist) + FFT autocorrelation -- heavy 12, drop speed >= 2.
+        bigram_ent: if speed >= 2 { 0.0 } else { bigram_entropy(q) as f32 },
+        autocorr_peak: if speed >= 2 { 0.0 } else { autocorr_peak(q) },
     }
 }

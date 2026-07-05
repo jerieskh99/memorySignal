@@ -26,23 +26,50 @@ fn entropy(h: &[u32; 256]) -> f64 {
     e
 }
 
-pub fn compute(sh: &Shared, p: &[u8], q: &[u8]) -> Informational {
+pub fn compute(sh: &Shared, p: &[u8], q: &[u8], speed: u8) -> Informational {
     let hp_ent = entropy(&sh.hp);
     let hq_ent = entropy(&sh.hq);
 
-    let csz_p = csize(p);
-    let csz_q = csize(q);
-    let mut pq = Vec::with_capacity(p.len() + q.len());
-    pq.extend_from_slice(p);
-    pq.extend_from_slice(q);
-    let csz_pq = csize(&pq);
-    let ncd = (csz_pq as f64 - csz_p.min(csz_q) as f64) / csz_p.max(csz_q).max(1) as f64;
+    // csize_delta = 2 deflates (p, q), dropped at speed >= 3. ncd needs a 3rd deflate
+    // (the p||q concat) and is dropped at speed >= 2.
+    let (csize_delta, ncd) = if speed >= 3 {
+        (0.0, 0.0)
+    } else {
+        let csz_p = csize(p);
+        let csz_q = csize(q);
+        let ncd = if speed >= 2 {
+            0.0
+        } else {
+            let mut pq = Vec::with_capacity(p.len() + q.len());
+            pq.extend_from_slice(p);
+            pq.extend_from_slice(q);
+            let csz_pq = csize(&pq);
+            (csz_pq as f64 - csz_p.min(csz_q) as f64) / csz_p.max(csz_q).max(1) as f64
+        };
+        (csz_q as f64 - csz_p as f64, ncd)
+    };
+
+    // struct_ent_change = 2 struct_entropy passes, dropped at speed >= 4.
+    let struct_ent_change = if speed >= 4 {
+        0.0
+    } else {
+        (struct_entropy(q) - struct_entropy(p)) as f32
+    };
+
+    // LZ76 complexity is O(n^2) on random/incompressible pages (~5 ms/page, x2) -- the
+    // dominant live cost. Dropped at speed >= 1; entropy + csize carry the complexity
+    // signal. Kept only at speed 0 (offline, not time-constrained).
+    let lz_change = if speed >= 1 {
+        0.0
+    } else {
+        lz_complexity(q) as f32 - lz_complexity(p) as f32
+    };
 
     Informational {
         ent_delta: (hq_ent - hp_ent) as f32,
-        csize_delta: csz_q as f32 - csz_p as f32,
+        csize_delta: csize_delta as f32,
         ncd: ncd as f32,
-        struct_ent_change: (struct_entropy(q) - struct_entropy(p)) as f32,
-        lz_change: lz_complexity(q) as f32 - lz_complexity(p) as f32,
+        struct_ent_change,
+        lz_change,
     }
 }

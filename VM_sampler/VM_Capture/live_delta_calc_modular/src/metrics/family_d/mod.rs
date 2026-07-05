@@ -10,9 +10,9 @@ pub struct Internal {
     pub texture: texture::Texture,
 }
 
-pub fn compute(p: &[u8], q: &[u8]) -> Internal {
+pub fn compute(p: &[u8], q: &[u8], speed: u8) -> Internal {
     Internal {
         change_location: change_location::compute(p, q),
-        texture: texture::compute(q),
+        texture: texture::compute(q, speed),
     }
 }

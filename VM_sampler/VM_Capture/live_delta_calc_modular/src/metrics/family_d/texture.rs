@@ -13,8 +13,14 @@ pub struct Texture {
     pub max_run_len: u16,       // longest constant-byte run
 }
 
-pub fn compute(q: &[u8]) -> Texture {
-    let (contrast, homog, energy, corr) = glcm_haralick(q);
+pub fn compute(q: &[u8], speed: u8) -> Texture {
+    // GLCM (256x256 co-occurrence, 2 sweeps) and the FFT high-frequency fraction are
+    // dropped at speed >= 2; edge_energy and max_run_len stay (both O(n), cheap).
+    let (contrast, homog, energy, corr) = if speed >= 2 {
+        (0.0, 0.0, 0.0, 0.0)
+    } else {
+        glcm_haralick(q)
+    };
 
     let mut max_run: u16 = if q.is_empty() { 0 } else { 1 };
     let mut cur: u16 = 1;
@@ -35,7 +41,7 @@ pub fn compute(q: &[u8]) -> Texture {
         glcm_homogeneity: homog as f32,
         glcm_energy: energy as f32,
         glcm_correlation: corr as f32,
-        high_freq_frac: high_freq_frac(q),
+        high_freq_frac: if speed >= 2 { 0.0 } else { high_freq_frac(q) },
         max_run_len: max_run,
     }
 }

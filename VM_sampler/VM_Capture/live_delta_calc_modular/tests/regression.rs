@@ -191,3 +191,60 @@ fn texture_constant_vs_alternating() {
     assert!(tx2.edge_energy > 0.0);
     assert!((tx2.high_freq_frac - 1.0).abs() < 1e-3, "high_freq={}", tx2.high_freq_frac);
 }
+
+#[test]
+fn speed_levels_drop_cumulatively() {
+    // A changed page pair with structure (metrics nonzero at speed 0).
+    let p: Vec<u8> = (0..4096).map(|i| (i % 256) as u8).collect();
+    let q: Vec<u8> = (0..4096).map(|i| ((i * 7 + 3) % 256) as u8).collect();
+    let l = [
+        page_metrics(&p, &q), // speed 0 (full)
+        metrics::page_metrics_mode(&p, &q, 1),
+        metrics::page_metrics_mode(&p, &q, 2),
+        metrics::page_metrics_mode(&p, &q, 3),
+        metrics::page_metrics_mode(&p, &q, 4),
+    ];
+
+    // Cheap metrics: byte-identical at every level.
+    for s in 0..=4usize {
+        assert_eq!(l[s].hamming(), l[0].hamming());
+        assert_eq!(l[s].a.positional.l1, l[0].a.positional.l1);
+        assert_eq!(l[s].b.structure.pearson, l[0].b.structure.pearson);
+        assert_eq!(l[s].c.ent_q, l[0].c.ent_q);
+        assert_eq!(l[s].d.texture.edge_energy, l[0].d.texture.edge_energy);
+    }
+
+    // speed >= 1: lz_change dropped (computed only at speed 0).
+    assert_eq!(l[1].a.informational.lz_change, 0.0);
+    assert_eq!(l[4].a.informational.lz_change, 0.0);
+
+    // speed >= 2: the heavy 12 dropped (still present at speed 1).
+    assert_eq!(l[1].b.structure.kendall, l[0].b.structure.kendall);
+    assert_eq!(l[1].c.bigram_ent, l[0].c.bigram_ent);
+    for s in 2..=4usize {
+        assert_eq!(l[s].b.structure.kendall, 0.0);
+        assert_eq!(l[s].b.spatial.cross_corr_lag, 0.0);
+        assert_eq!(l[s].b.spatial.phase_corr, 0.0);
+        assert_eq!(l[s].c.bigram_ent, 0.0);
+        assert_eq!(l[s].c.autocorr_peak, 0.0);
+        assert_eq!(l[s].d.texture.glcm_contrast, 0.0);
+        assert_eq!(l[s].d.texture.high_freq_frac, 0.0);
+        assert_eq!(l[s].a.informational.ncd, 0.0);
+    }
+    // Spearman preserved via the O(n) path at speed >= 2.
+    assert!((l[2].b.structure.spearman - l[0].b.structure.spearman).abs() < 1e-5);
+
+    // speed >= 3: csize_delta dropped (present at speed <= 2).
+    assert_eq!(l[2].a.informational.csize_delta, l[0].a.informational.csize_delta);
+    assert_eq!(l[3].a.informational.csize_delta, 0.0);
+    assert_eq!(l[4].a.informational.csize_delta, 0.0);
+
+    // speed >= 4: struct_entropy dropped (present at speed <= 3).
+    assert_eq!(l[3].c.struct_ent_q, l[0].c.struct_ent_q);
+    assert_eq!(
+        l[3].a.informational.struct_ent_change,
+        l[0].a.informational.struct_ent_change
+    );
+    assert_eq!(l[4].c.struct_ent_q, 0.0);
+    assert_eq!(l[4].a.informational.struct_ent_change, 0.0);
+}

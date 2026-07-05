@@ -9,7 +9,12 @@ pub struct Spatial {
     pub byte_rotation: f32,  // lag (signed) of the phase-correlation peak
 }
 
-pub fn compute(p: &[u8], q: &[u8]) -> Spatial {
+pub fn compute(p: &[u8], q: &[u8], speed: u8) -> Spatial {
+    if speed >= 2 {
+        // FFT cross-correlation (2 forward + 2 inverse transforms) -- part of the heavy
+        // 12, dropped at speed >= 2; all three lags emit 0.
+        return Spatial::default();
+    }
     let (cross_corr_lag, phase_corr, byte_rotation) = xcorr_metrics(p, q);
     Spatial {
         cross_corr_lag,

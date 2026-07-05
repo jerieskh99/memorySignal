@@ -19,13 +19,13 @@ pub struct Direction {
     pub spatial: spatial_shift::Spatial,
 }
 
-pub fn compute(sh: &Shared, p: &[u8], q: &[u8]) -> Direction {
+pub fn compute(sh: &Shared, p: &[u8], q: &[u8], speed: u8) -> Direction {
     Direction {
-        structure: structure::compute(sh, p, q),
+        structure: structure::compute(sh, p, q, speed),
         level: level::compute(sh),
         spread: spread::compute(sh),
         polarity: polarity::compute(sh),
         dist_direction: dist_direction::compute(sh),
-        spatial: spatial_shift::compute(p, q),
+        spatial: spatial_shift::compute(p, q, speed),
     }
 }

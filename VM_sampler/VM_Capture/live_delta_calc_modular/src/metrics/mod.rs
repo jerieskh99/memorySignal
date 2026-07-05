@@ -34,8 +34,20 @@ impl PageMetrics {
     }
 }
 
-/// Compute every per-page metric for one page pair.
+/// Compute every per-page metric for one page pair (full 64-column substrate = speed 0).
 pub fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
+    page_metrics_mode(p, q, 0)
+}
+
+/// Compute the per-page metrics at a completeness/speed level (0 = full, higher = faster,
+/// fewer metrics). Dropped metrics emit 0; the 64-column schema is identical at every
+/// level. Cumulative:
+///   >= 1: drop lz_change   (O(n^2) LZ76, the dominant cost)
+///   >= 2: drop the heavy 12 (FFT spatial/autocorr/high-freq, GLCM x4, Kendall, bigram,
+///         ncd); Spearman falls back to its O(n) path
+///   >= 3: drop csize_delta (2 deflates/page)
+///   >= 4: drop struct_entropy (windowed-entropy lumpiness)
+pub fn page_metrics_mode(p: &[u8], q: &[u8], speed: u8) -> PageMetrics {
     let hamming = distance(p, q) as u32;
     if hamming == 0 {
         // Identical page = no change. Every channel is 0; skip all the work
@@ -44,21 +56,21 @@ pub fn page_metrics(p: &[u8], q: &[u8]) -> PageMetrics {
     }
     let sh = Shared::new(p, q, hamming);
     PageMetrics {
-        a: family_a::compute(&sh, p, q),
-        b: family_b::compute(&sh, p, q),
-        c: family_c::compute(&sh, q),
-        d: family_d::compute(p, q),
+        a: family_a::compute(&sh, p, q, speed),
+        b: family_b::compute(&sh, p, q, speed),
+        c: family_c::compute(&sh, q, speed),
+        d: family_d::compute(p, q, speed),
     }
 }
 
-/// One PageMetrics per page in the chunk.
-pub fn process_chunk(chunk1: &[u8], chunk2: &[u8]) -> Vec<PageMetrics> {
+/// One PageMetrics per page in the chunk, at speed `speed` (see `page_metrics_mode`).
+pub fn process_chunk(chunk1: &[u8], chunk2: &[u8], speed: u8) -> Vec<PageMetrics> {
     let num_pages = chunk1.len() / PAGE_SIZE;
     (0..num_pages)
         .map(|i| {
             let start = i * PAGE_SIZE;
             let end = start + PAGE_SIZE;
-            page_metrics(&chunk1[start..end], &chunk2[start..end])
+            page_metrics_mode(&chunk1[start..end], &chunk2[start..end], speed)
         })
         .collect()
 }

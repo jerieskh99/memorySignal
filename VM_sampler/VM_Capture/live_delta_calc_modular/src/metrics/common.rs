@@ -315,6 +315,35 @@ pub fn spearman_kendall(p: &[u8], q: &[u8], hp: &[u32; 256], hq: &[u32; 256]) ->
     (spearman, kendall)
 }
 
+/// Spearman rank correlation only, computed in O(n) with no joint histogram and no
+/// Kendall (the `--fast` path). Returns the same value as `spearman_kendall().0`.
+pub fn spearman_fast(p: &[u8], q: &[u8], hp: &[u32; 256], hq: &[u32; 256]) -> f64 {
+    let n = p.len();
+    let nf = n as f64;
+    let rp = ranks(hp);
+    let rq = ranks(hq);
+    let (mut srp, mut srq, mut srpp, mut srqq) = (0.0, 0.0, 0.0, 0.0);
+    for v in 0..256 {
+        srp += hp[v] as f64 * rp[v];
+        srq += hq[v] as f64 * rq[v];
+        srpp += hp[v] as f64 * rp[v] * rp[v];
+        srqq += hq[v] as f64 * rq[v] * rq[v];
+    }
+    let mut srpq = 0.0;
+    for (&a, &b) in p.iter().zip(q.iter()) {
+        srpq += rp[a as usize] * rq[b as usize];
+    }
+    let (mrp, mrq) = (srp / nf, srq / nf);
+    let vrp = (srpp / nf - mrp * mrp).max(0.0);
+    let vrq = (srqq / nf - mrq * mrq).max(0.0);
+    let covr = srpq / nf - mrp * mrq;
+    if vrp > 0.0 && vrq > 0.0 {
+        covr / (vrp.sqrt() * vrq.sqrt())
+    } else {
+        0.0
+    }
+}
+
 /// Shared 4096-point FFT plans (forward + inverse), built once, Send+Sync.
 fn ffts() -> &'static (std::sync::Arc<dyn Fft<f32>>, std::sync::Arc<dyn Fft<f32>>) {
     static F: OnceLock<(std::sync::Arc<dyn Fft<f32>>, std::sync::Arc<dyn Fft<f32>>)> =
