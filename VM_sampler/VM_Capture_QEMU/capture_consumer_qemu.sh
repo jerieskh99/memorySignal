@@ -44,6 +44,10 @@ projectRoot=$(jq -r '.streaming.projectRoot // ""' "$CONFIG")
 BORG="${BORG:-0}"
 BORG_REPO="${BORG_REPO:-}"
 BORG_PASSPHRASE="${BORG_PASSPHRASE:-}"
+# Per-capture identity for structured borg archive names ({workload}__{run}__{dump_ts}).
+# The orchestrator sets these per step; defaults keep manual runs working.
+BORG_WORKLOAD="${BORG_WORKLOAD:-unknown}"
+BORG_RUN_ID="${BORG_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
 # When OFFLINE_MODE=1, skip the live streaming trigger entirely.
 # Offline metrics are computed per-step by offline_step_metrics.py instead.
 OFFLINE_MODE="${OFFLINE_MODE:-0}"
@@ -118,41 +122,46 @@ sanitize_name() {
   echo "$s"
 }
 
-archive_with_borg_async() {
+archive_with_borg() {
+  # Synchronously archive $path into the borg repo as {workload}__{run_id}__{dump_ts}.
+  # Returns 0 ONLY if borg create succeeds -- the caller deletes the source only then,
+  # so a failed archive (NFS down, etc.) never loses a snapshot.
   local path="$1"
-  if [[ ! -e "$path" ]]; then
-    return 0
-  fi
+  [[ -e "$path" ]] || return 1
   if [[ "$BORG" != "1" && "$BORG" != "true" && "$BORG" != "yes" ]]; then
     return 1
   fi
-  if [[ -z "$BORG_REPO" || -z "$BORG_PASSPHRASE" ]]; then
-    echo "[CONSUMER] WARNING: BORG=1 but BORG_REPO/BORG_PASSPHRASE missing; skipping borg handoff for $path"
-    return 0
+  if [[ -z "$BORG_REPO" ]]; then
+    echo "[CONSUMER] WARNING: BORG enabled but BORG_REPO unset; not archiving $path"
+    return 1
   fi
   if ! command -v borg >/dev/null 2>&1; then
-    echo "[CONSUMER] WARNING: BORG=1 but borg command not found; skipping borg handoff for $path"
-    return 0
+    echo "[CONSUMER] WARNING: BORG enabled but 'borg' not found; not archiving $path"
+    return 1
   fi
 
-  local host image ts archive
-  host=$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo "host")
+  # Dump timestamp parsed from memory_dump-<ts>.raw; synthesize if name is unexpected.
+  local image ts archive
   image=$(basename "$path")
-  ts=$(date +%Y%m%dT%H%M%S)
-  archive="$(sanitize_name "$host")-$(sanitize_name "$ts")-$(sanitize_name "$image")"
+  ts="${image#memory_dump-}"; ts="${ts%.raw}"
+  [[ "$ts" == "$image" ]] && ts=$(date +%Y%m%d%H%M%S%3N)
+  archive="$(sanitize_name "$BORG_WORKLOAD")__$(sanitize_name "$BORG_RUN_ID")__$(sanitize_name "$ts")"
 
-  echo "[CONSUMER] BORG handoff start: image=$path archive=$archive"
+  echo "[CONSUMER] BORG archiving $image -> ::$archive"
+  local rc
   (
-    export BORG_REPO BORG_PASSPHRASE
-    borg create "::${archive}" "$path" >/dev/null 2>&1
-  ) &
-  local pid=$!
-  if ! kill -0 "$pid" 2>/dev/null; then
-    echo "[CONSUMER] WARNING: failed to spawn async borg process for $path"
+    export BORG_REPO
+    export BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes
+    [[ -n "$BORG_PASSPHRASE" ]] && export BORG_PASSPHRASE
+    borg create "::${archive}" "$path" </dev/null >/dev/null 2>&1
+  )
+  rc=$?
+  if [[ $rc -eq 0 ]]; then
+    echo "[CONSUMER] BORG archived ::$archive"
   else
-    echo "[CONSUMER] BORG handoff spawned (pid=$pid): $path"
+    echo "[CONSUMER] WARNING: borg create failed (rc=$rc) for $path; keeping local copy"
   fi
-  return 0
+  return $rc
 }
 
 # Append one frame (column vector num_pages) to the run matrix. Matrix on disk is (num_pages, num_frames).
@@ -365,9 +374,15 @@ process_job() {
   fi
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
+  # With BORG enabled: archive prev to the repo first, then delete only on success
+  # (a failed archive keeps the local copy so no snapshot is lost).
   if [[ -f "$prev" ]]; then
-    if archive_with_borg_async "$prev"; then
-      : # archived asynchronously; keep source file (no delete) when BORG is enabled.
+    if [[ "$BORG" == "1" || "$BORG" == "true" || "$BORG" == "yes" ]]; then
+      if archive_with_borg "$prev"; then
+        delete_file "$prev" "snapshot (archived to borg)"
+      else
+        echo "[CONSUMER] WARNING: keeping $prev on disk (borg archive did not succeed)"
+      fi
     else
       delete_file "$prev" "snapshot"
     fi

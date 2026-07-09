@@ -352,7 +352,26 @@ def _diskio_env_prefix(diskio_jsonl: str, dev: str, stride: str = "1") -> str:
     )
 
 
-def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
+def ensure_borg_repo(repo: str) -> None:
+    """Create the borg repo (unencrypted) if it does not exist yet. Idempotent."""
+    if not repo:
+        print("[CONTROL] WARNING: BORG enabled but BORG_REPO unset; archives will be skipped.")
+        return
+    if os.system(f"borg list {shlex.quote(repo)} >/dev/null 2>&1") != 0:
+        print(f"[CONTROL] borg repo not found at {repo}; initializing (--encryption=none).")
+        init_rc = os.system(
+            "BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK=yes "
+            f"borg init --encryption=none {shlex.quote(repo)}"
+        )
+        if (init_rc >> 8) != 0:
+            print(f"[CONTROL] WARNING: borg init failed (rc={init_rc >> 8}) at {repo}.")
+        else:
+            print(f"[CONTROL] borg repo ready: {repo}")
+    else:
+        print(f"[CONTROL] borg repo present: {repo}")
+
+
+def start_capture(run_matrix_path: str = "", workload: str = "", run_id: str = "") -> tuple[int, list[int]]:
     root_q = shlex.quote(CAPTURE_ROOT)
     cfg_q = shlex.quote(CAPTURE_CONFIG)
     producer_q = shlex.quote(CAPTURE_PRODUCER_SCRIPT)
@@ -362,6 +381,11 @@ def start_capture(run_matrix_path: str = "") -> tuple[int, list[int]]:
     env_prefix = ""
     if borg_mode:
         env_prefix += f"BORG={shlex.quote(borg_mode)} "
+        # Per-step identity so the consumer names archives {workload}__{run_id}__{ts}.
+        if workload:
+            env_prefix += f"BORG_WORKLOAD={shlex.quote(workload)} "
+        if run_id:
+            env_prefix += f"BORG_RUN_ID={shlex.quote(run_id)} "
     if borg_repo:
         env_prefix += f"BORG_REPO={shlex.quote(borg_repo)} "
     if borg_pass:
@@ -847,6 +871,13 @@ def main() -> int:
     )
     base = ssh_base()
 
+    borg_enabled = os.environ.get("BORG", "").lower() in ("1", "true", "yes")
+    borg_run_id = ""
+    if borg_enabled:
+        borg_run_id = os.environ.get("BORG_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        ensure_borg_repo(os.environ.get("BORG_REPO", ""))
+        print(f"[CONTROL] BORG raw-snapshot retention ON (run_id={borg_run_id}, repo={os.environ.get('BORG_REPO', '')})")
+
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
         test_name = f"test{i}_{test_label}"
@@ -873,7 +904,7 @@ def main() -> int:
         step_matrix = ""
         if CAPTURE_MODE:
             step_matrix = step_run_matrix_path(test_name)
-            cap_rc, _ = start_capture(run_matrix_path=step_matrix)
+            cap_rc, _ = start_capture(run_matrix_path=step_matrix, workload=test_label, run_id=borg_run_id)
             if cap_rc != 0:
                 print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
                 return cap_rc
