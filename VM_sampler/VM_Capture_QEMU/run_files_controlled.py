@@ -390,6 +390,19 @@ def start_capture(run_matrix_path: str = "", workload: str = "", run_id: str = "
         env_prefix += f"BORG_REPO={shlex.quote(borg_repo)} "
     if borg_pass:
         env_prefix += f"BORG_PASSPHRASE={shlex.quote(borg_pass)} "
+    # zstd delta-chain retention (alternative backend to borg): pass the same per-step
+    # identity plus the output dir + level so the consumer names one chain folder per step.
+    zstd_mode = os.environ.get("ZSTD", "")
+    if zstd_mode:
+        env_prefix += f"ZSTD={shlex.quote(zstd_mode)} "
+        if workload:
+            env_prefix += f"ZSTD_WORKLOAD={shlex.quote(workload)} "
+        if run_id:
+            env_prefix += f"ZSTD_RUN_ID={shlex.quote(run_id)} "
+        for _v in ("ZSTD_DIR", "ZSTD_LEVEL"):
+            _val = os.environ.get(_v, "")
+            if _val:
+                env_prefix += f"{_v}={shlex.quote(_val)} "
     # Per-step matrix path: consumer will append frames here instead of the
     # shared default run_matrix.npy.
     if run_matrix_path:
@@ -872,11 +885,26 @@ def main() -> int:
     base = ssh_base()
 
     borg_enabled = os.environ.get("BORG", "").lower() in ("1", "true", "yes")
-    borg_run_id = ""
+    zstd_enabled = os.environ.get("ZSTD", "").lower() in ("1", "true", "yes")
+    retention_run_id = ""
+    if borg_enabled and zstd_enabled:
+        print("[CONTROL] WARNING: both BORG and ZSTD set; the consumer uses ZSTD (borg ignored).")
+    if borg_enabled or zstd_enabled:
+        retention_run_id = (
+            os.environ.get("BORG_RUN_ID")
+            or os.environ.get("ZSTD_RUN_ID")
+            or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        )
     if borg_enabled:
-        borg_run_id = os.environ.get("BORG_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         ensure_borg_repo(os.environ.get("BORG_REPO", ""))
-        print(f"[CONTROL] BORG raw-snapshot retention ON (run_id={borg_run_id}, repo={os.environ.get('BORG_REPO', '')})")
+        print(f"[CONTROL] BORG raw-snapshot retention ON (run_id={retention_run_id}, repo={os.environ.get('BORG_REPO', '')})")
+    if zstd_enabled:
+        zdir = os.environ.get("ZSTD_DIR", "")
+        if zdir:
+            os.makedirs(zdir, exist_ok=True)
+            print(f"[CONTROL] ZSTD raw-snapshot retention ON (run_id={retention_run_id}, dir={zdir})")
+        else:
+            print("[CONTROL] WARNING: ZSTD enabled but ZSTD_DIR unset; deltas will be skipped.")
 
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
@@ -904,7 +932,7 @@ def main() -> int:
         step_matrix = ""
         if CAPTURE_MODE:
             step_matrix = step_run_matrix_path(test_name)
-            cap_rc, _ = start_capture(run_matrix_path=step_matrix, workload=test_label, run_id=borg_run_id)
+            cap_rc, _ = start_capture(run_matrix_path=step_matrix, workload=test_label, run_id=retention_run_id)
             if cap_rc != 0:
                 print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
                 return cap_rc

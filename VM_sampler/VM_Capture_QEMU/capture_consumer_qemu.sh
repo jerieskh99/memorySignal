@@ -48,6 +48,14 @@ BORG_PASSPHRASE="${BORG_PASSPHRASE:-}"
 # The orchestrator sets these per step; defaults keep manual runs working.
 BORG_WORKLOAD="${BORG_WORKLOAD:-unknown}"
 BORG_RUN_ID="${BORG_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
+# --- zstd delta-chain retention (alternative to BORG; store each snapshot as a
+# zstd --patch-from diff against the previous one). See retain_zstd_delta below. ---
+ZSTD="${ZSTD:-0}"
+ZSTD_DIR="${ZSTD_DIR:-}"
+ZSTD_WORKLOAD="${ZSTD_WORKLOAD:-unknown}"
+ZSTD_RUN_ID="${ZSTD_RUN_ID:-$(date +%Y%m%d%H%M%S)}"
+ZSTD_LEVEL="${ZSTD_LEVEL:-3}"
+ZSTD_NEXT=0   # next chain sequence this session (0 -> first call also writes the full base)
 # When OFFLINE_MODE=1, skip the live streaming trigger entirely.
 # Offline metrics are computed per-step by offline_step_metrics.py instead.
 OFFLINE_MODE="${OFFLINE_MODE:-0}"
@@ -160,6 +168,55 @@ archive_with_borg() {
     echo "[CONSUMER] BORG archived ::$archive"
   else
     echo "[CONSUMER] WARNING: borg create failed (rc=$rc) for $path; keeping local copy"
+  fi
+  return $rc
+}
+
+retain_zstd_delta() {
+  # Store curr as a zstd delta against prev in a per-workload chain folder. The first call
+  # also writes the full base (from prev) as 000000.zst -- the chain root. File numbers
+  # track the snapshot sequence (a failed write leaves a numbered gap, never a mislabel).
+  # Returns 0 only if every write succeeded; the caller deletes the raw prev only then.
+  local prev="$1" curr="$2"
+  [[ -e "$prev" && -e "$curr" ]] || return 1
+  if [[ "$ZSTD" != "1" && "$ZSTD" != "true" && "$ZSTD" != "yes" ]]; then
+    return 1
+  fi
+  if [[ -z "$ZSTD_DIR" ]]; then
+    echo "[CONSUMER] WARNING: ZSTD enabled but ZSTD_DIR unset; not archiving $curr"
+    return 1
+  fi
+  if ! command -v zstd >/dev/null 2>&1; then
+    echo "[CONSUMER] WARNING: ZSTD enabled but 'zstd' not found; not archiving $curr"
+    return 1
+  fi
+
+  local dir
+  dir="$ZSTD_DIR/$(sanitize_name "$ZSTD_WORKLOAD")__$(sanitize_name "$ZSTD_RUN_ID")"
+  mkdir -p "$dir" 2>/dev/null
+
+  local seq=$ZSTD_NEXT
+  ZSTD_NEXT=$((ZSTD_NEXT + 1))
+  local rc=0
+
+  # First snapshot of this workload: write the full base from prev (chain root).
+  if [[ "$seq" -eq 0 ]]; then
+    if zstd -q -"$ZSTD_LEVEL" "$prev" -o "$dir/000000.zst" 2>/dev/null; then
+      echo "[CONSUMER] ZSTD base  -> $dir/000000.zst"
+    else
+      echo "[CONSUMER] WARNING: zstd base write failed for $prev"
+      rc=1
+    fi
+  fi
+
+  # Delta: curr patched against prev (--long=31 window covers <=2 GB reference dumps).
+  local n
+  printf -v n "%06d" $((seq + 1))
+  if zstd -q -"$ZSTD_LEVEL" --long=31 --patch-from="$prev" "$curr" -o "$dir/${n}.zst" 2>/dev/null; then
+    echo "[CONSUMER] ZSTD delta -> $dir/${n}.zst"
+  else
+    echo "[CONSUMER] WARNING: zstd delta write failed for $curr"
+    rc=1
   fi
   return $rc
 }
@@ -374,10 +431,17 @@ process_job() {
   fi
 
   # Delete only prev. curr becomes the next job's prev and is deleted when that job runs.
-  # With BORG enabled: archive prev to the repo first, then delete only on success
-  # (a failed archive keeps the local copy so no snapshot is lost).
+  # With a retention backend (ZSTD or BORG): archive prev/curr first, then delete prev only
+  # on success (a failed archive keeps the local copy so no snapshot is lost). ZSTD and BORG
+  # are mutually exclusive; ZSTD takes precedence if somehow both are set.
   if [[ -f "$prev" ]]; then
-    if [[ "$BORG" == "1" || "$BORG" == "true" || "$BORG" == "yes" ]]; then
+    if [[ "$ZSTD" == "1" || "$ZSTD" == "true" || "$ZSTD" == "yes" ]]; then
+      if retain_zstd_delta "$prev" "$curr"; then
+        delete_file "$prev" "snapshot (zstd delta stored)"
+      else
+        echo "[CONSUMER] WARNING: keeping $prev on disk (zstd delta did not succeed)"
+      fi
+    elif [[ "$BORG" == "1" || "$BORG" == "true" || "$BORG" == "yes" ]]; then
       if archive_with_borg "$prev"; then
         delete_file "$prev" "snapshot (archived to borg)"
       else
