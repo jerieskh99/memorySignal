@@ -10,13 +10,18 @@ Flow per step:
   5) Move to next command
 """
 
+import hashlib
 import os
 import shlex
+import shutil
+import smtplib
+import socket
 import sys
 import threading
 import time
 import json
 from datetime import datetime, timezone
+from email.mime.text import MIMEText
 from pathlib import Path
 import re
 
@@ -58,6 +63,42 @@ TIMESTAMPS_LOG = os.environ.get(
     os.path.join(CAPTURE_ROOT, "timestamps.log"),
 )
 CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "0"))
+
+# Disk-space guard: before each step, stop the campaign (rather than degrade
+# silently) if the imageDir filesystem or the ZSTD retention filesystem has
+# less than this much free space. A raw dump is 1 GiB; a failed archive write
+# already leaves the raw dump undeleted (see retain_zstd_delta), so a low-space
+# condition can consume free space fast if left unattended on a shared server.
+MIN_FREE_DISK_GB = float(os.environ.get("MIN_FREE_DISK_GB", "20"))
+
+# Optional email notifications, one per step (plus campaign start/stop/error
+# events). Sent via the LOCAL mail relay (exim4, confirmed present on the
+# capture server) rather than an external API -- ordinary outbound mail is
+# unremarkable traffic on a shared server, unlike a recurring external API
+# call, which is why this replaced an earlier Telegram-based version (see
+# [[zstd-retention-status]]). Fully opt-in: unset NOTIFY_EMAIL_TO and notify()
+# is a no-op.
+NOTIFY_EMAIL_TO = os.environ.get("NOTIFY_EMAIL_TO", "")
+NOTIFY_EMAIL_FROM = os.environ.get(
+    "NOTIFY_EMAIL_FROM", f"{os.environ.get('USER', 'capture')}@{socket.gethostname()}"
+)
+NOTIFY_SMTP_HOST = os.environ.get("NOTIFY_SMTP_HOST", "localhost")
+NOTIFY_SMTP_PORT = int(os.environ.get("NOTIFY_SMTP_PORT", "25"))
+
+
+def notify(message: str) -> None:
+    # Best-effort only: a mail-relay hiccup must never abort the campaign.
+    if not NOTIFY_EMAIL_TO:
+        return
+    try:
+        msg = MIMEText(message)
+        msg["Subject"] = "memorySignal capture"
+        msg["From"] = NOTIFY_EMAIL_FROM
+        msg["To"] = NOTIFY_EMAIL_TO
+        with smtplib.SMTP(NOTIFY_SMTP_HOST, NOTIFY_SMTP_PORT, timeout=10) as s:
+            s.send_message(msg)
+    except Exception as e:
+        print(f"[CONTROL] WARNING: email notify failed: {e}")
 
 # Capture metric selector: "delta" (default; Cosine/Hamming via the Rust consumer)
 # or "apf" (stream active-page-fraction via the producer's APF helper, with the
@@ -720,6 +761,32 @@ def capture_output_dir() -> Path | None:
         return None
 
 
+def capture_image_dir() -> str:
+    try:
+        with open(CAPTURE_CONFIG, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        return cfg.get("imageDir", "") or ""
+    except Exception:
+        return ""
+
+
+def check_disk_space(paths: list[str], min_free_gb: float) -> tuple[bool, str]:
+    # Checks actual paths, not a guess: a failed archive write already leaves
+    # its raw 1 GiB dump undeleted (see retain_zstd_delta), so on a shared
+    # server this can eat free space fast if nothing stops the campaign first.
+    for p in paths:
+        if not p or not os.path.exists(p):
+            continue
+        try:
+            usage = shutil.disk_usage(p)
+        except OSError:
+            continue
+        free_gb = usage.free / (1024 ** 3)
+        if free_gb < min_free_gb:
+            return False, f"{p}: {free_gb:.1f} GiB free (< {min_free_gb:.0f} GiB threshold)"
+    return True, ""
+
+
 def rotate_delta_files(test_name: str) -> None:
     out_dir = capture_output_dir()
     if out_dir is None:
@@ -767,6 +834,77 @@ def step_name_from_command(remote_cmd: str) -> str:
     # Keep names filesystem-safe and compact
     safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._-")
     return safe or "step"
+
+
+def workload_family(test_label: str) -> str:
+    # Every workload binary/script in this project is named <family>_<rest>,
+    # e.g. kernel_barnes_hut_v2, mem_workingset_sweep_v2, sandbox_ransom_seq --
+    # confirmed across all 94 phase-2 binaries with no exceptions. Derived from
+    # the name, not a hand-maintained table (that approach was tried and
+    # dropped -- the name already encodes the family).
+    return test_label.split("_", 1)[0] if "_" in test_label else test_label
+
+
+_RETENTION_BOOKKEEPING_FLAGS = ("--output-dir", "--sandbox-dir")
+
+
+def param_signature_from_command(remote_cmd: str) -> str:
+    # Distinguishes different "size"/config variants of the same workload
+    # (e.g. --block-kb 4 vs --block-kb 64) so they land in different retention
+    # folders instead of the same one. Built from the whole command rather than
+    # trying to locate "where the args start" -- that's fragile for compound
+    # commands (e.g. `mkdir -p ... && python3 ...`). Path-like tokens (the
+    # binary/script path itself, output/sandbox dirs, any other path-valued
+    # arg) are dropped -- they don't reflect workload size, the binary path is
+    # already redundant with the family/workload folders above this one, and
+    # keeping them would crowd out the actual distinguishing flags once the
+    # signature is length-capped below.
+    try:
+        tokens = shlex.split(remote_cmd)
+    except Exception:
+        tokens = remote_cmd.split()
+
+    kept = []
+    skip_next = False
+    for tok in tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if tok in _RETENTION_BOOKKEEPING_FLAGS:
+            skip_next = True
+            continue
+        if "/" in tok:
+            continue
+        kept.append(tok)
+
+    sig = re.sub(r"[^A-Za-z0-9._-]+", "_", "_".join(kept)).strip("._-")
+    if not sig:
+        return "default"
+    if len(sig) > 60:
+        # Keep folder names readable but bounded; the hash suffix preserves
+        # uniqueness for the rare long/compound command line.
+        sig = sig[:60] + "_" + hashlib.sha1(sig.encode()).hexdigest()[:8]
+    return sig
+
+
+# One counter per (family/workload/param signature) combo, for the lifetime of
+# this process (one campaign invocation). A workload run twice with identical
+# args -- e.g. plan07_campaign/repfill_steps.txt, which repeats 11 workloads
+# with byte-identical flags for statistical confidence -- gets rep001/rep002
+# instead of both landing in the same retention folder (which silently drops
+# the second rep: zstd refuses to overwrite an existing chain file, so every
+# snapshot in that step fails to archive and its raw 1 GiB dumps are kept
+# undeleted for the step's whole duration).
+_retention_rep_counts: dict[str, int] = {}
+
+
+def retention_workload_path(test_label: str, remote_cmd: str) -> str:
+    family = workload_family(test_label)
+    sig = param_signature_from_command(remote_cmd)
+    key = f"{family}/{test_label}/{sig}"
+    _retention_rep_counts[key] = _retention_rep_counts.get(key, 0) + 1
+    rep = _retention_rep_counts[key]
+    return f"{key}/rep{rep:03d}"
 
 
 # Roots under which a guest scratch dir may be wiped. Anything else is refused,
@@ -916,10 +1054,23 @@ def main() -> int:
         if OFFLINE_METRICS_MODE and is_baseline_step:
             print("[CONTROL] (this step will produce the shared PLV baseline)")
 
+        if CAPTURE_MODE:
+            disk_check_paths = [capture_image_dir()]
+            if zstd_enabled:
+                disk_check_paths.append(os.environ.get("ZSTD_DIR", ""))
+            disk_ok, disk_msg = check_disk_space(disk_check_paths, MIN_FREE_DISK_GB)
+            if not disk_ok:
+                print(f"[CONTROL] ERROR: low disk space before step {i} ({test_name}): {disk_msg}")
+                print("[CONTROL] Stopping so raw dumps can't accumulate unattended on a shared server.")
+                print(f"[CONTROL] Migrate/free space, then resume from step {i} with a trimmed STEPS_FILE.")
+                notify(f"STOPPED before step {i}/{len(steps)} ({test_name}): low disk -- {disk_msg}")
+                return 1
+
         ensure_vm_running()
 
         if not wait_for_ssh():
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
+            notify(f"STOPPED before step {i}/{len(steps)} ({test_name}): SSH unreachable")
             return 1
 
         # Pre-cell guest sandbox wipe (v3 D-82): clear any scratch dir the
@@ -932,7 +1083,8 @@ def main() -> int:
         step_matrix = ""
         if CAPTURE_MODE:
             step_matrix = step_run_matrix_path(test_name)
-            cap_rc, _ = start_capture(run_matrix_path=step_matrix, workload=test_label, run_id=retention_run_id)
+            retention_workload = retention_workload_path(test_label, remote_cmd)
+            cap_rc, _ = start_capture(run_matrix_path=step_matrix, workload=retention_workload, run_id=retention_run_id)
             if cap_rc != 0:
                 print(f"[CONTROL] ERROR: failed to start capture (exit={cap_rc}).")
                 return cap_rc
@@ -986,6 +1138,7 @@ def main() -> int:
                 )
                 stop_consumer()
                 stop_vm()
+                notify(f"STOPPED at step {i}/{len(steps)} ({test_name}): queue drain timeout")
                 return 1
 
             # 3. Now that the queue is empty it is safe to stop the consumer.
@@ -1015,9 +1168,13 @@ def main() -> int:
 
         if rc != 0:
             print(f"[CONTROL] ERROR: Step {i} failed (exit={rc}). Stopping sequence.")
+            notify(f"[{i}/{len(steps)}] {test_name}: FAILED (rc={rc}). Stopping sequence.")
             return rc
 
+        notify(f"[{i}/{len(steps)}] {test_name}: done.")
+
     print("\n[CONTROL] All steps completed successfully.")
+    notify(f"Campaign complete: {len(steps)}/{len(steps)} steps finished.")
     return 0
 
 

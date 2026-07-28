@@ -130,6 +130,22 @@ sanitize_name() {
   echo "$s"
 }
 
+sanitize_path() {
+  # Like sanitize_name, but preserves '/' as real directory nesting instead of
+  # flattening it -- lets run_files_controlled.py's retention_workload_path()
+  # (family/workload/param-signature/repNNN) become real subdirectories. Each
+  # '/'-separated segment is sanitized independently.
+  local s="$1" out="" seg
+  local IFS='/'
+  local -a segs=($s)
+  for seg in "${segs[@]}"; do
+    seg="${seg//[^A-Za-z0-9._-]/_}"
+    [[ -z "$seg" ]] && seg="item"
+    out="${out:+$out/}$seg"
+  done
+  echo "$out"
+}
+
 archive_with_borg() {
   # Synchronously archive $path into the borg repo as {workload}__{run_id}__{dump_ts}.
   # Returns 0 ONLY if borg create succeeds -- the caller deletes the source only then,
@@ -192,7 +208,7 @@ retain_zstd_delta() {
   fi
 
   local dir
-  dir="$ZSTD_DIR/$(sanitize_name "$ZSTD_WORKLOAD")__$(sanitize_name "$ZSTD_RUN_ID")"
+  dir="$ZSTD_DIR/$(sanitize_path "$ZSTD_WORKLOAD")__$(sanitize_name "$ZSTD_RUN_ID")"
   mkdir -p "$dir" 2>/dev/null
 
   local seq=$ZSTD_NEXT
