@@ -39,10 +39,14 @@ echo "== zstd capture check: $ZDIR =="
 [[ -d "$ZDIR" ]] || { echo "FAIL: ZSTD_DIR not found: $ZDIR"; exit 1; }
 
 nchains=0
-for chain in "$ZDIR"/*/; do
+# Chain folders live at family/workload/param-signature/repNNN__runid (4 levels
+# deep), so discover them recursively: any directory that directly contains
+# .zst files is a chain. A fixed "$ZDIR"/*/ glob only sees the family level and
+# reports every chain as empty.
+while IFS= read -r chain; do
   [[ -d "$chain" ]] || continue
   nchains=$((nchains + 1))
-  name="$(basename "$chain")"
+  name="${chain#"$ZDIR"/}"
 
   cnt=$(ls "$chain"/*.zst 2>/dev/null | wc -l | tr -d ' ')
   if [[ "$cnt" -eq 0 ]]; then echo "  [FAIL] $name: no .zst files"; fail=1; continue; fi
@@ -68,17 +72,22 @@ for chain in "$ZDIR"/*/; do
   else
     echo "  [ok]   $name: $cnt snapshots (1 base + $ndelta deltas), total ${tot_kb}K, base ${base_kb}K, avg delta ${avg}K"
   fi
-done
+done < <(find "$ZDIR" -type d -exec sh -c 'ls "$1"/*.zst >/dev/null 2>&1' _ {} \; -print 2>/dev/null | sort)
 
 echo "chains found: $nchains"
 [[ "$nchains" -eq 0 ]] && { echo "FAIL: no chains under $ZDIR"; exit 1; }
 
 if [[ -n "$IMAGEDIR" ]]; then
-  dn=$(find "$IMAGEDIR" -maxdepth 1 -name 'memory_dump-*.raw' 2>/dev/null | wc -l | tr -d ' ')
-  if [[ "$dn" -le 3 ]]; then
-    echo "  [ok]   local dumps in $IMAGEDIR: $dn (not accumulating)"
+  # -L: imageDir is typically a symlink (/var/lib/libvirt/qemu/dump -> /project/dump).
+  # Without it find silently descends nothing and always reports 0 -- a false pass.
+  dn=$(find -L "$IMAGEDIR" -maxdepth 1 -name 'memory_dump-*.raw' 2>/dev/null | wc -l | tr -d ' ')
+  dkb=$(find -L "$IMAGEDIR" -maxdepth 1 -name 'memory_dump-*.raw' -exec du -k {} + 2>/dev/null | awk '{s+=$1} END{print s+0}')
+  if [[ "$dn" -eq 0 ]]; then
+    echo "  [ok]   local dumps in $IMAGEDIR: 0 (not accumulating)"
   else
-    echo "  [WARN] local dumps in $IMAGEDIR: $dn (expected ~0 -- deletion may be failing)"; fail=1
+    echo "  [WARN] local dumps in $IMAGEDIR: $dn leftover raw dump(s), ${dkb}K"
+    echo "         (one per finished step is expected: the last snapshot never becomes a 'prev'."
+    echo "          It IS archived -- safe to delete. Over a long campaign these add up fast.)"
   fi
 fi
 

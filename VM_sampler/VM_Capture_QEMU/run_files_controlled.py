@@ -770,6 +770,34 @@ def capture_image_dir() -> str:
         return ""
 
 
+def sweep_leftover_dumps(chain_dir: str) -> None:
+    # The consumer archives (prev, curr) pairs and deletes prev, so the LAST
+    # snapshot of a step is archived but never deleted (it never becomes a
+    # prev). One 1 GiB file per step is ~101 GiB across a full campaign, so
+    # sweep it once the step's chain is confirmed intact.
+    img = capture_image_dir()
+    if not img or not os.path.isdir(img):
+        return
+    # Guard: only sweep when this step's chain actually received a base + at
+    # least one delta. If archival failed, the raw dump may be the only copy.
+    try:
+        zst = sorted(Path(chain_dir).glob("*.zst")) if chain_dir else []
+    except OSError:
+        zst = []
+    if len(zst) < 2 or not (Path(chain_dir) / "000000.zst").is_file():
+        print(f"[CONTROL] Keeping leftover raw dumps: chain incomplete ({len(zst)} file(s)) in {chain_dir}")
+        return
+    freed = 0
+    for p in Path(img).glob("memory_dump-*.raw"):
+        try:
+            freed += p.stat().st_size
+            p.unlink()
+        except OSError as e:
+            print(f"[CONTROL] WARNING: could not remove leftover dump {p}: {e}")
+    if freed:
+        print(f"[CONTROL] Swept leftover raw dump(s): freed {freed / (1024**3):.1f} GiB from {img}")
+
+
 def check_disk_space(paths: list[str], min_free_gb: float) -> tuple[bool, str]:
     # Checks actual paths, not a guess: a failed archive write already leaves
     # its raw 1 GiB dump undeleted (see retain_zstd_delta), so on a shared
@@ -1081,6 +1109,7 @@ def main() -> int:
 
         # Derive a step-specific matrix path so each test's frames are isolated.
         step_matrix = ""
+        retention_workload = ""
         if CAPTURE_MODE:
             step_matrix = step_run_matrix_path(test_name)
             retention_workload = retention_workload_path(test_label, remote_cmd)
@@ -1162,6 +1191,16 @@ def main() -> int:
 
             # 6. Rotate cosine/hamming output files under a per-test subfolder.
             rotate_delta_files(test_name)
+
+            # 7. Sweep the step's final raw dump (archived, but never deleted
+            #    because it never became a 'prev'). Skipped unless the chain
+            #    for this step is verifiably complete.
+            if zstd_enabled and retention_workload:
+                zdir_env = os.environ.get("ZSTD_DIR", "")
+                if zdir_env:
+                    sweep_leftover_dumps(
+                        os.path.join(zdir_env, f"{retention_workload}__{retention_run_id}")
+                    )
 
         if not vm_stopped:
             stop_vm()
