@@ -71,6 +71,13 @@ CAPTURE_WARMUP_SECONDS = int(os.environ.get("CAPTURE_WARMUP_SECONDS", "0"))
 # condition can consume free space fast if left unattended on a shared server.
 MIN_FREE_DISK_GB = float(os.environ.get("MIN_FREE_DISK_GB", "20"))
 
+# Unattended runs: by default one failed workload aborts the whole sequence,
+# which is right when a failure means the campaign is contaminated, but wrong
+# for an overnight run where a single unrunnable workload (e.g. a working set
+# larger than guest RAM -> mmap failure) would waste the entire night. When set,
+# failed steps are recorded and the sequence continues; the summary lists them.
+CONTINUE_ON_FAILURE = os.environ.get("CONTINUE_ON_FAILURE", "0").lower() in {"1", "true", "yes"}
+
 # Optional email notifications, one per step (plus campaign start/stop/error
 # events). Sent via the LOCAL mail relay (exim4, confirmed present on the
 # capture server) rather than an external API -- ordinary outbound mail is
@@ -1072,6 +1079,8 @@ def main() -> int:
         else:
             print("[CONTROL] WARNING: ZSTD enabled but ZSTD_DIR unset; deltas will be skipped.")
 
+    failed_steps: list[tuple[int, str, int]] = []
+
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
         test_name = f"test{i}_{test_label}"
@@ -1206,11 +1215,26 @@ def main() -> int:
             stop_vm()
 
         if rc != 0:
+            if CONTINUE_ON_FAILURE:
+                print(f"[CONTROL] WARNING: Step {i} ({test_name}) failed (exit={rc}). "
+                      "CONTINUE_ON_FAILURE set -- recording and moving on.")
+                failed_steps.append((i, test_name, rc))
+                notify(f"[{i}/{len(steps)}] {test_name}: FAILED (rc={rc}); continuing.")
+                continue
             print(f"[CONTROL] ERROR: Step {i} failed (exit={rc}). Stopping sequence.")
             notify(f"[{i}/{len(steps)}] {test_name}: FAILED (rc={rc}). Stopping sequence.")
             return rc
 
         notify(f"[{i}/{len(steps)}] {test_name}: done.")
+
+    if failed_steps:
+        print(f"\n[CONTROL] Completed {len(steps) - len(failed_steps)}/{len(steps)} steps; "
+              f"{len(failed_steps)} FAILED:")
+        for i, name, rc in failed_steps:
+            print(f"[CONTROL]   step {i}: {name} (exit={rc})")
+        notify(f"Campaign done: {len(steps) - len(failed_steps)}/{len(steps)} ok, "
+               f"{len(failed_steps)} failed: " + ", ".join(n for _, n, _ in failed_steps))
+        return 0
 
     print("\n[CONTROL] All steps completed successfully.")
     notify(f"Campaign complete: {len(steps)}/{len(steps)} steps finished.")
