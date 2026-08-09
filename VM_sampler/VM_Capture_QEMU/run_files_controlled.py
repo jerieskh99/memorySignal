@@ -1000,6 +1000,51 @@ def wipe_guest_scratch(base: str, remote_cmd: str) -> None:
         print(f"[CONTROL] pre-cell guest scratch wipe: {d}")
 
 
+def reclaim_guest_scratch(base: str, remote_cmd: str, keep_dirs: set[str]) -> None:
+    """Delete a finished cell's scratch data from the guest.
+
+    wipe_guest_scratch() only clears the dir of the cell about to run, so every
+    previous cell's output stays on the guest disk. File-writing workloads leave
+    256 MB - 1 GB each (they self-clean only on natural exit, which SUSTAIN_LOOP's
+    timeout kill prevents), which fills the guest disk mid-campaign: observed as
+    `OSError: [Errno 28] No space left on device` at step 23, plus an SSH-255
+    guest death at step 16. Reclaim once the cell's capture is complete.
+
+    keep_dirs holds paths a LATER step consumes (--inputs-dir), which must survive.
+    """
+    try:
+        parts = shlex.split(remote_cmd)
+    except ValueError:
+        parts = remote_cmd.split()
+    dirs: set[str] = set()
+    for idx, tok in enumerate(parts):
+        if tok in ("--sandbox-dir", "--backing-dir", "--output-dir") and idx + 1 < len(parts):
+            dirs.add(parts[idx + 1])
+    for d in sorted(dirs - keep_dirs):
+        if not any(d.startswith(r) for r in GUEST_SCRATCH_SAFE_ROOTS):
+            continue
+        wipe = f"rm -rf -- {d}/* {d}/.[!.]* 2>/dev/null; true"
+        run(f"{base} {shlex.quote(wipe)}")
+    kept = dirs & keep_dirs
+    if dirs - keep_dirs:
+        print(f"[CONTROL] post-cell guest scratch reclaim: {len(dirs - keep_dirs)} dir(s)"
+              + (f"; kept {sorted(kept)} (consumed by a later step)" if kept else ""))
+
+
+def inputs_dirs_from_steps(steps: list[str]) -> set[str]:
+    """Scratch dirs that some step reads via --inputs-dir; never reclaim these."""
+    keep: set[str] = set()
+    for cmd in steps:
+        try:
+            parts = shlex.split(cmd)
+        except ValueError:
+            parts = cmd.split()
+        for idx, tok in enumerate(parts):
+            if tok == "--inputs-dir" and idx + 1 < len(parts):
+                keep.add(parts[idx + 1])
+    return keep
+
+
 def log_test_timestamp(step_index: int, test_name: str, status: str) -> None:
     """Append one compact timestamp line for test start/end events."""
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -1101,6 +1146,10 @@ def main() -> int:
             print("[CONTROL] WARNING: ZSTD enabled but ZSTD_DIR unset; deltas will be skipped.")
 
     failed_steps: list[tuple[int, str, int]] = []
+    # Scratch dirs a later step reads; excluded from post-cell reclaim.
+    guest_keep_dirs = inputs_dirs_from_steps(steps)
+    if guest_keep_dirs:
+        print(f"[CONTROL] Guest scratch kept for later steps: {sorted(guest_keep_dirs)}")
 
     for i, remote_cmd in enumerate(steps, start=1):
         test_label = step_name_from_command(remote_cmd)
@@ -1215,6 +1264,11 @@ def main() -> int:
             # 3. Now that the queue is empty it is safe to stop the consumer.
             stop_consumer()
 
+            # 3.4 Reclaim this cell's guest scratch while the guest is still
+            #     reachable -- capture is complete, so those files have served
+            #     their purpose and would otherwise fill the guest disk.
+            reclaim_guest_scratch(base, remote_cmd, guest_keep_dirs)
+
             # 3.5 Pause the VM before post-step host-side analysis.
             stop_vm()
             vm_stopped = True
@@ -1245,6 +1299,7 @@ def main() -> int:
                     )
 
         if not vm_stopped:
+            reclaim_guest_scratch(base, remote_cmd, guest_keep_dirs)
             stop_vm()
 
         if rc != 0:
