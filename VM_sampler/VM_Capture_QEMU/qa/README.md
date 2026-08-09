@@ -28,9 +28,28 @@ Exit `0` = ready (warnings allowed), `1` = do not start a campaign.
 |---|---|---|
 | `10_host` | missing zstd/virsh, bad config, host disk full, leftover 1 GiB dumps | disk fills mid-run |
 | `20_guest` | guest unreachable, **scratch on tmpfs**, unbuilt binaries | exit 127; contaminated IO signal |
-| `30_steps` | working set > guest RAM, payload > scratch free space, chain-identity collisions | `mmap` failure exit 1; `ENOSPC` |
-| `40_smoke` | anything only observable by running it | segfaults, missing runtimes, bad flags |
+| `30_steps` | declared working set > guest RAM, payload > scratch free space, chain-identity collisions | `mmap` failure exit 1; `ENOSPC` |
+| `40_smoke` | **measured peak RSS** and scratch use per workload; anything only observable by running it | OOM at full size; segfaults; bad flags |
 | `50_cleanliness` | orphaned producers, paused domain, non-empty queue, prior-run residue | SSH flapping between steps; mixed data |
+| `60_source_audit` | unchecked allocations, missing cleanup paths | silent corruption; guest disk fills |
+
+### Why footprint is measured, not parsed
+
+`30_steps` reads size *flags* (`--working-set-mb`), which covers the `mem`/`cache`
+families. It is blind to all 64 kernel workloads, which declare size in domain
+units: `kernel_dp_v2 --dim 8192` allocates `dim^2 * 4 = 268 MB`, and
+`kernel_mesh_smooth_v2` allocates its value array twice (`val` + `val_new`).
+No flag reveals either, and tracing those C expressions statically is brittle.
+
+So `40_smoke` measures **peak RSS** (`/usr/bin/time -f '%M'`) during a short
+run. Allocations happen at startup, so 3 seconds captures the real peak. That
+is ground truth rather than a parse, and it fails a workload whose true
+footprint exceeds the guest budget even when every declared flag looks fine.
+
+`60_source_audit` stays narrow for the same reason: it only asserts things
+static analysis is actually reliable about — whether allocations are failure-
+checked, and whether a workload that receives a payload directory ever deletes
+what it wrote.
 
 ## The three contamination sources
 

@@ -25,7 +25,9 @@ else
 fi
 
 # Scratch roots referenced by the steps file, probed for type and capacity.
-mapfile -t scratch_dirs < <(
+# (while-read, not mapfile: mapfile is bash 4+, absent on macOS's stock bash 3.2.)
+scratch_dirs=()
+while IFS= read -r d; do [[ -n "$d" ]] && scratch_dirs+=("$d"); done < <(
   grep -vE '^\s*#|^\s*$' "$STEPS_FILE" 2>/dev/null \
   | grep -oE '\-\-(sandbox-dir|backing-dir|output-dir|inputs-dir) [^ ]+' \
   | awk '{print $2}' | xargs -n1 dirname 2>/dev/null | sort -u
