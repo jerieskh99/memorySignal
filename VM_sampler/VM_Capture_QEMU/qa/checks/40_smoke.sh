@@ -51,19 +51,35 @@ while IFS= read -r line; do
   name="${name:-step$n}"
   sbox="$SMOKE_ROOT/$name"
 
+  # A step that consumes another step's output (--inputs-dir) cannot be probed
+  # in isolation: the smoke sandbox is empty by design, so it would fail for a
+  # reason that says nothing about the workload. Its inputs are validated by
+  # the campaign-identity check instead.
+  if printf '%s' "$line" | grep -q -- '--inputs-dir'; then
+    info "skip $name (step $n): consumes another step's output; not probeable standalone"
+    continue
+  fi
+
   cmd=$(printf '%s' "$line" \
         | sed -E "s/--duration [0-9]+/--duration $QA_SMOKE_SECONDS/g" \
         | sed -E "s#(--(sandbox|backing|output|inputs)-dir )[^ ]+#\1$sbox#g")
 
-  # Launch the workload, poll its VmHWM while it lives, report the max. `sh -c`
-  # execs a single binary, so the PID we watch is the workload itself.
+  # Launch, then poll VmHWM across the process TREE. $! is the PID of `timeout`,
+  # not the workload -- measuring it reports ~1 MB for everything, which is how
+  # the first run produced a uniform and meaningless 1 MB column. The workload
+  # is timeout's child (or its grandchild for a compound `mkdir && python3`),
+  # so walk two levels and take the maximum.
   wrapped="mkdir -p '$sbox'
     timeout $((QA_SMOKE_SECONDS + QA_SMOKE_GRACE)) sh -c $(printf '%q' "$cmd") >/dev/null 2>'$sbox/.err' &
     wpid=\$!
     hwm=0
     while kill -0 \$wpid 2>/dev/null; do
-      v=\$(awk '/VmHWM/{print \$2}' /proc/\$wpid/status 2>/dev/null)
-      [ -n \"\$v\" ] && [ \"\$v\" -gt \"\$hwm\" ] 2>/dev/null && hwm=\$v
+      kids=\$(pgrep -P \$wpid 2>/dev/null)
+      gkids=\$(for k in \$kids; do pgrep -P \$k 2>/dev/null; done)
+      for p in \$wpid \$kids \$gkids; do
+        v=\$(awk '/VmHWM/{print \$2}' /proc/\$p/status 2>/dev/null)
+        [ -n \"\$v\" ] && [ \"\$v\" -gt \"\$hwm\" ] 2>/dev/null && hwm=\$v
+      done
       sleep 0.2
     done
     wait \$wpid; rc=\$?
