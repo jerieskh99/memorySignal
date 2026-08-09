@@ -47,7 +47,12 @@ PY
 # All guest commands go through here so a single place controls timeouts and
 # the key/target. Returns the command's own exit code; prints its stdout.
 gssh() {
-  ssh -o ConnectTimeout="${QA_SSH_TIMEOUT:-8}" \
+  # -n is load-bearing: without it ssh reads from stdin, and a gssh inside a
+  # `while read` loop swallows the remaining input, so the loop runs exactly
+  # once. That turned a 101-workload probe into a 1-workload probe that still
+  # reported success -- a false pass, the worst failure mode for a QA tool.
+  ssh -n \
+      -o ConnectTimeout="${QA_SSH_TIMEOUT:-8}" \
       -o StrictHostKeyChecking=no \
       -o UserKnownHostsFile=/dev/null \
       -o LogLevel=ERROR \

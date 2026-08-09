@@ -28,11 +28,12 @@ load_facts
 RAM_BUDGET_MB=$(( ${GUEST_RAM_MB:-0} - ${QA_GUEST_OS_RESERVE_MB:-300} ))
 (( RAM_BUDGET_MB < 64 )) && RAM_BUDGET_MB=64
 
-# GNU time gives peak RSS directly; without it we fall back to the kernel's
-# own high-water mark, which needs the workload to still be alive when read.
-TIMEBIN=""
-gssh "test -x /usr/bin/time" >/dev/null 2>&1 && TIMEBIN="/usr/bin/time"
-[[ -n "$TIMEBIN" ]] || warn "/usr/bin/time absent on guest; peak RSS unavailable (exit codes still checked)"
+# Peak RSS comes from /proc/PID/status VmHWM rather than GNU time, which is not
+# installed on this guest. VmHWM is the kernel's own monotonic high-water mark,
+# so any sample taken after the peak reports it correctly -- these workloads
+# allocate at startup and hold, so a coarse poll is sufficient and needs no
+# extra package on the guest.
+info "peak RSS via /proc VmHWM (no guest package required)"
 
 SMOKE_ROOT="/var/tmp/qa_smoke_$$"
 gssh "mkdir -p '$SMOKE_ROOT'" >/dev/null 2>&1
@@ -54,13 +55,20 @@ while IFS= read -r line; do
         | sed -E "s/--duration [0-9]+/--duration $QA_SMOKE_SECONDS/g" \
         | sed -E "s#(--(sandbox|backing|output|inputs)-dir )[^ ]+#\1$sbox#g")
 
-  # %M is peak RSS in KB. Redirect time's own output to a file so it cannot be
-  # confused with the workload's stdout.
-  if [[ -n "$TIMEBIN" ]]; then
-    wrapped="mkdir -p '$sbox'; $TIMEBIN -f '%M' -o '$sbox/.rss' timeout $((QA_SMOKE_SECONDS + QA_SMOKE_GRACE)) sh -c $(printf '%q' "$cmd") >/dev/null 2>'$sbox/.err'; rc=\$?; echo \"RC=\$rc RSS=\$(cat '$sbox/.rss' 2>/dev/null | tail -1) SCRATCH=\$(du -sm '$sbox' 2>/dev/null | awk '{print \$1}')\"; tail -3 '$sbox/.err' 2>/dev/null"
-  else
-    wrapped="mkdir -p '$sbox'; timeout $((QA_SMOKE_SECONDS + QA_SMOKE_GRACE)) sh -c $(printf '%q' "$cmd") >/dev/null 2>'$sbox/.err'; rc=\$?; echo \"RC=\$rc RSS= SCRATCH=\$(du -sm '$sbox' 2>/dev/null | awk '{print \$1}')\"; tail -3 '$sbox/.err' 2>/dev/null"
-  fi
+  # Launch the workload, poll its VmHWM while it lives, report the max. `sh -c`
+  # execs a single binary, so the PID we watch is the workload itself.
+  wrapped="mkdir -p '$sbox'
+    timeout $((QA_SMOKE_SECONDS + QA_SMOKE_GRACE)) sh -c $(printf '%q' "$cmd") >/dev/null 2>'$sbox/.err' &
+    wpid=\$!
+    hwm=0
+    while kill -0 \$wpid 2>/dev/null; do
+      v=\$(awk '/VmHWM/{print \$2}' /proc/\$wpid/status 2>/dev/null)
+      [ -n \"\$v\" ] && [ \"\$v\" -gt \"\$hwm\" ] 2>/dev/null && hwm=\$v
+      sleep 0.2
+    done
+    wait \$wpid; rc=\$?
+    echo \"RC=\$rc RSS=\$hwm SCRATCH=\$(du -sm '$sbox' 2>/dev/null | awk '{print \$1}')\"
+    tail -3 '$sbox/.err' 2>/dev/null"
 
   out="$(gssh "$wrapped" 2>&1)"
   rc=$(printf '%s' "$out"  | grep -oE 'RC=[0-9]+'      | head -1 | cut -d= -f2)
@@ -95,5 +103,6 @@ if [[ -n "${QA_KEEP_REPORT:-}" ]]; then
   cp "$REPORT" "$QA_KEEP_REPORT" && info "footprint report: $QA_KEEP_REPORT"
 else
   info "top footprints:"
-  sort -t$'\t' -k3 -rn "$REPORT" | head -6 | awk -F'\t' 'NR>0{printf "    %-34s rss %5s MB  scratch %5s MB\n",$1,$3,$4}'
+  tail -n +2 "$REPORT" | sort -t$'\t' -k3 -rn | head -6 \
+    | awk -F'\t' '{printf "    %-34s rss %5s MB  scratch %5s MB\n",$1,$3,$4}'
 fi

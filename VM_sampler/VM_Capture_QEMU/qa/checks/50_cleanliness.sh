@@ -12,8 +12,11 @@ section "Cleanliness (prior-run residue)"
 # 1. Orphaned capture processes. A producer left running suspends the VM every
 #    few seconds, which makes the next step's SSH probe fail intermittently.
 for p in capture_producer_qemu_pmemsave.sh capture_consumer_qemu.sh; do
-  n=$(pgrep -fc "$p" 2>/dev/null || echo 0)
-  if (( n == 0 )); then pass "no stray $p"
+  # `pgrep -fc` prints 0 AND exits 1 when nothing matches, so a `|| echo 0`
+  # fallback yields the two-line string "0\n0" and breaks (( )). Count lines
+  # instead -- always exactly one integer.
+  n=$(pgrep -f "$p" 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "${n:-0}" -eq 0 ]]; then pass "no stray $p"
   else fail "$n stray $p process(es) running -- will fight the next run for the VM"; fi
 done
 
