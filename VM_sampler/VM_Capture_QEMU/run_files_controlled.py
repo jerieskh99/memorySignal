@@ -258,16 +258,37 @@ def virsh_state() -> str:
         return ""
 
 
-def ensure_vm_running() -> None:
-    state = virsh_state().lower()
-    if "running" in state:
-        return
-    if "paused" in state:
-        print(f"[CONTROL] VM paused -> resuming: {VM_DOMAIN}")
-        run(f"virsh -c {shlex.quote(VIRSH_URI)} resume {shlex.quote(VM_DOMAIN)} >/dev/null")
-        return
-    print(f"[CONTROL] VM not running -> starting: {VM_DOMAIN}")
-    run(f"virsh -c {shlex.quote(VIRSH_URI)} start {shlex.quote(VM_DOMAIN)} >/dev/null")
+def ensure_vm_running(attempts: int = 3, settle_s: int = 45) -> bool:
+    """Bring the domain to 'running', verifying it actually got there.
+
+    A bare `virsh start` is fire-and-forget: it fails routinely when the
+    previous shutdown/destroy has not fully released the domain, and the
+    caller then waits for SSH against a VM that was never started -- which,
+    with SSH_WAIT_TIMEOUT defaulting to ~14 days, hangs the campaign instead
+    of failing it. Poll for the state change and retry before giving up.
+    """
+    for attempt in range(1, attempts + 1):
+        state = virsh_state().lower()
+        if "running" in state:
+            return True
+        if "paused" in state:
+            print(f"[CONTROL] VM paused -> resuming: {VM_DOMAIN}")
+            run(f"virsh -c {shlex.quote(VIRSH_URI)} resume {shlex.quote(VM_DOMAIN)} >/dev/null")
+        else:
+            print(f"[CONTROL] VM not running (state={state.strip() or 'unknown'}) "
+                  f"-> starting: {VM_DOMAIN} (attempt {attempt}/{attempts})")
+            run(f"virsh -c {shlex.quote(VIRSH_URI)} start {shlex.quote(VM_DOMAIN)} >/dev/null")
+
+        deadline = time.time() + settle_s
+        while time.time() < deadline:
+            if "running" in virsh_state().lower():
+                return True
+            time.sleep(3)
+        print(f"[CONTROL] WARNING: VM did not reach 'running' within {settle_s}s "
+              f"(attempt {attempt}/{attempts}).")
+
+    print(f"[CONTROL] ERROR: could not start VM {VM_DOMAIN} after {attempts} attempts.")
+    return False
 
 
 def ssh_base() -> str:
@@ -1103,10 +1124,22 @@ def main() -> int:
                 notify(f"STOPPED before step {i}/{len(steps)} ({test_name}): low disk -- {disk_msg}")
                 return 1
 
-        ensure_vm_running()
+        if not ensure_vm_running():
+            if CONTINUE_ON_FAILURE:
+                print(f"[CONTROL] WARNING: skipping step {i} ({test_name}): VM would not start.")
+                failed_steps.append((i, test_name, -1))
+                notify(f"[{i}/{len(steps)}] {test_name}: VM would not start; skipping.")
+                continue
+            notify(f"STOPPED before step {i}/{len(steps)} ({test_name}): VM would not start")
+            return 1
 
         if not wait_for_ssh():
             print(f"[CONTROL] ERROR: SSH did not become reachable within {SSH_WAIT_TIMEOUT}s.")
+            if CONTINUE_ON_FAILURE:
+                print(f"[CONTROL] WARNING: skipping step {i} ({test_name}): guest unreachable.")
+                failed_steps.append((i, test_name, -2))
+                notify(f"[{i}/{len(steps)}] {test_name}: guest unreachable; skipping.")
+                continue
             notify(f"STOPPED before step {i}/{len(steps)} ({test_name}): SSH unreachable")
             return 1
 
