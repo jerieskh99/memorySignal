@@ -19,9 +19,15 @@ from __future__ import annotations
 import html
 import re
 import shlex
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+try:
+    from workload_rewrites import REWRITES, GLOSSARY  # phase-2 plain rewrites
+except Exception:
+    REWRITES, GLOSSARY = {}, {}
 CAPTURE_ROOT = HERE.parent
 REPO_ROOT = CAPTURE_ROOT.parent.parent
 STEPS = CAPTURE_ROOT / "plan07_campaign" / "full_campaign_steps.txt"
@@ -42,6 +48,28 @@ FAMILY_LABEL = {
     "kernel": "KERNEL — Berkeley 'dwarf' compute motifs (64)",
     "mp": "METHODOLOGY — analysis steps, not workloads",
 }
+
+
+_TERM_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+
+
+def render_terms(text: str) -> str:
+    """Turn [[term]] / [[term|inline def]] into hover-glossary spans.
+    Everything outside the markers is HTML-escaped; the definition comes from
+    GLOSSARY unless given inline."""
+    out = []
+    last = 0
+    for m in _TERM_RE.finditer(text):
+        out.append(html.escape(text[last:m.start()]))
+        term = m.group(1)
+        definition = m.group(2) or GLOSSARY.get(term, "")
+        out.append(
+            f'<span class="term" tabindex="0" data-def="{html.escape(definition, quote=True)}">'
+            f'{html.escape(term)}</span>'
+        )
+        last = m.end()
+    out.append(html.escape(text[last:]))
+    return "".join(out)
 
 
 def family_of(name: str) -> str:
@@ -131,16 +159,18 @@ def main():
     parts = []
     parts.append(HEAD)
     parts.append('<main>\n<header>')
-    parts.append('<h1>Workload Algorithms — Verbatim Source</h1>')
-    parts.append('<p class="lede">One page per campaign workload, showing the '
-                 'algorithm exactly as written in that workload\'s own source '
-                 'file. Nothing here is paraphrased — only the C comment markers '
-                 'and Python docstring quotes were removed. This is the source of '
-                 'truth; a plain-language rewrite lives in '
-                 '<a class="anchor" href="./workloads_explained.html">workloads_explained.html</a>.</p>')
+    parts.append('<h1>Workload Algorithms — Explained + Verbatim</h1>')
+    n_rw = sum(1 for p in seen if p in REWRITES)
+    parts.append('<p class="lede">One page per campaign workload. Each opens with a '
+                 '<strong>plain-language explanation</strong> of the algorithm, followed '
+                 'by the <strong>verbatim source</strong> it is based on (collapsed) so '
+                 'the two can be compared. The plain version is the only authored prose; '
+                 'the verbatim text is byte-for-byte from the workload\'s own source header, '
+                 'so nothing drifts.</p>')
     parts.append(f'<p class="glossary-hint">{len(seen)} workloads across '
-                 f'{sum(1 for f in by_family if by_family[f])} families. '
-                 'Each entry links back to its source path.</p>')
+                 f'{sum(1 for f in by_family if by_family[f])} families · '
+                 f'{n_rw} with plain rewrites · {len(GLOSSARY)} glossary terms (hover the '
+                 'underlined words).</p>')
     parts.append('</header>')
 
     # TOC
@@ -166,12 +196,28 @@ def main():
             steps_str = ", ".join(str(s) for s in info["steps"])
             src_disp = rel(info["src"]) if info["src"] else "(source not found)"
             algo = info["algo"] or "(no algorithm header found in source)"
+            # rewrite keys are stem-only; the campaign name may carry a .py
+            rw = REWRITES.get(prog) or REWRITES.get(prog[:-3] if prog.endswith(".py") else prog)
             parts.append(f'<details id="{html.escape(prog)}">')
             parts.append(f'<summary>{html.escape(prog)} '
                          f'<span class="step-badge">step {steps_str}</span></summary>')
             parts.append('<div class="body">')
+            # Phase-2 plain rewrite on top (with hover glossary).
+            if rw:
+                parts.append('<div class="plain">')
+                parts.append(f'<p class="plain-text">{render_terms(rw["plain"])}</p>')
+                parts.append(f'<p class="signal"><span class="signal-tag">memory signal</span> '
+                             f'{render_terms(rw["signal"])}</p>')
+                parts.append('</div>')
+            else:
+                parts.append('<p class="plain-text muted">(no plain-language rewrite yet)</p>')
+            # Verbatim source, collapsed by default beneath the plain version.
+            parts.append('<details class="verbatim">')
+            parts.append('<summary>Show original source (verbatim)</summary>')
+            parts.append('<div class="body">')
             parts.append(f'<p class="srcpath">source: <code>{html.escape(src_disp)}</code></p>')
             parts.append(f'<pre class="algo">{html.escape(algo)}</pre>')
+            parts.append('</div></details>')
             parts.append('<p class="cmd-label">campaign invocation:</p>')
             parts.append(f'<pre class="cmd">{html.escape(info["cmd"])}</pre>')
             parts.append('</div></details>')
@@ -237,6 +283,27 @@ pre.algo{white-space:pre;}
   text-transform:uppercase;letter-spacing:.04em;}
 pre.cmd{background:#1c2733;color:#e8eef4;border-color:#2a3947;white-space:pre-wrap;
   word-break:break-all;}
+.plain{background:#f7fbff;border:1px solid #d5e3f0;border-left:4px solid var(--accent);
+  border-radius:6px;padding:12px 16px;margin:4px 0 12px;}
+.plain-text{margin:0 0 8px;font-size:1rem;line-height:1.6;}
+.plain-text.muted{color:var(--muted);font-style:italic;}
+.signal{margin:0;font-size:0.92rem;color:#333;line-height:1.55;}
+.signal-tag{display:inline-block;font-size:0.68rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--good);background:#eaf6ee;border:1px solid #cfe6d6;
+  border-radius:10px;padding:1px 8px;margin-right:6px;vertical-align:1px;}
+details.verbatim{background:#fbfbfb;border:1px dashed var(--border);margin:6px 0 0;}
+details.verbatim>summary{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:500;font-size:0.85rem;color:var(--muted);padding:8px 14px;}
+details.verbatim .body{padding:4px 14px 12px;}
+.term{border-bottom:1px dotted var(--accent);cursor:help;position:relative;}
+.term::after{content:attr(data-def);position:absolute;left:0;bottom:140%;
+  width:max-content;max-width:300px;background:#1c1c1c;color:#fafafa;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:0.82rem;font-weight:400;line-height:1.45;padding:9px 12px;border-radius:7px;
+  box-shadow:0 6px 20px rgba(0,0,0,.28);z-index:80;pointer-events:none;
+  opacity:0;transform:translateY(5px);transition:opacity .12s,transform .12s;}
+.term:hover::after,.term:focus::after{opacity:1;transform:translateY(0);}
+.term:focus{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;}
 </style>
 </head>
 <body>

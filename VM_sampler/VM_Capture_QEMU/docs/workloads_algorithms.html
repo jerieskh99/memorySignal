@@ -51,15 +51,36 @@ pre.algo{white-space:pre;}
   text-transform:uppercase;letter-spacing:.04em;}
 pre.cmd{background:#1c2733;color:#e8eef4;border-color:#2a3947;white-space:pre-wrap;
   word-break:break-all;}
+.plain{background:#f7fbff;border:1px solid #d5e3f0;border-left:4px solid var(--accent);
+  border-radius:6px;padding:12px 16px;margin:4px 0 12px;}
+.plain-text{margin:0 0 8px;font-size:1rem;line-height:1.6;}
+.plain-text.muted{color:var(--muted);font-style:italic;}
+.signal{margin:0;font-size:0.92rem;color:#333;line-height:1.55;}
+.signal-tag{display:inline-block;font-size:0.68rem;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--good);background:#eaf6ee;border:1px solid #cfe6d6;
+  border-radius:10px;padding:1px 8px;margin-right:6px;vertical-align:1px;}
+details.verbatim{background:#fbfbfb;border:1px dashed var(--border);margin:6px 0 0;}
+details.verbatim>summary{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:500;font-size:0.85rem;color:var(--muted);padding:8px 14px;}
+details.verbatim .body{padding:4px 14px 12px;}
+.term{border-bottom:1px dotted var(--accent);cursor:help;position:relative;}
+.term::after{content:attr(data-def);position:absolute;left:0;bottom:140%;
+  width:max-content;max-width:300px;background:#1c1c1c;color:#fafafa;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:0.82rem;font-weight:400;line-height:1.45;padding:9px 12px;border-radius:7px;
+  box-shadow:0 6px 20px rgba(0,0,0,.28);z-index:80;pointer-events:none;
+  opacity:0;transform:translateY(5px);transition:opacity .12s,transform .12s;}
+.term:hover::after,.term:focus::after{opacity:1;transform:translateY(0);}
+.term:focus{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;}
 </style>
 </head>
 <body>
 
 <main>
 <header>
-<h1>Workload Algorithms — Verbatim Source</h1>
-<p class="lede">One page per campaign workload, showing the algorithm exactly as written in that workload's own source file. Nothing here is paraphrased — only the C comment markers and Python docstring quotes were removed. This is the source of truth; a plain-language rewrite lives in <a class="anchor" href="./workloads_explained.html">workloads_explained.html</a>.</p>
-<p class="glossary-hint">101 workloads across 10 families. Each entry links back to its source path.</p>
+<h1>Workload Algorithms — Explained + Verbatim</h1>
+<p class="lede">One page per campaign workload. Each opens with a <strong>plain-language explanation</strong> of the algorithm, followed by the <strong>verbatim source</strong> it is based on (collapsed) so the two can be compared. The plain version is the only authored prose; the verbatim text is byte-for-byte from the workload's own source header, so nothing drifts.</p>
+<p class="glossary-hint">101 workloads across 10 families · 94 with plain rewrites · 29 glossary terms (hover the underlined words).</p>
 </header>
 <section id="toc-section"><h2>Contents</h2><div class="toc">
 <p class="toc-fam"><strong>CPU — pure computation, near-silent memory</strong> <span class="toc-count">3</span></p><ul>
@@ -188,6 +209,13 @@ pre.cmd{background:#1c2733;color:#e8eef4;border-color:#2a3947;white-space:pre-wr
 <details id="cpu_hash_loop_v2">
 <summary>cpu_hash_loop_v2 <span class="step-badge">step 1</span></summary>
 <div class="body">
+<div class="plain">
+<p class="plain-text">Repeatedly hashes a small block of data in a tight loop. All the work happens in CPU registers and a tiny buffer that stays in cache -- almost nothing is written back to main memory.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet baseline: heavy computation, near-zero write-signal. Establishes what &#x27;no real memory activity&#x27; looks like.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
+<div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cpu/cpu_hash_loop_v2.c</code></p>
 <pre class="algo"> cpu_hash_loop_v2  --  benign system-behaviour benchmark
 
@@ -203,11 +231,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (fill input) -&gt; measure (hash loop) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cpu_hash_loop_v2 --duration 60 --block-kb 4 --seed 42 --output-dir /var/tmp/phase2_campaign/cpu_hash_loop_v2 --phase-markers</pre>
 </div></details>
 <details id="cpu_matrix_mult_v2">
 <summary>cpu_matrix_mult_v2 <span class="step-badge">step 2</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A plain triple-loop multiply of two square matrices, writing the result matrix C. Small-scale, naive version of <span class="term" tabindex="0" data-def="the standard dense matrix-multiply operation">GEMM</span> -- no <span class="term" tabindex="0" data-def="Splitting a big matrix operation into small blocks that fit in cache, processing one block at a time. Also called blocking.">tiling</span>.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A small, regular output rewrite. A gentle control point between the silent CPU workloads and the loud memory ones.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cpu/cpu_matrix_mult_v2.c</code></p>
 <pre class="algo"> cpu_matrix_mult_v2  --  benign system-behaviour benchmark
@@ -221,11 +257,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (init A,B) -&gt; measure (matmul loop) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cpu_matrix_mult_v2 --dim 512 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/cpu_matrix_mult_v2 --phase-markers</pre>
 </div></details>
 <details id="cpu_branch_random_v2">
 <summary>cpu_branch_random_v2 <span class="step-badge">step 3</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Hammers the CPU&#x27;s branch predictor by following a data-dependent path through a small read-only table. The table is only read; the loop writes essentially nothing.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Near-idle by design -- stresses control flow, not memory, so it stays in the quiet baseline group.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cpu/cpu_branch_random_v2.c</code></p>
 <pre class="algo"> cpu_branch_random_v2  --  benign system-behaviour benchmark
@@ -241,6 +285,7 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (fill table) -&gt; measure (branchy loop) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cpu_branch_random_v2 --duration 60 --table-kb 64 --seed 42 --output-dir /var/tmp/phase2_campaign/cpu_branch_random_v2 --phase-markers</pre>
 </div></details>
@@ -248,6 +293,13 @@ Phases: warmup (fill table) -&gt; measure (branchy loop) -&gt; cooldown.</pre>
 <section><h2 id="fam-cache">CACHE — cache-boundary access patterns</h2>
 <details id="cache_hot_loop_v2">
 <summary>cache_hot_loop_v2 <span class="step-badge">step 4</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Loops over a buffer small enough to live entirely in CPU cache, touching it repeatedly. Because the data never leaves cache, main memory barely sees the activity.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Loud CPU work, quiet memory signal -- tests that heavy activity in a small <span class="term" tabindex="0" data-def="The region of memory a workload actively touches. Larger working set = more distinct pages changing = a louder memory signal.">working set</span> stays nearly invisible.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cache/cache_hot_loop_v2.c</code></p>
 <pre class="algo"> cache_hot_loop_v2  --  benign system-behaviour benchmark
@@ -263,11 +315,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (fill) -&gt; measure (RMW loop) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cache_hot_loop_v2 --buffer-kb 32 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/cache_hot_loop_v2 --phase-markers</pre>
 </div></details>
 <details id="cache_cold_scan_v2">
 <summary>cache_cold_scan_v2 <span class="step-badge">step 5</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Sweeps a buffer far larger than cache, in read-modify-write mode so every page is both read and rewritten. Each pass evicts the last, so the CPU is constantly going to main memory.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The loud counterpart to the hot loop: a broad, high write-signal across the whole large <span class="term" tabindex="0" data-def="The region of memory a workload actively touches. Larger working set = more distinct pages changing = a louder memory signal.">working set</span>.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cache/cache_cold_scan_v2.c</code></p>
 <pre class="algo"> cache_cold_scan_v2  --  benign system-behaviour benchmark
@@ -281,11 +341,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (first-touch) -&gt; measure (sequential scan) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cache_cold_scan_v2 --working-set-mb 320 --mode rmw --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/cache_cold_scan_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="cache_stride_sweep_v2">
 <summary>cache_stride_sweep_v2 <span class="step-badge">step 6</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Walks a large buffer jumping by a fixed <span class="term" tabindex="0" data-def="The gap between successive memory addresses a loop touches. A 4096-byte stride touches one byte per page, hitting many pages with little data.">stride</span>, writing one spot per jump. By tuning the stride against the <span class="term" tabindex="0" data-def="The 4096-byte unit the memory system tracks. The signal is measured per page: did anything in this 4 KB change since the last snapshot?">page</span> size, it controls how many distinct pages get touched for a given amount of data written.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> How broad the dirtied-page footprint is depends on stride versus page size -- it maps that relationship directly.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/cache/cache_stride_sweep_v2.c</code></p>
 <pre class="algo"> cache_stride_sweep_v2  --  benign system-behaviour benchmark
@@ -299,6 +367,7 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (first-touch) -&gt; measure (strided writes) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/cache_stride_sweep_v2 --working-set-mb 320 --stride 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/cache_stride_sweep_v2 --phase-markers --max-mb 512</pre>
 </div></details>
@@ -306,6 +375,13 @@ Phases: warmup (first-touch) -&gt; measure (strided writes) -&gt; cooldown.</pre
 <section><h2 id="fam-mem">MEM — deliberate large-region memory writes</h2>
 <details id="mem_workingset_sweep_v2">
 <summary>mem_workingset_sweep_v2 <span class="step-badge">step 12</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Sweeps sequentially across a buffer of a chosen size, writing one byte per <span class="term" tabindex="0" data-def="The 4096-byte unit the memory system tracks. The signal is measured per page: did anything in this 4 KB change since the last snapshot?">page</span> each pass. Varying the buffer size varies how much memory is &#x27;active&#x27; while everything else stays fixed.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The active-page fraction should grow directly with <span class="term" tabindex="0" data-def="The region of memory a workload actively touches. Larger working set = more distinct pages changing = a louder memory signal.">working set</span> size -- the most direct test of the core thesis metric.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_workingset_sweep_v2.c</code></p>
 <pre class="algo"> mem_workingset_sweep_v2
@@ -327,11 +403,19 @@ Notes:
   - mlock() best-effort; warns and continues if RLIMIT_MEMLOCK forbids it.
   - --max-mb defaults to 16384; tests refuse to allocate beyond this.
   - --check-meminfo aborts if MemAvailable falls below 1 GB.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_workingset_sweep_v2 --working-set-mb 256 --duration 60 --stride 4096 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_workingset_sweep_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="mem_writemag_sweep_v2">
 <summary>mem_writemag_sweep_v2 <span class="step-badge">step 13</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Fixes the buffer size but varies how many bytes it writes into each <span class="term" tabindex="0" data-def="The 4096-byte unit the memory system tracks. The signal is measured per page: did anything in this 4 KB change since the last snapshot?">page</span> (1, 64, 1024, or 4096). Uses fresh random bytes each pass so the writes genuinely change content.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Tests how the per-page change metric responds to write magnitude -- it saturates once enough of a page changes, and this maps that curve.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_writemag_sweep_v2.c</code></p>
 <pre class="algo"> mem_writemag_sweep_v2
@@ -345,11 +429,19 @@ Variants control how many bytes are written per page each pass:
 
 Source bytes are PRNG-generated (seeded) so writes change page content
 (no all-zero writes that the snapshot pipeline could collapse).</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_writemag_sweep_v2 --working-set-mb 256 --bytes-per-page 64 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_writemag_sweep_v2 --phase-markers</pre>
 </div></details>
 <details id="mem_rmw_intensity_v2">
 <summary>mem_rmw_intensity_v2 <span class="step-badge">step 14</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Read-modify-writes a large buffer at a fixed <span class="term" tabindex="0" data-def="The gap between successive memory addresses a loop touches. A 4096-byte stride touches one byte per page, hitting many pages with little data.">stride</span>: read each spot, tweak it, write it back. A deliberate contrast to pure writing, to see if reading-then-writing looks different.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A pre-registered null test -- read-modify-write may be indistinguishable from pure writes at the signal level, and this checks that.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_rmw_intensity_v2.c</code></p>
 <pre class="algo"> mem_rmw_intensity_v2
@@ -362,11 +454,19 @@ Isolates the read-modify-write signature from pure-read and pure-write.
 
 Same total ops per variant (fixed by --duration), same stride and footprint
 so confusion / separability is between mechanisms, not work amount.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_rmw_intensity_v2 --mode rmw --working-set-mb 256 --stride 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_rmw_intensity_v2</pre>
 </div></details>
 <details id="mem_pagefault_density_v2">
 <summary>mem_pagefault_density_v2 <span class="step-badge">step 15</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Touches fresh pages to force the operating system to allocate them (<span class="term" tabindex="0" data-def="first-touch">page</span> faults), controlling how densely faults occur over time.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Isolates the page-fault contribution to the signal. Ends as soon as all pages are touched, so it can finish well before its time limit.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_pagefault_density_v2.c</code></p>
 <pre class="algo"> mem_pagefault_density_v2
@@ -384,11 +484,19 @@ Variants:
 Fixed total page operations across variants is impossible because variant 1
 cannot revisit; instead we report active page count and revisit ratio in
 metadata so the analyzer can normalize.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_pagefault_density_v2 --variant fault_only --working-set-mb 256 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_pagefault_density_v2</pre>
 </div></details>
 <details id="mem_mmap_traversal_v2">
 <summary>mem_mmap_traversal_v2 <span class="step-badge">step 16</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Maps a file into memory and writes through it, so the operating system streams the changes back to the file on disk in the background.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The one memory workload whose pages are <span class="term" tabindex="0" data-def="backed by a file, so they can be dropped and reloaded">file-backed</span> rather than pure RAM -- it tests writeback behavior, and its footprint is safely evictable.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_mmap_traversal_v2.c</code></p>
 <pre class="algo"> mem_mmap_traversal_v2
@@ -404,11 +512,19 @@ the write/rmw variants so writeback rhythm becomes a configurable feature.
 
 The backing file is created inside --backing-dir (default /tmp) and removed
 unless --keep-backing is set. Sandbox validation applies.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_mmap_traversal_v2 --variant write --file-size-mb 1024 --duration 60 --backing-dir /var/tmp/phase2_campaign/mem_mmap_traversal_v2 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_mmap_traversal_v2</pre>
 </div></details>
 <details id="mem_random_write_pages_v2">
 <summary>mem_random_write_pages_v2 <span class="step-badge">step 17</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Writes a few bytes into pages chosen at random across a large buffer, spreading the activity unpredictably instead of sweeping in order.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A broad, diffuse, high write-signal -- the &#x27;scattered writes everywhere&#x27; shape, contrasted with the orderly sweeps.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_random_write_pages_v2.c</code></p>
 <pre class="algo"> mem_random_write_pages_v2  --  benign system-behaviour benchmark
@@ -422,11 +538,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (first-touch) -&gt; measure (random-page writes) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_random_write_pages_v2 --working-set-mb 256 --bytes-per-page 64 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_random_write_pages_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="mem_stride_sweep_large_v2">
 <summary>mem_stride_sweep_large_v2 <span class="step-badge">step 18</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Like the stride sweep, but over a much larger buffer, deliberately stressing the CPU&#x27;s address-translation cache and hardware prefetcher.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Companion to cache_stride_sweep at a bigger scale -- separates translation/prefetch pressure from raw footprint.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mem/mem_stride_sweep_large_v2.c</code></p>
 <pre class="algo"> mem_stride_sweep_large_v2  --  benign system-behaviour benchmark
@@ -441,6 +565,7 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (first-touch) -&gt; measure (strided writes) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mem_stride_sweep_large_v2 --working-set-mb 384 --stride 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mem_stride_sweep_large_v2 --phase-markers --max-mb 512</pre>
 </div></details>
@@ -448,6 +573,13 @@ Phases: warmup (first-touch) -&gt; measure (strided writes) -&gt; cooldown.</pre
 <section><h2 id="fam-thread">THREAD — concurrency, small footprint</h2>
 <details id="thread_lock_contention_v2">
 <summary>thread_lock_contention_v2 <span class="step-badge">step 7</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Several threads fight over a single shared lock, incrementing one shared counter. Almost all the cost is the operating system arbitrating the contention, not memory traffic.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Tiny dirtied footprint (just the counter) despite heavy CPU/scheduler activity -- concurrency overhead is nearly invisible to the memory signal.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/thread/thread_lock_contention_v2.c</code></p>
 <pre class="algo"> thread_lock_contention_v2  --  benign system-behaviour benchmark
@@ -460,11 +592,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (spawn) -&gt; measure (contended run) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/thread_lock_contention_v2 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/thread_lock_contention_v2 --phase-markers</pre>
 </div></details>
 <details id="thread_producer_consumer_v2">
 <summary>thread_producer_consumer_v2 <span class="step-badge">step 8</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">One set of threads pushes items into a small ring buffer while another set pops them, coordinated by condition-variable wakeups.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The wakeups dominate the cost; only the small ring changes -- another near-silent concurrency shape.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/thread/thread_producer_consumer_v2.c</code></p>
 <pre class="algo"> thread_producer_consumer_v2  --  benign system-behaviour benchmark
@@ -477,11 +617,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (spawn) -&gt; measure (run) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/thread_producer_consumer_v2 --ring-size 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/thread_producer_consumer_v2 --phase-markers</pre>
 </div></details>
 <details id="thread_parallel_alloc_v2">
 <summary>thread_parallel_alloc_v2 <span class="step-badge">step 9</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Many threads allocate and free blocks of varying sizes at once, churning the memory allocator&#x27;s internal bookkeeping.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The visible writes are allocator metadata, not application data -- footprint varies with the size mix.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/thread/thread_parallel_alloc_v2.c</code></p>
 <pre class="algo"> thread_parallel_alloc_v2  --  benign system-behaviour benchmark
@@ -493,6 +641,7 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (spawn) -&gt; measure (alloc/free churn) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/thread_parallel_alloc_v2 --min-kb 1 --max-kb 256 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/thread_parallel_alloc_v2 --phase-markers</pre>
 </div></details>
@@ -500,6 +649,13 @@ Phases: warmup (spawn) -&gt; measure (alloc/free churn) -&gt; cooldown.</pre>
 <section><h2 id="fam-io">IO — disk-facing reads and writes</h2>
 <details id="io_read_cache_hit_v2">
 <summary>io_read_cache_hit_v2 <span class="step-badge">step 10</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Reads the same file repeatedly after it is already cached in memory, so every read is served from cache without touching the disk.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Cache-hot reads dirty almost nothing -- expected near-idle. (This is exactly the workload the tmpfs bug corrupted: on a RAM disk its &#x27;reads&#x27; looked like memory writes.)</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/io/io_read_cache_hit_v2.c</code></p>
 <pre class="algo"> io_read_cache_hit_v2  --  benign system-behaviour benchmark
@@ -513,11 +669,19 @@ File I/O is confined to a sandbox-validated backing file under /tmp or
 /var/tmp; no network, no persistence, no encryption. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (create + prewarm) -&gt; measure (random cache-hot reads) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/io_read_cache_hit_v2 --file-size-mb 256 --block-bytes 4096 --duration 60 --backing-dir /var/tmp/phase2_campaign/io_read_cache_hit_v2 --seed 42 --output-dir /var/tmp/phase2_campaign/io_read_cache_hit_v2 --phase-markers</pre>
 </div></details>
 <details id="io_direct_write_like_v2">
 <summary>io_direct_write_like_v2 <span class="step-badge">step 11</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Writes to a file in a way that bypasses the normal page cache, pushing data toward the disk directly in fixed-size blocks.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Tests the disk-write shape of the signal, deliberately different from an in-RAM memory write -- the IO-vs-MEM distinction the campaign exists to measure.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/io/io_direct_write_like_v2.c</code></p>
 <pre class="algo"> io_direct_write_like_v2  --  benign system-behaviour benchmark
@@ -534,6 +698,7 @@ File I/O is confined to a sandbox-validated backing file under /tmp or
 /var/tmp; no network, no persistence, no encryption. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (create) -&gt; measure (direct writes) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/io_direct_write_like_v2 --file-size-mb 256 --mode seq --block-bytes 4096 --duration 60 --backing-dir /var/tmp/phase2_campaign/io_direct_write_like_v2 --seed 42 --output-dir /var/tmp/phase2_campaign/io_direct_write_like_v2 --phase-markers</pre>
 </div></details>
@@ -541,6 +706,13 @@ Phases: warmup (create) -&gt; measure (direct writes) -&gt; cooldown.</pre>
 <section><h2 id="fam-mixed">MIXED — blended CPU / memory / I-O</h2>
 <details id="mixed_mem_io_v2">
 <summary>mixed_mem_io_v2 <span class="step-badge">step 19</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Runs memory writes and file I/O at the same time, under scheduler pressure, to see whether the combination looks like the sum of its parts.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A blended signal -- tests whether concurrent memory + I/O separate cleanly or interfere.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mixed/mixed_mem_io_v2.c</code></p>
 <pre class="algo"> mixed_mem_io_v2  --  benign system-behaviour benchmark
@@ -553,11 +725,19 @@ File I/O is confined to a sandbox-validated backing file under /tmp or
 /var/tmp; no network, no persistence, no encryption. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + create) -&gt; measure (concurrent run) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mixed_mem_io_v2 --working-set-mb 256 --file-size-mb 256 --block-bytes 65536 --stride 4096 --duration 60 --backing-dir /var/tmp/phase2_campaign/mixed_mem_io_v2 --seed 42 --output-dir /var/tmp/phase2_campaign/mixed_mem_io_v2 --phase-markers</pre>
 </div></details>
 <details id="mixed_cpu_mem_v2">
 <summary>mixed_cpu_mem_v2 <span class="step-badge">step 20</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Interleaves pure computation with memory writes, mixing a quiet behavior with a loud one in a single workload.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Tests whether a CPU+memory blend is distinguishable from either alone.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mixed/mixed_cpu_mem_v2.c</code></p>
 <pre class="algo"> mixed_cpu_mem_v2  --  benign system-behaviour benchmark
@@ -570,11 +750,19 @@ No network, no persistence, no filesystem writes, no sandbox. See
 docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc) -&gt; measure (concurrent run) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mixed_cpu_mem_v2 --working-set-mb 256 --cpu-block-kb 4 --stride 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/mixed_cpu_mem_v2 --phase-markers</pre>
 </div></details>
 <details id="mixed_cpu_io_v2">
 <summary>mixed_cpu_io_v2 <span class="step-badge">step 21</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Interleaves computation with file I/O, combining a silent behavior with a disk-facing one.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Tests a CPU+I/O blend -- computation should stay quiet while the I/O carries the signal.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/mixed/mixed_cpu_io_v2.c</code></p>
 <pre class="algo"> mixed_cpu_io_v2  --  benign system-behaviour benchmark
@@ -587,6 +775,7 @@ File I/O is confined to a sandbox-validated backing file under /tmp or
 /var/tmp; no network, no persistence, no encryption. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + create) -&gt; measure (concurrent run) -&gt; cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/mixed_cpu_io_v2 --file-size-mb 256 --block-bytes 65536 --cpu-block-kb 4 --duration 60 --backing-dir /var/tmp/phase2_campaign/mixed_cpu_io_v2 --seed 42 --output-dir /var/tmp/phase2_campaign/mixed_cpu_io_v2 --phase-markers</pre>
 </div></details>
@@ -594,6 +783,13 @@ Phases: warmup (alloc + create) -&gt; measure (concurrent run) -&gt; cooldown.</
 <section><h2 id="fam-app">APP — realistic application-shaped work</h2>
 <details id="app_compress_gzip_v2.py">
 <summary>app_compress_gzip_v2.py <span class="step-badge">step 22</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Generates a deterministic random input file, then gzip-compresses it. Random bytes are <span class="term" tabindex="0" data-def="incompressible">entropy</span> by design, so the compression work stays steady and CPU-bound with I/O.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A realistic sustained CPU+I/O mix with no strong rhythm -- application-shaped rather than synthetic.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_compress_gzip_v2.py</code></p>
 <pre class="algo">app_compress_gzip_v2
@@ -607,11 +803,19 @@ Phase structure:
   1. setup_input  (write input file; excluded from measurement)
   2. compress     (read input → compress → write output)
   3. cleanup</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/app_realistic/app_compress_gzip_v2.py --duration 60 --input-size-mb 256 --level 6 --seed 42 --sandbox-dir /var/tmp/phase2_campaign/app_compress_gzip_v2 --output-dir /var/tmp/phase2_campaign/app_compress_gzip_v2 --phase-markers --cleanup</pre>
 </div></details>
 <details id="app_decompress_gzip_v2.py">
 <summary>app_decompress_gzip_v2.py <span class="step-badge">step 23</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Decompresses a gzip stream, producing a large output. The CPU-versus-I/O balance shifts with the compression level.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The decompression counterpart -- writes a big output, so it is heavier than the compress side.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_decompress_gzip_v2.py</code></p>
 <pre class="algo">app_decompress_gzip_v2
@@ -625,11 +829,19 @@ Phase structure:
   1. setup_input   (generate then compress source file; excluded)
   2. decompress    (read compressed → decompress → write output)
   3. cleanup</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/app_realistic/app_decompress_gzip_v2.py --duration 60 --output-size-mb 1024 --level 6 --seed 42 --sandbox-dir /var/tmp/phase2_campaign/app_decompress_gzip_v2 --output-dir /var/tmp/phase2_campaign/app_decompress_gzip_v2 --phase-markers --cleanup</pre>
 </div></details>
 <details id="app_json_parse_v2.py">
 <summary>app_json_parse_v2.py <span class="step-badge">step 24</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Parses a large JSON document with Python&#x27;s C-backed parser, building the in-memory object tree.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Allocation-heavy in a Python-specific rhythm -- a realistic parsing workload rather than a microbenchmark.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_json_parse_v2.py</code></p>
 <pre class="algo">app_json_parse_v2
@@ -642,11 +854,19 @@ Phase structure:
   1. setup_input  (write input file; excluded)
   2. parse        (read + json.loads + aggregate)
   3. cleanup</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/app_realistic/app_json_parse_v2.py --duration 60 --input-size-mb 500 --seed 42 --sandbox-dir /var/tmp/phase2_campaign/app_json_parse_v2 --output-dir /var/tmp/phase2_campaign/app_json_parse_v2 --phase-markers --cleanup</pre>
 </div></details>
 <details id="app_sqlite_analytical_v2.py">
 <summary>app_sqlite_analytical_v2.py <span class="step-badge">step 25</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Runs analytical SQL queries (aggregations, top-N, range scans) over a generated SQLite database, materializing temporary tables as it goes.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Read-heavy with small writes from the temp tables -- an OLAP-style database shape.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_sqlite_analytical_v2.py</code></p>
 <pre class="algo">app_sqlite_analytical_v2
@@ -661,11 +881,19 @@ Phase structure:
   2. prewarm      (large scan to fill page cache)
   3. measure      (repeated analytical queries for --duration seconds)
   4. cleanup      (drop db unless --keep-db)</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/app_realistic/app_sqlite_analytical_v2.py --duration 60 --rows 200000 --query-set aggregate,topn,range --seed 42 --sandbox-dir /var/tmp/phase2_campaign/app_sqlite_analytical_v2 --output-dir /var/tmp/phase2_campaign/app_sqlite_analytical_v2 --phase-markers --cleanup</pre>
 </div></details>
 <details id="app_sqlite_oltp_v2.py">
 <summary>app_sqlite_oltp_v2.py <span class="step-badge">step 26</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Runs many small transactional inserts/updates/reads against SQLite, in a realistic transaction mix, with the write-ahead log checkpointing periodically.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Frequent small writes plus periodic checkpoint bursts -- a transactional (OLTP) database shape.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_sqlite_oltp_v2.py</code></p>
 <pre class="algo">app_sqlite_oltp_v2
@@ -681,11 +909,19 @@ Phase structure:
   4. cleanup   (drop db file unless --keep-db)
 
 Standard library only (uses sqlite3 from CPython).</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/app_realistic/app_sqlite_oltp_v2.py --duration 60 --rows 200000 --tx-per-batch 50 --mix 40-30-30 --seed 42 --sandbox-dir /var/tmp/phase2_campaign/app_sqlite_oltp_v2 --output-dir /var/tmp/phase2_campaign/app_sqlite_oltp_v2 --phase-markers --cleanup</pre>
 </div></details>
 <details id="app_hashtable_intensive_v2">
 <summary>app_hashtable_intensive_v2 <span class="step-badge">step 27</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Hammers a large in-memory hash table with a chosen number of slots, using linear probing so lookups stay cache-local.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The probing pattern shapes the signal; a large table means real memory activity across it.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/app_realistic/app_hashtable_intensive_v2.c</code></p>
 <pre class="algo"> app_hashtable_intensive_v2
@@ -696,6 +932,7 @@ trajectory is the feature: build is write-dominant, probe is read-dominant.
 
 Capacity is a power of two; load factor &lt; 0.5 at end of build. Hash is a
 mixing function over the key (xorshift-based) — deterministic per --seed.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/app_hashtable_intensive_v2 --capacity-pow2 24 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/app_hashtable_intensive_v2</pre>
 </div></details>
@@ -703,6 +940,13 @@ mixing function over the key (xorshift-based) — deterministic per --seed.</pre
 <section><h2 id="fam-sandbox">SANDBOX — ransomware-behavior simulations</h2>
 <details id="sandbox_ransom_seq">
 <summary>sandbox_ransom_seq <span class="step-badge">step 28</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Simulates ransomware behavior: walks a directory and rewrites each file in sequence with high-<span class="term" tabindex="0" data-def="random, encryption-like">entropy</span> content. Behavioral mimicry only -- no real encryption, persistence, or evasion.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A steady, high-entropy full-rewrite sweep across files -- the canonical &#x27;bulk encryptor&#x27; shape for the security-detection angle.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_ransom_seq.c</code></p>
 <pre class="algo"> sandbox_ransom_seq
@@ -720,11 +964,19 @@ Phases per file:
   3. transform  (XOR with fixed 32-byte key in memory)
   4. write      (overwrite original; same size)
   5. rename     (append .simx suffix)</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_seq --files 1000 --file-size-bytes 1048576 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_ransom_seq --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_ransom_seq --phase-markers</pre>
 </div></details>
 <details id="sandbox_ransom_batched">
 <summary>sandbox_ransom_batched <span class="step-badge">step 29</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The same file-rewriting behavior, but buffers many files in memory and flushes them in batches rather than one at a time.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Bursty rather than steady -- tests whether batching changes the encryptor signature. (Its all-in-RAM buffering is why file count had to be capped.)</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_ransom_batched.c</code></p>
 <pre class="algo"> sandbox_ransom_batched
@@ -741,11 +993,19 @@ level analyzer to recover.
 
 Memory cap: N * file_size must fit in --mem-cap-mb (default 1024); the test
 refuses to start if the requested in-memory footprint would exceed it.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_batched --files 200 --file-size-bytes 1048576 --mem-cap-mb 256 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_ransom_batched --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_ransom_batched --phase-markers</pre>
 </div></details>
 <details id="sandbox_ransom_slowburn">
 <summary>sandbox_ransom_slowburn <span class="step-badge">step 30</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Rewrites files slowly, one every few seconds, imitating a low-and-slow attacker trying not to spike.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The cadence dominates the signal -- tests detection of a deliberately paced, stretched-out rewrite.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_ransom_slowburn.c</code></p>
 <pre class="algo"> sandbox_ransom_slowburn
@@ -753,11 +1013,19 @@ refuses to start if the requested in-memory footprint would exceed it.</pre>
 Paced sequential variant: one file every --interval-s seconds (default 5).
 Mimics the *cadence* pattern of slow-burn behavioral patterns. Safe-sandbox
 rules apply (XOR transform, no network, no persistence).</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_slowburn --files 100 --file-size-bytes 1048576 --interval-s 5 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_ransom_slowburn --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_ransom_slowburn --phase-markers</pre>
 </div></details>
 <details id="sandbox_ransom_selective">
 <summary>sandbox_ransom_selective <span class="step-badge">step 31</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Rewrites only files matching certain extensions, imitating an attacker that targets specific document types.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A sparser, filtered version of the sweep -- fewer files touched, more selective footprint.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_ransom_selective.c</code></p>
 <pre class="algo"> sandbox_ransom_selective
@@ -765,11 +1033,19 @@ rules apply (XOR transform, no network, no persistence).</pre>
 Discovery is extension-filtered: sandbox holds 2N generated files of two
 extensions (&quot;dat&quot; and &quot;bin&quot;); only &quot;.dat&quot; files are processed. Adds a
 discovery-phase cost that the analyzer can detect.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_selective --files 500 --file-size-bytes 524288 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_ransom_selective --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_ransom_selective --phase-markers</pre>
 </div></details>
 <details id="sandbox_scanner_metadata">
 <summary>sandbox_scanner_metadata <span class="step-badge">step 32</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Walks a large tree of many small files reading their metadata (stat-style), touching the directory structure heavily but writing little.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Stat-heavy, write-light -- the &#x27;enumeration/reconnaissance&#x27; shape, mostly reads.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_scanner_metadata.c</code></p>
 <pre class="algo"> sandbox_scanner_metadata
@@ -777,11 +1053,19 @@ discovery-phase cost that the analyzer can detect.</pre>
 Pure metadata scan: stat every file in a sandbox tree. No reads, no writes,
 no transforms. Designed to isolate dentry/inode cache signature from broad
 write footprint.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_scanner_metadata --files 5000 --subdirs 50 --file-size-bytes 4096 --passes 5 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_scanner_metadata --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_scanner_metadata --phase-markers</pre>
 </div></details>
 <details id="sandbox_stealth_microwrite">
 <summary>sandbox_stealth_microwrite <span class="step-badge">step 33</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Writes tiny amounts to files at a slow, fixed interval, trying to stay under a detection threshold by keeping each write small.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Low-rate, high-intensity trickle -- tests whether small paced writes can hide in the noise floor.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_stealth_microwrite.c</code></p>
 <pre class="algo"> sandbox_stealth_microwrite  --  SAFE SYNTHETIC TEST WORKLOAD (NOT malware)
@@ -802,11 +1086,19 @@ or anti-detection logic; resource- and time-capped; cleanup confined to the sand
 Pattern. Generates many single-page (4096 B) files, then processes one every --interval-ms,
 each: read -&gt; XOR(whole page) -&gt; write -&gt; rename. Steady trickle: low APF, maximal
 Hamming-per-changed-page.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_stealth_microwrite --files 300 --file-size-bytes 4096 --interval-ms 250 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_stealth_microwrite --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_stealth_microwrite --phase-markers</pre>
 </div></details>
 <details id="sandbox_stealth_paced">
 <summary>sandbox_stealth_paced <span class="step-badge">step 34</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Similar trickle behavior at a slightly different pacing, spacing writes out over time to blend into normal activity.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A stealth-cadence variant -- probes the timing dimension of hiding.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_stealth_paced.c</code></p>
 <pre class="algo"> sandbox_stealth_paced  --  SAFE SYNTHETIC TEST WORKLOAD (NOT malware)
@@ -824,11 +1116,19 @@ anti-analysis; resource- and time-capped; cleanup confined to the sandbox. See
 
 Pattern. Generate single-page files, process each: read -&gt; XOR(whole page) -&gt; write -&gt;
 rename, then sleep a seeded-random duration with mean --interval-ms.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_stealth_paced --files 300 --file-size-bytes 4096 --interval-ms 300 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_stealth_paced --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_stealth_paced --phase-markers</pre>
 </div></details>
 <details id="sandbox_stealth_scattered">
 <summary>sandbox_stealth_scattered <span class="step-badge">step 35</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Spreads small writes across many files at intervals, scattering the activity spatially as well as pacing it in time.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Scattered + paced -- tests hiding by spatial spread on top of slow timing.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/security_like_safe/sandbox_stealth_scattered.c</code></p>
 <pre class="algo"> sandbox_stealth_scattered  --  SAFE SYNTHETIC TEST WORKLOAD (NOT malware)
@@ -847,6 +1147,7 @@ or anti-analysis; resource- and time-capped; cleanup confined to the sandbox. Se
 
 Pattern. Generate single-page files, shuffle their order deterministically (seeded), then
 process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; rename.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/sandbox_stealth_scattered --files 512 --file-size-bytes 4096 --interval-ms 200 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/sandbox_stealth_scattered --seed 42 --output-dir /var/tmp/phase2_campaign/sandbox_stealth_scattered --phase-markers</pre>
 </div></details>
@@ -854,6 +1155,13 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
 <section><h2 id="fam-kernel">KERNEL — Berkeley &#x27;dwarf&#x27; compute motifs (64)</h2>
 <details id="kernel_gemm_v2">
 <summary>kernel_gemm_v2 <span class="step-badge">step 36</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Multiplies two dense square matrices into an output C, in cache-friendly <span class="term" tabindex="0" data-def="small blocks">tiling</span>. Every pass re-seeds the inputs and rewrites all of C.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A static, full-footprint rewrite -- the whole output changes every pass. The reference against which LU&#x27;s and QR&#x27;s moving fronts are compared.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D1_visible_dense_linear_algebra/kernel_gemm_v2.c</code></p>
 <pre class="algo"> kernel_gemm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -903,11 +1211,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  Signature family: KERNEL. Dwarf: Dense Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (matmuls) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_gemm_v2 --dim 1024 --block 64 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_gemm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_lu_v2">
 <summary>kernel_lu_v2 <span class="step-badge">step 37</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Factors a matrix into lower/upper triangular pieces <span class="term" tabindex="0" data-def="Overwriting a buffer&#x27;s own cells rather than writing to a fresh one. Keeps the memory footprint small but still produces writes.">in-place</span>, eliminating one column at a time so the still-active region shrinks as it goes.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A shrinking trailing-submatrix front -- writes concentrate in an ever-smaller corner. The classic direct-solve pattern (LAPACK&#x27;s core).</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D1_visible_dense_linear_algebra/kernel_lu_v2.c</code></p>
 <pre class="algo"> kernel_lu_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -964,11 +1280,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  Signature family: KERNEL. Dwarf: Dense Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (factorisations) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_lu_v2 --dim 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_lu_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_qr_v2">
 <summary>kernel_qr_v2 <span class="step-badge">step 38</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Orthogonalizes a matrix&#x27;s columns one by one (Gram-Schmidt/QR), so the finished region grows as each new column is processed.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> A growing orthogonalized-column front -- the mirror image of LU&#x27;s shrinking one. Used in least-squares and eigensolvers.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D1_visible_dense_linear_algebra/kernel_qr_v2.c</code></p>
 <pre class="algo"> kernel_qr_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1025,11 +1349,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  Signature family: KERNEL. Dwarf: Dense Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (orthogonalisations) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_qr_v2 --dim 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_qr_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_conv_v2">
 <summary>kernel_conv_v2 <span class="step-badge">step 39</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Slides a small filter window across an image and multiply-accumulates at each position, writing a large output feature map (a CNN layer).</p>
+<p class="signal"><span class="signal-tag">memory signal</span> An overlapping-window rewrite of the output map -- the memory shape of convolutional vision models.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D1_visible_dense_linear_algebra/kernel_conv_v2.c</code></p>
 <pre class="algo"> kernel_conv_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1082,11 +1414,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  Signature family: KERNEL. Dwarf: Dense Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (conv passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_conv_v2 --height 256 --width 256 --in-channels 3 --filters 32 --ksize 3 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_conv_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_attention_v2">
 <summary>kernel_attention_v2 <span class="step-badge">step 40</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Computes transformer attention: multiply queries by keys, softmax each row, multiply by values. Two matrix multiplies with a row-normalization between.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Write-signature close to <span class="term" tabindex="0" data-def="dense matmul">GEMM</span> plus a row softmax -- the per-token core of every large language model.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D1_visible_dense_linear_algebra/kernel_attention_v2.c</code></p>
 <pre class="algo"> kernel_attention_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1137,11 +1477,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  Signature family: KERNEL. Dwarf: Dense Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (attention passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_attention_v2 --seq-len 1024 --d-model 64 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_attention_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_spmv_v2">
 <summary>kernel_spmv_v2 <span class="step-badge">step 41</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Multiplies a big <span class="term" tabindex="0" data-def="A matrix that is mostly zeros, stored compactly by listing only the non-zero entries. Reading it is a gather; the signal depends on whether the OUTPUT is large.">sparse matrix</span> (stored <span class="term" tabindex="0" data-def="compactly">CSR</span>) by a vector. The matrix is read by <span class="term" tabindex="0" data-def="scattered reads">gather</span>; the only output is a small vector.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet control: enormous read work, tiny write -- the classic &#x27;important but invisible&#x27; case. The near-idle baseline for sparse work.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_spmv_v2.c</code></p>
 <pre class="algo"> kernel_spmv_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1205,11 +1553,19 @@ process one every --interval-ms: read -&gt; XOR(whole page) -&gt; write -&gt; re
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (build matrix) / measure (matvecs) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_spmv_v2 --rows 1000000 --nnz-per-row 16 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_spmv_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_spmm_v2">
 <summary>kernel_spmm_v2 <span class="step-badge">step 42</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Multiplies a sparse matrix by a DENSE matrix, producing a large dense output that is rewritten each pass -- the aggregation step of graph neural networks.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the big dense output carries the write-signal, unlike quiet SpMV which writes only a vector.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_spmm_v2.c</code></p>
 <pre class="algo"> kernel_spmm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1270,11 +1626,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Sparse Linear Algebra. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + first seed) / measure (SpMM passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_spmm_v2 --rows 4096 --inner 4096 --cols 64 --nnz-per-row 16 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_spmm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_spgemm_v2">
 <summary>kernel_spgemm_v2 <span class="step-badge">step 43</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Multiplies two sparse matrices to produce a NEW sparse matrix, whose structure (with <span class="term" tabindex="0" data-def="New non-zero entries that appear in a sparse matrix during factorization, in positions that were zero before -- extra writes beyond the original structure.">fill-in</span>) is not known in advance and must be built up.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: writes an entirely new sparse matrix -- the setup step of algebraic multigrid and triangle counting.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_spgemm_v2.c</code></p>
 <pre class="algo"> kernel_spgemm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1339,11 +1703,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Sparse Linear Algebra. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + seed A,B) / measure (SpGEMM passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_spgemm_v2 --rows 2048 --inner 2048 --cols 2048 --nnz-per-row 8 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_spgemm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_sddmm_v2">
 <summary>kernel_sddmm_v2 <span class="step-badge">step 44</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Multiplies two dense matrices but only computes the entries at positions marked by a sparse mask, <span class="term" tabindex="0" data-def="scattering">scatter</span> results into those spots.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: scattered writes at the mask positions only -- used in graph-attention networks and recommenders.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_sddmm_v2.c</code></p>
 <pre class="algo"> kernel_sddmm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1419,11 +1791,19 @@ Phases: warmup (alloc + seed A,B) / measure (SpGEMM passes) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Sparse Linear Algebra. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (SDDMM passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_sddmm_v2 --rows 8192 --cols 8192 --feat 32 --nnz-per-row 32 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_sddmm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_sparse_cholesky_v2">
 <summary>kernel_sparse_cholesky_v2 <span class="step-badge">step 45</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Factors a banded <span class="term" tabindex="0" data-def="A matrix that is mostly zeros, stored compactly by listing only the non-zero entries. Reading it is a gather; the signal depends on whether the OUTPUT is large.">sparse matrix</span> symmetrically, progressively writing <span class="term" tabindex="0" data-def="new non-zeros">fill-in</span> within the band.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the factor fills in progressively across the band -- direct solvers for finite-element and circuit problems.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_sparse_cholesky_v2.c</code></p>
 <pre class="algo"> kernel_sparse_cholesky_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1495,11 +1875,19 @@ predict and order the fill-in; neither is implemented here. The banded case is
 the honest, self-contained subset that still exhibits the fill-in write.
 
 Phases: warmup (alloc + first build) / measure (build+factor passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_sparse_cholesky_v2 --dim 8192 --bandwidth 64 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_sparse_cholesky_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_moe_dispatch_v2">
 <summary>kernel_moe_dispatch_v2 <span class="step-badge">step 46</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Routes each input token to a chosen expert by <span class="term" tabindex="0" data-def="permuting tokens into per-expert buffers">scatter</span>, then gathers the results back -- the Mixture-of-Experts dispatch used in modern LLMs.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a token-permutation scatter into expert buffers -- the routing write of &gt;60% of recent large models.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D2_visible_sparse_linear_algebra/kernel_moe_dispatch_v2.c</code></p>
 <pre class="algo"> kernel_moe_dispatch_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1580,11 +1968,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Sparse Linear Algebra. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_moe_dispatch_v2 --tokens 65536 --dim 128 --experts 8 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_moe_dispatch_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fft_v2">
 <summary>kernel_fft_v2 <span class="step-badge">step 47</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Transforms a signal to the frequency domain <span class="term" tabindex="0" data-def="Overwriting a buffer&#x27;s own cells rather than writing to a fresh one. Keeps the memory footprint small but still produces writes.">in-place</span> using the radix-2 FFT: repeated <span class="term" tabindex="0" data-def="The cross-combining write pattern of an FFT: each stage pairs up elements across a stride that halves (or doubles) each pass.">butterfly</span> passes, ending with a <span class="term" tabindex="0" data-def="scrambled-order">bit-reversal</span> output.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: a 1D butterfly write pattern plus a bit-reversal scatter -- the core of all digital signal processing.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D3_visible_spectral_methods/kernel_fft_v2.c</code></p>
 <pre class="algo"> kernel_fft_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1645,11 +2041,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: Spectral Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (transforms) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fft_v2 --n 1048576 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fft_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fft2d_v2">
 <summary>kernel_fft2d_v2 <span class="step-badge">step 48</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A 2D FFT: FFT every row, transpose the whole array, FFT every row again. The transpose is a large <span class="term" tabindex="0" data-def="Writing to many non-adjacent memory locations chosen by data, rather than in order. Produces a diffuse, spread-out write pattern.">scatter</span>.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: the transpose scatter plus two directional passes -- image spectral filtering, turbulence simulation.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D3_visible_spectral_methods/kernel_fft2d_v2.c</code></p>
 <pre class="algo"> kernel_fft2d_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1706,11 +2110,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: Spectral Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (2D FFT passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fft2d_v2 --n 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fft2d_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dct_v2">
 <summary>kernel_dct_v2 <span class="step-badge">step 49</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Applies the discrete cosine transform in small 8x8 blocks -- the transform behind JPEG and MPEG image/video compression.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: many small blocks rewritten with real content -- distinct from the FFT&#x27;s whole-array <span class="term" tabindex="0" data-def="The cross-combining write pattern of an FFT: each stage pairs up elements across a stride that halves (or doubles) each pass.">butterfly</span>.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D3_visible_spectral_methods/kernel_dct_v2.c</code></p>
 <pre class="algo"> kernel_dct_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1762,11 +2174,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: Spectral Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (block DCT passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dct_v2 --height 1024 --width 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dct_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dwt_v2">
 <summary>kernel_dwt_v2 <span class="step-badge">step 50</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Applies a wavelet transform as a filter-and-downsample <span class="term" tabindex="0" data-def="cascade of ever-smaller passes">pyramid</span>, halving the data at each level.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a shrinking multi-resolution pyramid -- JPEG2000 and wavelet denoising.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D3_visible_spectral_methods/kernel_dwt_v2.c</code></p>
 <pre class="algo"> kernel_dwt_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1833,11 +2253,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: Spectral Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (DWT passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dwt_v2 --n 1024 --levels 0 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dwt_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_ntt_v2">
 <summary>kernel_ntt_v2 <span class="step-badge">step 51</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">An FFT done in modular integer arithmetic across several number bases (RNS limbs) -- the transform at the heart of lattice cryptography and homomorphic encryption.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: multi-stream modular <span class="term" tabindex="0" data-def="The cross-combining write pattern of an FFT: each stage pairs up elements across a stride that halves (or doubles) each pass.">butterfly</span> with integer content -- the CKKS/lattice-crypto core.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D3_visible_spectral_methods/kernel_ntt_v2.c</code></p>
 <pre class="algo"> kernel_ntt_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1901,11 +2329,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: Spectral Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (forward NTTs) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_ntt_v2 --n 65536 --limbs 8 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_ntt_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_nbody_v2">
 <summary>kernel_nbody_v2 <span class="step-badge">step 52</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Simulates particles under gravity by summing pairwise forces, then updating positions and velocities each step -- a few compact per-particle arrays.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: four small particle arrays rewritten every step, evolving smoothly.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_nbody_v2.c</code></p>
 <pre class="algo"> kernel_nbody_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -1958,11 +2394,19 @@ Phases: warmup (alloc + first seed) / measure (dispatch/expert/combine passes) /
  Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_nbody_v2 --particles 262144 --neighbors 16 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_nbody_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_barnes_hut_v2">
 <summary>kernel_barnes_hut_v2 <span class="step-badge">step 53</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Speeds up n-body gravity by building a <span class="term" tabindex="0" data-def="A tree that recursively splits 2D space into quarters, letting a simulation approximate far-away groups of particles as one -- O(n log n) instead of O(n^2).">quadtree</span> each step so distant particle groups are approximated as one -- O(n log n) instead of O(n^2).</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible/irregular: the rebuilt tree is the distinctive write versus plain n-body&#x27;s flat arrays.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_barnes_hut_v2.c</code></p>
 <pre class="algo"> kernel_barnes_hut_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2009,11 +2453,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_barnes_hut_v2 --particles 16384 --theta-milli 700 --dt-milli 10 --soft-milli 50 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_barnes_hut_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fmm_v2">
 <summary>kernel_fmm_v2 <span class="step-badge">step 54</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The fast multipole method: represent clusters of particles by expansion coefficients on a tree, so far-field effects are cheap.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: modest expansion-coefficient arrays plus the particle rewrite.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_fmm_v2.c</code></p>
 <pre class="algo"> kernel_fmm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2079,11 +2531,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fmm_v2 --particles 32768 --box-dim 24 --terms 16 --soft-milli 20 --dt-milli 5 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fmm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_md_lj_v2">
 <summary>kernel_md_lj_v2 <span class="step-badge">step 55</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Molecular dynamics with a Lennard-Jones potential, using a <span class="term" tabindex="0" data-def="A spatial grid that buckets particles by location so each particle only checks nearby ones. Rebuilt each step as particles move.">cell list</span> rebuilt each step so each atom only checks nearby atoms.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the periodic cell-list rebuild plus position/velocity rewrite is the distinctive part.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_md_lj_v2.c</code></p>
 <pre class="algo"> kernel_md_lj_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2149,11 +2609,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + lattice init + first force) / measure (steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_md_lj_v2 --particles 65536 --density-milli 600 --rc-milli 2500 --dt-milli 2 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_md_lj_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_pic_v2">
 <summary>kernel_pic_v2 <span class="step-badge">step 56</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Particle-in-cell plasma simulation: <span class="term" tabindex="0" data-def="Writing to many non-adjacent memory locations chosen by data, rather than in order. Produces a diffuse, spread-out write pattern.">scatter</span> particle charge onto a grid, solve the field on the grid, then <span class="term" tabindex="0" data-def="Reading from many non-adjacent locations chosen by data. Gathers are reads, so they are invisible to a write-based memory signal.">gather</span> the field back to move particles.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the particle-to-grid scatter-deposit plus grid rewrite -- the distinctive coupled write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_pic_v2.c</code></p>
 <pre class="algo"> kernel_pic_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2219,11 +2687,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init + first deposit/solve) / measure (steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_pic_v2 --grid 512 --particles 200000 --solve-iters 30 --dt-milli 50 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_pic_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_sph_v2">
 <summary>kernel_sph_v2 <span class="step-badge">step 57</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Smoothed-particle hydrodynamics -- a fluid modeled as particles, each carrying density and pressure fields summed from its neighbors.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: extra per-particle fields on top of the particle rewrite; a close relative of molecular dynamics.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D4_visible_nbody_methods/kernel_sph_v2.c</code></p>
 <pre class="algo"> kernel_sph_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2288,11 +2764,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: N-Body Methods. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + lattice init + rest-density calibration) / measure / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_sph_v2 --particles 65536 --h-milli 2000 --k-milli 1000 --gravity-milli 100 --dt-milli 5 --damp-milli 10 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_sph_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_stencil_jacobi_v2">
 <summary>kernel_stencil_jacobi_v2 <span class="step-badge">step 58</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A 5-point <span class="term" tabindex="0" data-def="Updating each grid cell from its immediate neighbors, repeatedly. The canonical regular, periodic write pattern of physical simulations.">stencil</span> on a 2D grid, updating each cell from its four neighbors into a fresh grid (<span class="term" tabindex="0" data-def="Reading from one array while writing the next state into a second, then swapping. Doubles the footprint but avoids overwriting data still in use.">double-buffer</span>), then swapping.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: a periodic full-grid rewrite at roughly double footprint -- the textbook regular-simulation pattern.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D5_visible_structured_grids/kernel_stencil_jacobi_v2.c</code></p>
 <pre class="algo"> kernel_stencil_jacobi_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2338,11 +2822,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Structured Grids. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (Jacobi sweeps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_stencil_jacobi_v2 --grid-n 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_stencil_jacobi_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_stencil_seidel_v2">
 <summary>kernel_stencil_seidel_v2 <span class="step-badge">step 59</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The same neighbor-update, but <span class="term" tabindex="0" data-def="Overwriting a buffer&#x27;s own cells rather than writing to a fresh one. Keeps the memory footprint small but still produces writes.">in-place</span> in a red-black checkerboard order so no separate second grid is needed.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: in-place checkerboard writes at single footprint -- contrasts with Jacobi&#x27;s double-buffered version.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D5_visible_structured_grids/kernel_stencil_seidel_v2.c</code></p>
 <pre class="algo"> kernel_stencil_seidel_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2390,11 +2882,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Structured Grids. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (red-black sweeps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_stencil_seidel_v2 --grid-n 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_stencil_seidel_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_lbm_v2">
 <summary>kernel_lbm_v2 <span class="step-badge">step 60</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Lattice-Boltzmann fluid simulation: nine distribution arrays are streamed to neighbors and collided locally each step.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: nine distribution grids streamed every step -- a heavy, structured write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D5_visible_structured_grids/kernel_lbm_v2.c</code></p>
 <pre class="algo"> kernel_lbm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2452,11 +2952,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Structured Grids. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (LBM steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_lbm_v2 --width 256 --height 256 --omega-milli 1000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_lbm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fdtd_v2">
 <summary>kernel_fdtd_v2 <span class="step-badge">step 61</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Simulates electromagnetic fields by <span class="term" tabindex="0" data-def="alternately updating">leapfrog</span> coupled electric and magnetic grids in time.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: two coupled field grids in an E-then-H leapfrog -- the distinctive dual-grid write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D5_visible_structured_grids/kernel_fdtd_v2.c</code></p>
 <pre class="algo"> kernel_fdtd_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2514,11 +3022,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Structured Grids. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + pulse init) / measure (FDTD steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fdtd_v2 --width 512 --height 512 --courant-milli 500 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fdtd_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_multigrid_v2">
 <summary>kernel_multigrid_v2 <span class="step-badge">step 62</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Solves a grid problem by cycling through coarser and finer grids (a V-cycle), so the active <span class="term" tabindex="0" data-def="The region of memory a workload actively touches. Larger working set = more distinct pages changing = a louder memory signal.">working set</span> changes scale over time.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible++: a multi-scale, time-varying footprint as it moves between grid levels.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D5_visible_structured_grids/kernel_multigrid_v2.c</code></p>
 <pre class="algo"> kernel_multigrid_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2574,11 +3090,19 @@ Phases: warmup (alloc + init) / measure (timesteps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Structured Grids. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (V-cycles) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_multigrid_v2 --grid-n 1025 --nu 2 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_multigrid_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dg_v2">
 <summary>kernel_dg_v2 <span class="step-badge">step 63</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A discontinuous-Galerkin step: dense per-element updates plus flux exchange across element faces.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: per-element dense blocks rewritten, coupled by face fluxes.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D6_visible_unstructured_grids/kernel_dg_v2.c</code></p>
 <pre class="algo"> kernel_dg_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2636,11 +3160,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Unstructured Grids. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (DG steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dg_v2 --elements 65536 --dofs 16 --neighbors 3 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dg_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fem_assembly_v2">
 <summary>kernel_fem_assembly_v2 <span class="step-badge">step 64</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Assembles a global finite-element matrix by <span class="term" tabindex="0" data-def="scatter-adding">scatter</span> each small element&#x27;s contribution into shared, irregularly-located slots.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: indexed scatter-accumulate into a large matrix -- irregular, unlike a regular <span class="term" tabindex="0" data-def="Updating each grid cell from its immediate neighbors, repeatedly. The canonical regular, periodic write pattern of physical simulations.">stencil</span>.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D6_visible_unstructured_grids/kernel_fem_assembly_v2.c</code></p>
 <pre class="algo"> kernel_fem_assembly_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2698,11 +3230,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Unstructured Grids. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (assembly passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fem_assembly_v2 --nodes 2048 --elements 8192 --npe 4 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fem_assembly_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fem_matvec_v2">
 <summary>kernel_fem_matvec_v2 <span class="step-badge">step 65</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The matrix-free finite-element version: for each element, gather inputs, apply locally, <span class="term" tabindex="0" data-def="Writing to many non-adjacent memory locations chosen by data, rather than in order. Produces a diffuse, spread-out write pattern.">scatter</span>-add into a result vector -- never forming the matrix.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Quieter: the output is a vector, so it writes less than assembly -- the unstructured analog of quiet SpMV.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D6_visible_unstructured_grids/kernel_fem_matvec_v2.c</code></p>
 <pre class="algo"> kernel_fem_matvec_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2770,11 +3310,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Unstructured Grids. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (matrix-free matvec passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fem_matvec_v2 --nodes 1000000 --elements 2000000 --npe 4 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fem_matvec_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_mesh_smooth_v2">
 <summary>kernel_mesh_smooth_v2 <span class="step-badge">step 66</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Smooths an unstructured mesh by moving each node toward the average of its neighbors (Laplacian smoothing), then rewriting the whole node array.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a full node-array rewrite -- similar write volume to a <span class="term" tabindex="0" data-def="Updating each grid cell from its immediate neighbors, repeatedly. The canonical regular, periodic write pattern of physical simulations.">stencil</span> but with irregular neighbor access.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D6_visible_unstructured_grids/kernel_mesh_smooth_v2.c</code></p>
 <pre class="algo"> kernel_mesh_smooth_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2838,11 +3386,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Unstructured Grids. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (smoothing sweeps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_mesh_smooth_v2 --nodes 1000000 --degree 6 --weight-milli 500 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_mesh_smooth_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_unstructured_fv_v2">
 <summary>kernel_unstructured_fv_v2 <span class="step-badge">step 67</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A finite-volume step: <span class="term" tabindex="0" data-def="Reading from many non-adjacent locations chosen by data. Gathers are reads, so they are invisible to a write-based memory signal.">gather</span> fluxes along a face list and conservatively <span class="term" tabindex="0" data-def="Writing to many non-adjacent memory locations chosen by data, rather than in order. Produces a diffuse, spread-out write pattern.">scatter</span>-add them into cell values.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: face-list gather plus conservative cell scatter-add -- the unstructured conservation pattern.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D6_visible_unstructured_grids/kernel_unstructured_fv_v2.c</code></p>
 <pre class="algo"> kernel_unstructured_fv_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2905,11 +3461,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Unstructured Grids. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (FV steps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_unstructured_fv_v2 --cells 1000000 --faces-per-cell 3 --dt-milli 100 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_unstructured_fv_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_diffusion_v2">
 <summary>kernel_diffusion_v2 <span class="step-badge">step 68</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A diffusion-model style sampler that iteratively denoises a whole image/latent, rewriting all of it every step.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the entire image rewritten each step -- steady, full-footprint.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D7_visible_mapreduce_montecarlo/kernel_diffusion_v2.c</code></p>
 <pre class="algo"> kernel_diffusion_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -2986,11 +3550,19 @@ Signature family: KERNEL (visible). Dwarf: MapReduce / Monte Carlo.
 See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (denoising passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_diffusion_v2 --width 512 --height 512 --steps 200 --mix-milli 1000 --noise-start-milli 200 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_diffusion_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_histogram_v2">
 <summary>kernel_histogram_v2 <span class="step-badge">step 69</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Bins many random samples by <span class="term" tabindex="0" data-def="scatter-incrementing">scatter</span> counts across a large bins array.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: random scatter across the whole bins array -- the write-visible counterpart to quiet MC-pi.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D7_visible_mapreduce_montecarlo/kernel_histogram_v2.c</code></p>
 <pre class="algo"> kernel_histogram_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3054,11 +3626,19 @@ Signature family: KERNEL (visible). Dwarf: MapReduce / Monte Carlo.
 See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (scatter passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_histogram_v2 --samples 50000000 --bins 1048576 --dist uniform --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_histogram_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_mc_pi_v2">
 <summary>kernel_mc_pi_v2 <span class="step-badge">step 70</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Estimates pi by sampling random points and counting how many land in a circle -- a pure <span class="term" tabindex="0" data-def="Combining many values into one (a sum, a max, a count). The result is tiny, so a pure reduction is nearly invisible to the write-signal.">reduction</span> into a single running total.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet control: exponential sampling work, but only a scalar accumulator is written -- near-invisible.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D7_visible_mapreduce_montecarlo/kernel_mc_pi_v2.c</code></p>
 <pre class="algo"> kernel_mc_pi_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3118,11 +3698,19 @@ Phases: warmup (alloc + init) / measure (scatter passes) / cooldown.</pre>
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (MC passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_mc_pi_v2 --samples 100000000 --blocks 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_mc_pi_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_mc_option_v2">
 <summary>kernel_mc_option_v2 <span class="step-badge">step 71</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Prices a financial option by simulating many random price paths, storing them all, then averaging the payoff.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: bulk path-array storage rewritten each pass -- the stored paths are the write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D7_visible_mapreduce_montecarlo/kernel_mc_option_v2.c</code></p>
 <pre class="algo"> kernel_mc_option_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3191,11 +3779,19 @@ form for a European call (an independent analytic formula), so verification is
 non-circular. With enough paths the two agree to within Monte-Carlo error.
 
 Phases: warmup (alloc + init) / measure (regenerate paths + price) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_mc_option_v2 --paths 65536 --steps 64 --spot-milli 100000 --strike-milli 100000 --rate-milli 50 --vol-milli 200 --maturity-milli 1000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_mc_option_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_path_trace_v2">
 <summary>kernel_path_trace_v2 <span class="step-badge">step 72</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A Monte-Carlo renderer that accumulates many random light rays into an image buffer, re-sweeping the whole image each pass.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: whole-image accumulation, reswept every pass.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D7_visible_mapreduce_montecarlo/kernel_path_trace_v2.c</code></p>
 <pre class="algo"> kernel_path_trace_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3265,11 +3861,19 @@ Phases: warmup (alloc + init) / measure (regenerate paths + price) / cooldown.</
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init + priming pass) / measure (MC image passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_path_trace_v2 --width 512 --height 512 --samples 64 --radiance-milli 500 --noise-milli 500 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_path_trace_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_bfs_v2">
 <summary>kernel_bfs_v2 <span class="step-badge">step 73</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Breadth-first search over a graph built once and then only read. It touches the whole graph, but only by <span class="term" tabindex="0" data-def="reading">gather</span>; the sole writes are a small visited/distance array and a queue.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet control: traversing a static graph is nearly invisible to a write-signal -- the &#x27;graph traversal is invisible&#x27; baseline.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D9_visible_graph_traversal/kernel_bfs_v2.c</code></p>
 <pre class="algo"> kernel_bfs_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3335,11 +3939,19 @@ Phases: warmup (alloc + init) / measure (regenerate paths + price) / cooldown.</
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (build graph) / measure (BFS traversals) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_bfs_v2 --nodes 1000000 --degree 16 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_bfs_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_graph_stream_v2">
 <summary>kernel_graph_stream_v2 <span class="step-badge">step 74</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Inserts edges one at a time into a growing adjacency structure, building the graph incrementally.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the graph structure itself is written and grown as edges stream in.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D9_visible_graph_traversal/kernel_graph_stream_v2.c</code></p>
 <pre class="algo"> kernel_graph_stream_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3409,11 +4021,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graph Traversal. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + one priming build) / measure (streaming passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_graph_stream_v2 --nodes 500000 --capacity 32 --edges 4000000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_graph_stream_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_label_prop_v2">
 <summary>kernel_label_prop_v2 <span class="step-badge">step 75</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Finds connected components by repeatedly setting each node&#x27;s label to the smallest label among its neighbors until nothing changes.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: an iterated node-label array rewrite -- a stencil over a graph.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D9_visible_graph_traversal/kernel_label_prop_v2.c</code></p>
 <pre class="algo"> kernel_label_prop_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3493,11 +4113,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graph Traversal. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (build graph) / measure (label-propagation passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_label_prop_v2 --nodes 500000 --degree 8 --iters 30 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_label_prop_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_rmat_gen_v2">
 <summary>kernel_rmat_gen_v2 <span class="step-badge">step 76</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Generates a graph by writing out an edge list with the R-MAT recursive random pattern -- the graph is the output, not the input.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a bulk edge-list write -- the opposite of quiet BFS, since here the graph is being written.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D9_visible_graph_traversal/kernel_rmat_gen_v2.c</code></p>
 <pre class="algo"> kernel_rmat_gen_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3567,11 +4195,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graph Traversal. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + first fill) / measure (regenerate edge list) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_rmat_gen_v2 --scale 18 --edge-factor 16 --a-milli 570 --b-milli 190 --c-milli 190 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_rmat_gen_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_union_find_v2">
 <summary>kernel_union_find_v2 <span class="step-badge">step 77</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Merges sets with union-find, flattening the parent-pointer tree as it goes (path compression).</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the parent-pointer array is rewritten by unions and compression -- distinct from read-only traversal.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D9_visible_graph_traversal/kernel_union_find_v2.c</code></p>
 <pre class="algo"> kernel_union_find_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3636,11 +4272,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graph Traversal. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + first forest reset) / measure (edge unions) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_union_find_v2 --nodes 2000000 --edges 4000000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_union_find_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dp_v2">
 <summary>kernel_dp_v2 <span class="step-badge">step 78</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Fills an edit-distance table row by row, each cell depending on its neighbors -- a <span class="term" tabindex="0" data-def="A diagonal band of cells being filled in a table, which sweeps across as the computation proceeds -- a moving front of writes.">wavefront</span> sweeping across a large table.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a row-major wavefront, a migrating band of writes across a big table.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D10_visible_dynamic_programming/kernel_dp_v2.c</code></p>
 <pre class="algo"> kernel_dp_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3695,11 +4339,19 @@ Phases: warmup (alloc + first forest reset) / measure (edge unions) / cooldown.<
  Signature family: KERNEL. Dwarf: Dynamic Programming. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (table fills) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dp_v2 --dim 8192 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dp_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_floyd_v2">
 <summary>kernel_floyd_v2 <span class="step-badge">step 79</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Floyd-Warshall all-pairs shortest paths: rewrites the entire n-by-n distance matrix, n times, once per intermediate node.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the whole matrix rewritten n times per solve -- very write-heavy.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D10_visible_dynamic_programming/kernel_floyd_v2.c</code></p>
 <pre class="algo"> kernel_floyd_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3762,11 +4414,19 @@ Phases: warmup (alloc + first forest reset) / measure (edge unions) / cooldown.<
  Signature family: KERNEL. Dwarf: Dynamic Programming. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (matrix solves) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_floyd_v2 --dim 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_floyd_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_knapsack_v2">
 <summary>kernel_knapsack_v2 <span class="step-badge">step 80</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Solves 0/1 knapsack with a single rolling capacity array, repainted in reverse for each item to save space.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: one capacity vector repainted per item -- a stationary footprint rewritten many times.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D10_visible_dynamic_programming/kernel_knapsack_v2.c</code></p>
 <pre class="algo"> kernel_knapsack_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3828,11 +4488,19 @@ Phases: warmup (alloc + first forest reset) / measure (edge unions) / cooldown.<
  Signature family: KERNEL. Dwarf: Dynamic Programming. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (DP passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_knapsack_v2 --capacity 1048576 --items 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_knapsack_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_matrixchain_v2">
 <summary>kernel_matrixchain_v2 <span class="step-badge">step 81</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Finds the optimal way to parenthesize a chain of matrix multiplies by filling a table along its anti-diagonals.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: an anti-diagonal <span class="term" tabindex="0" data-def="A diagonal band of cells being filled in a table, which sweeps across as the computation proceeds -- a moving front of writes.">wavefront</span> fill with an O(n^3) inner loop.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D10_visible_dynamic_programming/kernel_matrixchain_v2.c</code></p>
 <pre class="algo"> kernel_matrixchain_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3905,11 +4573,19 @@ Phases: warmup (alloc + first forest reset) / measure (edge unions) / cooldown.<
  Signature family: KERNEL. Dwarf: Dynamic Programming. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (table fills) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_matrixchain_v2 --chain 1024 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_matrixchain_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_smithwaterman_v2">
 <summary>kernel_smithwaterman_v2 <span class="step-badge">step 82</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Local sequence alignment: fill a scoring table as a <span class="term" tabindex="0" data-def="A diagonal band of cells being filled in a table, which sweeps across as the computation proceeds -- a moving front of writes.">wavefront</span>, then trace the best path backward through it.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a row-major fill wavefront plus a fainter backward traceback path.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D10_visible_dynamic_programming/kernel_smithwaterman_v2.c</code></p>
 <pre class="algo"> kernel_smithwaterman_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -3988,11 +4664,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Dynamic Programming. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (fill + traceback passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_smithwaterman_v2 --len-a 4096 --len-b 4096 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_smithwaterman_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_bnb_knapsack_v2">
 <summary>kernel_bnb_knapsack_v2 <span class="step-badge">step 83</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Best-first <span class="term" tabindex="0" data-def="A search that prunes whole regions once it proves they cannot beat the best solution found so far. Its frontier heap is the visible write.">branch-and-bound</span> over include/exclude choices on a hard, strongly-correlated knapsack instance.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the subset-node <span class="term" tabindex="0" data-def="The set of partial solutions a search is still considering, held in a queue or heap and churned constantly as the search pushes and pops.">frontier</span> heap -- its optimum cross-checks the DP knapsack for correctness.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_bnb_knapsack_v2.c</code></p>
 <pre class="algo"> kernel_bnb_knapsack_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4078,11 +4762,19 @@ Phases: warmup (alloc + init) / measure (fill + traceback passes) / cooldown.</p
  Signature family: KERNEL. Dwarf: Backtrack / Branch-and-Bound. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (re-seed + re-run B&amp;B each pass) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_bnb_knapsack_v2 --items 40 --capacity 1000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_bnb_knapsack_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_bnb_tsp_v2">
 <summary>kernel_bnb_tsp_v2 <span class="step-badge">step 84</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Solves traveling-salesman by best-first <span class="term" tabindex="0" data-def="A search that prunes whole regions once it proves they cannot beat the best solution found so far. Its frontier heap is the visible write.">branch-and-bound</span>, keeping an explicit priority queue of partial tours.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the best-first <span class="term" tabindex="0" data-def="The set of partial solutions a search is still considering, held in a queue or heap and churned constantly as the search pushes and pops.">frontier</span> churned by millions of push/pop operations.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_bnb_tsp_v2.c</code></p>
 <pre class="algo"> kernel_bnb_tsp_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4164,11 +4856,19 @@ Phases: warmup (alloc + init) / measure (fill + traceback passes) / cooldown.</p
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (re-seed + re-run B&amp;B) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_bnb_tsp_v2 --cities 13 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_bnb_tsp_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_brackets_enum_v2">
 <summary>kernel_brackets_enum_v2 <span class="step-badge">step 85</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Enumerates every balanced-parenthesis string of a given size and appends each one to an output buffer.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: Catalan-number-many strings materialized -- a bulk sequential append.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_brackets_enum_v2.c</code></p>
 <pre class="algo"> kernel_brackets_enum_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4236,11 +4936,19 @@ Phases: warmup (alloc + init) / measure (fill + traceback passes) / cooldown.</p
  Signature family: KERNEL. Dwarf: Backtrack / Branch-and-Bound. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (re-enumerate, append every string) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_brackets_enum_v2 --n 13 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_brackets_enum_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_graph_coloring_v2">
 <summary>kernel_graph_coloring_v2 <span class="step-badge">step 86</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Colors a graph as a constraint problem, using forward-checking that prunes and then RESTORES a color/domain array on <span class="term" tabindex="0" data-def="Trying a choice, and if it fails, undoing it and trying another. The undo (restore) writes are a distinctive part of the signal.">backtracking</span>.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the prune-and-restore churn -- the restore writes are the distinctive backtracking signature.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_graph_coloring_v2.c</code></p>
 <pre class="algo"> kernel_graph_coloring_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4332,11 +5040,19 @@ Phases: warmup (alloc + init) / measure (fill + traceback passes) / cooldown.</p
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (build graph) / measure (repeated colouring passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_graph_coloring_v2 --vertices 20000 --degree 6 --colors 6 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_graph_coloring_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_maze_backtrack_v2">
 <summary>kernel_maze_backtrack_v2 <span class="step-badge">step 87</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Solves a maze by depth-first <span class="term" tabindex="0" data-def="Trying a choice, and if it fails, undoing it and trying another. The undo (restore) writes are a distinctive part of the signal.">backtracking</span>, marking a large visited/parent grid as it explores and unmarks.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a large grid marked and unmarked across the search -- the working state is the write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_maze_backtrack_v2.c</code></p>
 <pre class="algo"> kernel_maze_backtrack_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4412,11 +5128,19 @@ Signature family: KERNEL (visible). Dwarf: Backtrack / Branch-and-Bound.
 See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (carve+solve passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_maze_backtrack_v2 --width 512 --height 512 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_maze_backtrack_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_nqueens_count_v2">
 <summary>kernel_nqueens_count_v2 <span class="step-badge">step 88</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Counts N-queens solutions with fast bitmask <span class="term" tabindex="0" data-def="Trying a choice, and if it fails, undoing it and trying another. The undo (restore) writes are a distinctive part of the signal.">backtracking</span>, combining everything into a single counter -- it never stores a solution.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet control: exponential search, but only a counter is written -- invisible despite the work.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_nqueens_count_v2.c</code></p>
 <pre class="algo"> kernel_nqueens_count_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4488,11 +5212,19 @@ Phases: warmup (alloc + init) / measure (carve+solve passes) / cooldown.</pre>
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (repeated full counts) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_nqueens_count_v2 --n 13 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_nqueens_count_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_nqueens_enum_v2">
 <summary>kernel_nqueens_enum_v2 <span class="step-badge">step 89</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The exact same search as the counter, but it STORES every solution it finds into a growing array.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the whole solution set is appended -- storing the output is what flips this from quiet to loud.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D11_visible_backtracking/kernel_nqueens_enum_v2.c</code></p>
 <pre class="algo"> kernel_nqueens_enum_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4557,11 +5289,19 @@ Phases: warmup (alloc + init) / measure (carve+solve passes) / cooldown.</pre>
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (enumerate passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_nqueens_enum_v2 --n 14 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_nqueens_enum_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_beliefprop_v2">
 <summary>kernel_beliefprop_v2 <span class="step-badge">step 90</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Loopy belief propagation on a grid: iteratively pass and update messages between neighboring cells until they settle.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: message arrays per grid cell, overwritten each iteration.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D12_visible_graphical_models/kernel_beliefprop_v2.c</code></p>
 <pre class="algo"> kernel_beliefprop_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4627,11 +5367,19 @@ Phases: warmup (alloc + init) / measure (carve+solve passes) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Graphical Models. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (BP passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_beliefprop_v2 --width 256 --height 256 --states 4 --iters 10 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_beliefprop_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_gibbs_v2">
 <summary>kernel_gibbs_v2 <span class="step-badge">step 91</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Gibbs sampling on a Potts/Ising grid: sweep the grid resampling each cell from its neighbors, stochastically.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a stochastic per-cell resample sweep of the whole grid.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D12_visible_graphical_models/kernel_gibbs_v2.c</code></p>
 <pre class="algo"> kernel_gibbs_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4691,11 +5439,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graphical Models. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init) / measure (Gibbs sweeps) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_gibbs_v2 --width 1024 --height 1024 --states 2 --beta-milli 400 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_gibbs_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_hmm_v2">
 <summary>kernel_hmm_v2 <span class="step-badge">step 92</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">The scaled forward algorithm for a hidden Markov model: fill a <span class="term" tabindex="0" data-def="A grid of probabilities filled column by column in sequence models (HMMs), each column depending on the previous -- a left-to-right write front.">trellis</span> column by column, each from the previous via a dense matrix-vector step.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a column-fill front plus dense matvec, with normalized-probability content.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D12_visible_graphical_models/kernel_hmm_v2.c</code></p>
 <pre class="algo"> kernel_hmm_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4752,11 +5508,19 @@ Phases: warmup (alloc + init) / measure (Gibbs sweeps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Graphical Models. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (forward passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_hmm_v2 --states 256 --steps 65536 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_hmm_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_kalman_v2">
 <summary>kernel_kalman_v2 <span class="step-badge">step 93</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Runs an ensemble of Kalman filters, each maintaining and updating its own small dense covariance matrix every step.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: many small covariance matrices rewritten per step.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D12_visible_graphical_models/kernel_kalman_v2.c</code></p>
 <pre class="algo"> kernel_kalman_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4826,11 +5590,19 @@ Phases: warmup (alloc + init) / measure (Gibbs sweeps) / cooldown.</pre>
  Signature family: KERNEL. Dwarf: Graphical Models. See docs/SAFETY_MODEL.md.
 
  Phases: warmup (alloc + init) / measure (Kalman passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_kalman_v2 --ensemble 8192 --dim 8 --meas 4 --steps 32 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_kalman_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_ldpc_v2">
 <summary>kernel_ldpc_v2 <span class="step-badge">step 94</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Decodes an error-correcting LDPC code by passing min-sum messages back and forth across a bipartite (Tanner) graph.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the bipartite edge-message arrays iterated until convergence.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D12_visible_graphical_models/kernel_ldpc_v2.c</code></p>
 <pre class="algo"> kernel_ldpc_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4906,11 +5678,19 @@ Pure memory + compute: no file I/O, no network, no persistence, no sandbox.
 Signature family: KERNEL. Dwarf: Graphical Models. See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + graph build + init) / measure (decode passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_ldpc_v2 --bits 4096 --dv 3 --dc 6 --flip-milli 20 --iters 20 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_ldpc_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_aho_corasick_v2">
 <summary>kernel_aho_corasick_v2 <span class="step-badge">step 95</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Builds a multi-pattern matching automaton, then scans text appending every match found.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: the automaton build plus a match-list append.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D13_visible_finite_state_machines/kernel_aho_corasick_v2.c</code></p>
 <pre class="algo"> kernel_aho_corasick_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -4990,11 +5770,19 @@ See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + generate text/patterns + BUILD automaton) /
         measure (SCAN passes, append matches) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_aho_corasick_v2 --patterns 2000 --pattern-len 6 --text-mb 16 --alphabet 4 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_aho_corasick_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dfa_build_v2">
 <summary>kernel_dfa_build_v2 <span class="step-badge">step 96</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Builds a <span class="term" tabindex="0" data-def="Deterministic Finite Automaton -- a state machine with a lookup table: current state + next character picks the next state. Matching is just table reads.">DFA</span> from a nondeterministic one by subset construction, writing out a dense transition table.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a dense transition-table construction -- the inverse of quietly RUNNING a DFA.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D13_visible_finite_state_machines/kernel_dfa_build_v2.c</code></p>
 <pre class="algo"> kernel_dfa_build_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -5081,11 +5869,19 @@ See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + init NFA) / measure (repeated subset construction) /
 cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dfa_build_v2 --nfa-states 16 --alphabet 4 --max-states 200000 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dfa_build_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_dfa_match_v2">
 <summary>kernel_dfa_match_v2 <span class="step-badge">step 97</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Runs a table-driven <span class="term" tabindex="0" data-def="Deterministic Finite Automaton -- a state machine with a lookup table: current state + next character picks the next state. Matching is just table reads.">DFA</span> over a read-only text stream, writing only the current state and a match counter.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> The quiet control: streaming reads plus a scalar -- matching a pattern is nearly invisible.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D13_visible_finite_state_machines/kernel_dfa_match_v2.c</code></p>
 <pre class="algo"> kernel_dfa_match_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -5167,11 +5963,19 @@ cooldown.</pre>
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (build DFA + generate input) / measure (DFA scans) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_dfa_match_v2 --input-mb 64 --pattern acgt --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_dfa_match_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_fsm_transduce_v2">
 <summary>kernel_fsm_transduce_v2 <span class="step-badge">step 98</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A Mealy-machine transducer that reads an input stream and emits a reframed/escaped output stream of similar size (benign, reversible -- not encryption).</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: an output stream roughly the size of the input -- a translating write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D13_visible_finite_state_machines/kernel_fsm_transduce_v2.c</code></p>
 <pre class="algo"> kernel_fsm_transduce_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -5262,11 +6066,19 @@ cooldown.</pre>
  See docs/SAFETY_MODEL.md.
 
  Phases: warmup (generate input) / measure (encode passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_fsm_transduce_v2 --input-mb 32 --esc-density 16 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_fsm_transduce_v2 --phase-markers --max-mb 512</pre>
 </div></details>
 <details id="kernel_lexer_v2">
 <summary>kernel_lexer_v2 <span class="step-badge">step 99</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">A lexer: a character-class state machine that emits one token record per lexeme into a large token array.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Visible: a token-array append whose size tiles the input -- emitting output is the write.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/kernel/D13_visible_finite_state_machines/kernel_lexer_v2.c</code></p>
 <pre class="algo"> kernel_lexer_v2  --  benign system-behaviour benchmark (NOT malware).
@@ -5338,6 +6150,7 @@ Signature family: KERNEL (visible). Dwarf: Finite State Machines (D13).
 See docs/SAFETY_MODEL.md.
 
 Phases: warmup (alloc + generate input) / measure (re-lex passes) / cooldown.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">/home/kali/memorySignal/VM_executables_phase2/bin/kernel_lexer_v2 --input-mb 32 --duration 60 --seed 42 --output-dir /var/tmp/phase2_campaign/kernel_lexer_v2 --phase-markers --max-mb 512</pre>
 </div></details>
@@ -5345,6 +6158,13 @@ Phases: warmup (alloc + generate input) / measure (re-lex passes) / cooldown.</p
 <section><h2 id="fam-mp">METHODOLOGY — analysis steps, not workloads</h2>
 <details id="mp_phase_boundary_inference.py">
 <summary>mp_phase_boundary_inference.py <span class="step-badge">step 100</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Not a workload itself: it runs another workload as a child and tries to detect the boundaries between its phases from the signal. (The detector here is a placeholder stub.)</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Analysis step -- its memory activity comes from the child workload it launches, not from itself.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/methodology/mp_phase_boundary_inference.py</code></p>
 <pre class="algo">mp_phase_boundary_inference
@@ -5358,11 +6178,19 @@ This script does not consume real signal traces — it operates on a synthetic
 per-segment event-count stream computed from the metadata of the underlying
 test. The intent is to provide an end-to-end harness that the analyzer can
 later swap for a real per-segment metric series (e.g. active_page_fraction).</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">mkdir -p /var/tmp/phase2_campaign/mp_phase_boundary_inference_child &amp;&amp; python3 /home/kali/memorySignal/VM_executables_phase2/methodology/mp_phase_boundary_inference.py --duration 60 --child-binary /home/kali/memorySignal/VM_executables_phase2/bin/sandbox_ransom_seq --child-args &quot;--files 1000 --file-size-bytes 1048576 --duration 60 --sandbox-dir /var/tmp/phase2_campaign/mp_phase_boundary_inference_child --seed 42&quot; --detector fixed --tolerance-s 0.5 --seed 42 --output-dir /var/tmp/phase2_campaign/mp_phase_boundary_inference</pre>
 </div></details>
 <details id="mp_workingset_metric_linearity.py">
 <summary>mp_workingset_metric_linearity.py <span class="step-badge">step 101</span></summary>
+<div class="body">
+<div class="plain">
+<p class="plain-text">Not a workload: it reads the results of an earlier step (the working-set sweep) and checks whether a chosen metric scales linearly with working-set size.</p>
+<p class="signal"><span class="signal-tag">memory signal</span> Pure analysis -- it consumes another step&#x27;s output, so it must run after that step and cannot be tested in isolation.</p>
+</div>
+<details class="verbatim">
+<summary>Show original source (verbatim)</summary>
 <div class="body">
 <p class="srcpath">source: <code>VM_executables_phase2/methodology/mp_workingset_metric_linearity.py</code></p>
 <pre class="algo">mp_workingset_metric_linearity
@@ -5379,6 +6207,7 @@ times with different --working-set-mb (or --bytes-per-page) values.
 Inputs: a directory of metadata JSON files. The script picks up files named
 *workingset_sweep_v2_metadata.json or *writemag_sweep_v2_metadata.json by
 default, but can be overridden via --metric-key and --x-key.</pre>
+</div></details>
 <p class="cmd-label">campaign invocation:</p>
 <pre class="cmd">python3 /home/kali/memorySignal/VM_executables_phase2/methodology/mp_workingset_metric_linearity.py --inputs-dir /var/tmp/phase2_campaign/mem_workingset_sweep_v2 --family workingset --metric-keys writes,passes --seed 42 --output-dir /var/tmp/phase2_campaign/mp_workingset_metric_linearity</pre>
 </div></details>
