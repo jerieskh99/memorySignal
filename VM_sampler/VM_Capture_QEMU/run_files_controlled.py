@@ -1097,12 +1097,21 @@ def load_steps() -> list[str]:
 
 
 def _sustain_wrap(remote_cmd: str) -> str:
-    """Re-run the workload until its --duration elapses (when SUSTAIN_LOOP is on).
+    """Re-run the workload until T seconds elapse, LETTING THE LAST ITERATION FINISH.
 
-    Workloads that treat --duration as a cap exit in ~1-2 s, leaving the capture
-    window idle. With SUSTAIN_LOOP on and a '--duration N' in the command, wrap it
-    as `timeout N sh -c 'while :; do <cmd>; done'` so it churns memory for the whole
-    N seconds. No-op when the flag is off or no --duration is present.
+    Many workloads treat --duration as a cap and finish early (a knapsack solves
+    in ~10 s), leaving a short, uneven observation window. With SUSTAIN_LOOP on,
+    re-run the workload until T (= its --duration) has elapsed, so every cell
+    provides a comparable ~T-second window of continuous activity -- the model
+    a detection/characterisation study wants.
+
+    The clock is checked BETWEEN whole iterations, never mid-run: the iteration
+    in flight when T passes runs to completion instead of being killed. So a cell
+    lasts T plus at most one workload iteration -- "run for T, then finish the
+    last iteration" -- rather than being truncated (which the old `timeout`
+    wrapper did). A workload that already honours --duration runs exactly once.
+
+    No-op when the flag is off or the command has no --duration.
     """
     if not SUSTAIN_LOOP:
         return remote_cmd
@@ -1110,13 +1119,11 @@ def _sustain_wrap(remote_cmd: str) -> str:
     if not m:
         return remote_cmd
     secs = m.group(1)
-    inner = f"while :; do {remote_cmd}; done"
-    # `timeout` exits 124 when it ends the loop after N seconds -- that is the
-    # NORMAL, expected end of a sustained workload, not a failure. Swallow it so
-    # the orchestrator's per-step success check (rc != 0) does not abort the run.
-    # The loop re-runs the workload regardless of its own exit, so 124 is the only
-    # non-zero this can produce; workload validity is judged from the APF instead.
-    return f"timeout {secs} sh -c {shlex.quote(inner)} || true"
+    # POSIX sh: portable across the guest's shell. The loop's exit status is the
+    # last iteration's, so a genuinely failing workload still surfaces (no `|| true`
+    # masking, unlike the timeout version which had to swallow its own SIGTERM 124).
+    return (f"__t_end=$(( $(date +%s) + {secs} )); "
+            f"while [ $(date +%s) -lt $__t_end ]; do {remote_cmd}; done")
 
 
 def main() -> int:
