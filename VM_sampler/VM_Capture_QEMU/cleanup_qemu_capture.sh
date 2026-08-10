@@ -38,19 +38,23 @@ done
 echo "[CLEANUP] Deleting run matrix files in queue root..."
 rm -f "$QUEUE_ROOT"/run_matrix.npy "$QUEUE_ROOT"/run_matrix.npy.lock 2>/dev/null || true
 
-echo "[CLEANUP] Deleting RAW dumps in $DUMP_DIR (sudo rm memory_dump*)..."
+# No sudo: the producer chowns each dump to the invoking user (the sweep in
+# run_files_controlled.py unlinks them the same way), and OUTPUT_ROOT lives under
+# the user's own home. sudo here needlessly required a root grant the user does
+# not have, so `sudo mkdir` was denied and set -e aborted the whole cleanup.
+echo "[CLEANUP] Deleting RAW dumps in $DUMP_DIR (rm memory_dump*)..."
 if [[ -d "$DUMP_DIR" ]]; then
-  sudo rm -f "$DUMP_DIR"/memory_dump* 2>/dev/null || true
+  rm -f "$DUMP_DIR"/memory_dump* 2>/dev/null || true
 else
   echo "[CLEANUP] Dump dir does not exist: $DUMP_DIR (nothing to delete)"
 fi
 
 echo "[CLEANUP] Deleting DELTA files in $OUTPUT_ROOT (cosine/hamming)..."
 if [[ -d "$OUTPUT_ROOT" ]]; then
-  sudo rm -rf "$OUTPUT_ROOT"/rotated/* 2>/dev/null || true
-  sudo rm -f "$OUTPUT_ROOT"/cosine/* 2>/dev/null || true
-  sudo rm -f "$OUTPUT_ROOT"/hamming/* 2>/dev/null || true
-  sudo mkdir -p "$OUTPUT_ROOT"/cosine "$OUTPUT_ROOT"/hamming
+  rm -rf "$OUTPUT_ROOT"/rotated/* 2>/dev/null || true
+  rm -f "$OUTPUT_ROOT"/cosine/* 2>/dev/null || true
+  rm -f "$OUTPUT_ROOT"/hamming/* 2>/dev/null || true
+  mkdir -p "$OUTPUT_ROOT"/cosine "$OUTPUT_ROOT"/hamming 2>/dev/null || true
 else
   echo "[CLEANUP] Output dir does not exist: $OUTPUT_ROOT (nothing to delete)"
 fi
