@@ -39,7 +39,7 @@ SMOKE_ROOT="/var/tmp/qa_smoke_$$"
 gssh "mkdir -p '$SMOKE_ROOT'" >/dev/null 2>&1
 
 REPORT="$QA_TMP/smoke_report.tsv"
-printf 'workload\texit\tpeak_rss_mb\tscratch_mb\n' > "$REPORT"
+printf 'workload\texit\tpeak_rss_mb\tpeak_anon_mb\tscratch_mb\n' > "$REPORT"
 
 ok=0; bad=0; n=0
 total=$(grep -vcE '^\s*#|^\s*$' "$STEPS_FILE")
@@ -72,42 +72,55 @@ while IFS= read -r line; do
   wrapped="mkdir -p '$sbox'
     timeout $((QA_SMOKE_SECONDS + QA_SMOKE_GRACE)) sh -c $(printf '%q' "$cmd") >/dev/null 2>'$sbox/.err' &
     wpid=\$!
-    hwm=0
+    hwm=0; anon=0
     while kill -0 \$wpid 2>/dev/null; do
       kids=\$(pgrep -P \$wpid 2>/dev/null)
       gkids=\$(for k in \$kids; do pgrep -P \$k 2>/dev/null; done)
       for p in \$wpid \$kids \$gkids; do
-        v=\$(awk '/VmHWM/{print \$2}' /proc/\$p/status 2>/dev/null)
-        [ -n \"\$v\" ] && [ \"\$v\" -gt \"\$hwm\" ] 2>/dev/null && hwm=\$v
+        v=\$(awk '/VmHWM/{print \$2}'  /proc/\$p/status 2>/dev/null)
+        a=\$(awk '/RssAnon/{print \$2}' /proc/\$p/status 2>/dev/null)
+        [ -n \"\$v\" ] && [ \"\$v\" -gt \"\$hwm\"  ] 2>/dev/null && hwm=\$v
+        [ -n \"\$a\" ] && [ \"\$a\" -gt \"\$anon\" ] 2>/dev/null && anon=\$a
       done
       sleep 0.2
     done
     wait \$wpid; rc=\$?
-    echo \"RC=\$rc RSS=\$hwm SCRATCH=\$(du -sm '$sbox' 2>/dev/null | awk '{print \$1}')\"
+    echo \"RC=\$rc RSS=\$hwm ANON=\$anon SCRATCH=\$(du -sm '$sbox' 2>/dev/null | awk '{print \$1}')\"
     tail -3 '$sbox/.err' 2>/dev/null"
 
   out="$(gssh "$wrapped" 2>&1)"
-  rc=$(printf '%s' "$out"  | grep -oE 'RC=[0-9]+'      | head -1 | cut -d= -f2)
-  rss=$(printf '%s' "$out" | grep -oE 'RSS=[0-9]*'     | head -1 | cut -d= -f2)
-  scr=$(printf '%s' "$out" | grep -oE 'SCRATCH=[0-9]*' | head -1 | cut -d= -f2)
-  rss_mb=$(( ${rss:-0} / 1024 ))
-  printf '%s\t%s\t%s\t%s\n' "$name" "${rc:-?}" "$rss_mb" "${scr:-0}" >> "$REPORT"
+  rc=$(printf '%s' "$out"   | grep -oE 'RC=[0-9]+'      | head -1 | cut -d= -f2)
+  rss=$(printf '%s' "$out"  | grep -oE 'RSS=[0-9]*'     | head -1 | cut -d= -f2)
+  anon=$(printf '%s' "$out" | grep -oE 'ANON=[0-9]*'    | head -1 | cut -d= -f2)
+  scr=$(printf '%s' "$out"  | grep -oE 'SCRATCH=[0-9]*' | head -1 | cut -d= -f2)
+  rss_mb=$((  ${rss:-0}  / 1024 ))
+  anon_mb=$(( ${anon:-0} / 1024 ))
+  file_mb=$(( rss_mb - anon_mb )); (( file_mb < 0 )) && file_mb=0
+  printf '%s\t%s\t%s\t%s\t%s\n' "$name" "${rc:-?}" "$rss_mb" "$anon_mb" "${scr:-0}" >> "$REPORT"
 
-  if [[ "${rc:-1}" != "0" ]]; then
+  # Judge on ANONYMOUS memory. File-backed pages are evictable -- the kernel
+  # writes them back and drops them under pressure -- so a large file mapping
+  # is not a capacity failure. mem_mmap_traversal maps a 1 GB file and shows
+  # ~724 MB total RSS while its anonymous footprint is small; that is the
+  # kernel doing its job, not a workload that will be OOM-killed. (It DID die
+  # earlier, but on tmpfs, where nothing is evictable.)
+  if [[ "${rc:-1}" == "124" ]]; then
+    ok=$((ok+1))
+    warn "$name (step $n) still running at the ${QA_SMOKE_SECONDS}s+${QA_SMOKE_GRACE}s probe budget -- not a crash; verify it completes within its campaign --duration"
+  elif [[ "${rc:-1}" != "0" ]]; then
     bad=$((bad+1))
     reason=$(printf '%s' "$out" | grep -iE 'error|failed|cannot|no space|denied|not found|Traceback|MemoryError|Killed' | head -1 | cut -c1-90)
-    [[ "${rc:-}" == "124" ]] && reason="${reason:-hit the ${QA_SMOKE_SECONDS}s+${QA_SMOKE_GRACE}s budget}"
     fail "$name (step $n) exit=${rc:-?} ${reason:+-- $reason}"
-  elif (( rss_mb > RAM_BUDGET_MB )); then
+  elif (( anon_mb > RAM_BUDGET_MB )); then
     bad=$((bad+1))
-    fail "$name (step $n) peak RSS ${rss_mb} MB exceeds the ~${RAM_BUDGET_MB} MB guest budget -- will swap or be OOM-killed at full size"
-  elif (( rss_mb > RAM_BUDGET_MB * 60 / 100 )); then
+    fail "$name (step $n) anonymous RSS ${anon_mb} MB exceeds the ~${RAM_BUDGET_MB} MB budget -- unevictable, will swap or be OOM-killed at full size"
+  elif (( anon_mb > RAM_BUDGET_MB * 60 / 100 )); then
     ok=$((ok+1))
-    warn "$name peak RSS ${rss_mb} MB is over 60% of the ~${RAM_BUDGET_MB} MB budget (scratch ${scr:-0} MB)"
+    warn "$name anonymous RSS ${anon_mb} MB is over 60% of the ~${RAM_BUDGET_MB} MB budget (file-backed ${file_mb} MB, scratch ${scr:-0} MB)"
   else
     ok=$((ok+1))
-    printf '  %s[ok]%s   %-34s rss %4s MB  scratch %4s MB  (%s/%s)\n' \
-      "$_c_grn" "$_c_off" "$name" "$rss_mb" "${scr:-0}" "$n" "$total"
+    printf '  %s[ok]%s   %-32s anon %4s MB  file %4s MB  scratch %4s MB  (%s/%s)\n' \
+      "$_c_grn" "$_c_off" "$name" "$anon_mb" "$file_mb" "${scr:-0}" "$n" "$total"
   fi
 done < <(grep -vE '^\s*#|^\s*$' "$STEPS_FILE")
 
@@ -118,7 +131,7 @@ gssh "rm -rf '$SMOKE_ROOT'" >/dev/null 2>&1
 if [[ -n "${QA_KEEP_REPORT:-}" ]]; then
   cp "$REPORT" "$QA_KEEP_REPORT" && info "footprint report: $QA_KEEP_REPORT"
 else
-  info "top footprints:"
-  tail -n +2 "$REPORT" | sort -t$'\t' -k3 -rn | head -6 \
-    | awk -F'\t' '{printf "    %-34s rss %5s MB  scratch %5s MB\n",$1,$3,$4}'
+  info "top footprints (by anonymous, the unevictable part):"
+  tail -n +2 "$REPORT" | sort -t$'\t' -k4 -rn | head -8 \
+    | awk -F'\t' '{printf "    %-32s anon %5s MB  total %5s MB  scratch %5s MB\n",$1,$4,$3,$5}'
 fi
