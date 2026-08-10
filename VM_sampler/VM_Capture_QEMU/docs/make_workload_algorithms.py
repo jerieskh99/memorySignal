@@ -28,6 +28,68 @@ try:
     from workload_rewrites import REWRITES, GLOSSARY  # phase-2 plain rewrites
 except Exception:
     REWRITES, GLOSSARY = {}, {}
+from workload_introspect import extract_params, extract_edges, parse_invocation
+
+# flags that name a scratch/output path rather than tune behavior
+_PATH_FLAGS = {"--output-dir", "--sandbox-dir", "--backing-dir", "--inputs-dir",
+               "--safe-root", "--child-binary", "--child-args"}
+
+
+def render_params(params, cmd):
+    """HTML table: each flag, its default, and the value chosen this campaign."""
+    chosen = parse_invocation(cmd)
+    rows = []
+    listed = set()
+    for flag, default in params:
+        listed.add(flag)
+        val = chosen.get(flag)
+        if val is True:
+            camp = '<span class="p-set">on</span>'
+        elif val is not None:
+            differs = str(val) != str(default).strip('"')
+            cls = "p-set" if differs else "p-same"
+            camp = f'<span class="{cls}">{html.escape(str(val))}</span>'
+        else:
+            camp = '<span class="p-def">(default)</span>'
+        tag = ""
+        if flag in _PATH_FLAGS:
+            tag = '<span class="p-tag path">path</span>'
+        elif val is not None:
+            tag = '<span class="p-tag set">set</span>'
+        rows.append(f'<tr><td><code>{html.escape(flag)}</code> {tag}</td>'
+                    f'<td>{html.escape(str(default))}</td><td>{camp}</td></tr>')
+    # any flag on the command line the source didn't declare (rare)
+    for flag, val in chosen.items():
+        if flag in listed:
+            continue
+        shown = "on" if val is True else html.escape(str(val))
+        rows.append(f'<tr><td><code>{html.escape(flag)}</code> '
+                    f'<span class="p-tag set">set</span></td>'
+                    f'<td class="muted">not declared in source</td>'
+                    f'<td><span class="p-set">{shown}</span></td></tr>')
+    if not rows:
+        return '<p class="muted">no tunable parameters found in source</p>'
+    return ('<table class="params"><tr><th>Parameter</th><th>Default</th>'
+            '<th>This campaign</th></tr>' + "".join(rows) + '</table>')
+
+
+def render_edges(edges):
+    if not edges:
+        return '<p class="muted">no explicit guards or caveats found in source</p>'
+    guards = [e for k, e in edges if k == "guard"]
+    caveats = [e for k, e in edges if k == "caveat"]
+    out = []
+    if guards:
+        out.append('<p class="edge-h">Guard rails (what the workload rejects or fails on):</p><ul class="edges">')
+        for g in guards:
+            out.append(f'<li>{html.escape(g)}</li>')
+        out.append('</ul>')
+    if caveats:
+        out.append('<p class="edge-h">Author caveats (from the source header):</p><ul class="edges cav">')
+        for c in caveats:
+            out.append(f'<li>{html.escape(c)}</li>')
+        out.append('</ul>')
+    return "".join(out)
 CAPTURE_ROOT = HERE.parent
 REPO_ROOT = CAPTURE_ROOT.parent.parent
 STEPS = CAPTURE_ROOT / "plan07_campaign" / "full_campaign_steps.txt"
@@ -144,6 +206,8 @@ def main():
     for prog, info in seen.items():
         info["src"] = find_src(prog)
         info["algo"] = extract_header(info["src"]) if info["src"] else ""
+        info["params"] = extract_params(info["src"]) if info["src"] else []
+        info["edges"] = extract_edges(info["src"]) if info["src"] else []
 
     by_family = {f: [] for f in FAMILY_ORDER}
     for prog, info in sorted(seen.items(), key=lambda kv: kv[1]["first_step"]):
@@ -162,11 +226,13 @@ def main():
     parts.append('<h1>Workload Algorithms — Explained + Verbatim</h1>')
     n_rw = sum(1 for p in seen if p in REWRITES)
     parts.append('<p class="lede">One page per campaign workload. Each opens with a '
-                 '<strong>plain-language explanation</strong> of the algorithm, followed '
-                 'by the <strong>verbatim source</strong> it is based on (collapsed) so '
-                 'the two can be compared. The plain version is the only authored prose; '
-                 'the verbatim text is byte-for-byte from the workload\'s own source header, '
-                 'so nothing drifts.</p>')
+                 '<strong>plain-language explanation</strong> of the algorithm, then three '
+                 'expandable tabs: <strong>Parameters</strong> (every flag, its default, and '
+                 'the value this campaign chose), <strong>Edge cases &amp; limits</strong> '
+                 '(the guard rails and caveats the workload states in its own source), and '
+                 '<strong>the verbatim source</strong> it is all based on. Only the plain '
+                 'explanation is authored; the tabs are extracted from source, so nothing '
+                 'drifts.</p>')
     parts.append(f'<p class="glossary-hint">{len(seen)} workloads across '
                  f'{sum(1 for f in by_family if by_family[f])} families · '
                  f'{n_rw} with plain rewrites · {len(GLOSSARY)} glossary terms (hover the '
@@ -211,8 +277,27 @@ def main():
                 parts.append('</div>')
             else:
                 parts.append('<p class="plain-text muted">(no plain-language rewrite yet)</p>')
-            # Verbatim source, collapsed by default beneath the plain version.
-            parts.append('<details class="verbatim">')
+            # Tab: parameters (chosen vs default).
+            nset = sum(1 for f, _ in info["params"]
+                       if f in parse_invocation(info["cmd"]))
+            parts.append('<details class="tab tab-params">')
+            parts.append(f'<summary>Parameters <span class="tab-hint">'
+                         f'{len(info["params"])} flags, {nset} set this campaign</span></summary>')
+            parts.append('<div class="body">')
+            parts.append(render_params(info["params"], info["cmd"]))
+            parts.append('</div></details>')
+
+            # Tab: edge cases & limits.
+            ne = len(info["edges"])
+            parts.append('<details class="tab tab-edges">')
+            parts.append(f'<summary>Edge cases &amp; limits <span class="tab-hint">'
+                         f'{ne} from source</span></summary>')
+            parts.append('<div class="body">')
+            parts.append(render_edges(info["edges"]))
+            parts.append('</div></details>')
+
+            # Tab: verbatim source, collapsed beneath the plain version.
+            parts.append('<details class="tab verbatim">')
             parts.append('<summary>Show original source (verbatim)</summary>')
             parts.append('<div class="body">')
             parts.append(f'<p class="srcpath">source: <code>{html.escape(src_disp)}</code></p>')
@@ -291,10 +376,30 @@ pre.cmd{background:#1c2733;color:#e8eef4;border-color:#2a3947;white-space:pre-wr
 .signal-tag{display:inline-block;font-size:0.68rem;font-weight:700;letter-spacing:.04em;
   text-transform:uppercase;color:var(--good);background:#eaf6ee;border:1px solid #cfe6d6;
   border-radius:10px;padding:1px 8px;margin-right:6px;vertical-align:1px;}
-details.verbatim{background:#fbfbfb;border:1px dashed var(--border);margin:6px 0 0;}
-details.verbatim>summary{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-weight:500;font-size:0.85rem;color:var(--muted);padding:8px 14px;}
-details.verbatim .body{padding:4px 14px 12px;}
+details.tab{background:#fbfbfb;border:1px solid var(--border);margin:6px 0 0;}
+details.tab>summary{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-weight:600;font-size:0.85rem;color:#333;padding:8px 14px;}
+details.tab .body{padding:6px 14px 14px;}
+details.tab-params>summary{border-left:3px solid var(--accent);}
+details.tab-edges>summary{border-left:3px solid var(--warn);}
+details.verbatim{background:#fbfbfb;border:1px dashed var(--border);}
+details.verbatim>summary{font-weight:500;color:var(--muted);border-left:3px solid var(--border);}
+.tab-hint{float:right;font-weight:400;font-size:0.75rem;color:var(--muted);}
+table.params{width:100%;font-size:0.86rem;}
+table.params th{background:#f0f4f8;font-size:0.78rem;text-transform:uppercase;letter-spacing:.03em;}
+table.params td{padding:5px 9px;vertical-align:top;}
+.p-set{color:var(--good);font-weight:700;}
+.p-same{color:#333;}
+.p-def{color:var(--muted);}
+.p-tag{display:inline-block;font-size:0.62rem;font-weight:700;letter-spacing:.03em;
+  padding:0 6px;border-radius:8px;vertical-align:1px;margin-left:4px;}
+.p-tag.set{background:#eaf6ee;color:var(--good);}
+.p-tag.path{background:#f0eefa;color:#5a3fa0;}
+.edge-h{font-size:0.85rem;font-weight:600;margin:8px 0 4px;color:#333;}
+ul.edges{margin:2px 0 10px;padding-left:20px;}
+ul.edges li{font-size:0.85rem;line-height:1.5;margin:3px 0;}
+ul.edges.cav li{color:#555;font-style:italic;}
+.muted{color:var(--muted);}
 .term{border-bottom:1px dotted var(--accent);cursor:help;position:relative;}
 .term::after{content:attr(data-def);position:absolute;left:0;bottom:140%;
   width:max-content;max-width:300px;background:#1c1c1c;color:#fafafa;
