@@ -36,6 +36,12 @@ SSH_OPTS = os.environ.get("SSH_OPTS", "")
 # Requires sshpass to be installed: apt install sshpass
 SSH_PASS = os.environ.get("SSH_PASS", "")
 SSH_WAIT_TIMEOUT = int(os.environ.get("SSH_WAIT_TIMEOUT", "1200000"))
+# A workload launch over SSH can return 255 (connection failure) if it lands in a
+# producer VM-suspend window during capture -- the workload never runs. Retry the
+# launch a few times, pausing between so the ~2.6s suspend/dump/resume cycle
+# passes. Observed: 7/101 steps failed this way with a single retry.
+SSH_WORKLOAD_RETRIES = int(os.environ.get("SSH_WORKLOAD_RETRIES", "4"))
+SSH_RETRY_PAUSE_S = int(os.environ.get("SSH_RETRY_PAUSE_S", "3"))
 STOP_TIMEOUT = int(os.environ.get("STOP_TIMEOUT", "60"))
 FORCE_DESTROY = os.environ.get("FORCE_DESTROY", "1").lower() in {"1", "true", "yes"}
 STEPS_FILE = os.environ.get("STEPS_FILE", "")
@@ -1225,22 +1231,28 @@ def main() -> int:
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
             rc = run(f"{base} {wrapped}")
         rc = rc >> 8  # os.system stores wait status
-        # rc == 255 = SSH connection failure (not a workload error). On a cold-boot
-        # post-destroy this is almost always a transient sshd-stabilization race;
-        # re-wait for SSH (with the stricter 3-consecutive probe) and retry once
-        # before treating it as a real step failure that aborts the campaign.
+        # rc == 255 = SSH connection failure (not a workload error): a cold-boot
+        # sshd-stabilization race, or the launch landing in a producer VM-suspend
+        # window during capture. Both are transient, so re-wait for SSH and retry
+        # a few times -- pausing to clear a suspend cycle -- before treating it as
+        # a real failure. A single retry left 7/101 steps failing this way.
+        ssh_retries = 0
+        while rc == 255 and ssh_retries < SSH_WORKLOAD_RETRIES:
+            ssh_retries += 1
+            print(f"[CONTROL] WARNING: workload SSH returned 255 (connection failure, "
+                  f"not a workload error). Pausing {SSH_RETRY_PAUSE_S}s, re-waiting for "
+                  f"SSH, retrying ({ssh_retries}/{SSH_WORKLOAD_RETRIES})...")
+            time.sleep(SSH_RETRY_PAUSE_S)
+            if not wait_for_ssh():
+                print("[CONTROL] SSH not stable yet; will retry if attempts remain.")
+                continue
+            with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name} [retry {ssh_retries}]"):
+                rc = run(f"{base} {wrapped}")
+            rc = rc >> 8
+            print(f"[CONTROL] Retry {ssh_retries} exit code: {rc}")
         if rc == 255:
-            print("[CONTROL] WARNING: workload SSH returned 255 (connection "
-                  "failure, not a workload error). Re-waiting for stable SSH "
-                  "and retrying the step once...")
-            if wait_for_ssh():
-                with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name} [retry]"):
-                    rc = run(f"{base} {wrapped}")
-                rc = rc >> 8
-                print(f"[CONTROL] Retry exit code: {rc}")
-            else:
-                print("[CONTROL] ERROR: SSH still not stable on retry; "
-                      "leaving rc=255 so the step fails clearly.")
+            print("[CONTROL] ERROR: workload SSH still 255 after "
+                  f"{SSH_WORKLOAD_RETRIES} retries; failing the step.")
         log_test_timestamp(i, test_name, "ended")
         print(f"[CONTROL] Logged test timestamps -> {TIMESTAMPS_LOG}")
         if rc == 0:
