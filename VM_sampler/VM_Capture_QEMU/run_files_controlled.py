@@ -995,7 +995,11 @@ def wipe_guest_scratch(base: str, remote_cmd: str) -> None:
             continue
         # Remove contents + recreate so the workload can repopulate it. Glob
         # expands on the GUEST shell; errors swallowed; `true` keeps rc clean.
-        wipe = f"rm -rf -- {d}/* {d}/.[!.]* 2>/dev/null; mkdir -p -- {d}; true"
+        # find -delete, not a shell glob: the guest is Kali (default shell zsh),
+        # and zsh aborts a command whose glob matches nothing (e.g. .[!.]* on a
+        # dir with no dotfiles), so `rm dir/* dir/.[!.]*` silently did nothing.
+        # find does its own matching -- empty dir is a clean no-op everywhere.
+        wipe = f"find {shlex.quote(d)} -mindepth 1 -delete 2>/dev/null; mkdir -p -- {shlex.quote(d)}; true"
         run(f"{base} {shlex.quote(wipe)}")
         print(f"[CONTROL] pre-cell guest scratch wipe: {d}")
 
@@ -1023,7 +1027,10 @@ def reclaim_guest_scratch(base: str, remote_cmd: str, keep_dirs: set[str]) -> No
     for d in sorted(dirs - keep_dirs):
         if not any(d.startswith(r) for r in GUEST_SCRATCH_SAFE_ROOTS):
             continue
-        wipe = f"rm -rf -- {d}/* {d}/.[!.]* 2>/dev/null; true"
+        # find -delete rather than a shell glob (guest shell is zsh; an unmatched
+        # .[!.]* aborts the whole rm). Removes files, dotfiles, and subdirs; the
+        # dir itself stays for the next cell.
+        wipe = f"find {shlex.quote(d)} -mindepth 1 -delete 2>/dev/null; true"
         run(f"{base} {shlex.quote(wipe)}")
     kept = dirs & keep_dirs
     if dirs - keep_dirs:
