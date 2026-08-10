@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Workloads, Explained — VM_Capture_QEMU</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#fafafa;--fg:#1c1c1c;--muted:#5a5a5a;--accent:#0a5aa0;
+  --card:#fff;--border:#d8d8d8;--good:#2c7a3a;--warn:#a3540a;
+  --bad:#a01b2a;--callout:#f1f6fb;
+}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  line-height:1.6;font-size:16px;}
+main{max-width:960px;margin:0 auto;padding:32px 24px 80px;}
+h1{font-size:1.9rem;margin:0 0 8px;}
+h2{margin-top:52px;padding-bottom:8px;border-bottom:2px solid var(--border);
+  font-size:1.5rem;}
+h3{margin-top:28px;font-size:1.1rem;}
+header p.lede{color:var(--muted);margin-top:0;font-size:1.05rem;}
+.chapter-num{display:inline-block;color:var(--accent);font-weight:700;
+  font-size:0.85rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+.toc{margin-top:20px;border:1px solid var(--border);border-radius:8px;
+  background:var(--card);padding:14px 20px;}
+.toc ol{padding-left:22px;margin:8px 0;}
+.toc a{color:var(--accent);text-decoration:none;}
+.toc a:hover{text-decoration:underline;}
+p{margin:12px 0;}
+.card-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  gap:14px;margin:20px 0 28px;}
+.card{background:var(--card);border:1px solid var(--border);
+  border-radius:8px;padding:14px 16px;}
+.card h4{margin:0 0 6px;font-size:1rem;}
+.card .count{float:right;color:var(--muted);font-weight:400;font-size:0.85rem;}
+.card p{margin:0;color:var(--muted);font-size:0.92rem;}
+.card.f-quiet{border-left:4px solid var(--good);}
+.card.f-loud{border-left:4px solid var(--bad);}
+.card.f-mixed{border-left:4px solid var(--warn);}
+.card.f-neutral{border-left:4px solid var(--accent);}
+details{background:var(--card);border:1px solid var(--border);
+  border-radius:8px;margin:10px 0;}
+details summary{cursor:pointer;padding:12px 16px;font-weight:600;
+  list-style:none;}
+details summary::-webkit-details-marker{display:none;}
+details summary::before{content:"▸ ";color:var(--muted);}
+details[open] summary::before{content:"▾ ";}
+details[open] summary{border-bottom:1px solid var(--border);}
+details .body{padding:14px 18px 18px;}
+code,pre{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  font-size:0.92em;}
+pre{background:#f4f4f4;border:1px solid var(--border);border-radius:4px;
+  padding:10px 12px;overflow-x:auto;}
+.callout{background:var(--callout);border-left:4px solid var(--accent);
+  padding:12px 16px;border-radius:4px;margin:16px 0;}
+.callout.warn{background:#fff7ec;border-left-color:var(--warn);}
+.callout.bad{background:#fff0f1;border-left-color:var(--bad);}
+.callout.good{background:#eef7f0;border-left-color:var(--good);}
+table{border-collapse:collapse;margin:14px 0;font-size:0.92em;width:100%;}
+th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;
+  vertical-align:top;}
+th{background:#f0f0f0;}
+tr.fixed td{background:#f7fdf8;}
+.tag{display:inline-block;font-size:0.7rem;font-weight:700;letter-spacing:.03em;
+  padding:2px 8px;border-radius:10px;white-space:nowrap;}
+.tag.real{background:#fff0f1;color:var(--bad);}
+.tag.check{background:#e7f0fa;color:var(--accent);}
+small.note{display:block;color:var(--muted);margin-top:6px;}
+
+/* ---- glossary hover terms ---- */
+.term{border-bottom:1px dotted var(--accent);cursor:help;position:relative;
+  color:inherit;}
+.term::after{
+  content:attr(data-def);
+  position:absolute;left:0;bottom:135%;
+  width:max-content;max-width:280px;
+  background:#1c1c1c;color:#fafafa;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  font-size:0.82rem;font-weight:400;line-height:1.45;
+  padding:9px 12px;border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.28);
+  z-index:80;pointer-events:none;
+  opacity:0;transform:translateY(5px);
+  transition:opacity .12s ease, transform .12s ease;
+}
+.term:hover::after,.term:focus::after{opacity:1;transform:translateY(0);}
+.term:focus{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;}
+.glossary-hint{display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;
+  color:var(--muted);background:var(--callout);border:1px solid var(--border);
+  border-radius:20px;padding:5px 14px;margin:6px 0 0;}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>The Workloads, Explained</h1>
+  <p class="lede">A plain-language walkthrough of the 101 <span class="term" tabindex="0" data-def="One small program that performs one specific behavior, so we can watch what that behavior looks like in the memory signal.">workloads</span>
+  in the capture campaign — what each family is for, why tests failed, and what actually changed to fix them.
+  Written to rebuild the whole picture in one sitting, not to be memorized.</p>
+  <p class="glossary-hint">Every underlined term has a definition — hover or tap it, or use Tab + Enter on a keyboard.</p>
+</header>
+
+<section id="reassurance">
+  <div class="callout good">
+    <strong>You have not lost control of this.</strong> Every fix in the last round
+    traces back to just <strong>four root causes</strong> (Part 3 below). Twelve
+    individual failures felt chaotic because they arrived one after another — but
+    they were four problems, not twelve. That is what this page is for: to show you
+    the four, not the twelve.
+  </div>
+</section>
+
+<section id="toc-section">
+  <div class="toc">
+    <ol>
+      <li><a href="#part1">The big picture — what a campaign actually is</a></li>
+      <li><a href="#part2">The nine families — what each is trying to learn</a></li>
+      <li><a href="#part3">Why tests fail — the four root causes</a></li>
+      <li><a href="#part4">Test by test — what happened, and why</a></li>
+      <li><a href="#part5">Where things stand now</a></li>
+      <li><a href="#glossary">Glossary — full list</a></li>
+    </ol>
+  </div>
+</section>
+
+<section id="part1">
+  <span class="chapter-num">Part 1</span>
+  <h2>The big picture</h2>
+
+  <p>There are two machines involved. The <span class="term" tabindex="0" data-def="The real physical server that runs the guest VM and does the capture, compression, and storage work. This is pcrserral.">host</span>
+  is the real server. Inside it, one small virtual machine — the
+  <span class="term" tabindex="0" data-def="The virtual machine under test. It has its own tiny 964 MB of RAM, separate from the host's real memory, and it's the thing whose memory we're actually watching.">guest</span> —
+  is the actual subject being studied. Everything the guest does happens inside
+  that 964 MB of pretend RAM, walled off from the host.</p>
+
+  <p>A <span class="term" tabindex="0" data-def="One run of one workload with capture running around it — one entry in the campaign, numbered 1 through 101.">step</span>
+  (also called a <span class="term" tabindex="0" data-def="Same thing as a step: one workload, run once, with its memory captured.">test</span>
+  or a <em>cell</em>) is: boot the guest, run one workload inside it for about
+  60 seconds, take a <span class="term" tabindex="0" data-def="A full 1 GB copy of the guest's memory, taken roughly every 500 milliseconds while a workload runs.">snapshot</span>
+  of its memory every half-second, then shut the guest down and move to the next
+  step. A <span class="term" tabindex="0" data-def="The full run of all 101 steps back to back, unattended.">campaign</span>
+  is all 101 steps run in sequence — currently around 9-10 hours end to end.</p>
+
+  <p>Why 101 different workloads instead of one? Because the thesis question is
+  <em>"can we tell what a program is doing just by watching which memory pages
+  change?"</em> — and that question can only be answered by giving the detector
+  a wide variety of real behaviors to tell apart. One workload proves nothing;
+  a hundred different <em>shapes</em> of behavior is what makes the signal
+  meaningful.</p>
+
+  <div class="callout">
+    Nothing in this page requires you to remember the mechanics of compression
+    or storage — that's covered in <a href="./zstd_retention.html">a separate
+    page</a>. This one is only about the workloads themselves: what they do,
+    and why some of them broke.
+  </div>
+</section>
+
+<section id="part2">
+  <span class="chapter-num">Part 2</span>
+  <h2>The nine families</h2>
+  <p>Every workload belongs to a family, and the family name is literally the
+  first word of its filename (<code>cpu_hash_loop_v2</code>, <code>mem_writemag_sweep_v2</code>,
+  and so on). Think of a family as a chapter in the textbook — each one exists
+  to teach the detector a different <em>category</em> of behavior.</p>
+
+  <div class="card-row">
+    <div class="card f-quiet">
+      <h4>cpu <span class="count">3</span></h4>
+      <p>Pure computation — hashing, matrix multiply, branch prediction stress.
+      Deliberately writes almost nothing to memory. This is the "quiet baseline":
+      what does <em>no</em> real memory signal look like?</p>
+    </div>
+    <div class="card f-mixed">
+      <h4>cache <span class="count">3</span></h4>
+      <p>Access patterns aimed at CPU cache behavior — a hot loop that stays in
+      cache, a cold scan that sweeps far past it. Some are near-silent, some are
+      loud; the family exists to test that boundary.</p>
+    </div>
+    <div class="card f-loud">
+      <h4>mem <span class="count">7</span></h4>
+      <p>Deliberately dirties large regions of memory in different patterns —
+      sweeping, random writes, page faults, file mapping. This is the family
+      most central to the thesis: the "loud" end of the spectrum.</p>
+    </div>
+    <div class="card f-quiet">
+      <h4>thread <span class="count">3</span></h4>
+      <p>Concurrency stress — lock contention, producer/consumer queues, parallel
+      allocation. Small memory footprint; tests threading overhead, not memory
+      volume.</p>
+    </div>
+    <div class="card f-mixed">
+      <h4>io <span class="count">2</span></h4>
+      <p>Disk-facing behavior — reading a cache-hot file, writing directly to
+      disk. Meant to look different from pure-memory workloads, which is exactly
+      what the <a href="#tmpfs-story">tmpfs contamination</a> broke.</p>
+    </div>
+    <div class="card f-mixed">
+      <h4>mixed <span class="count">3</span></h4>
+      <p>Deliberate combinations — CPU+memory, memory+I/O, CPU+I/O. Tests whether
+      combined behavior looks like the sum of its parts, or something new.</p>
+    </div>
+    <div class="card f-neutral">
+      <h4>app <span class="count">6</span></h4>
+      <p>Realistic application-shaped work — gzip compress/decompress, JSON
+      parsing, SQLite queries. Meant to resemble real software rather than a
+      synthetic microbenchmark.</p>
+    </div>
+    <div class="card f-loud">
+      <h4>sandbox <span class="count">8</span></h4>
+      <p>Ransomware-behavior simulations (sequential, batched, selective,
+      slow-burn file rewriting) plus "stealth" variants that write slowly and
+      small, trying to blend in. The security-detection angle of the thesis.</p>
+    </div>
+    <div class="card f-neutral">
+      <h4>kernel <span class="count">64</span></h4>
+      <p>By far the largest family — the Berkeley "dwarf" compute kernels:
+      linear algebra, graph algorithms, spectral methods, particle simulations,
+      dynamic programming, and more. Exists to sample a huge diversity of real
+      scientific-computing memory-access patterns. (Plus 2 <code>mp_*</code>
+      <span class="term" tabindex="0" data-def="Short for 'methodology' — a script that analyzes another step's results rather than being a workload itself, e.g. checking whether a metric scales linearly with working-set size.">methodology</span>
+      scripts that analyze other steps' results rather than running their own workload.)</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>The kernel family is worth pausing on.</strong> At 64 of 101 steps,
+    it is <em>most</em> of the campaign, and it is the least uniform — a graph
+    traversal and a spectral transform have almost nothing in common except that
+    both are "kernel" workloads. That is why kernel workloads produced most of
+    the recent failures: 64 different C programs, each sizing its own memory in
+    its own way, is simply more surface area for a sizing bug to hide in than
+    the other eight families combined.
+  </div>
+</section>
+
+<section id="part3">
+  <span class="chapter-num">Part 3</span>
+  <h2>Why tests fail — four root causes</h2>
+  <p>Every failure across the last several rounds of testing reduces to one of
+  these four. None of them is about a workload's <em>logic</em> being wrong —
+  every failure so far has been about <em>fit</em>: the workload asking for more
+  of something than the guest actually has.</p>
+
+  <h3>1. Memory bigger than the guest</h3>
+  <p>The guest has 964 MB of RAM. When a workload asks the operating system for
+  a block of memory — a call named
+  <span class="term" tabindex="0" data-def="A system call a program uses to ask the operating system for a block of memory, or to map a file into memory. This is the moment a workload says 'give me N bytes.'">mmap</span> —
+  and asks for more than the guest can give, the request itself fails outright.
+  The workload doesn't run slowly or partially; it gets a flat refusal and exits
+  immediately with an error like <code>mmap(2147483648) failed: Cannot allocate memory</code>.</p>
+  <p>Not all memory is equally dangerous here, though. Memory backed only by
+  RAM — called
+  <span class="term" tabindex="0" data-def="Memory backed only by RAM or swap, not by any file. If the guest runs out of room, this memory cannot be reclaimed by writing it somewhere else — it has nowhere else to go.">anonymous memory</span> —
+  is the risky kind, because the guest cannot get it back once given out. Memory
+  that mirrors a file on disk —
+  <span class="term" tabindex="0" data-def="Memory that mirrors a file on disk. The guest can safely drop these pages and reload them from the file later, so having a lot of this is not dangerous the way anonymous memory is.">file-backed memory</span> —
+  is much safer: the guest can always throw those pages away and reload them
+  later, a property called being
+  <span class="term" tabindex="0" data-def="Describes memory the operating system can safely discard under pressure and reload later without losing anything. File-backed pages are evictable; a fresh anonymous allocation usually is not.">evictable</span>.
+  This distinction is exactly what separated a real bug from a false alarm later
+  in this document.</p>
+
+  <h3 id="tmpfs-story">2. Scratch on the wrong disk</h3>
+  <p>Workloads that write files need somewhere to put them — a
+  <span class="term" tabindex="0" data-def="A temporary folder a workload uses to write its working files during a test run.">scratch directory</span>.
+  The guest's default location for this, <code>/tmp</code>, looked like an
+  ordinary folder but was actually
+  <span class="term" tabindex="0" data-def="A 'disk' that is actually made of RAM. Anything written to it consumes the guest's memory, not real disk space — even though it looks and behaves like an ordinary folder.">tmpfs</span> —
+  a fake disk that lives entirely in RAM, sized at roughly half the guest's
+  total memory by default. Two consequences followed from that one fact: first,
+  anything larger than ~480 MB simply couldn't be written; second — and more
+  subtly — writing a file there was <em>indistinguishable from writing to memory</em>,
+  because it <em>was</em> memory. An "I/O" workload writing to tmpfs wasn't
+  doing disk I/O at all — it was doing a memory write wearing an I/O costume,
+  which quietly invalidated exactly the comparison those workloads exist to make.</p>
+
+  <h3>3. Unbounded defaults</h3>
+  <p>Many workloads accept a safety-budget flag,
+  <span class="term" tabindex="0" data-def="A safety-budget flag many workloads accept, capping how much memory they are allowed to use. If the campaign never sets it, the workload's own built-in default applies instead.">--max-mb</span>,
+  which defaults to 8192 MB when nothing else is specified. That default was
+  written for a full-sized machine, not a 964 MB guest — and 69 of the 101
+  workloads accept it, with none of the 101 campaign steps setting it explicitly.
+  For most of them the default never mattered, because they only use it as a
+  ceiling check. For six of them, though, it was used to directly size a memory
+  block — so those six tried to reserve the entire 8 GB default before doing
+  anything else, and failed immediately.</p>
+
+  <h3>4. Leftover mess from previous runs</h3>
+  <p>Some workloads write real payload files and never delete them when they
+  finish — this was true by design for the whole sandbox family, since none of
+  them clean up their own output. Left unmanaged across 101 sequential steps,
+  those files would eventually fill the guest's disk regardless of any single
+  step's own size. The fix for this lives on the host side (a reclaim step after
+  every cell), not inside the workloads themselves.</p>
+</section>
+
+<section id="part4">
+  <span class="chapter-num">Part 4</span>
+  <h2>Test by test — what happened, and why</h2>
+  <p>Two different kinds of row appear below.
+  <span class="tag real">real fix</span> means the workload's own configuration
+  was genuinely wrong and got corrected. <span class="tag check">check was wrong</span>
+  means the workload was actually fine — the automated safety check judging it
+  was miscalibrated, and the check was fixed instead.</p>
+
+  <table>
+    <tr><th>Workload</th><th>What it's for</th><th>What went wrong</th><th>Root cause</th><th>Fix</th></tr>
+    <tr class="fixed">
+      <td><code>kernel_bnb_knapsack_v2</code></td>
+      <td>Branch-and-bound search over a knapsack problem</td>
+      <td><code>mmap(8589934592)</code> failed — tried to reserve 8 GB before starting</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>kernel_bnb_tsp_v2</code></td>
+      <td>Branch-and-bound traveling-salesman search</td>
+      <td>Same 8 GB reservation failure</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>kernel_brackets_enum_v2</code></td>
+      <td>Enumerates all valid bracket sequences of a given size</td>
+      <td>Same 8 GB reservation failure</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>kernel_nqueens_enum_v2</code></td>
+      <td>Enumerates every solution to the N-queens puzzle</td>
+      <td>Reserved the full 8 GB even though the actual need was ~5 MB</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>kernel_aho_corasick_v2</code></td>
+      <td>Multi-pattern text search (builds a matching automaton)</td>
+      <td>Sized its automaton and match buffers off the 8 GB default</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>kernel_lexer_v2</code></td>
+      <td>Tokenizes a stream of text (a lexer, as in a compiler front-end)</td>
+      <td>Sized its token buffer off the 8 GB default</td>
+      <td><span class="tag real">real fix</span> — unbounded default (§3)</td>
+      <td>Explicit <code>--max-mb 512</code></td>
+    </tr>
+    <tr class="fixed">
+      <td><code>sandbox_ransom_batched</code></td>
+      <td>Simulates ransomware rewriting many files at once, held in memory</td>
+      <td>1000 files × 1 MB = 1000 MB, but it caps itself at 256 MB — couldn't fit by its own rule</td>
+      <td><span class="tag real">real fix</span> — bigger than guest (§1)</td>
+      <td><code>--files</code> reduced 1000 → 200</td>
+    </tr>
+    <tr class="fixed">
+      <td><code>mem_mmap_traversal_v2</code></td>
+      <td>Reads/writes through a 1 GB memory-mapped <em>file</em></td>
+      <td>Peak memory use (724 MB) looked over budget</td>
+      <td><span class="tag check">check was wrong</span> — the 724 MB was mostly evictable file-backed memory (§1), not the dangerous anonymous kind</td>
+      <td>Check now measures anonymous memory specifically, not total</td>
+    </tr>
+    <tr class="fixed">
+      <td><code>app_decompress_gzip_v2</code></td>
+      <td>Decompresses a gzip stream, producing 1 GB of output</td>
+      <td>Still running when the short 28-second trial check gave up</td>
+      <td><span class="tag check">check was wrong</span> — it genuinely needs longer than a quick trial; the real campaign already gives it a full 60 seconds</td>
+      <td>Downgraded from a failure to an informational note</td>
+    </tr>
+    <tr class="fixed">
+      <td><code>mp_workingset_metric_linearity</code></td>
+      <td>Analyzes results from an earlier step (<code>mem_workingset_sweep</code>) — not a workload itself</td>
+      <td>Failed with no real error when trial-run alone</td>
+      <td><span class="tag check">check was wrong</span> — it has nothing to analyze in an empty trial sandbox; it needs the earlier step's real output</td>
+      <td>This kind of step is now skipped by the trial check and verified a different way</td>
+    </tr>
+  </table>
+
+  <div class="callout good">
+    Everything above is resolved. The last full run reported every check
+    passing, with only minor informational notes remaining.
+  </div>
+</section>
+
+<section id="part5">
+  <span class="chapter-num">Part 5</span>
+  <h2>Where things stand now</h2>
+  <p>All nine issues above are closed. The automated
+  <span class="term" tabindex="0" data-def="The set of automatic checks that run before a real campaign, meant to catch a broken workload in minutes instead of discovering it hours into an unattended run.">preflight</span>
+  check — which runs all 101 workloads briefly before committing to a full
+  9-hour campaign — currently reports everything ready. That check itself went
+  through its own round of fixes this session (a loop that was silently only
+  testing 1 of 101 workloads, a memory reading that measured the wrong process),
+  which is a separate story from the workload fixes above: those were bugs in
+  the <em>checker</em>, not in any test.</p>
+
+  <p>The practical takeaway: the next full campaign run should proceed without
+  hitting any of the nine problems above, because each one is now either fixed
+  in the workload's own configuration or correctly judged by the check that
+  evaluates it.</p>
+</section>
+
+<section id="glossary">
+  <span class="chapter-num">Reference</span>
+  <h2>Glossary — full list</h2>
+  <p>Every term below also appears inline above with the same definition on hover.</p>
+  <table>
+    <tr><th>Term</th><th>Definition</th></tr>
+    <tr><td>host</td><td>The real physical server that runs the guest VM and does the capture, compression, and storage work.</td></tr>
+    <tr><td>guest</td><td>The virtual machine under test, with its own 964 MB of RAM separate from the host.</td></tr>
+    <tr><td>workload</td><td>One small program that performs one specific behavior, so its memory signal can be observed in isolation.</td></tr>
+    <tr><td>step / test / cell</td><td>One run of one workload with capture running around it — one numbered entry in the campaign.</td></tr>
+    <tr><td>campaign</td><td>The full run of all 101 steps back to back, unattended.</td></tr>
+    <tr><td>snapshot</td><td>A full 1 GB copy of the guest's memory, taken roughly every 500 ms while a workload runs.</td></tr>
+    <tr><td>mmap</td><td>A system call a program uses to ask the OS for a block of memory, or to map a file into memory.</td></tr>
+    <tr><td>anonymous memory</td><td>Memory backed only by RAM/swap, not by a file — cannot be reclaimed by writing it elsewhere if the guest runs low.</td></tr>
+    <tr><td>file-backed memory</td><td>Memory that mirrors a file on disk; can safely be dropped and reloaded later.</td></tr>
+    <tr><td>evictable</td><td>Memory the OS can safely discard under pressure and reload later without loss.</td></tr>
+    <tr><td>tmpfs</td><td>A "disk" that actually lives in RAM — writing to it consumes memory, not real disk space.</td></tr>
+    <tr><td>scratch directory</td><td>A temporary folder a workload writes its working files into during a run.</td></tr>
+    <tr><td>--max-mb</td><td>A safety-budget flag many workloads accept, capping their memory use; defaults to 8192 MB if never set.</td></tr>
+    <tr><td>preflight / QA</td><td>Automatic checks run before a real campaign, to catch a broken workload in minutes rather than hours.</td></tr>
+    <tr><td>methodology (mp_*)</td><td>A script that analyzes another step's results rather than running a workload of its own.</td></tr>
+  </table>
+</section>
+
+</main>
+</body>
+</html>
