@@ -20,11 +20,16 @@
 
 set -euo pipefail
 
-REMOTE_HOST="${REMOTE_HOST:-jeries@cybersecurity.pc.ac.upc.edu}"
+REMOTE_HOST="${REMOTE_HOST:-jeries@cybersecurity.ac.upc.edu}"
 REMOTE_DIR="${REMOTE_DIR:-/project/homes/jeries/memory_traces/zstd_local}"
 LOCAL_DIR="${LOCAL_DIR:-$HOME/thesis_traces/zstd_local}"
 STABLE_MIN="${STABLE_MIN:-10}"
 LOOP_MIN="${LOOP_MIN:-0}"
+
+# Keepalives so the server does not drop a long or idle transfer mid-stream
+# (the "Broken pipe" seen on plain -e ssh). ServerAliveInterval pings every 30s;
+# tolerate 6 misses (3 min) before giving up on a connection.
+SSH_OPTS="${SSH_OPTS:--o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o ConnectTimeout=15}"
 
 pull_once() {
   echo "== $(date '+%Y-%m-%d %H:%M:%S') scanning $REMOTE_HOST:$REMOTE_DIR =="
@@ -33,7 +38,7 @@ pull_once() {
   # STABLE_MIN minutes. A new snapshot creates a new NNNNNN.zst file, which
   # bumps the parent dir's mtime -- so an old mtime means "no longer growing".
   local stable
-  stable=$(ssh "$REMOTE_HOST" \
+  stable=$(ssh $SSH_OPTS "$REMOTE_HOST" \
     "find '$REMOTE_DIR' -mindepth 1 -type d -name 'rep*' -mmin +$STABLE_MIN -print 2>/dev/null" \
     || true)
 
@@ -50,8 +55,20 @@ pull_once() {
     mkdir -p "$LOCAL_DIR/$rel"
     # --remove-source-files deletes each file on the server only after it is
     # confirmed transferred; a dropped connection leaves the server copy intact.
-    rsync -a --remove-source-files -e ssh \
-      "$REMOTE_HOST:$remote_chain/" "$LOCAL_DIR/$rel/"
+    # --partial keeps a half-sent file so the next attempt resumes it. Retry a
+    # few times on a dropped connection before leaving the chain for a later pass
+    # (never abort the whole drain on one flaky transfer -- set -e would).
+    local tries=0
+    until rsync -a --partial --remove-source-files -e "ssh $SSH_OPTS" \
+          "$REMOTE_HOST:$remote_chain/" "$LOCAL_DIR/$rel/"; do
+      tries=$((tries + 1))
+      if [[ $tries -ge 3 ]]; then
+        echo "  WARN: $rel not fully pulled after 3 tries; left on server for next pass"
+        break
+      fi
+      echo "  retry $tries/3 for $rel (connection dropped)"
+      sleep 5
+    done
     n=$((n + 1))
   done <<< "$stable"
 
