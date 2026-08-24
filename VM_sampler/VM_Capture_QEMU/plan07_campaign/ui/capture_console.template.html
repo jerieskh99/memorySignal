@@ -213,7 +213,9 @@ pre.code .env{color:var(--accent)} pre.code .val{color:var(--trace)}
       <div class="pbody">
         <div class="field"><label class="fl">Durations (s) &rarr; duration_s</label><div class="chips" id="dur-chips"><input type="text" id="dur-in" inputmode="numeric" placeholder="add&hellip;" aria-label="add duration"></div></div>
         <div class="field"><label class="fl">Scales &rarr; scales</label><div class="chips" id="scale-chips"><input type="text" id="scale-in" inputmode="decimal" placeholder="add&hellip;" aria-label="add scale"></div>
-          <div style="font-size:11px;color:var(--ink-3);margin-top:6px">1.0 reproduces the proven baseline. &gt;1.0 that would exceed a guest ceiling is clamped &amp; marked <span style="color:var(--warn)">clamp</span> in the plan.</div></div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:6px">1.0 reproduces the proven baseline. A scale that would exceed a guest ceiling is <span style="color:var(--warn)">skipped</span> for that workload (baseline 1.0 is never skipped).</div></div>
+        <div class="field" style="max-width:150px"><label class="fl" for="reps">Reps &rarr; reps</label><input type="number" id="reps" min="1" value="1">
+          <div style="font-size:11px;color:var(--ink-3);margin-top:6px">Repeat each cell N times with a distinct per-rep seed. Rep 0 = baseline.</div></div>
       </div></section>
 
     <section class="panel"><div class="phead"><span class="idx">03</span><h2>Retention</h2><span class="hint">keep the raw chains?</span></div>
@@ -304,19 +306,31 @@ function shlexSplit(s){const out=[];let cur=null,i=0,n=s.length;while(i<n){let c
   else{cur+=c;i++;}}
   if(cur!==null)out.push(cur);return out;}
 function shlexQuote(t){if(t==="")return "''";if(/^[A-Za-z0-9_@%+=:,.\/-]+$/.test(t))return t;return "'"+t.replace(/'/g,"'\"'\"'")+"'";}
-function scaleTokens(toks,scale,seed,duration,report){const out=[];let i=0;
+// strict mirrors subset_run.py: over-ceiling raises (caller SKIPS the cell) rather
+// than clamping. baseline scale=1.0 (value==base<=ceiling) can never raise.
+function OverCeiling(msg){this.message=msg;} OverCeiling.prototype=Object.create(Error.prototype);
+function scaleTokens(toks,scale,seed,duration,strict){const out=[];let i=0;
   while(i<toks.length){const t=toks[i],nxt=(i+1<toks.length)?toks[i+1]:null;
     if(t==="--duration"&&nxt!=null){out.push(t,String(duration));i+=2;continue;}
     if(t==="--seed"&&nxt!=null){out.push(t,String(seed));i+=2;continue;}
-    if(t==="--child-args"&&nxt!=null){out.push(t,scaleTokens(shlexSplit(nxt),scale,seed,duration,report).join(" "));i+=2;continue;}
+    if(t==="--child-args"&&nxt!=null){out.push(t,scaleTokens(shlexSplit(nxt),scale,seed,duration,strict).join(" "));i+=2;continue;}
     if(SCALABLE.has(t)&&nxt!=null&&/^\d+$/.test(nxt)){const b=parseInt(nxt,10);let v=Math.max(1,Math.trunc(b*scale));
       const cap=CLAMP[t];const ceiling=cap?Math.max(cap,b):null;
-      if(ceiling&&v>ceiling){v=ceiling;if(report)report.clamped=true;}
+      if(ceiling&&v>ceiling){
+        if(strict){const ms=(ceiling/b);throw new OverCeiling(`${t} scaled to ${v} (base=${b}, scale=${scale}) exceeds guest-safe ceiling ${ceiling} -- max safe scale for this flag is ${ms.toFixed(2)}`);}
+        v=ceiling;
+      }
       out.push(t,String(v));i+=2;continue;}
     out.push(t);i++;}
   return out;}
-function scaleCommand(cmd,scale,seed,duration,report){
-  return scaleTokens(shlexSplit(cmd),scale,seed,duration,report).map(t=>(t==="&&"||t==="||"||t===";")?t:shlexQuote(t)).join(" ");}
+function scaleCommand(cmd,scale,seed,duration,strict){
+  return scaleTokens(shlexSplit(cmd),scale,seed,duration,strict).map(t=>(t==="&&"||t==="||"||t===";")?t:shlexQuote(t)).join(" ");}
+
+// crc32 (zlib-compatible) + rep_seed: MUST match subset_run.rep_seed byte-for-byte,
+// or a rep>0 command's --seed diverges from what the CLI would produce.
+const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(str){let c=0xFFFFFFFF;for(let i=0;i<str.length;i++)c=CRC_TABLE[(c^str.charCodeAt(i))&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function repSeed(baseSeed,rep,workload){ if(rep===0)return baseSeed; return baseSeed+rep*1000+(crc32(workload)%997); }
 
 /* ===== metric taxonomy: FEATURES_BY_GROUP + SUBMODULE_COLUMNS are in the generated
    data block above; GROUP_FAMILY below is UI-only labelling. ===== */
@@ -326,7 +340,7 @@ const METRICS=[{v:"delta",t:"delta",d:"Cosine / Hamming differ (default)."},{v:"
 const LABEL_RE=/^[A-Za-z0-9_-]+$/;
 
 /* ===== state ===== */
-const S={label:"sandbox_deepdive_01",seed:42,durations:[120],scales:[1.0],retention:"metrics",metric:"substrate",groups:{},families:{},sshTarget:"",sshKey:"",zstdDir:""};
+const S={label:"sandbox_deepdive_01",seed:42,reps:1,durations:[120],scales:[1.0],retention:"metrics",metric:"substrate",groups:{},families:{},sshTarget:"",sshKey:"",zstdDir:""};
 Object.keys(FEATURES_BY_GROUP).forEach(g=>S.groups[g]={mode:"none",cols:new Set()});
 S.groups.amount={mode:"custom",cols:new Set(["hamming","lz_change"])};
 S.groups.content={mode:"all",cols:new Set()};
@@ -357,7 +371,7 @@ function selectedFor(fam){const st=S.families[fam],pool=WORKLOADS[fam],asc=pool.
   if(st.mode==="rand")return seededPick(asc,n,(S.seed|0)+hashStr(fam));
   return [];}
 function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return Math.abs(h);}
-function configSignature(){return JSON.stringify({d:S.durations,s:S.scales,seed:S.seed,fam:workloadFamilyObj()});}
+function configSignature(){return JSON.stringify({d:S.durations,s:S.scales,seed:S.seed,reps:S.reps|0,fam:workloadFamilyObj()});}
 
 /* ===== validation ===== */
 function compute(){const errs=[],warns=[];
@@ -372,21 +386,32 @@ function compute(){const errs=[],warns=[];
   const feats=resolveFeatures(S.groups);
   if(S.metric==="substrate"&&cfgGroupObj()&&!feats)warns.push("all feature groups resolve to empty.");
   if(S.metric!=="substrate"&&cfgGroupObj())warns.push("feature groups set but capture metric is not substrate — inert.");
-  return {errs,warns,perFam,selCount:sel.length,nominal:sel.length*S.durations.length*S.scales.length,feats,needZstd};}
+  const reps=Math.max(1,S.reps|0);
+  return {errs,warns,perFam,selCount:sel.length,reps,nominal:sel.length*S.durations.length*S.scales.length*reps,feats,needZstd};}
 
-/* ===== plan generation (real cells, dedup, clamp) ===== */
+/* ===== plan generation (real cells: workload x duration x scale x rep) ===== */
+// Mirrors subset_run.py's crossing exactly: rep varies the --seed only (repSeed);
+// over-ceiling (workload x scale) cells raise and are SKIPPED for all their reps
+// and logged, not clamped -- baseline scale=1.0 is never affected.
 function generatePlan(){
-  const cells=[],seen=new Set();let dropped=0;
+  const cells=[],seen=new Set();let dropped=0;const skipped=[];
+  const reps=Math.max(1,S.reps|0);
   for(const f in S.families){for(const w of selectedFor(f)){
     for(const d of S.durations){for(const sc of S.scales){
-      const rep={clamped:false};
-      const cmd=scaleCommand(BASE_CMDS[w],sc,S.seed|0,d,rep);
-      if(seen.has(cmd)){dropped++;continue;}
-      seen.add(cmd);
-      cells.push({workload:w,family:f,duration:d,scale:sc,cmd,clamped:rep.clamped,checked:true,order:cells.length});
+      let over=false;
+      for(let rep=0;rep<reps;rep++){
+        const seed=repSeed(S.seed|0,rep,w);
+        let cmd;
+        try{ cmd=scaleCommand(BASE_CMDS[w],sc,seed,d,true); }
+        catch(e){ skipped.push(`${f}/${w} @ scale=${sc}: ${e.message}`); over=true; break; }
+        if(seen.has(cmd)){dropped++;continue;}
+        seen.add(cmd);
+        cells.push({workload:w,family:f,duration:d,scale:sc,rep,cmd,checked:true,order:cells.length});
+      }
+      if(over)continue;
     }}
   }}
-  PLAN={cells,dropped,cfgSig:configSignature()};
+  PLAN={cells,dropped,skipped,cfgSig:configSignature()};
   planStale=false;
 }
 
@@ -451,15 +476,13 @@ function renderPlan(){
     row.appendChild(cb);
     row.appendChild(el("span","ord",String(i+1)));
     const bd=el("div","badges");bd.appendChild(el("span","bdg fam",c.family));bd.appendChild(el("span","bdg",c.workload.replace(/_v2$/,"")));
-    bd.appendChild(el("span","bdg",`${c.duration}s`));bd.appendChild(el("span","bdg","×"+c.scale));if(c.clamped)bd.appendChild(el("span","bdg clamp","clamp"));
+    bd.appendChild(el("span","bdg",`${c.duration}s`));bd.appendChild(el("span","bdg","×"+c.scale));if((c.rep|0)>0)bd.appendChild(el("span","bdg","rep"+c.rep));
     row.appendChild(bd);
     row.appendChild(el("span","cmd",c.cmd));
     const mv=el("div","mv");const up=el("button",null,"&uarr;");up.onclick=()=>moveCell(i,i-1);const dn=el("button",null,"&darr;");dn.onclick=()=>moveCell(i,i+1);
     mv.appendChild(up);mv.appendChild(dn);row.appendChild(mv);
     host.appendChild(row);});
   out.hidden=false;
-  const checked=PLAN.cells.filter(c=>c.checked).length,clamped=PLAN.cells.filter(c=>c.clamped).length;
-  stat.innerHTML=`<b>${checked}</b> / ${PLAN.cells.length} will run${PLAN.dropped?` · ${PLAN.dropped} deduped`:""}${clamped?` · ${clamped} clamped`:""}`;
   syncOutputs();
 }
 function highlightCmd(cmd){return cmd.replace(/([A-Z_]+)=((?:'[^']*'|[^\s]+))/g,(m,k,v)=>`<span class="env">${k}</span>=<span class="val">${v.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`).replace(/ \.\/run_files_controlled\.py$/,' ./run_files_controlled.py');}
@@ -468,8 +491,8 @@ function syncOutputs(){if(!PLAN)return;const d=compute();
   document.getElementById("steps-name").textContent=stepsPath().split("/").pop();
   document.getElementById("steps-path").textContent=stepsPath();
   const cmd=launchCommand(d);const cc=document.getElementById("cmd-code");cc.innerHTML=highlightCmd(cmd);cc.dataset.raw=cmd;
-  const stat=document.getElementById("plan-stat");const checked=PLAN.cells.filter(c=>c.checked).length,clamped=PLAN.cells.filter(c=>c.clamped).length;
-  stat.innerHTML=`<b>${checked}</b> / ${PLAN.cells.length} will run${PLAN.dropped?` · ${PLAN.dropped} deduped`:""}${clamped?` · ${clamped} clamped`:""}`;}
+  const stat=document.getElementById("plan-stat");const checked=PLAN.cells.filter(c=>c.checked).length;const skip=(PLAN.skipped||[]).length;
+  stat.innerHTML=`<b>${checked}</b> / ${PLAN.cells.length} will run${PLAN.dropped?` · ${PLAN.dropped} deduped`:""}${skip?` · <span style="color:var(--warn)">${skip} skipped (over ceiling)</span>`:""}`;}
 
 /* ===== catalog (localStorage) ===== */
 const CAT_KEY="capture_console_plans_v1";
@@ -477,6 +500,7 @@ function catLoad(){try{return JSON.parse(localStorage.getItem(CAT_KEY)||"[]");}c
 function catSave(list){try{localStorage.setItem(CAT_KEY,JSON.stringify(list));}catch(e){}}
 function savePlan(){if(!PLAN)return;const d=compute();
   const cfg={label:S.label,duration_s:S.durations,scales:S.scales,retention:S.retention,capture_metric:S.metric};
+  if((S.reps|0)>1)cfg.reps=S.reps|0;
   const g=cfgGroupObj();if(g)cfg.capture_metric_group=g;cfg.workload_family=workloadFamilyObj();
   const entry={id:Date.now(),stamp:new Date().toISOString(),label:S.label,cfg,seed:S.seed|0,
     checked:PLAN.cells.filter(c=>c.checked).length,total:PLAN.cells.length,
@@ -485,13 +509,13 @@ function savePlan(){if(!PLAN)return;const d=compute();
   const list=catLoad();list.unshift(entry);catSave(list.slice(0,50));renderCatalog();}
 function deletePlan(id){catSave(catLoad().filter(e=>e.id!==id));renderCatalog();}
 function loadPlanCfg(entry){const c=entry.cfg;
-  S.label=c.label;S.durations=c.duration_s.slice();S.scales=c.scales.slice();S.retention=c.retention;S.metric=c.capture_metric;S.seed=entry.seed;
+  S.label=c.label;S.durations=c.duration_s.slice();S.scales=c.scales.slice();S.retention=c.retention;S.metric=c.capture_metric;S.seed=entry.seed;S.reps=c.reps||1;
   Object.keys(S.groups).forEach(g=>S.groups[g]={mode:"none",cols:new Set()});
   if(c.capture_metric_group)for(const g in c.capture_metric_group){const v=c.capture_metric_group[g];if(v==="all")S.groups[g]={mode:"all",cols:new Set()};else if(Array.isArray(v))S.groups[g]={mode:"custom",cols:new Set(v)};}
   Object.keys(WORKLOADS).forEach(f=>S.families[f]={mode:"none",n:2,named:new Set()});
   for(const f in c.workload_family){const o=c.workload_family[f],k=Object.keys(o)[0],val=o[k];
     if(k==="named")S.families[f]={mode:"named",n:2,named:new Set(val)};else if(val==="all")S.families[f]={mode:k==="asc"?"all":k,n:2,named:new Set()};else S.families[f]={mode:k,n:val|0,named:new Set()};}
-  document.getElementById("label").value=S.label;document.getElementById("seed").value=S.seed;
+  document.getElementById("label").value=S.label;document.getElementById("seed").value=S.seed;document.getElementById("reps").value=S.reps;
   markConfigChanged();render();generatePlan();renderPlan();window.scrollTo({top:0,behavior:"smooth"});}
 function renderCatalog(){const host=document.getElementById("catalog");const list=catLoad();
   if(!list.length){host.innerHTML='<div class="cat-empty">No saved plans yet. Generate a plan and hit <b>Save</b> to keep a timestamped copy you can reload.</div>';return;}
@@ -508,12 +532,13 @@ function renderCatalog(){const host=document.getElementById("catalog");const lis
 function markConfigChanged(){if(PLAN&&configSignature()!==PLAN.cfgSig)planStale=true;}
 function render(){
   S.label=document.getElementById("label").value.trim();S.seed=parseInt(document.getElementById("seed").value||"42",10);
+  S.reps=Math.max(1,parseInt(document.getElementById("reps").value||"1",10));
   S.sshTarget=document.getElementById("ssh-target").value;S.sshKey=document.getElementById("ssh-key").value;S.zstdDir=document.getElementById("zstd-dir").value;
   document.getElementById("label").classList.toggle("err-in",!LABEL_RE.test(S.label));
   renderCards();renderChips();renderGroups();renderFamilies();
   const d=compute();
   const nEl=document.getElementById("cell-n");nEl.textContent=d.nominal;nEl.classList.toggle("zero",d.nominal===0);
-  document.getElementById("formula").innerHTML=`${d.selCount} wk<br>× ${S.durations.length} dur × ${S.scales.length} scale`;
+  document.getElementById("formula").innerHTML=`${d.selCount} wk × ${S.durations.length} dur<br>× ${S.scales.length} scale × ${d.reps} rep`;
   const stEl=document.getElementById("status");
   if(d.errs.length)stEl.innerHTML=`<div class="status bad"><div class="st-h">✗ ${d.errs.length} to fix</div><ul>${d.errs.map(e=>`<li>${e}</li>`).join("")}</ul></div>`;
   else stEl.innerHTML=`<div class="status ok"><div class="st-h">✓ config valid</div>generate the plan below to see the real steps</div>`;
@@ -522,6 +547,7 @@ function render(){
   if(S.metric==="substrate")fEl.innerHTML=`<div class="k">SUBSTRATE_FEATURES (submodules)</div><div class="v ${d.feats?"":"none"}">${d.feats||"— none —"}</div>`;
   else fEl.innerHTML=`<div class="k">SUBSTRATE_FEATURES</div><div class="v none">— capture metric is ${S.metric} —</div>`;
   const cfg={label:S.label,duration_s:S.durations,scales:S.scales,retention:S.retention,capture_metric:S.metric};
+  if((S.reps|0)>1)cfg.reps=S.reps|0;
   const g=cfgGroupObj();if(g)cfg.capture_metric_group=g;cfg.workload_family=workloadFamilyObj();
   document.getElementById("cfg-code").textContent=JSON.stringify(cfg,null,2);
   document.getElementById("gen").disabled=d.errs.length>0;
@@ -536,7 +562,7 @@ function chipHandler(id,list,isFloat){const input=document.getElementById(id);
     else if(e.key==="Backspace"&&input.value===""&&list.length){list.pop();markConfigChanged();render();}});
   input.addEventListener("blur",()=>{if(input.value.trim()){add(input.value);input.value="";markConfigChanged();render();}});}
 chipHandler("dur-in",S.durations,false);chipHandler("scale-in",S.scales,true);
-["label","seed","ssh-target","ssh-key","zstd-dir"].forEach(id=>document.getElementById(id).addEventListener("input",()=>{if(id==="seed"||id==="label")markConfigChanged();render();}));
+["label","seed","reps","ssh-target","ssh-key","zstd-dir"].forEach(id=>document.getElementById(id).addEventListener("input",()=>{if(id==="seed"||id==="label"||id==="reps")markConfigChanged();render();}));
 
 document.getElementById("gen").addEventListener("click",()=>{generatePlan();renderPlan();document.getElementById("steps").scrollIntoView({behavior:"smooth",block:"nearest"});});
 document.getElementById("check-all").addEventListener("click",()=>{if(!PLAN)return;PLAN.cells.forEach(c=>c.checked=true);renderPlan();});

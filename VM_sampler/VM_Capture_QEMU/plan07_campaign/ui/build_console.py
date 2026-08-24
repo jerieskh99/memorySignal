@@ -52,12 +52,15 @@ def derive_capped(cmds: dict[str, str]) -> dict[str, float]:
     Only emits the pinned ones (max_safe_scale <= 1.0), which is what the UI
     marks with the pin glyph. Mirrors ceiling = max(cap, base) from scale_command.
     """
+    # A flag only clamps if it is BOTH scaled and capped -- a capped-but-not-scalable
+    # flag (e.g. --mem-cap-mb) is never multiplied, so its cap never fires.
+    clamps = set(CLAMP_MB) & set(SCALABLE)
     capped: dict[str, float] = {}
     for wk, cmd in cmds.items():
         toks = shlex.split(cmd)
         worst = None
         for i, t in enumerate(toks):
-            if t in CLAMP_MB and i + 1 < len(toks) and toks[i + 1].isdigit():
+            if t in clamps and i + 1 < len(toks) and toks[i + 1].isdigit():
                 base = int(toks[i + 1])
                 cap = CLAMP_MB[t]
                 ceiling = max(cap, base)
