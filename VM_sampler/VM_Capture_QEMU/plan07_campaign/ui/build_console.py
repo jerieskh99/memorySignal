@@ -22,6 +22,7 @@ ceiling in generate_database_steps.scale_command).
 """
 from __future__ import annotations
 
+import argparse
 import json
 import shlex
 import sys
@@ -37,7 +38,23 @@ from subset_run import FEATURES_BY_GROUP, SUBMODULE_COLUMNS         # noqa: E402
 BASE_STEPS = CAMPAIGN / "full_campaign_steps.txt"
 TEMPLATE = HERE / "capture_console.template.html"
 OUT = HERE / "capture_console.html"
+OUT_SERVED = HERE / "capture_console.served.html"
 MARKER = "/*@@GENERATED_DATA@@*/"
+# The network-enabled "launch on server" block lives between these markers.
+# Static build (default) STRIPS it -> capture_console.html has zero network code
+# (the published Artifact). --served KEEPS it -> capture_console.served.html,
+# which console_bridge.py serves and injects window.__BRIDGE__ into.
+SERVED_START = "<!--@@SERVED_ONLY_START@@-->"
+SERVED_END = "<!--@@SERVED_ONLY_END@@-->"
+
+
+def strip_served_block(html: str) -> str:
+    """Remove the served-only block (inclusive of markers) for the static build."""
+    while SERVED_START in html and SERVED_END in html:
+        a = html.index(SERVED_START)
+        b = html.index(SERVED_END) + len(SERVED_END)
+        html = html[:a] + html[b:]
+    return html
 
 
 def base_cmds() -> dict[str, str]:
@@ -79,7 +96,7 @@ def js_const(name: str, value, set_wrap: bool = False) -> str:
     return f"const {name}={payload};"
 
 
-def build() -> int:
+def build(served: bool = False) -> int:
     cmds = base_cmds()
     capped = derive_capped(cmds)
 
@@ -97,16 +114,30 @@ def build() -> int:
     if MARKER not in template:
         sys.exit(f"marker {MARKER} not found in {TEMPLATE.name}")
     html = template.replace(MARKER, data)
-    OUT.write_text(html)
 
-    print(f"[build_console] wrote {OUT.name}")
+    if served:
+        OUT_SERVED.write_text(html)                 # keep the launch block
+        target = OUT_SERVED
+    else:
+        # rstrip: stripping the served block leaves trailing blank lines; keep the
+        # published artifact byte-clean.
+        OUT.write_text(strip_served_block(html).rstrip() + "\n")   # zero network code
+        target = OUT
+
+    print(f"[build_console] wrote {target.name}")
     print(f"  BASE_CMDS: {len(cmds)} workloads")
     print(f"  SCALABLE: {len(SCALABLE)} flags   CLAMP: {len(CLAMP_MB)} flags")
     print(f"  FEATURES_BY_GROUP: {len(FEATURES_BY_GROUP)} groups   "
           f"SUBMODULE_COLUMNS: {len(SUBMODULE_COLUMNS)} submodules")
     print(f"  CAPPED (pinned at 1.0, derived): {list(capped)}")
+    print(f"  served (launch-on-server block): {'kept' if served else 'stripped'}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(build())
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--served", action="store_true",
+                    help="emit capture_console.served.html WITH the launch-on-server "
+                         "block (for console_bridge.py). Default emits the network-free "
+                         "capture_console.html (the published Artifact).")
+    raise SystemExit(build(ap.parse_args().served))
