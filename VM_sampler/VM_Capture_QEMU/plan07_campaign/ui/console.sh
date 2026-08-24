@@ -42,15 +42,21 @@ echo "Connecting to $SERVER and starting the console bridge (Ctrl-C to stop)..."
 # the encrypted SSH stream (never in any command line, so `ps` on a shared host
 # can't see it). We read it from the banner and open the browser at the LOCAL
 # forwarded port.
-remote="cd $REMOTE_DIR \
+# Kill any bridge left over from a previous dropped session -- an unclean SSH
+# disconnect can orphan it, and it keeps holding RPORT. A running capture lives in
+# its own `screen`, independent of the bridge, so this is safe. Then build + start.
+remote="pkill -f 'plan07_campaign/ui/console_bridge.py' 2>/dev/null; sleep 0.4; \
+  cd $REMOTE_DIR \
   && python3 plan07_campaign/ui/build_console.py --served >/dev/null \
   && exec python3 plan07_campaign/ui/console_bridge.py --port $RPORT"
 
 opened=0
-# -t: give the bridge a remote tty so it line-buffers and Ctrl-C reaches it.
-# Stdout is piped so we can catch the token line; ssh's stdin stays the terminal,
-# so key/password auth still prompts normally.
-ssh -t -L "${LPORT}:localhost:${RPORT}" "$SERVER" "$remote" 2>&1 | while IFS= read -r line; do
+# -t: remote tty so the bridge line-buffers and Ctrl-C reaches it.
+# 127.0.0.1 (not 'localhost') forces IPv4 to match the bridge's IPv4 bind, avoiding
+# an IPv6 (::1) forward mismatch. ExitOnForwardFailure fails fast if the local port
+# is taken; keepalives detect a dead link instead of hanging.
+ssh -t -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+  -L "${LPORT}:127.0.0.1:${RPORT}" "$SERVER" "$remote" 2>&1 | while IFS= read -r line; do
   printf '%s\n' "$line"
   if [[ $opened -eq 0 && "$line" =~ token=([A-Za-z0-9_-]+) ]]; then
     open_url "http://localhost:${LPORT}/?token=${BASH_REMATCH[1]}"
