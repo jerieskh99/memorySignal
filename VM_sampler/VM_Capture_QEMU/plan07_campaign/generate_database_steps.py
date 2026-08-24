@@ -80,8 +80,17 @@ def binary_of(cmd: str) -> str:
     return re.sub(r"\.py$", "", m.group(1)) if m else "step"
 
 
-def _scale_tokens(toks: list[str], scale: float, seed: int, duration: int) -> list[str]:
-    """Rewrite duration/seed/size flags in an already-tokenised command."""
+def _scale_tokens(toks: list[str], scale: float, seed: int, duration: int,
+                  strict: bool = False) -> list[str]:
+    """Rewrite duration/seed/size flags in an already-tokenised command.
+
+    strict=False (default, used by this file's own campaign generation): a
+    scaled value above CLAMP_MB is silently capped -- the behaviour already
+    proven across the completed 101-workload campaign, left unchanged.
+    strict=True (used by subset_run.py): raise instead of capping, since a
+    silent substitution there would make a config's declared scale not match
+    what actually ran, with no record of the swap.
+    """
     out: list[str] = []
     i = 0
     while i < len(toks):
@@ -95,19 +104,36 @@ def _scale_tokens(toks: list[str], scale: float, seed: int, duration: int) -> li
         # whole argv as one quoted value). shlex hands it over as a single token,
         # so recurse into it rather than letting the outer pass mangle it.
         if t == "--child-args" and nxt is not None:
-            inner = _scale_tokens(shlex.split(nxt), scale, seed, duration)
+            inner = _scale_tokens(shlex.split(nxt), scale, seed, duration, strict=strict)
             out += [t, " ".join(inner)]; i += 2; continue
         if t in SCALABLE and nxt is not None and nxt.isdigit():
-            v = max(1, int(int(nxt) * scale))
+            base = int(nxt)
+            v = max(1, int(base * scale))
             cap = CLAMP_MB.get(t)
-            if cap:
-                v = min(v, cap)
+            # Effective ceiling is max(cap, base): the base value is proven safe
+            # by definition (it ran in the completed campaign), so a scaled value
+            # at or below it can't be unsafe regardless of the cap. This lets the
+            # 3 workloads whose base already exceeds their cap (mem_mmap_traversal,
+            # app_decompress_gzip, app_json_parse) still reproduce their baseline
+            # at scale<=1.0, without editing CLAMP_MB or full_campaign_steps.txt.
+            # Only genuine scale-UPS past the proven size are guarded.
+            ceiling = max(cap, base) if cap else None
+            if ceiling and v > ceiling:
+                if strict:
+                    max_safe_scale = ceiling / base
+                    raise ValueError(
+                        f"{t} scaled to {v} (base={base}, scale={scale}) exceeds "
+                        f"guest-safe ceiling {ceiling} -- max safe scale for this "
+                        f"flag is {max_safe_scale:.2f}"
+                    )
+                v = ceiling
             out += [t, str(v)]; i += 2; continue
         out.append(t); i += 1
     return out
 
 
-def scale_command(cmd: str, scale: float, seed: int, duration: int) -> str:
+def scale_command(cmd: str, scale: float, seed: int, duration: int,
+                  strict: bool = False) -> str:
     """Apply a size scale + fresh seed + duration to one command.
 
     Tokenise with shlex, not str.split(): a naive split leaves the closing quote
@@ -115,8 +141,10 @@ def scale_command(cmd: str, scale: float, seed: int, duration: int) -> str:
     that value silently deletes the quote and produces an unparseable command.
     Reassemble with shlex.quote so any token containing spaces is re-quoted.
     Shell operators (&&) are single tokens and pass through untouched.
+
+    Raises ValueError if strict=True and a scaled value would exceed CLAMP_MB.
     """
-    toks = _scale_tokens(shlex.split(cmd), scale, seed, duration)
+    toks = _scale_tokens(shlex.split(cmd), scale, seed, duration, strict=strict)
     return " ".join(t if t in ("&&", "||", ";") else shlex.quote(t) for t in toks)
 
 
