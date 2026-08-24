@@ -42,10 +42,12 @@ echo "Connecting to $SERVER and starting the console bridge (Ctrl-C to stop)..."
 # the encrypted SSH stream (never in any command line, so `ps` on a shared host
 # can't see it). We read it from the banner and open the browser at the LOCAL
 # forwarded port.
-# Kill any bridge left over from a previous dropped session -- an unclean SSH
-# disconnect can orphan it, and it keeps holding RPORT. A running capture lives in
-# its own `screen`, independent of the bridge, so this is safe. Then build + start.
-remote="pkill -f 'plan07_campaign/ui/console_bridge.py' 2>/dev/null; sleep 0.4; \
+# Free RPORT of any bridge orphaned by a previous unclean disconnect. Kill by
+# PORT, not by process name: a name match (console_bridge.py) also matches THIS
+# remote command's own shell -- which contains that string -- and kills itself.
+# fuser/lsof target only whoever actually listens on RPORT, never this shell. A
+# running capture lives in its own `screen`, so freeing the bridge port is safe.
+remote="(fuser -k ${RPORT}/tcp 2>/dev/null; lsof -ti tcp:${RPORT} -sTCP:LISTEN 2>/dev/null | xargs -r kill 2>/dev/null; true); sleep 0.4; \
   cd $REMOTE_DIR \
   && python3 plan07_campaign/ui/build_console.py --served >/dev/null \
   && exec python3 plan07_campaign/ui/console_bridge.py --port $RPORT"
