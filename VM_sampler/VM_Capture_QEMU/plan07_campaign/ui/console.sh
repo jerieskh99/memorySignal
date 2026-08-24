@@ -12,7 +12,10 @@
 #   SERVER=user@server ./console.sh
 #
 # Optional env:  REMOTE_DIR (server path to VM_Capture_QEMU),
-#                LPORT (local port, default 8000), RPORT (server port, default 8000).
+#                LPORT (port on YOUR LAPTOP, default 8765 -- 8000 is often taken),
+#                RPORT (port on the SERVER, default 8000).
+# The tunnel maps laptop:LPORT -> server:RPORT, so they can differ freely; your
+# browser opens localhost:LPORT.
 #
 # NOTE: `user@server` here is your RESEARCH SERVER login -- NOT the guest VM.
 # The guest (kali@...) goes in the console's Host identity fields, where
@@ -21,13 +24,13 @@ set -euo pipefail
 
 SERVER="${1:-${SERVER:-}}"
 REMOTE_DIR="${REMOTE_DIR:-\$HOME/memorySignal/VM_sampler/VM_Capture_QEMU}"
-LPORT="${LPORT:-8000}"
-RPORT="${RPORT:-8000}"
+LPORT="${LPORT:-8765}"          # laptop side (8000 is commonly in use locally)
+RPORT="${RPORT:-8000}"          # server side
 
 if [[ -z "$SERVER" ]]; then
   echo "usage: $0 user@server   (or set SERVER=user@server)" >&2
   echo "  env: REMOTE_DIR (default \$HOME/memorySignal/VM_sampler/VM_Capture_QEMU)," >&2
-  echo "       LPORT (default 8000), RPORT (default 8000)" >&2
+  echo "       LPORT (laptop port, default 8765), RPORT (server port, default 8000)" >&2
   exit 2
 fi
 

@@ -56,6 +56,15 @@ opens the console in your browser. `Ctrl-C` stops the bridge and closes the
 tunnel. (`<you>@<server>` is your **research server** login — not the guest VM;
 the guest `kali@…` goes in the console's Host identity fields.)
 
+Ports: the launcher uses **`LPORT` on your laptop (default `8765`)** and
+**`RPORT` on the server (default `8000`)**; the tunnel maps `laptop:LPORT →
+server:RPORT`, so they're independent. If `8765` is also taken locally, pick
+another:
+
+```bash
+LPORT=9123 plan07_campaign/ui/console.sh <you>@<server>
+```
+
 ### Or the two steps by hand
 
 ```bash
