@@ -613,6 +613,17 @@ render();renderCatalog();
     Stop is best-effort &mdash; verify VM state after.</div>
 </section></div>
 
+<div class="full"><section class="panel cat-panel" id="server-saved">
+  <div class="phead"><span class="idx">SAVED</span><h2>Saved plans (server)</h2><span class="hint">persisted in <span class="mono">plan07_campaign/configs/</span></span></div>
+  <div class="pbody">
+    <button class="bigbtn ghost" id="srv-save">Save current plan to server</button>
+    <div id="srv-saved-msg" style="font-size:12.5px;color:var(--ink-2);margin-top:9px"></div>
+  </div>
+  <div id="srv-saved-list"></div>
+  <div class="foot-note">Each save writes a launchable config to <code>configs/&lt;label&gt;.json</code> (git-trackable, and
+    <code>subset_run.py --config</code> can run it directly). Load restores the config <em>and</em> your curation.</div>
+</section></div>
+
 <script>
 "use strict";
 (function(){
@@ -686,6 +697,54 @@ render();renderCatalog();
     msg(ok ? `Stopped ${data.stopped}. ${data.warning||""}` : ("Stop error: "+(data.error||"")), ok?"var(--warn)":"var(--bad)");
     if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
   });
+
+  // ---- saved plans, persisted server-side in configs/ (not the browser) ----
+  const smsg = (t,c) => { const e=$("srv-saved-msg"); e.textContent=t; e.style.color=c||"var(--ink-2)"; };
+  const cellKey = c => c.workload+"|"+c.duration+"|"+c.scale+"|"+c.rep;
+  async function refreshSaved(){
+    const {ok,data} = await api("/saved","GET");
+    const host = $("srv-saved-list");
+    if(!ok){ host.innerHTML='<div class="cat-empty">could not load saved plans</div>'; return; }
+    const plans = data.plans || [];
+    if(!plans.length){ host.innerHTML='<div class="cat-empty">No plans saved on the server yet. Build one and hit <b>Save current plan to server</b>.</div>'; return; }
+    host.innerHTML = "";
+    plans.forEach(p=>{
+      const row = document.createElement("div"); row.className = "cat-row";
+      const when = (p.saved_at||"").slice(0,16).replace("T"," ");
+      row.appendChild(Object.assign(document.createElement("span"),{className:"when",textContent:when}));
+      row.appendChild(Object.assign(document.createElement("span"),{className:"lbl",textContent:p.label}));
+      row.appendChild(Object.assign(document.createElement("span"),{className:"meta",textContent:`${p.retention||"?"} · ${p.capture_metric||"?"}`}));
+      const acts = document.createElement("div"); acts.className = "acts";
+      const load = document.createElement("button"); load.textContent = "Load"; load.onclick = ()=>loadServerPlan(p);
+      const del = document.createElement("button"); del.className = "del"; del.textContent = "Delete"; del.onclick = ()=>delServerPlan(p.label);
+      acts.appendChild(load); acts.appendChild(del); row.appendChild(acts);
+      host.appendChild(row);
+    });
+  }
+  async function saveToServer(){
+    if(!PLAN || !PLAN.cells.some(c=>c.checked)){ smsg("Generate a plan and check at least one cell first.","var(--warn)"); return; }
+    const {ok,data} = await api("/save","POST",payload());
+    if(ok){ smsg("Saved to "+data.saved, "var(--ok)"); refreshSaved(); }
+    else smsg("Save failed: "+(data.error||""), "var(--bad)");
+  }
+  function loadServerPlan(p){
+    loadPlanCfg({cfg:p.config, seed:p.seed});   // restores config + regenerates the plan
+    if(p.curation && PLAN){                      // then re-apply the saved curation (checked + order)
+      const order = new Map(p.curation.map((c,i)=>[cellKey(c), i]));
+      PLAN.cells.forEach(c=>{ c.checked = order.has(cellKey(c)); });
+      PLAN.cells.sort((a,b)=>(order.has(cellKey(a))?order.get(cellKey(a)):1e9) - (order.has(cellKey(b))?order.get(cellKey(b)):1e9));
+      PLAN.cells.forEach((c,i)=>c.order=i);
+      renderPlan();
+    }
+    smsg(`Loaded "${p.label}" from the server.`, "var(--ok)");
+  }
+  async function delServerPlan(label){
+    if(!confirm(`Delete saved plan "${label}" from the server?`)) return;
+    const {ok} = await api("/delete_saved","POST",{label});
+    if(ok) refreshSaved();
+  }
+  $("srv-save").addEventListener("click", saveToServer);
+  refreshSaved();
 })();
 </script>
 <!--@@SERVED_ONLY_END@@-->

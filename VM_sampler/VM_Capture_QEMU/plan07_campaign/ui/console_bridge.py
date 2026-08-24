@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -52,6 +53,7 @@ QEMU_DIR = CAMPAIGN.parent                            # .../VM_Capture_QEMU
 SUBSET_RUN = CAMPAIGN / "subset_run.py"
 PREFLIGHT = QEMU_DIR / "qa" / "preflight.sh"
 RUNS = CAMPAIGN / "runs"
+CONFIGS = CAMPAIGN / "configs"                        # saved (not-yet-launched) plans
 SERVED_HTML = HERE / "capture_console.served.html"
 
 LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")            # same as subset_run.py
@@ -316,9 +318,67 @@ def ep_stop(body: dict):
                             "guest scratch before the next launch."}
 
 
+def ep_save(body: dict):
+    """Persist a not-yet-launched plan to configs/<label>.json. The file is a
+    valid subset config (subset_run.py can run it directly), plus UI-restore
+    metadata under underscore keys that subset_run ignores. Overwrite is allowed
+    -- a saved plan is a draft you refine, unlike a launched runid.
+    """
+    cfg = body.get("config")
+    if not isinstance(cfg, dict):
+        return 400, {"error": "missing config object"}
+    label = cfg.get("label", "")
+    if not _valid_label(label):
+        return 400, {"error": f"invalid label {label!r}"}
+    CONFIGS.mkdir(parents=True, exist_ok=True)
+    saved = dict(cfg)  # the launchable config
+    saved["_saved_at"] = datetime.now(timezone.utc).isoformat()
+    saved["_seed"] = int(body.get("seed", 42))
+    if body.get("curation") is not None:
+        saved["_curation"] = body["curation"]
+    path = CONFIGS / f"{label}.json"
+    path.write_text(json.dumps(saved, indent=2) + "\n")
+    return 200, {"saved": str(path), "label": label}
+
+
+def ep_saved(_query: dict):
+    """List saved plans in configs/ with enough to repopulate the UI."""
+    if not CONFIGS.is_dir():
+        return 200, {"plans": []}
+    plans = []
+    for p in sorted(CONFIGS.glob("*.json")):
+        try:
+            d = json.loads(p.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        plans.append({
+            "label": d.get("label", p.stem),
+            "saved_at": d.get("_saved_at"),
+            "seed": d.get("_seed", 42),
+            "retention": d.get("retention"),
+            "capture_metric": d.get("capture_metric"),
+            "config": {k: v for k, v in d.items() if not k.startswith("_")},
+            "curation": d.get("_curation"),
+        })
+    plans.sort(key=lambda x: x.get("saved_at") or "", reverse=True)
+    return 200, {"plans": plans}
+
+
+def ep_delete_saved(body: dict):
+    label = body.get("label", "")
+    if not _valid_label(label):
+        return 400, {"error": "invalid label"}
+    path = CONFIGS / f"{label}.json"   # only ever a file in configs/, named by a safe label
+    if path.exists():
+        path.unlink()
+        return 200, {"deleted": label}
+    return 404, {"error": f"no saved plan {label!r}"}
+
+
 ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
-               "/launch": ep_launch, "/stop": ep_stop}
-ROUTES_GET = {"/status": ep_status, "/log": ep_log}
+               "/launch": ep_launch, "/stop": ep_stop,
+               "/save": ep_save, "/delete_saved": ep_delete_saved}
+ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved}
 
 
 # --------------------------------------------------------------------------- #

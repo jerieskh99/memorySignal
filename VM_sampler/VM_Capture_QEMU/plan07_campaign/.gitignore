@@ -1,8 +1,7 @@
-# Local run state written by console_bridge.py and subset_run.py at runtime --
-# per-run metadata, generated steps files, capture logs, and staging temp files.
-# These are machine/run-specific, not source.
+# Local run state written by the console bridge / subset_run at runtime.
 runs/
-
-# Python caches
 __pycache__/
 *.pyc
+
+# configs/ (saved plans) is intentionally NOT ignored -- those are meant to
+# persist in the repo and be version-controlled.
