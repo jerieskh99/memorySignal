@@ -375,9 +375,52 @@ def ep_delete_saved(body: dict):
     return 404, {"error": f"no saved plan {label!r}"}
 
 
+CLEANUP_SCRIPT = QEMU_DIR / "cleanup_qemu_capture.sh"
+GUEST_SCRATCH = "/var/tmp/phase2_campaign"   # the guest scratch root every workload writes under
+
+
+def ep_clean_host(_body: dict):
+    """Run the existing cleanup_qemu_capture.sh: kill stray producer/consumer,
+    clear the job queues, and delete leftover memory_dump* files. This is exactly
+    the host-side residue preflight flags (strays, queue/processing, leftover raw
+    dumps). It does NOT touch the retention tree or runs/ metadata.
+    """
+    if not CLEANUP_SCRIPT.exists():
+        return 404, {"error": f"cleanup script not found at {CLEANUP_SCRIPT}"}
+    try:
+        rc, out, err = _run(["bash", str(CLEANUP_SCRIPT)], cwd=QEMU_DIR, timeout=120)
+    except subprocess.TimeoutExpired:
+        return 504, {"error": "host cleanup timed out"}
+    return 200, {"ok": rc == 0, "exit": rc, "output": (out + err)[-4000:]}
+
+
+def ep_clean_guest(body: dict):
+    """Clear the guest scratch dir over SSH. The path is FIXED (GUEST_SCRATCH),
+    never taken from the request, so nothing arbitrary is deleted; only the ssh
+    target/key are supplied. The orchestrator reclaims scratch per-cell anyway --
+    this is the manual/pre-run equivalent for leftover-from-a-crash residue.
+    """
+    ssh_target = body.get("ssh_target")
+    ssh_key = body.get("ssh_key")
+    if not ssh_target:
+        return 400, {"error": "ssh_target (the guest, e.g. kali@...) is required"}
+    argv = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8"]
+    if ssh_key:
+        argv += ["-i", ssh_key]
+    remote = (f"rm -rf {shlex.quote(GUEST_SCRATCH)}/* 2>/dev/null; "
+              f"echo -n 'remaining: '; du -sh {shlex.quote(GUEST_SCRATCH)} 2>/dev/null || echo '(empty)'")
+    argv += [ssh_target, remote]
+    try:
+        rc, out, err = _run(argv, cwd=QEMU_DIR, timeout=40)
+    except subprocess.TimeoutExpired:
+        return 504, {"error": "guest cleanup timed out (guest reachable?)"}
+    return 200, {"ok": rc == 0, "exit": rc, "output": (out + err).strip()[-2000:]}
+
+
 ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/launch": ep_launch, "/stop": ep_stop,
-               "/save": ep_save, "/delete_saved": ep_delete_saved}
+               "/save": ep_save, "/delete_saved": ep_delete_saved,
+               "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest}
 ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved}
 
 
