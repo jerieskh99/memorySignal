@@ -672,13 +672,21 @@ render();renderCatalog();
     msg("Running preflight on the server…"); $("srv-preflight-out").innerHTML="";
     const {ok,data} = await api("/preflight","POST",payload());
     if(!ok){ msg("Preflight error: "+(data.error||"")+ (data.detail?" — "+data.detail:""),"var(--bad)"); return; }
+    const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
     const pf = data.preflight || {};
     const verdict = data.ok ? `READY — ${data.cells} cells` : `NOT READY (exit ${data.exit})`;
     msg(verdict, data.ok ? "var(--ok)" : "var(--bad)");
     let html = `<div style="font-size:12px;color:var(--ink-3);margin-top:4px">passed ${pf.passed||0} · warnings ${pf.warnings||0} · failures ${pf.failures||0}</div>`;
     (pf.findings||[]).filter(f=>f.level!=="pass").forEach(f=>{
-      html += `<div class="pf-find ${f.level==='fail'?'fail':'warn'}">${f.level.toUpperCase()}: ${f.message||f.msg||JSON.stringify(f)}</div>`;
+      const t = f.message||f.msg||f.text||f.detail||f.name||JSON.stringify(f);
+      html += `<div class="pf-find ${f.level==='fail'?'fail':'warn'}">${(f.level||'').toUpperCase()}: ${esc(t)}</div>`;
     });
+    // Always show the raw preflight output when NOT READY (or when no findings
+    // parsed) -- that human-readable block names exactly what failed.
+    if((!data.ok || !(pf.findings||[]).length) && data.preflight_stdout){
+      html += `<div class="out-h" style="margin-top:9px"><span class="lab">preflight output</span></div>`
+            + `<pre class="code" style="max-height:280px">${esc(data.preflight_stdout)}</pre>`;
+    }
     $("srv-preflight-out").innerHTML = html;
   });
 
