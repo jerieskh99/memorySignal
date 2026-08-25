@@ -267,10 +267,12 @@ pre.code .env{color:var(--accent)} pre.code .val{color:var(--trace)}
     <div class="steps" id="steps"><div class="plan-empty">No plan yet. Set the config above, then <b>Generate plan</b>.</div></div>
     <div class="plan-out" id="plan-out" hidden>
       <div class="out"><div class="out-h"><span class="lab" id="steps-name">steps file</span><button class="copy" data-copy="steps-code">copy</button></div><pre class="code" id="steps-code"></pre></div>
-      <div class="out"><div class="out-h"><span class="lab">launch command</span><button class="copy" data-copy="cmd-code">copy</button></div><pre class="code" id="cmd-code"></pre>
+      <div class="out"><div class="out-h"><span class="lab">run command (writes steps + launches)</span><button class="copy" data-copy="cmd-code">copy</button></div><pre class="code" id="cmd-code"></pre>
         <button class="bigbtn ghost" id="save-plan" style="margin-top:11px;width:100%;justify-content:center">Save this plan to catalog</button></div>
     </div>
-    <div class="foot-note">Write the steps file to <code id="steps-path">configs/&hellip;_steps.txt</code> on the server, run <code>qa/preflight.sh</code> on it, then launch inside <code>screen</code>. This page runs nothing.</div>
+    <div class="foot-note">Run from <code>VM_Capture_QEMU/</code> on the server. This one command writes the steps to
+      <code id="steps-path">runs/&hellip;_steps.txt</code> and launches. On the served console, the <b>Launch</b> button does this
+      plus preflight and a live log &mdash; no copy-paste.</div>
   </section>
 
   <section class="panel cat-panel">
@@ -417,13 +419,22 @@ function generatePlan(){
 
 /* ===== outputs ===== */
 function stepsFileText(){if(!PLAN)return "";return PLAN.cells.filter(c=>c.checked).map(c=>c.cmd).join("\n")+"\n";}
-function stepsPath(){return `configs/${S.label||"subset"}_steps.txt`;}
+function stepsPath(){return `runs/${S.label||"subset"}_steps.txt`;}
 function launchCommand(d){const env={};if(d.needZstd)env.ZSTD="1";env.CAPTURE_METRIC=S.metric;
   if(S.metric==="substrate"&&cfgGroupObj()&&d.feats)env.SUBSTRATE_FEATURES=d.feats;
   env.ZSTD_RUN_ID=S.label;if(S.sshTarget.trim())env.SSH_TARGET=S.sshTarget.trim();if(S.sshKey.trim())env.SSH_KEY=S.sshKey.trim();
   if(d.needZstd&&S.zstdDir.trim())env.ZSTD_DIR=S.zstdDir.trim();env.STEPS_FILE=stepsPath();
   env.CAPTURE_MODE="1";env.SSH_WAIT_TIMEOUT="300";env.CONTINUE_ON_FAILURE="1";env.MIN_FREE_DISK_GB="40";env.PYTHONUNBUFFERED="1";
   return Object.entries(env).map(([k,v])=>`${k}=${shQ(v)}`).join(" ")+" ./run_files_controlled.py";}
+// The self-contained "run" command: writes the curated steps file, THEN launches.
+// Earlier this box showed only the launch line, which pointed at a steps file that
+// nothing had created -- so pasting it failed. This one paste does both.
+function fullCommand(d){
+  const path=stepsPath();
+  const dir=path.includes("/")?path.slice(0,path.lastIndexOf("/")):".";
+  const steps=stepsFileText().replace(/\n+$/,"");
+  return `mkdir -p ${shQ(dir)} && cat > ${shQ(path)} <<'STEPS'\n${steps}\nSTEPS\n${launchCommand(d)}`;
+}
 
 /* ===== rendering: config ===== */
 function renderCards(){const rc=document.getElementById("ret-cards");rc.innerHTML="";
@@ -490,7 +501,7 @@ function syncOutputs(){if(!PLAN)return;const d=compute();
   const steps=stepsFileText();const sc=document.getElementById("steps-code");sc.textContent=steps;
   document.getElementById("steps-name").textContent=stepsPath().split("/").pop();
   document.getElementById("steps-path").textContent=stepsPath();
-  const cmd=launchCommand(d);const cc=document.getElementById("cmd-code");cc.innerHTML=highlightCmd(cmd);cc.dataset.raw=cmd;
+  const cmd=fullCommand(d);const cc=document.getElementById("cmd-code");cc.textContent=cmd;cc.dataset.raw=cmd;
   const stat=document.getElementById("plan-stat");const checked=PLAN.cells.filter(c=>c.checked).length;const skip=(PLAN.skipped||[]).length;
   stat.innerHTML=`<b>${checked}</b> / ${PLAN.cells.length} will run${PLAN.dropped?` · ${PLAN.dropped} deduped`:""}${skip?` · <span style="color:var(--warn)">${skip} skipped (over ceiling)</span>`:""}`;}
 
