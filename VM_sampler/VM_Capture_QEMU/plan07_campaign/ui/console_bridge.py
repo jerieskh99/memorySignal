@@ -54,7 +54,11 @@ SUBSET_RUN = CAMPAIGN / "subset_run.py"
 PREFLIGHT = QEMU_DIR / "qa" / "preflight.sh"
 RUNS = CAMPAIGN / "runs"
 CONFIGS = CAMPAIGN / "configs"                        # saved (not-yet-launched) plans
+CAPTURE_CONFIG = QEMU_DIR / "config_qemu_upc.json"    # imageDir / queueDir live here
 SERVED_HTML = HERE / "capture_console.served.html"
+VM_DOMAIN = os.environ.get("VM_DOMAIN", "Kali Jeries")
+VIRSH_URI = os.environ.get("VIRSH_URI", "qemu:///system")
+MIN_FREE_DISK_GB = 40
 
 LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")            # same as subset_run.py
 SCREEN_PREFIX = "mem_console_"
@@ -417,11 +421,144 @@ def ep_clean_guest(body: dict):
     return 200, {"ok": rc == 0, "exit": rc, "output": (out + err).strip()[-2000:]}
 
 
+def _disk_free_gb(path: str):
+    try:
+        return shutil.disk_usage(path).free / (1024 ** 3)
+    except Exception:
+        return None
+
+
+def ep_health(body: dict):
+    """Runtime health of a capture in progress: is it safe to keep running, or
+    should you stop? Basic checks always; deeper ones only when deep=True.
+    Returns findings [{section, level, message}] in the same shape the UI renders
+    the preflight report with.
+    """
+    deep = bool(body.get("deep"))
+    zstd_dir = body.get("zstd_dir")
+    cfg = {}
+    try:
+        cfg = json.loads(CAPTURE_CONFIG.read_text())
+    except Exception:
+        pass
+    image_dir = cfg.get("imageDir")
+    queue_dir = cfg.get("queueDir")
+    F = []
+    def add(section, level, message): F.append({"section": section, "level": level, "message": message})
+
+    # --- disk: the run stops (or corrupts) if imageDir / ZSTD_DIR fill ---
+    for name, p in [("imageDir", image_dir), ("ZSTD_DIR", zstd_dir)]:
+        if not p:
+            continue
+        g = _disk_free_gb(p)
+        if g is None:
+            add("Disk", "warn", f"{name} {p}: can't read free space")
+        elif g < MIN_FREE_DISK_GB:
+            add("Disk", "fail", f"{name}: {g:.0f} GiB free (below {MIN_FREE_DISK_GB} GiB — the run will halt itself)")
+        elif g < 2 * MIN_FREE_DISK_GB:
+            add("Disk", "warn", f"{name}: {g:.0f} GiB free (getting low)")
+        else:
+            add("Disk", "ok", f"{name}: {g:.0f} GiB free")
+
+    # --- producer/consumer alive while a capture screen is up ---
+    screens = _screens()
+    running = bool(screens)
+    for name, pat in [("producer", "capture_producer"), ("consumer", "capture_consumer_qemu.sh")]:
+        alive = _run(["pgrep", "-f", pat], cwd=QEMU_DIR, timeout=10)[0] == 0
+        if running and not alive:
+            add("Processes", "fail", f"{name} not running while a capture is active — captures will stall")
+        else:
+            add("Processes", "ok", f"{name} {'running' if alive else 'idle (no active capture)'}")
+
+    # --- queue: backed-up processing / any failed = trouble ---
+    if queue_dir:
+        for sub in ("pending", "processing", "failed"):
+            d = Path(queue_dir) / sub
+            n = len(list(d.glob("*"))) if d.is_dir() else 0
+            lvl = "fail" if (sub == "failed" and n) else ("warn" if (sub == "processing" and n > 4) else "ok")
+            add("Queue", lvl, f"queue/{sub}: {n} job(s)")
+
+    # --- leftover dumps piling up = consumer falling behind / not cleaning ---
+    if image_dir and Path(image_dir).is_dir():
+        nd = len(list(Path(image_dir).glob("memory_dump*")))
+        add("Cleanup", "warn" if nd > 50 else "ok",
+            f"{nd} raw dump(s) in imageDir" + (" — consumer may be behind" if nd > 50 else ""))
+
+    # --- VM state ---
+    st = _run(["virsh", "-c", VIRSH_URI, "domstate", VM_DOMAIN], cwd=QEMU_DIR, timeout=10)[1].strip()
+    add("VM", "ok" if st == "running" else ("warn" if st == "paused" else "fail"),
+        f"domain '{VM_DOMAIN}': {st or 'unknown'}")
+    add("Run", "ok" if running else "warn",
+        (", ".join(screens)) if running else "no capture screen active")
+
+    if deep:
+        ssh_target, ssh_key = body.get("ssh_target"), body.get("ssh_key")
+        if ssh_target:
+            argv = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8"]
+            if ssh_key:
+                argv += ["-i", ssh_key]
+            argv += [ssh_target, f"du -sh {shlex.quote(GUEST_SCRATCH)} 2>/dev/null || echo '(empty)'"]
+            rc, out, _e = _run(argv, cwd=QEMU_DIR, timeout=30)
+            add("Guest (deep)", "ok" if rc == 0 else "warn", f"guest scratch: {out.strip() or 'unreachable'}")
+        if zstd_dir and Path(zstd_dir).is_dir():
+            chains = sum(1 for _ in Path(zstd_dir).rglob("*.zst"))
+            add("Retention (deep)", "ok", f"{chains} compressed chain file(s) written under ZSTD_DIR")
+
+    return 200, {
+        "findings": F,
+        "passed": sum(1 for f in F if f["level"] == "ok"),
+        "warnings": sum(1 for f in F if f["level"] == "warn"),
+        "failures": sum(1 for f in F if f["level"] == "fail"),
+        "ok": not any(f["level"] == "fail" for f in F),
+    }
+
+
+def ep_run_status(query: dict):
+    """Per-step status of a run, parsed from its log: ok / fail / running /
+    skipped / pending, one row per workload (same list shape as preflight)."""
+    label = (query.get("label") or [""])[0]
+    if not _valid_label(label):
+        return 400, {"error": "invalid label"}
+    steps_file = RUNS / f"{label}_steps.txt"
+    log = RUNS / f"{label}.log"
+    total = 0
+    if steps_file.exists():
+        total = len([l for l in steps_file.read_text().splitlines() if l.strip()])
+    steps = {}
+    if log.exists():
+        cur = None
+        for line in log.read_text(errors="replace").splitlines():
+            m = re.search(r"=====\s*Step (\d+)/(\d+)\s*:\s*(\S+)", line)
+            if m:
+                cur = int(m.group(1)); total = max(total, int(m.group(2)))
+                wl = re.sub(r"^test\d+_", "", m.group(3))
+                steps[cur] = {"i": cur, "workload": wl, "status": "running", "detail": ""}
+                continue
+            if cur is None:
+                continue
+            if "completed successfully" in line:
+                steps[cur]["status"] = "ok"
+            elif "Workload exit code:" in line:
+                mm = re.search(r"exit code:\s*(\d+)", line)
+                steps[cur]["status"] = "fail"; steps[cur]["detail"] = f"exit {mm.group(1) if mm else '?'}"
+            elif "255 (CONNECTION FAILURE" in line or "still 255" in line:
+                steps[cur]["status"] = "fail"; steps[cur]["detail"] = "ssh 255"
+            elif "skipping step" in line or "would not start" in line:
+                steps[cur]["status"] = "skipped"
+    out = [steps.get(i, {"i": i, "workload": "(pending)", "status": "pending", "detail": ""})
+           for i in range(1, total + 1)]
+    done = sum(1 for s in out if s["status"] in ("ok", "fail", "skipped"))
+    return 200, {"label": label, "total": total, "done": done, "steps": out,
+                 "running": f"{SCREEN_PREFIX}{label}" in " ".join(_screens())}
+
+
 ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/launch": ep_launch, "/stop": ep_stop,
                "/save": ep_save, "/delete_saved": ep_delete_saved,
-               "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest}
-ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved}
+               "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest,
+               "/health": ep_health}
+ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved,
+              "/run_status": ep_run_status}
 
 
 # --------------------------------------------------------------------------- #

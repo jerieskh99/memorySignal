@@ -633,6 +633,14 @@ render();renderCatalog();
       <button class="bigbtn ghost" id="srv-clean-host">Host (dumps · queue · strays)</button>
       <button class="bigbtn ghost" id="srv-clean-guest">Guest scratch</button>
     </div>
+    <div class="srow" style="border-top:1px solid var(--line);padding-top:11px">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600">while running</span>
+      <button class="bigbtn ghost" id="srv-health">Health check</button>
+      <label style="font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:5px"><input type="checkbox" id="srv-health-deep"> deeper checks</label>
+      <button class="bigbtn ghost" id="srv-runstatus" style="margin-left:auto">Run status</button>
+    </div>
+    <div id="srv-health-out"></div>
+    <div id="srv-runstatus-out"></div>
     <div id="srv-msg" style="font-size:12.5px;color:var(--ink-2)"></div>
     <div id="srv-running-list"></div>
     <div id="srv-preflight-out"></div>
@@ -664,6 +672,7 @@ render();renderCatalog();
   if(!B){ if(panel) panel.closest(".full").style.display="none"; return; }
   const $ = id => document.getElementById(id);
   const msg = (t,c) => { const e=$("srv-msg"); e.textContent=t; e.style.color=c||"var(--ink-2)"; };
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 
   async function api(path, method, body){
     const r = await fetch(B.base + path, {
@@ -690,7 +699,6 @@ render();renderCatalog();
     msg("Running preflight on the server…"); $("srv-preflight-out").innerHTML="";
     const {ok,data} = await api("/preflight","POST",payload());
     if(!ok){ msg("Preflight error: "+(data.error||"")+ (data.detail?" — "+data.detail:""),"var(--bad)"); return; }
-    const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
     const pf = data.preflight || {};
     msg("");  // the verdict + report below carry the message now
     // Parse preflight's text output into sections + per-check [ok]/[warn]/[FAIL]
@@ -770,6 +778,44 @@ render();renderCatalog();
     msg("Cleaning guest scratch…");
     const {ok,data} = await api("/clean_guest","POST",{ssh_target:S.sshTarget.trim()||null, ssh_key:S.sshKey.trim()||null});
     msg(ok ? `Guest scratch cleaned. ${data.output||""} Re-run Preflight.` : ("Guest clean failed: "+(data.error||data.output||"")), ok?"var(--ok)":"var(--bad)");
+  });
+
+  // ---- while-running checks: health + per-step run status ----
+  const BADGE = {ok:["var(--ok)","✓"], warn:["var(--warn)","!"], fail:["var(--bad)","✗"],
+                 skipped:["var(--ink-3)","–"], running:["var(--accent)","▸"], pending:["var(--line-2)","·"]};
+  function renderFindings(findings){
+    let report="", lastSec=null;
+    findings.forEach(f=>{
+      if(f.section!==lastSec){ report+=`<div class="pf-sec">${esc(f.section)}</div>`; lastSec=f.section; }
+      const [,ic]=BADGE[f.level]||BADGE.pending; const cls=f.level==="fail"?"fail":(f.level==="warn"?"warn":"ok");
+      report+=`<div class="pf-check ${cls}"><span class="pf-badge">${ic}</span><span>${esc(f.message)}</span></div>`;
+    });
+    return report ? `<div class="pf-report">${report}</div>` : "";
+  }
+  $("srv-health").addEventListener("click", async ()=>{
+    $("srv-health-out").innerHTML = `<div class="pf-info" style="border:none;padding:8px 0">running health check…</div>`;
+    const {ok,data} = await api("/health","POST",{deep:$("srv-health-deep").checked, zstd_dir:S.zstdDir.trim()||null, ssh_target:S.sshTarget.trim()||null, ssh_key:S.sshKey.trim()||null});
+    if(!ok){ $("srv-health-out").innerHTML=`<div class="pf-verdict bad"><span>health check error</span></div>`; return; }
+    const vcls = data.failures ? "bad" : (data.warnings ? "" : "ok");
+    const vtxt = data.failures ? `${data.failures} problem(s) — consider stopping` : (data.warnings ? `${data.warnings} warning(s) — watch it` : `looks healthy`);
+    $("srv-health-out").innerHTML = `<div class="pf-verdict ${vcls||'ok'}"><span>${vtxt}</span>`
+      + `<span class="counts">${data.passed} ok · ${data.warnings} warn · ${data.failures} fail</span></div>` + renderFindings(data.findings||[]);
+  });
+  $("srv-runstatus").addEventListener("click", async ()=>{
+    const label = curLabel || S.label;
+    $("srv-runstatus-out").innerHTML = `<div class="pf-info" style="border:none;padding:8px 0">loading run status for ${esc(label)}…</div>`;
+    const {ok,data} = await api("/run_status?label="+encodeURIComponent(label),"GET");
+    if(!ok){ $("srv-runstatus-out").innerHTML=`<div class="pf-verdict bad"><span>${esc((data&&data.error)||"error")}</span></div>`; return; }
+    if(!data.total){ $("srv-runstatus-out").innerHTML=`<div class="pf-info" style="border:none;padding:8px 0">no run found for "${esc(label)}" yet.</div>`; return; }
+    const fails=(data.steps||[]).filter(s=>s.status==="fail").length;
+    let html=`<div class="pf-verdict ${fails?'bad':'ok'}"><span>${data.done}/${data.total} done${data.running?' · still running':''}</span><span class="counts">${fails} failed</span></div>`;
+    html += `<div class="pf-report">` + (data.steps||[]).map(s=>{
+      const [bg,ic]=BADGE[s.status]||BADGE.pending;
+      return `<div class="pf-check ${s.status==='fail'?'fail':''}"><span class="pf-badge" style="background:${bg}">${ic}</span>`
+        + `<span class="mono" style="font-size:12px">${esc(s.workload)}</span>`
+        + `<span style="margin-left:auto;color:var(--ink-3);font-size:11.5px">${esc(s.status)}${s.detail?" · "+esc(s.detail):""}</span></div>`;
+    }).join("") + `</div>`;
+    $("srv-runstatus-out").innerHTML = html;
   });
 
   // ---- saved plans, persisted server-side in configs/ (not the browser) ----
