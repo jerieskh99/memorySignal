@@ -639,14 +639,14 @@ render();renderCatalog();
       <label style="font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:5px"><input type="checkbox" id="srv-health-deep"> deeper checks</label>
       <button class="bigbtn ghost" id="srv-runstatus" style="margin-left:auto">Run status</button>
     </div>
-    <div id="srv-health-out"></div>
-    <div id="srv-runstatus-out"></div>
     <div id="srv-msg" style="font-size:12.5px;color:var(--ink-2)"></div>
     <div id="srv-running-list"></div>
     <div id="srv-preflight-out"></div>
     <div class="out" id="srv-log-wrap" hidden><div class="out-h"><span class="lab">live log</span><span class="running" id="srv-running"></span></div>
       <div id="srv-screen-info" style="font-size:11.5px;color:var(--ink-3);margin:2px 0 7px"></div>
       <pre class="code" id="srv-log"></pre></div>
+    <div id="srv-runstatus-out"></div>
+    <div id="srv-health-out"></div>
   </div>
   <div class="foot-note">Preflight runs <code>qa/preflight.sh</code> on the generated steps. Launch starts
     <code>run_files_controlled.py</code> in a detached <code>screen</code> (<code>mem_console_&lt;label&gt;</code>) and tails its log here.
