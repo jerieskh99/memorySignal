@@ -616,8 +616,11 @@ render();renderCatalog();
       <button class="bigbtn ghost" id="srv-stop" style="margin-left:auto">Stop</button>
     </div>
     <div id="srv-msg" style="font-size:12.5px;color:var(--ink-2)"></div>
+    <div id="srv-running-list"></div>
     <div id="srv-preflight-out"></div>
-    <div class="out" id="srv-log-wrap" hidden><div class="out-h"><span class="lab">live log</span><span class="running" id="srv-running"></span></div><pre class="code" id="srv-log"></pre></div>
+    <div class="out" id="srv-log-wrap" hidden><div class="out-h"><span class="lab">live log</span><span class="running" id="srv-running"></span></div>
+      <div id="srv-screen-info" style="font-size:11.5px;color:var(--ink-3);margin:2px 0 7px"></div>
+      <pre class="code" id="srv-log"></pre></div>
   </div>
   <div class="foot-note">Preflight runs <code>qa/preflight.sh</code> on the generated steps. Launch starts
     <code>run_files_controlled.py</code> in a detached <code>screen</code> (<code>mem_console_&lt;label&gt;</code>) and tails its log here.
@@ -696,8 +699,11 @@ render();renderCatalog();
     msg("Launching…");
     const {ok,data} = await api("/launch","POST",payload());
     if(!ok){ msg("Launch failed: "+(data.error||"")+(data.detail?" — "+data.detail:""),"var(--bad)"); return; }
-    msg(`Launched in screen ${data.screen} — ${data.cells} cells. Tailing log…`, "var(--ok)");
+    msg(`Launched — ${data.cells} cells. Tailing log below.`, "var(--ok)");
     curLabel = S.label; logOffset = 0; $("srv-log").textContent=""; $("srv-log-wrap").hidden=false;
+    $("srv-screen-info").innerHTML = `runs in screen <b class="mono" style="color:var(--trace)">${data.screen}</b> on the server &mdash; `
+      + `watch directly with <span class="mono" style="color:var(--ink-2)">screen -r ${data.screen}</span> `
+      + `<span style="opacity:.7">(detach: Ctrl-A then D &mdash; never Ctrl-C)</span>`;
     if(pollTimer) clearInterval(pollTimer);
     pollLog(); pollTimer = setInterval(pollLog, 1500);
   });
@@ -754,8 +760,21 @@ render();renderCatalog();
     const {ok} = await api("/delete_saved","POST",{label});
     if(ok) refreshSaved();
   }
+  // ---- what's running on the server right now (persists across reconnects) ----
+  async function refreshStatus(){
+    const {ok,data} = await api("/status","GET");
+    const host = $("srv-running-list");
+    const runs = (ok && data.running) ? data.running : [];
+    if(!runs.length){ host.innerHTML = ""; return; }
+    host.innerHTML = `<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin:9px 0 4px">running on the server</div>`
+      + runs.map(r=>`<div class="running" style="margin:2px 0">screen <b class="mono" style="color:var(--trace)">${r.screen}</b>`
+          + ` &middot; <span class="mono" style="color:var(--ink-2)">screen -r ${r.screen}</span></div>`).join("");
+  }
+
   $("srv-save").addEventListener("click", saveToServer);
   refreshSaved();
+  refreshStatus();
+  setInterval(refreshStatus, 5000);
 })();
 </script>
 <!--@@SERVED_ONLY_END@@-->
