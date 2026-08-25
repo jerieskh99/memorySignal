@@ -774,10 +774,11 @@ render();renderCatalog();
     <div id="mig-summary" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin:6px 0 2px"></div>
     <div id="mig-list"></div>
   </div>
-  <div class="foot-note">The copy runs on <em>your laptop</em> (<code>migrate_agent.sh</code>, auto-started by <code>console.sh</code>) &mdash;
-    the server can't reach a NAT'd laptop. A chain is <b>ready</b> once idle for the stable window; migrating <b>moves</b> it
-    (rsync then delete on server, freeing space). On-demand requests pull within one poll; <b>auto</b> sweeps every interval.
-    If the agent isn't running, requests queue but nothing moves.</div>
+  <div class="foot-note">The pull runs on <em>your laptop</em> (<code>migrate_agent.sh</code>, auto-started by <code>console.sh</code>) &mdash;
+    the server can't reach a NAT'd laptop. A chain is <b>ready</b> once idle for the stable window. Per chain:
+    <b>Migrate</b> = move (pull then free the server), <b>Copy</b> = pull but keep it on the server, <b>Delete</b> = remove
+    from the server <em>without</em> pulling (permanent). Migrate/Copy queue for the agent (pulled within one poll); <b>auto</b>
+    sweeps every ready chain each interval as a move. Delete is immediate and refuses a chain that's still being written.</div>
 </section></div>
 
 <div class="full"><section class="panel cat-panel" id="server-saved">
@@ -1020,7 +1021,9 @@ render();renderCatalog();
     growing:  ["var(--ink-3)", "growing"],   // still being appended to
     ready:    ["var(--trace)", "ready"],     // idle long enough -> safe to pull
     queued:   ["var(--warn)",  "queued"],    // requested; agent pulls next poll
+    copied:   ["var(--accent, #6c8cff)", "copied"], // on the laptop AND still here
     migrated: ["var(--ok)",    "migrated"],  // moved to the laptop, freed on server
+    deleted:  ["var(--bad)",   "deleted"],   // removed from the server, not pulled
   };
   const zstdDir = () => ($("zstd-dir") ? $("zstd-dir").value.trim() : "");
   let migTyping = false;   // don't overwrite the inputs while the user edits them
@@ -1036,18 +1039,26 @@ render();renderCatalog();
       $("mig-auto").checked = !!data.config.auto;
     }
     const chains = data.chains || [];
-    const active = chains.filter(x => x.status !== "migrated");
-    const done = chains.filter(x => x.status === "migrated")
+    const settled = s => s==="migrated" || s==="deleted";
+    const active = chains.filter(x => !settled(x.status));
+    const done = chains.filter(x => settled(x.status))
                        .sort((a,b)=> (b.ts||"").localeCompare(a.ts||"")).slice(0, 25);
+    const btn = (cls,ch,label,extra) =>
+      `<button class="bigbtn ghost ${cls}" data-chain="${esc(ch)}" style="padding:2px 9px;font-size:11.5px${extra||""}">${label}</button>`;
     const row = x => {
       const [col,txt] = MIG_BADGE[x.status] || ["var(--ink-3)", x.status];
-      const badge = `<span class="pf-badge" style="background:${col};color:#fff;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:600">${txt}</span>`;
+      const label = x.status==="queued" && x.mode ? `${txt}·${x.mode}` : txt;
+      const badge = `<span class="pf-badge" style="background:${col};color:#fff;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:600">${label}</span>`;
       const age = x.age_min==null ? (x.ts?esc(x.ts.replace('T',' ').replace('Z','')):"")
                                   : (x.age_min>=60 ? (x.age_min/60).toFixed(1)+"h" : x.age_min+"m")+" idle";
-      const act = (x.status==="ready"||x.status==="growing")
-        ? `<button class="bigbtn ghost mig-go" data-chain="${esc(x.chain)}" style="padding:2px 10px;font-size:11.5px">Migrate</button>`
-        : "";
-      return `<div class="running" style="display:flex;align-items:center;gap:9px;margin:2px 0">`
+      let act = "";
+      if(x.status==="ready" || x.status==="growing"){
+        act = btn("mig-move",x.chain,"Migrate") + btn("mig-copy",x.chain,"Copy")
+            + btn("mig-del",x.chain,"Delete",";color:var(--bad)");
+      } else if(x.status==="copied"){
+        act = btn("mig-move",x.chain,"Migrate") + btn("mig-del",x.chain,"Delete",";color:var(--bad)");
+      }
+      return `<div class="running" style="display:flex;align-items:center;gap:8px;margin:2px 0">`
         + badge
         + `<span class="mono" style="color:var(--ink-2);font-size:11.5px">${esc(x.workload)}<span style="opacity:.55"> · ${esc(x.param)} · ${esc(x.rep)}</span></span>`
         + `<span style="color:var(--ink-3);font-size:11px;margin-left:auto">${age}</span>${act}</div>`;
@@ -1056,12 +1067,16 @@ render();renderCatalog();
     if(active.length) html += active.map(row).join("");
     else html += `<div class="pf-info" style="border:none;padding:6px 0;color:var(--ink-3)">no chains waiting to migrate.</div>`;
     if(done.length){
-      html += `<div style="font-size:11px;color:var(--ink-3);margin:8px 0 2px">recently migrated${(c.migrated||0)>done.length?` (last ${done.length} of ${c.migrated})`:""}</div>`;
+      const nset = (c.migrated||0)+(c.deleted||0);
+      html += `<div style="font-size:11px;color:var(--ink-3);margin:8px 0 2px">recently migrated / deleted${nset>done.length?` (last ${done.length} of ${nset})`:""}</div>`;
       html += done.map(row).join("");
     }
     $("mig-list").innerHTML = html;
-    $("mig-list").querySelectorAll(".mig-go").forEach(b =>
-      b.addEventListener("click", () => requestMig(b.getAttribute("data-chain"))));
+    const bind = (sel,fn) => $("mig-list").querySelectorAll(sel).forEach(b =>
+      b.addEventListener("click", () => fn(b.getAttribute("data-chain"))));
+    bind(".mig-move", ch => requestMig(ch,"move"));
+    bind(".mig-copy", ch => requestMig(ch,"copy"));
+    bind(".mig-del",  ch => deleteChain(ch));
   }
   async function loadMig(){
     const z = zstdDir();
@@ -1071,12 +1086,24 @@ render();renderCatalog();
     if(!ok){ $("mig-list").innerHTML = `<div class="pf-verdict bad"><span>${esc((data&&data.error)||"migration list error")}</span></div>`; return; }
     renderMig(data);
   }
-  async function requestMig(chain){
+  async function requestMig(chain, mode){
     const z = zstdDir(); if(!z) return;
-    const {ok,data} = await api("/migration/request","POST",{zstd_dir:z, chain});
-    $("mig-msg").textContent = ok ? `queued ${chain} — the agent pulls it within one poll`
+    const {ok,data} = await api("/migration/request","POST",{zstd_dir:z, chain, mode});
+    const verb = mode==="copy" ? "copy" : "move";
+    $("mig-msg").textContent = ok ? `queued ${verb}: ${chain} — the agent pulls it within one poll`
                                   : ("request failed: "+((data&&data.error)||""));
     $("mig-msg").style.color = ok ? "var(--ok)" : "var(--bad)";
+    loadMig();
+  }
+  async function deleteChain(chain){
+    const z = zstdDir(); if(!z) return;
+    if(!confirm(`Permanently DELETE this trace from the server?\n\n${chain}\n\n`
+      + `This does NOT copy it anywhere — the chain is removed from the server for good. `
+      + `This cannot be undone.`)) return;
+    const {ok,data} = await api("/migration/delete","POST",{zstd_dir:z, chain});
+    $("mig-msg").textContent = ok ? `deleted ${chain} from the server`
+                                  : ("delete failed: "+((data&&data.error)||""));
+    $("mig-msg").style.color = ok ? "var(--warn)" : "var(--bad)";
     loadMig();
   }
   $("mig-save-cfg").addEventListener("click", async ()=>{

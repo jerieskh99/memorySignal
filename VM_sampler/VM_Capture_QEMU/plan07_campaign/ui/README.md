@@ -107,14 +107,23 @@ itself; it drives a laptop-side agent through a control file on the server.
   for the stable window (mtime older than `stable_min`, default 10 min) — the
   same "no longer growing" signal `pull_traces.sh` uses, so an in-progress chain
   is never pulled mid-write.
+- **Per chain, three actions:** **Migrate** = move (pull, then free the server);
+  **Copy** = pull but keep the chain on the server; **Delete** = remove it from
+  the server *without* pulling (permanent, for traces you don't want). Migrate
+  and Copy queue for the agent (each ledgered with its `action`, so the UI shows
+  `copied` for a kept chain and `migrated` for a moved one). Delete is done by
+  the bridge itself — no agent needed — and **refuses a chain still being
+  written** (younger than `stable_min`) so it can't nuke the active run.
 - **Bridge endpoints:** `GET /migration/list` (per-chain status
-  growing/ready/queued/migrated, from rep-leaf mtimes + the ledger),
-  `POST /migration/request` (queue one **validated** rep leaf),
-  `POST /migration/config` (set interval + auto). Requested paths are validated
-  as existing rep leaves under `ZSTD_DIR`, so only real relpaths reach `rsync`.
-- **UI:** the *Data migration* card — per-chain badges, a **Migrate** button on
-  ready chains, an interval field + **auto** toggle (**Save schedule**), polled
-  every 10 s.
+  growing/ready/queued/copied/migrated/deleted, from rep-leaf mtimes + the
+  ledger), `POST /migration/request` (queue one **validated** rep leaf, `mode`
+  move|copy), `POST /migration/delete` (server-side remove of one validated,
+  idle rep leaf), `POST /migration/config` (set interval + auto). All chain
+  paths are validated as existing rep leaves under `ZSTD_DIR`, so only real
+  relpaths reach `rsync` or `rmtree`.
+- **UI:** the *Data migration* card — per-chain badges and **Migrate / Copy /
+  Delete** buttons (Delete behind a confirm), an interval field + **auto** toggle
+  (**Save schedule**), polled every 10 s.
 
 The console's **ZSTD dir** (panel 07) and the agent's `ZSTD_REMOTE_DIR` must be
 the same server path (both default to

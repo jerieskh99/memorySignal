@@ -35,18 +35,20 @@ DEF_STABLE=10
 
 log(){ echo "== $(date '+%Y-%m-%d %H:%M:%S') migrate-agent: $* =="; }
 
-# Move one chain (a rep* leaf, given as its path relative to REMOTE_DIR) to the
-# laptop and record it in the server ledger. rsync --remove-source-files deletes
-# each file on the server only after transfer is confirmed, so a dropped link
-# leaves the server copy intact; --partial resumes a half-sent file.
+# Pull one chain (a rep* leaf, given as its path relative to REMOTE_DIR) to the
+# laptop and record it in the server ledger. mode "move" adds
+# --remove-source-files (deletes each file on the server only after transfer is
+# confirmed, freeing space); mode "copy" leaves the server copy in place.
+# --partial resumes a half-sent file; a dropped link never loses data.
 pull_chain(){
-  local rel="$1"
+  local rel="$1" mode="${2:-move}"
   case "$rel" in *..*) return 0;; esac          # never traverse up
   local remote="$REMOTE_DIR/$rel"
-  echo "  pulling $rel"
+  local rmflag=""; [ "$mode" = "move" ] && rmflag="--remove-source-files"
+  echo "  ${mode}-ing $rel"
   mkdir -p "$LOCAL_DIR/$rel"
   local tries=0
-  until rsync -a --partial --remove-source-files -e "ssh $SSH_OPTS" \
+  until rsync -a --partial $rmflag -e "ssh $SSH_OPTS" \
         "$REMOTE_HOST:$remote/" "$LOCAL_DIR/$rel/"; do
     tries=$((tries + 1))
     if [ "$tries" -ge 3 ]; then
@@ -57,7 +59,8 @@ pull_chain(){
     sleep 5
   done
   local ts; ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  printf '{"chain":"%s","ts":"%s","host":"%s"}\n' "$rel" "$ts" "$(hostname -s 2>/dev/null || hostname)" \
+  printf '{"chain":"%s","ts":"%s","host":"%s","action":"%s"}\n' \
+    "$rel" "$ts" "$(hostname -s 2>/dev/null || hostname)" "$mode" \
     | ssh $SSH_OPTS "$REMOTE_HOST" "mkdir -p '$MIG_DIR' && cat >> '$LEDGER'" || true
   return 0
 }
@@ -96,17 +99,21 @@ try:
 except Exception:
     req = []
 for c in req:
-    if isinstance(c, str): print(c)
+    if isinstance(c, str):
+        print(c + "\tmove")
+    elif isinstance(c, dict) and c.get("chain"):
+        print(c["chain"] + "\t" + ("copy" if c.get("mode") == "copy" else "move"))
 ' 2>/dev/null || true)
 
   pulled=0
 
-  # --- on-demand: pull requested chains that still exist (checked every poll) ---
+  # --- on-demand: pull requested chains (move or copy) that still exist ---
   if [ -n "$requested" ]; then
-    while IFS= read -r rel; do
+    while IFS=$'\t' read -r rel mode; do
       [ -n "$rel" ] || continue
+      [ -n "$mode" ] || mode="move"
       if ssh $SSH_OPTS "$REMOTE_HOST" "test -d '$REMOTE_DIR/$rel'" 2>/dev/null; then
-        pull_chain "$rel" && pulled=$((pulled + 1))
+        pull_chain "$rel" "$mode" && pulled=$((pulled + 1))
       fi
     done <<EOF
 $requested
@@ -122,7 +129,7 @@ EOF
       while IFS= read -r remote_chain; do
         [ -n "$remote_chain" ] || continue
         rel="${remote_chain#"$REMOTE_DIR"/}"
-        pull_chain "$rel" && pulled=$((pulled + 1))
+        pull_chain "$rel" "move" && pulled=$((pulled + 1))
       done <<EOF
 $stable
 EOF

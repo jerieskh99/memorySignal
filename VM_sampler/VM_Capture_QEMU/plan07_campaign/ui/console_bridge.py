@@ -641,6 +641,26 @@ def _chain_leaves(zstd_dir: str):
     return leaves
 
 
+def _req_items(ctrl: dict):
+    """[(chain, mode)] from control.requested. mode is 'move' (pull + free the
+    server) or 'copy' (pull, keep on server). Tolerates legacy bare-string
+    entries, which mean 'move'."""
+    out = []
+    for r in ctrl.get("requested", []) or []:
+        if isinstance(r, str):
+            out.append((r, "move"))
+        elif isinstance(r, dict) and r.get("chain"):
+            out.append((r["chain"], "copy" if r.get("mode") == "copy" else "move"))
+    return out
+
+
+def _mig_append_ledger(zstd_dir: str, entry: dict) -> None:
+    d = _mig_dir(zstd_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    with (d / "ledger.jsonl").open("a") as fh:
+        fh.write(json.dumps(entry) + "\n")
+
+
 def ep_migration_list(query: dict):
     """Every migratable chain with its status, plus the current control config.
     Present chains are growing / ready / queued; chains gone from the server but
@@ -650,7 +670,7 @@ def ep_migration_list(query: dict):
         return 400, {"error": "zstd_dir required"}
     ctrl = _mig_control(zstd_dir)
     stable_min = ctrl.get("stable_min", MIG_STABLE_MIN_DEFAULT)
-    requested = set(ctrl.get("requested", []))
+    req_map = {c: m for c, m in _req_items(ctrl)}
     ledger = _mig_ledger(zstd_dir)
     now = datetime.now(timezone.utc).timestamp()
 
@@ -658,23 +678,30 @@ def ep_migration_list(query: dict):
     for rel, mtime in sorted(_chain_leaves(zstd_dir)):
         present.add(rel)
         age_min = (now - mtime) / 60.0
-        if rel in requested:
-            status = "queued"
+        led = ledger.get(rel)
+        entry = {"chain": rel, "age_min": round(age_min, 1)}
+        if rel in req_map:
+            entry["status"] = "queued"
+            entry["mode"] = req_map[rel]                 # move / copy the agent will do
+        elif led and led.get("action") == "copy":
+            entry["status"] = "copied"                   # on the laptop AND still here
+            entry["ts"] = led.get("ts")
         elif age_min >= stable_min:
-            status = "ready"
+            entry["status"] = "ready"
         else:
-            status = "growing"
+            entry["status"] = "growing"
         fam, wl, sig, rep = rel.split("/", 3)
-        chains.append({"chain": rel, "family": fam, "workload": wl, "param": sig,
-                       "rep": rep, "age_min": round(age_min, 1), "status": status})
-    # ledger entries whose chain is no longer on the server = already migrated
+        entry.update({"family": fam, "workload": wl, "param": sig, "rep": rep})
+        chains.append(entry)
+    # ledger entries whose chain is gone from the server: migrated (move) or deleted
     for rel, e in ledger.items():
         if rel in present:
             continue
         parts = rel.split("/", 3)
         fam, wl, sig, rep = (parts + ["", "", "", ""])[:4]
+        status = "deleted" if e.get("action") == "delete" else "migrated"
         chains.append({"chain": rel, "family": fam, "workload": wl, "param": sig,
-                       "rep": rep, "age_min": None, "status": "migrated", "ts": e.get("ts")})
+                       "rep": rep, "age_min": None, "status": status, "ts": e.get("ts")})
 
     counts = {}
     for c in chains:
@@ -687,30 +714,69 @@ def ep_migration_list(query: dict):
 
 
 def ep_migration_request(body: dict):
-    """Queue one chain for the laptop agent to pull next cycle (on-demand). The
-    chain must be an existing rep leaf under zstd_dir -- so only real, validated
-    relpaths ever reach the agent's rsync."""
+    """Queue one chain for the laptop agent to pull next cycle (on-demand).
+    mode 'move' (default) pulls then frees the server; 'copy' pulls but leaves
+    the chain on the server. The chain must be an existing rep leaf under
+    zstd_dir -- so only real, validated relpaths ever reach the agent's rsync."""
     zstd_dir = body.get("zstd_dir")
     chain = body.get("chain")
+    mode = body.get("mode", "move")
     if not zstd_dir or not chain:
         return 400, {"error": "zstd_dir and chain required"}
+    if mode not in ("move", "copy"):
+        return 400, {"error": "mode must be 'move' or 'copy'"}
     if not _CHAIN_RE.match(chain) or ".." in chain:
         return 400, {"error": "invalid chain path"}
     present = {rel for rel, _ in _chain_leaves(zstd_dir)}
     if chain not in present:
         return 404, {"error": "chain not found on server (already migrated or never produced)"}
     ctrl = _mig_control(zstd_dir)
-    req = [c for c in ctrl.get("requested", []) if c != chain]
-    req.append(chain)
+    req = [{"chain": c, "mode": m} for c, m in _req_items(ctrl) if c != chain]
+    req.append({"chain": chain, "mode": mode})
     ctrl["requested"] = req
     _mig_write_control(zstd_dir, ctrl)
     return 200, {"ok": True, "requested": req}
 
 
+def ep_migration_delete(body: dict):
+    """Permanently delete one chain from the server WITHOUT pulling it (free
+    space for traces you don't want). Refuses a chain that is still being
+    written (younger than stable_min) so it can't nuke the active run's chain.
+    Records the deletion in the ledger so the UI can show it as deleted."""
+    zstd_dir = body.get("zstd_dir")
+    chain = body.get("chain")
+    if not zstd_dir or not chain:
+        return 400, {"error": "zstd_dir and chain required"}
+    if not _CHAIN_RE.match(chain) or ".." in chain:
+        return 400, {"error": "invalid chain path"}
+    root = Path(zstd_dir)
+    target = root / chain
+    if not target.is_dir():
+        return 404, {"error": "chain not found on server"}
+    stable_min = _mig_control(zstd_dir).get("stable_min", MIG_STABLE_MIN_DEFAULT)
+    age_min = (datetime.now(timezone.utc).timestamp() - target.stat().st_mtime) / 60.0
+    if age_min < stable_min:
+        return 409, {"error": f"chain still being written ({age_min:.0f}m < {stable_min}m idle); "
+                              f"stop the run or wait before deleting"}
+    try:
+        shutil.rmtree(target)
+    except OSError as e:
+        return 500, {"error": f"delete failed: {e}"}
+    # tidy now-empty parent dirs (family/workload/param), never the root itself
+    p = target.parent
+    while p != root and p.is_dir() and not any(p.iterdir()):
+        p.rmdir()
+        p = p.parent
+    _mig_append_ledger(zstd_dir, {"chain": chain,
+                                  "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                  "host": "bridge", "action": "delete"})
+    return 200, {"ok": True, "deleted": chain}
+
+
 def ep_migration_config(body: dict):
     """Set the loop interval (minutes) and auto on/off. The agent re-reads this
     every cycle, so changes take effect on its next tick. Also prunes requested
-    entries already recorded in the ledger, keeping the control file tidy."""
+    entries the ledger already records in the same mode, keeping the file tidy."""
     zstd_dir = body.get("zstd_dir")
     if not zstd_dir:
         return 400, {"error": "zstd_dir required"}
@@ -728,7 +794,15 @@ def ep_migration_config(body: dict):
         except (TypeError, ValueError):
             return 400, {"error": "stable_min must be an integer >= 0"}
     ledger = _mig_ledger(zstd_dir)
-    ctrl["requested"] = [c for c in ctrl.get("requested", []) if c not in ledger]
+
+    def _done(chain, mode):
+        e = ledger.get(chain)
+        if not e:
+            return False
+        act = e.get("action", "move")
+        return act == mode or (mode == "move" and act in ("move", "delete"))
+
+    ctrl["requested"] = [{"chain": c, "mode": m} for c, m in _req_items(ctrl) if not _done(c, m)]
     _mig_write_control(zstd_dir, ctrl)
     return 200, {"ok": True, "config": {"interval_min": ctrl["interval_min"],
                                         "auto": bool(ctrl["auto"]),
@@ -741,6 +815,7 @@ ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest,
                "/health": ep_health,
                "/migration/request": ep_migration_request,
+               "/migration/delete": ep_migration_delete,
                "/migration/config": ep_migration_config}
 ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved,
               "/run_status": ep_run_status,
