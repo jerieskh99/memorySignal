@@ -872,6 +872,20 @@ render();renderCatalog();
     host.innerHTML = `<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin:9px 0 4px">running on the server</div>`
       + runs.map(r=>`<div class="running" style="margin:2px 0">screen <b class="mono" style="color:var(--trace)">${r.screen}</b>`
           + ` &middot; <span class="mono" style="color:var(--ink-2)">screen -r ${r.screen}</span></div>`).join("");
+    // Reattach the live log to a capture already running on the server -- after a
+    // page reload, a new tab, or a bridge restart. Only when this page isn't
+    // already tailing one, so we never clobber a run launched from here. Uses
+    // /status + /log, which every bridge build has, so a refresh alone reattaches.
+    if(!curLabel){
+      const r = runs[0];
+      curLabel = r.label; logOffset = 0;
+      $("srv-log").textContent = ""; $("srv-log-wrap").hidden = false;
+      $("srv-screen-info").innerHTML = `reattached to running screen <b class="mono" style="color:var(--trace)">${r.screen}</b> on the server &mdash; `
+        + `watch directly with <span class="mono" style="color:var(--ink-2)">screen -r ${r.screen}</span> `
+        + `<span style="opacity:.7">(detach: Ctrl-A then D &mdash; never Ctrl-C)</span>`;
+      if(pollTimer) clearInterval(pollTimer);
+      pollLog(); pollTimer = setInterval(pollLog, 1500);
+    }
   }
 
   $("srv-save").addEventListener("click", saveToServer);
