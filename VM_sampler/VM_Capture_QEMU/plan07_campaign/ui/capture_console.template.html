@@ -606,6 +606,19 @@ render();renderCatalog();
 #server .pf-find.fail{background:var(--bad-soft);color:var(--bad)}
 #server .pf-find.warn{background:var(--warn-soft);color:var(--warn)}
 #server .running{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2)}
+/* structured preflight report */
+#server .pf-verdict{font-size:13px;font-weight:600;padding:9px 12px;border-radius:9px;display:flex;gap:14px;align-items:center}
+#server .pf-verdict.ok{background:var(--ok-soft);color:var(--ok)} #server .pf-verdict.bad{background:var(--bad-soft);color:var(--bad)}
+#server .pf-verdict .counts{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;margin-left:auto;color:var(--ink-2)}
+#server .pf-report{border:1px solid var(--line);border-radius:11px;overflow:hidden;margin-top:10px}
+#server .pf-sec{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);
+  background:var(--panel-2);padding:8px 12px;border-top:1px solid var(--line)}
+#server .pf-sec:first-child{border-top:none}
+#server .pf-check{display:flex;gap:9px;align-items:flex-start;padding:6px 12px;font-size:12.5px;border-top:1px solid var(--line)}
+#server .pf-badge{flex:none;width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:10px;font-weight:700;margin-top:1px;color:#fff}
+#server .pf-check.ok .pf-badge{background:var(--ok)} #server .pf-check.warn .pf-badge{background:var(--warn)} #server .pf-check.fail .pf-badge{background:var(--bad)}
+#server .pf-check.fail{background:var(--bad-soft)} #server .pf-check.warn{background:var(--warn-soft)}
+#server .pf-info{padding:4px 12px 4px 37px;font-size:11.5px;color:var(--ink-3);border-top:1px solid var(--line)}
 </style>
 <div class="full"><section class="panel cat-panel" id="server">
   <div class="phead"><span class="idx">SRV</span><h2>Launch on server</h2><span class="hint"><span class="dot"></span>bridge connected</span></div>
@@ -674,19 +687,26 @@ render();renderCatalog();
     if(!ok){ msg("Preflight error: "+(data.error||"")+ (data.detail?" — "+data.detail:""),"var(--bad)"); return; }
     const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
     const pf = data.preflight || {};
-    const verdict = data.ok ? `READY — ${data.cells} cells` : `NOT READY (exit ${data.exit})`;
-    msg(verdict, data.ok ? "var(--ok)" : "var(--bad)");
-    let html = `<div style="font-size:12px;color:var(--ink-3);margin-top:4px">passed ${pf.passed||0} · warnings ${pf.warnings||0} · failures ${pf.failures||0}</div>`;
-    (pf.findings||[]).filter(f=>f.level!=="pass").forEach(f=>{
-      const t = f.message||f.msg||f.text||f.detail||f.name||JSON.stringify(f);
-      html += `<div class="pf-find ${f.level==='fail'?'fail':'warn'}">${(f.level||'').toUpperCase()}: ${esc(t)}</div>`;
+    msg("");  // the verdict + report below carry the message now
+    // Parse preflight's text output into sections + per-check [ok]/[warn]/[FAIL]
+    // rows -- the JSON only carries failure strings, the full detail is the text.
+    let report = "";
+    (data.preflight_stdout || "").split("\n").forEach(line=>{
+      const sec = line.match(/^==\s*(.+?)\s*==$/);
+      if(sec){ if(!/^verdict/i.test(sec[1])) report += `<div class="pf-sec">${esc(sec[1])}</div>`; return; }
+      const chk = line.match(/^\s*\[(ok|warn|FAIL)\]\s+(.*)$/i);
+      if(chk){ const lvl=chk[1].toLowerCase(), cls=lvl==="fail"?"fail":(lvl==="warn"?"warn":"ok");
+        const badge = lvl==="ok"?"✓":(lvl==="warn"?"!":"✗");
+        report += `<div class="pf-check ${cls}"><span class="pf-badge">${badge}</span><span>${esc(chk[2])}</span></div>`; return; }
+      const info = line.match(/^\s{2,}(\S.*)$/);
+      if(info && !/NOT READY|READY|^-|^passed \d/.test(info[1])) report += `<div class="pf-info">${esc(info[1])}</div>`;
     });
-    // Always show the raw preflight output when NOT READY (or when no findings
-    // parsed) -- that human-readable block names exactly what failed.
-    if((!data.ok || !(pf.findings||[]).length) && data.preflight_stdout){
-      html += `<div class="out-h" style="margin-top:9px"><span class="lab">preflight output</span></div>`
-            + `<pre class="code" style="max-height:280px">${esc(data.preflight_stdout)}</pre>`;
-    }
+    const vcls = data.ok ? "ok" : "bad";
+    const vtxt = data.ok ? `READY — ${data.cells} cells` : `NOT READY (exit ${data.exit})`;
+    let html = `<div class="pf-verdict ${vcls}"><span>${vtxt}</span>`
+      + `<span class="counts">${pf.passed||0} pass · ${pf.warnings||0} warn · ${pf.failures||0} fail</span></div>`;
+    if(report) html += `<div class="pf-report">${report}</div>`;
+    else if(data.preflight_stdout) html += `<pre class="code" style="max-height:280px;margin-top:10px">${esc(data.preflight_stdout)}</pre>`;
     $("srv-preflight-out").innerHTML = html;
   });
 
