@@ -1068,7 +1068,9 @@ render();renderCatalog();
     else html += `<div class="pf-info" style="border:none;padding:6px 0;color:var(--ink-3)">no chains waiting to migrate.</div>`;
     if(done.length){
       const nset = (c.migrated||0)+(c.deleted||0);
-      html += `<div style="font-size:11px;color:var(--ink-3);margin:8px 0 2px">recently migrated / deleted${nset>done.length?` (last ${done.length} of ${nset})`:""}</div>`;
+      html += `<div style="display:flex;align-items:center;gap:8px;margin:8px 0 2px">`
+        + `<span style="font-size:11px;color:var(--ink-3)">recently migrated / deleted${nset>done.length?` (last ${done.length} of ${nset})`:""}</span>`
+        + `<button id="mig-clear" class="bigbtn ghost" style="margin-left:auto;padding:2px 9px;font-size:11px;color:var(--ink-2)">Clear history</button></div>`;
       html += done.map(row).join("");
     }
     $("mig-list").innerHTML = html;
@@ -1077,6 +1079,7 @@ render();renderCatalog();
     bind(".mig-move", ch => requestMig(ch,"move"));
     bind(".mig-copy", ch => requestMig(ch,"copy"));
     bind(".mig-del",  ch => deleteChain(ch));
+    const clr = $("mig-clear"); if(clr) clr.addEventListener("click", clearHistory);
   }
   async function loadMig(){
     const z = zstdDir();
@@ -1104,6 +1107,17 @@ render();renderCatalog();
     $("mig-msg").textContent = ok ? `deleted ${chain} from the server`
                                   : ("delete failed: "+((data&&data.error)||""));
     $("mig-msg").style.color = ok ? "var(--warn)" : "var(--bad)";
+    loadMig();
+  }
+  async function clearHistory(){
+    const z = zstdDir(); if(!z) return;
+    if(!confirm("Clear the migrated / deleted history rows?\n\n"
+      + "The ledger is archived (kept on disk), not destroyed. Present chains stay; "
+      + "only the settled history rows go away.")) return;
+    const {ok,data} = await api("/migration/clear_history","POST",{zstd_dir:z});
+    $("mig-msg").textContent = ok ? `history cleared${data.cleared?` (${data.cleared} rows archived to ${data.archived})`:" (nothing to clear)"}`
+                                  : ("clear failed: "+((data&&data.error)||""));
+    $("mig-msg").style.color = ok ? "var(--ok)" : "var(--bad)";
     loadMig();
   }
   $("mig-save-cfg").addEventListener("click", async ()=>{

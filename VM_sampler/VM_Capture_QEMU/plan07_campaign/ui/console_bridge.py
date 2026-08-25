@@ -773,6 +773,30 @@ def ep_migration_delete(body: dict):
     return 200, {"ok": True, "deleted": chain}
 
 
+def ep_migration_clear_history(body: dict):
+    """Clear the migrated/deleted history rows by archiving the ledger. The
+    ledger is not destroyed -- it's renamed to a timestamped .archived.jsonl
+    (the record survives on disk) and a fresh empty ledger starts. Present
+    chains re-list as ready; only the settled history rows go away."""
+    zstd_dir = body.get("zstd_dir")
+    if not zstd_dir:
+        return 400, {"error": "zstd_dir required"}
+    led = _mig_dir(zstd_dir) / "ledger.jsonl"
+    if not led.exists():
+        return 200, {"ok": True, "archived": None, "cleared": 0}
+    try:
+        n = sum(1 for line in led.open() if line.strip())
+    except OSError:
+        n = 0
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dest = led.with_name(f"ledger.{stamp}.archived.jsonl")
+    try:
+        led.rename(dest)
+    except OSError as e:
+        return 500, {"error": f"archive failed: {e}"}
+    return 200, {"ok": True, "archived": dest.name, "cleared": n}
+
+
 def ep_migration_config(body: dict):
     """Set the loop interval (minutes) and auto on/off. The agent re-reads this
     every cycle, so changes take effect on its next tick. Also prunes requested
@@ -816,6 +840,7 @@ ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/health": ep_health,
                "/migration/request": ep_migration_request,
                "/migration/delete": ep_migration_delete,
+               "/migration/clear_history": ep_migration_clear_history,
                "/migration/config": ep_migration_config}
 ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved,
               "/run_status": ep_run_status,
