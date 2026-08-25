@@ -18,6 +18,8 @@ build_console.py                injects pipeline data; emits the two variants.
 capture_console.html            GENERATED static build (network-free; the Artifact).
 capture_console.served.html     GENERATED served build (has the launch panel).
 console_bridge.py               localhost server that the served console talks to.
+console.sh                      laptop launcher: tunnel + bridge + migration agent.
+migrate_agent.sh                laptop-side migration loop (pulls chains here).
 ```
 
 Nothing in the HTML is hand-authored data. `build_console.py` reads the single
@@ -83,6 +85,44 @@ Then in the *Launch on server* panel: **Preflight** runs `qa/preflight.sh` on th
 generated steps and shows the verdict; **Launch capture** starts the orchestrator
 in a detached `screen` (`mem_console_<label>`) and tails its log live; **Stop**
 ends it.
+
+## Data migration (server -> laptop)
+
+The console can also pull completed capture chains down to your laptop and free
+them on the server. The hard constraint: **the copy must be initiated by the
+laptop** — the server can't open a connection back to a NAT'd, sleeping laptop,
+and the browser is sandboxed (no `rsync`). So the UI does not copy anything
+itself; it drives a laptop-side agent through a control file on the server.
+
+- **`migrate_agent.sh`** (laptop) is auto-started by `console.sh` next to the
+  tunnel (set `MIGRATE=0` to skip). Each cycle it reads
+  `<parent-of-ZSTD_DIR>/.migration/control.json` and:
+  - pulls any **on-demand requested** chains promptly (checked every `POLL_SEC`),
+  - if **auto** is on, sweeps every *stable* chain each `<interval>` minutes.
+  It moves each chain with `rsync --partial --remove-source-files` (the transfer
+  from `pull_traces.sh`, freeing the server), then appends the chain to
+  `.migration/ledger.jsonl` so the UI can mark it migrated.
+- A **migratable unit** is one retention chain leaf
+  (`<family>/<workload>/<param_sig>/repNNN__<runid>`). It is **ready** once idle
+  for the stable window (mtime older than `stable_min`, default 10 min) — the
+  same "no longer growing" signal `pull_traces.sh` uses, so an in-progress chain
+  is never pulled mid-write.
+- **Bridge endpoints:** `GET /migration/list` (per-chain status
+  growing/ready/queued/migrated, from rep-leaf mtimes + the ledger),
+  `POST /migration/request` (queue one **validated** rep leaf),
+  `POST /migration/config` (set interval + auto). Requested paths are validated
+  as existing rep leaves under `ZSTD_DIR`, so only real relpaths reach `rsync`.
+- **UI:** the *Data migration* card — per-chain badges, a **Migrate** button on
+  ready chains, an interval field + **auto** toggle (**Save schedule**), polled
+  every 10 s.
+
+The console's **ZSTD dir** (panel 07) and the agent's `ZSTD_REMOTE_DIR` must be
+the same server path (both default to
+`/project/homes/jeries/memory_traces/zstd_local`) — that's what makes the bridge
+and the agent agree on where `.migration/` lives.
+
+`pull_traces.sh` still exists as the standalone, no-console puller; the agent is
+the console-driven equivalent and leaves it untouched.
 
 ## Security model
 
