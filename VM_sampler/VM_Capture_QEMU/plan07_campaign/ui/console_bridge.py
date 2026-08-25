@@ -485,21 +485,30 @@ def ep_health(body: dict):
             f"{nd} raw dump(s) in imageDir" + (" — consumer may be behind" if nd > 50 else ""))
 
     # --- VM state ---
+    # Severity depends on whether a capture is actually active. During a run the
+    # guest MUST be up (shut off => the run died). With no capture running, shut
+    # off / paused is the expected idle & end-of-run state, not a failure.
     st = _run(["virsh", "-c", VIRSH_URI, "domstate", VM_DOMAIN], cwd=QEMU_DIR, timeout=10)[1].strip()
-    add("VM", "ok" if st == "running" else ("warn" if st == "paused" else "fail"),
-        f"domain '{VM_DOMAIN}': {st or 'unknown'}")
+    if running:
+        add("VM", "ok" if st == "running" else ("warn" if st == "paused" else "fail"),
+            f"domain '{VM_DOMAIN}': {st or 'unknown'}")
+    else:
+        add("VM", "ok", f"domain '{VM_DOMAIN}': {st or 'unknown'} (no active capture)")
     add("Run", "ok" if running else "warn",
         (", ".join(screens)) if running else "no capture screen active")
 
     if deep:
         ssh_target, ssh_key = body.get("ssh_target"), body.get("ssh_key")
-        if ssh_target:
+        if ssh_target and st == "running":
             argv = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=8"]
             if ssh_key:
                 argv += ["-i", ssh_key]
             argv += [ssh_target, f"du -sh {shlex.quote(GUEST_SCRATCH)} 2>/dev/null || echo '(empty)'"]
             rc, out, _e = _run(argv, cwd=QEMU_DIR, timeout=30)
             add("Guest (deep)", "ok" if rc == 0 else "warn", f"guest scratch: {out.strip() or 'unreachable'}")
+        elif ssh_target:
+            # guest only reachable while the VM is up; skip (don't hang / false-warn)
+            add("Guest (deep)", "ok", f"guest scratch: skipped (domain {st or 'unknown'})")
         if zstd_dir and Path(zstd_dir).is_dir():
             chains = sum(1 for _ in Path(zstd_dir).rglob("*.zst"))
             add("Retention (deep)", "ok", f"{chains} compressed chain file(s) written under ZSTD_DIR")
