@@ -561,13 +561,190 @@ def ep_run_status(query: dict):
                  "running": f"{SCREEN_PREFIX}{label}" in " ".join(_screens())}
 
 
+# --------------------------------------------------------------------------- #
+# data migration (server -> laptop)
+#
+# The COPY is done by a laptop-side agent (migrate_agent.sh) -- the server can't
+# reach a NAT'd laptop, and the browser can't rsync. This bridge only keeps the
+# shared state both sides read/write: a control file the UI sets (interval, auto,
+# on-demand requests) and a ledger the agent appends after each confirmed pull.
+# Both live under <parent-of-ZSTD_DIR>/.migration so the agent (which knows the
+# ZSTD path as its REMOTE_DIR) and the bridge (given zstd_dir) compute the same
+# location. A migratable unit is one retention chain leaf:
+#   <ZSTD_DIR>/<family>/<workload>/<param_sig>/repNNN__<runid>/*.zst
+# --------------------------------------------------------------------------- #
+MIG_STABLE_MIN_DEFAULT = 10        # a chain idle this long is "ready" (matches pull_traces.sh)
+MIG_INTERVAL_MIN_DEFAULT = 15
+_CHAIN_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/rep[A-Za-z0-9._-]+$")
+
+
+def _mig_dir(zstd_dir: str) -> Path:
+    return Path(zstd_dir).parent / ".migration"
+
+
+def _mig_control(zstd_dir: str) -> dict:
+    """Read the control file, filling defaults. Never raises."""
+    ctrl = {"interval_min": MIG_INTERVAL_MIN_DEFAULT, "auto": True,
+            "stable_min": MIG_STABLE_MIN_DEFAULT, "requested": []}
+    try:
+        disk = json.loads((_mig_dir(zstd_dir) / "control.json").read_text())
+        if isinstance(disk, dict):
+            ctrl.update({k: disk[k] for k in ctrl if k in disk})
+    except Exception:
+        pass
+    if not isinstance(ctrl.get("requested"), list):
+        ctrl["requested"] = []
+    return ctrl
+
+
+def _mig_write_control(zstd_dir: str, ctrl: dict) -> None:
+    d = _mig_dir(zstd_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    ctrl["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    tmp = d / "control.json.tmp"
+    tmp.write_text(json.dumps(ctrl, indent=2))
+    tmp.replace(d / "control.json")
+
+
+def _mig_ledger(zstd_dir: str) -> dict:
+    """chain-relpath -> latest ledger entry {chain, ts, host} the agent appended."""
+    out = {}
+    try:
+        for line in (_mig_dir(zstd_dir) / "ledger.jsonl").read_text(errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(e, dict) and e.get("chain"):
+                out[e["chain"]] = e
+    except Exception:
+        pass
+    return out
+
+
+def _chain_leaves(zstd_dir: str):
+    """(rel, mtime) for each rep* chain leaf currently on the server. Globs at
+    fixed depth so it never descends into a chain's thousands of .zst files."""
+    root = Path(zstd_dir)
+    if not root.is_dir():
+        return []
+    leaves = []
+    for p in root.glob("*/*/*/rep*"):
+        if p.is_dir():
+            try:
+                leaves.append((p.relative_to(root).as_posix(), p.stat().st_mtime))
+            except OSError:
+                continue
+    return leaves
+
+
+def ep_migration_list(query: dict):
+    """Every migratable chain with its status, plus the current control config.
+    Present chains are growing / ready / queued; chains gone from the server but
+    in the ledger are migrated. UI reads this to render per-test badges."""
+    zstd_dir = (query.get("zstd_dir") or [""])[0]
+    if not zstd_dir:
+        return 400, {"error": "zstd_dir required"}
+    ctrl = _mig_control(zstd_dir)
+    stable_min = ctrl.get("stable_min", MIG_STABLE_MIN_DEFAULT)
+    requested = set(ctrl.get("requested", []))
+    ledger = _mig_ledger(zstd_dir)
+    now = datetime.now(timezone.utc).timestamp()
+
+    chains, present = [], set()
+    for rel, mtime in sorted(_chain_leaves(zstd_dir)):
+        present.add(rel)
+        age_min = (now - mtime) / 60.0
+        if rel in requested:
+            status = "queued"
+        elif age_min >= stable_min:
+            status = "ready"
+        else:
+            status = "growing"
+        fam, wl, sig, rep = rel.split("/", 3)
+        chains.append({"chain": rel, "family": fam, "workload": wl, "param": sig,
+                       "rep": rep, "age_min": round(age_min, 1), "status": status})
+    # ledger entries whose chain is no longer on the server = already migrated
+    for rel, e in ledger.items():
+        if rel in present:
+            continue
+        parts = rel.split("/", 3)
+        fam, wl, sig, rep = (parts + ["", "", "", ""])[:4]
+        chains.append({"chain": rel, "family": fam, "workload": wl, "param": sig,
+                       "rep": rep, "age_min": None, "status": "migrated", "ts": e.get("ts")})
+
+    counts = {}
+    for c in chains:
+        counts[c["status"]] = counts.get(c["status"], 0) + 1
+    return 200, {"chains": chains, "counts": counts,
+                 "config": {"interval_min": ctrl.get("interval_min", MIG_INTERVAL_MIN_DEFAULT),
+                            "auto": bool(ctrl.get("auto", True)),
+                            "stable_min": stable_min},
+                 "mig_dir": str(_mig_dir(zstd_dir))}
+
+
+def ep_migration_request(body: dict):
+    """Queue one chain for the laptop agent to pull next cycle (on-demand). The
+    chain must be an existing rep leaf under zstd_dir -- so only real, validated
+    relpaths ever reach the agent's rsync."""
+    zstd_dir = body.get("zstd_dir")
+    chain = body.get("chain")
+    if not zstd_dir or not chain:
+        return 400, {"error": "zstd_dir and chain required"}
+    if not _CHAIN_RE.match(chain) or ".." in chain:
+        return 400, {"error": "invalid chain path"}
+    present = {rel for rel, _ in _chain_leaves(zstd_dir)}
+    if chain not in present:
+        return 404, {"error": "chain not found on server (already migrated or never produced)"}
+    ctrl = _mig_control(zstd_dir)
+    req = [c for c in ctrl.get("requested", []) if c != chain]
+    req.append(chain)
+    ctrl["requested"] = req
+    _mig_write_control(zstd_dir, ctrl)
+    return 200, {"ok": True, "requested": req}
+
+
+def ep_migration_config(body: dict):
+    """Set the loop interval (minutes) and auto on/off. The agent re-reads this
+    every cycle, so changes take effect on its next tick. Also prunes requested
+    entries already recorded in the ledger, keeping the control file tidy."""
+    zstd_dir = body.get("zstd_dir")
+    if not zstd_dir:
+        return 400, {"error": "zstd_dir required"}
+    ctrl = _mig_control(zstd_dir)
+    if "interval_min" in body:
+        try:
+            ctrl["interval_min"] = max(1, int(body["interval_min"]))
+        except (TypeError, ValueError):
+            return 400, {"error": "interval_min must be an integer >= 1"}
+    if "auto" in body:
+        ctrl["auto"] = bool(body["auto"])
+    if "stable_min" in body:
+        try:
+            ctrl["stable_min"] = max(0, int(body["stable_min"]))
+        except (TypeError, ValueError):
+            return 400, {"error": "stable_min must be an integer >= 0"}
+    ledger = _mig_ledger(zstd_dir)
+    ctrl["requested"] = [c for c in ctrl.get("requested", []) if c not in ledger]
+    _mig_write_control(zstd_dir, ctrl)
+    return 200, {"ok": True, "config": {"interval_min": ctrl["interval_min"],
+                                        "auto": bool(ctrl["auto"]),
+                                        "stable_min": ctrl["stable_min"]}}
+
+
 ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/launch": ep_launch, "/stop": ep_stop,
                "/save": ep_save, "/delete_saved": ep_delete_saved,
                "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest,
-               "/health": ep_health}
+               "/health": ep_health,
+               "/migration/request": ep_migration_request,
+               "/migration/config": ep_migration_config}
 ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved,
-              "/run_status": ep_run_status}
+              "/run_status": ep_run_status,
+              "/migration/list": ep_migration_list}
 
 
 # --------------------------------------------------------------------------- #

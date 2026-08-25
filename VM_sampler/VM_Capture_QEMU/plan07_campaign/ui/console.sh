@@ -13,7 +13,11 @@
 #
 # Optional env:  REMOTE_DIR (server path to VM_Capture_QEMU),
 #                LPORT (port on YOUR LAPTOP, default 8765 -- 8000 is often taken),
-#                RPORT (port on the SERVER, default 8000).
+#                RPORT (port on the SERVER, default 8000),
+#                MIGRATE (1=auto-start the migration agent, default; 0=skip),
+#                ZSTD_REMOTE_DIR (server chain store, default
+#                  /project/homes/jeries/memory_traces/zstd_local),
+#                TRACES_LOCAL_DIR (laptop dest, default $HOME/thesis_traces/zstd_local).
 # The tunnel maps laptop:LPORT -> server:RPORT, so they can differ freely; your
 # browser opens localhost:LPORT.
 #
@@ -26,6 +30,13 @@ SERVER="${1:-${SERVER:-}}"
 REMOTE_DIR="${REMOTE_DIR:-\$HOME/memorySignal/VM_sampler/VM_Capture_QEMU}"
 LPORT="${LPORT:-8765}"          # laptop side (8000 is commonly in use locally)
 RPORT="${RPORT:-8000}"          # server side
+
+# Laptop-side migration agent (pulls completed chains to this machine; the server
+# can't reach a NAT'd laptop, so the copy must start here). Auto-started below and
+# controlled from the console's Data migration panel. Set MIGRATE=0 to skip it.
+MIGRATE="${MIGRATE:-1}"
+ZSTD_REMOTE_DIR="${ZSTD_REMOTE_DIR:-/project/homes/jeries/memory_traces/zstd_local}"
+TRACES_LOCAL_DIR="${TRACES_LOCAL_DIR:-$HOME/thesis_traces/zstd_local}"
 
 if [[ -z "$SERVER" ]]; then
   echo "usage: $0 user@server   (or set SERVER=user@server)" >&2
@@ -51,6 +62,24 @@ remote="(fuser -k ${RPORT}/tcp 2>/dev/null; lsof -ti tcp:${RPORT} -sTCP:LISTEN 2
   cd $REMOTE_DIR \
   && python3 plan07_campaign/ui/build_console.py --served >/dev/null \
   && exec python3 plan07_campaign/ui/console_bridge.py --port $RPORT"
+
+# Start the laptop-side migration agent in the background. It reads its orders
+# (interval, auto on/off, on-demand requests) from the control file the console
+# writes on the server, and moves completed chains here. Ctrl-C stops it with the
+# tunnel (trap). A running capture is unaffected -- only stable/complete chains
+# are pulled. REMOTE_DIR is set inline for the agent only, so it never clobbers
+# this script's own REMOTE_DIR (the campaign path).
+AGENT="$(dirname "$0")/migrate_agent.sh"
+AGENT_PID=""
+if [[ "$MIGRATE" != "0" && -f "$AGENT" ]]; then
+  AGENT_LOG="${TRACES_LOCAL_DIR%/}/migrate_agent.log"
+  mkdir -p "$(dirname "$AGENT_LOG")"
+  REMOTE_HOST="$SERVER" REMOTE_DIR="$ZSTD_REMOTE_DIR" LOCAL_DIR="$TRACES_LOCAL_DIR" \
+    bash "$AGENT" >>"$AGENT_LOG" 2>&1 &
+  AGENT_PID=$!
+  echo "Migration agent running (pid $AGENT_PID) -> $TRACES_LOCAL_DIR   (log: $AGENT_LOG)"
+fi
+trap '[[ -n "$AGENT_PID" ]] && kill "$AGENT_PID" 2>/dev/null' EXIT INT TERM
 
 opened=0
 # -t: remote tty so the bridge line-buffers and Ctrl-C reaches it.
