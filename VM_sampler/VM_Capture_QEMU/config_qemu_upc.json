@@ -50,5 +50,6 @@
     "timeoutSeconds": 30
   },
   "chownUser": "jeries",
-  "chownGroup": "jeries"
+  "chownGroup": "jeries",
+  "useDomainDir": true
 }

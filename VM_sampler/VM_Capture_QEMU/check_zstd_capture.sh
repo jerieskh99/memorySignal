@@ -22,12 +22,17 @@ fsize() { stat -c%s "$1" 2>/dev/null || stat -f%z "$1" 2>/dev/null; }
 
 ZDIR="${1:?usage: check_zstd_capture.sh <ZSTD_DIR> [--imagedir DIR] [--reconstruct SUBDIR] [--depth N]}"
 shift
-IMAGEDIR=""; RECON=""; DEPTH=3
+IMAGEDIR=""; RECON=""; DEPTH=3; DOMAIN_MODE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --imagedir) IMAGEDIR="$2"; shift 2;;
     --reconstruct) RECON="$2"; shift 2;;
     --depth) DEPTH="$2"; shift 2;;
+    # AppArmor workaround (pmemsave-apparmor-path): with useDomainDir the dumps
+    # land in the VM's per-domain state dir, which libvirt destroys at VM stop,
+    # so there is nothing to count post-run. Pass this so the leftover check
+    # reports N/A instead of globbing /project/dump and printing a false "clean".
+    --domain-mode) DOMAIN_MODE=1; shift;;
     *) echo "unknown arg: $1"; exit 2;;
   esac
 done
@@ -77,7 +82,9 @@ done < <(find "$ZDIR" -type d -exec sh -c 'ls "$1"/*.zst >/dev/null 2>&1' _ {} \
 echo "chains found: $nchains"
 [[ "$nchains" -eq 0 ]] && { echo "FAIL: no chains under $ZDIR"; exit 1; }
 
-if [[ -n "$IMAGEDIR" ]]; then
+if [[ "$DOMAIN_MODE" -eq 1 ]]; then
+  echo "  [ok]   local dumps: N/A (domain-dir mode -- per-VM dir destroyed at VM stop)"
+elif [[ -n "$IMAGEDIR" ]]; then
   # -L: imageDir is typically a symlink (/var/lib/libvirt/qemu/dump -> /project/dump).
   # Without it find silently descends nothing and always reports 0 -- a false pass.
   dn=$(find -L "$IMAGEDIR" -maxdepth 1 -name 'memory_dump-*.raw' 2>/dev/null | wc -l | tr -d ' ')

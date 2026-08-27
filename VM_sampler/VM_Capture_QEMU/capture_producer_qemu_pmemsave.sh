@@ -47,6 +47,34 @@ ramSizeBytes=$(( ramSizeMb * 1024 * 1024 ))         # pmemsave size (must match 
 chownUser=$(jq -r '.chownUser // ""' "$CONFIG" 2>/dev/null || echo "")   # e.g. "jeries"
 chownGroup=$(jq -r '.chownGroup // ""' "$CONFIG" 2>/dev/null || echo "") # e.g. "jeries"
 
+# AppArmor workaround (2026-08-27): this VM's libvirt-generated profile
+# (/etc/apparmor.d/libvirt/libvirt-<uuid>.files) does not list the configured
+# imageDir, so QEMU's own open() of a dump there is denied and pmemsave fails
+# with "Could not open '...': Permission denied". The SAME profile grants rwk on
+# the per-domain state dir, so target that instead when useDomainDir is set.
+# libvirt recreates that dir with a NEW id on every VM start, so resolve it per
+# run, never from config. Flag: config .useDomainDir, or USE_DOMAIN_DIR=1 env.
+# Remove this block once the dump dir is granted in
+# /etc/apparmor.d/local/abstractions/libvirt-qemu. The rule must name the
+# RESOLVED path -- imageDir (/var/lib/libvirt/qemu/dump) is a symlink to
+# /project/dump and AppArmor matches the real path -- so the line is:
+#   "/project/dump/{,**}" rw,
+# then reload the domain profile with apparmor_parser -r.
+useDomainDir=$(jq -r '.useDomainDir // false' "$CONFIG" 2>/dev/null || echo "false")
+if [[ "${USE_DOMAIN_DIR:-}" == "1" || "$useDomainDir" == "true" ]]; then
+  domId=$(virsh -c qemu:///system domid "$domain" 2>/dev/null | tr -d '[:space:]')
+  if [[ ! "$domId" =~ ^[0-9]+$ ]]; then
+    echo "[PRODUCER-PMEM] ERROR: useDomainDir set but domid for '$domain' is '$domId' (VM not running?)"
+    exit 1
+  fi
+  imageDir="/var/lib/libvirt/qemu/domain-${domId}-${domain}"
+  if [[ ! -d "$imageDir" ]]; then
+    echo "[PRODUCER-PMEM] ERROR: resolved domain state dir does not exist: $imageDir"
+    exit 1
+  fi
+  echo "[PRODUCER-PMEM] useDomainDir -> imageDir=$imageDir (AppArmor workaround)"
+fi
+
 qPending="$qPath/pending"
 qProcessing="$qPath/processing"
 mkdir -p "$qPending" "$qProcessing" "$imageDir" "$outputDir"

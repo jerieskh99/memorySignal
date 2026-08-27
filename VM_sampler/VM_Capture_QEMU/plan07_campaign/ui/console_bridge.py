@@ -446,8 +446,22 @@ def ep_health(body: dict):
     F = []
     def add(section, level, message): F.append({"section": section, "level": level, "message": message})
 
+    # AppArmor workaround (pmemsave-apparmor-path): in domain-dir mode dumps land
+    # on the system disk under the VM's per-domain state dir, NOT the configured
+    # imageDir. Point the disk/free-space and leftover-dump checks at the real
+    # location so they don't watch /project while the system disk fills.
+    use_domain_dir = bool(cfg.get("useDomainDir", False))
+    domain_dump_dir = None
+    disk_check_dir = image_dir
+    if use_domain_dir:
+        disk_check_dir = "/var/lib/libvirt/qemu"   # the filesystem dumps land on
+        domid = _run(["virsh", "-c", VIRSH_URI, "domid", VM_DOMAIN],
+                     cwd=QEMU_DIR, timeout=10)[1].strip()
+        if domid.isdigit():
+            domain_dump_dir = f"/var/lib/libvirt/qemu/domain-{domid}-{VM_DOMAIN}"
+
     # --- disk: the run stops (or corrupts) if imageDir / ZSTD_DIR fill ---
-    for name, p in [("imageDir", image_dir), ("ZSTD_DIR", zstd_dir)]:
+    for name, p in [("imageDir", disk_check_dir), ("ZSTD_DIR", zstd_dir)]:
         if not p:
             continue
         g = _disk_free_gb(p)
@@ -479,7 +493,14 @@ def ep_health(body: dict):
             add("Queue", lvl, f"queue/{sub}: {n} job(s)")
 
     # --- leftover dumps piling up = consumer falling behind / not cleaning ---
-    if image_dir and Path(image_dir).is_dir():
+    if use_domain_dir:
+        if domain_dump_dir and Path(domain_dump_dir).is_dir():
+            nd = len(list(Path(domain_dump_dir).glob("memory_dump*")))
+            add("Cleanup", "warn" if nd > 50 else "ok",
+                f"{nd} raw dump(s) in domain dir" + (" — consumer may be behind" if nd > 50 else ""))
+        else:
+            add("Cleanup", "ok", "domain-dir mode: VM stopped, dump dir N/A")
+    elif image_dir and Path(image_dir).is_dir():
         nd = len(list(Path(image_dir).glob("memory_dump*")))
         add("Cleanup", "warn" if nd > 50 else "ok",
             f"{nd} raw dump(s) in imageDir" + (" — consumer may be behind" if nd > 50 else ""))

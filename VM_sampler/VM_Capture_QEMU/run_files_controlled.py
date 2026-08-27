@@ -454,6 +454,12 @@ def start_capture(run_matrix_path: str = "", workload: str = "", run_id: str = "
     borg_repo = os.environ.get("BORG_REPO", "")
     borg_pass = os.environ.get("BORG_PASSPHRASE", "")
     env_prefix = ""
+    # AppArmor workaround: reaches the producer through run_qemu_capture.sh,
+    # which nohups it so the child inherits this env. The producer resolves the
+    # actual per-domain path itself. Passed explicitly so a config-driven toggle
+    # still propagates even when the env var was not set on the CLI.
+    if capture_use_domain_dir():
+        env_prefix += "USE_DOMAIN_DIR=1 "
     if borg_mode:
         env_prefix += f"BORG={shlex.quote(borg_mode)} "
         # Per-step identity so the consumer names archives {workload}__{run_id}__{ts}.
@@ -802,6 +808,33 @@ def capture_image_dir() -> str:
         return cfg.get("imageDir", "") or ""
     except Exception:
         return ""
+
+
+def capture_use_domain_dir() -> bool:
+    """AppArmor workaround toggle. True when dumps must go to the VM's per-domain
+    state dir instead of the configured imageDir. Canonical source is the config
+    key `useDomainDir`; `USE_DOMAIN_DIR=1` in the env overrides for manual runs.
+    See capture_producer_qemu_pmemsave.sh and the pmemsave-apparmor-path note.
+    """
+    if os.environ.get("USE_DOMAIN_DIR", "").lower() in {"1", "true", "yes"}:
+        return True
+    try:
+        with open(CAPTURE_CONFIG, "r", encoding="utf-8") as f:
+            return bool(json.load(f).get("useDomainDir", False))
+    except Exception:
+        return False
+
+
+def capture_disk_check_path() -> str:
+    """Path for the pre-step disk guard. This runs BEFORE ensure_vm_running, so
+    the VM is down between steps and the domain dir cannot be resolved; target
+    the enclosing filesystem instead. In domain-dir mode dumps land on the
+    system disk under /var/lib/libvirt/qemu (always present), so check that;
+    otherwise check the configured imageDir.
+    """
+    if capture_use_domain_dir():
+        return "/var/lib/libvirt/qemu"
+    return capture_image_dir()
 
 
 def sweep_leftover_dumps(chain_dir: str) -> None:
@@ -1182,7 +1215,11 @@ def main() -> int:
             print("[CONTROL] (this step will produce the shared PLV baseline)")
 
         if CAPTURE_MODE:
-            disk_check_paths = [capture_image_dir()]
+            # capture_disk_check_path(), not capture_image_dir(): this runs
+            # before ensure_vm_running (VM down between steps), and in domain-dir
+            # mode the dump path is VM-dependent and unresolvable here. The
+            # helper returns the enclosing filesystem so the guard still works.
+            disk_check_paths = [capture_disk_check_path()]
             if zstd_enabled:
                 disk_check_paths.append(os.environ.get("ZSTD_DIR", ""))
             disk_ok, disk_msg = check_disk_space(disk_check_paths, MIN_FREE_DISK_GB)
