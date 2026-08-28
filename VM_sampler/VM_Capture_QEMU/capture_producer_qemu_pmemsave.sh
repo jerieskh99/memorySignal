@@ -86,6 +86,7 @@ echo "running" > "$VM_STATE_FILE"
 # workload comes from the retention env the orchestrator passes to producer and
 # consumer alike. captured counts confirmed pmemsave dumps this trace.
 STATUS_FILE="$qPath/capture_status.json"
+CONTROL_FILE="$qPath/capture_control.json"
 workload="${ZSTD_WORKLOAD:-${BORG_WORKLOAD:-}}"
 captured=0
 write_status() {
@@ -95,6 +96,12 @@ write_status() {
     "$captured" "$state" "$(printf '%s' "$workload" | jq -R .)" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp" 2>/dev/null \
     && mv -f "$tmp" "$STATUS_FILE" 2>/dev/null || true
+}
+read_control() {
+  # Current operator command (run|pause|skip); default run. Quiet if the file is
+  # absent or mid-rewrite. Read only between snapshots, so control never cuts a
+  # dump in flight.
+  jq -r '.command // "run"' "$CONTROL_FILE" 2>/dev/null || echo "run"
 }
 write_status "running"
 
@@ -209,6 +216,26 @@ while true; do
   # suspend again (virsh rejects a double suspend).
   bp_paused=0
   while true; do
+    # Operator pause: hold the VM suspended (guest frozen, --duration budget
+    # preserved) until the command is no longer "pause". Same suspend as
+    # backpressure, so bp_paused carries into the snapshot block's no-double-
+    # suspend guard and the next snapshot resumes normally.
+    ctl=$(read_control)
+    if [[ "$ctl" == "pause" ]]; then
+      if (( bp_paused == 0 )); then
+        echo "[PRODUCER-PMEM] Pause requested; suspending VM until resumed"
+        if suspend_vm; then
+          bp_paused=1
+        else
+          virsh -c qemu:///system resume "$domain" 2>/dev/null || true
+          sleep 0.5
+          continue
+        fi
+      fi
+      write_status "paused"
+      sleep 0.5
+      continue
+    fi
     pendingCount=$(find "$qPending" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
     processingCount=$(find "$qProcessing" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
     total=$((pendingCount + processingCount))

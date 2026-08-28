@@ -749,6 +749,8 @@ render();renderCatalog();
     <div class="srow" id="srv-capture-row" style="border-top:1px solid var(--line);padding-top:11px">
       <span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600">capture</span>
       <span id="srv-capture-status" style="font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums">snapshots: &mdash;</span>
+      <button class="bigbtn ghost" id="srv-pause" style="margin-left:auto">Pause</button>
+      <button class="bigbtn ghost" id="srv-continue">Continue</button>
     </div>
     <div id="srv-msg" style="font-size:12.5px;color:var(--ink-2)"></div>
     <div id="srv-running-list"></div>
@@ -904,6 +906,21 @@ render();renderCatalog();
     const {ok,data} = await api("/stop","POST",{label:curLabel});
     msg(ok ? `Stopped ${data.stopped}. ${data.warning||""}` : ("Stop error: "+(data.error||"")), ok?"var(--warn)":"var(--bad)");
     if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+  });
+
+  // ---- capture control: pause / continue the current trace ----
+  // Acts only between snapshots (the producer reads the command at the top of
+  // its loop), so it never cuts a dump mid-flight.
+  async function sendControl(cmd){
+    const {ok,data} = await api("/control","POST",{command:cmd});
+    if(!ok){ msg("Control error: "+(data.error||""),"var(--bad)"); return false; }
+    return true;
+  }
+  $("srv-pause").addEventListener("click", async ()=>{
+    if(await sendControl("pause")){ msg("Pause requested — the VM freezes after the current snapshot; no data lost.","var(--warn)"); pollCaptureStatus(); }
+  });
+  $("srv-continue").addEventListener("click", async ()=>{
+    if(await sendControl("run")){ msg("Continue — capture resumes where it left off.","var(--ok)"); pollCaptureStatus(); }
   });
 
   // ---- clean leftover state (the residue preflight flags) ----
