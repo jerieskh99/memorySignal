@@ -854,17 +854,70 @@ def ep_migration_config(body: dict):
                                         "stable_min": ctrl["stable_min"]}}
 
 
+# --------------------------------------------------------------------------- #
+# Live capture status + control (pause / continue / skip).
+#
+# Two small JSON files in the queue dir bridge the UI and the running capture:
+#   capture_status.json  -- the producer writes {captured, state, workload}.
+#   capture_control.json -- the UI writes {command: run|pause|skip}; the
+#                           producer (pause) and orchestrator (skip) read it.
+# The producer only ever acts on these BETWEEN snapshots, so control never cuts
+# a dump mid-flight.
+# --------------------------------------------------------------------------- #
+def _capture_queue_dir() -> Path | None:
+    try:
+        return Path(json.loads(CAPTURE_CONFIG.read_text())["queueDir"])
+    except Exception:
+        return None
+
+
+def ep_capture_status(_query: dict):
+    """Live snapshot count + state for the trace currently capturing."""
+    default = {"captured": 0, "state": "idle", "workload": "", "updated": None}
+    q = _capture_queue_dir()
+    if q is None:
+        return 200, default
+    try:
+        return 200, json.loads((q / "capture_status.json").read_text())
+    except Exception:
+        return 200, default
+
+
+CAPTURE_COMMANDS = {"run", "pause", "skip"}
+
+
+def ep_control(body: dict):
+    """Set the capture control command. The producer picks up pause/run between
+    snapshots; the orchestrator picks up skip while waiting on the workload."""
+    cmd = (body.get("command") or "").strip().lower()
+    if cmd not in CAPTURE_COMMANDS:
+        return 400, {"error": f"command must be one of {sorted(CAPTURE_COMMANDS)}"}
+    q = _capture_queue_dir()
+    if q is None:
+        return 500, {"error": "cannot resolve queueDir from capture config"}
+    try:
+        q.mkdir(parents=True, exist_ok=True)
+        payload = {"command": cmd,
+                   "updated": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        tmp = q / "capture_control.json.tmp"
+        tmp.write_text(json.dumps(payload, indent=2))
+        tmp.replace(q / "capture_control.json")
+    except OSError as e:
+        return 500, {"error": f"could not write control file: {e}"}
+    return 200, {"ok": True, "command": cmd}
+
+
 ROUTES_POST = {"/plan": ep_plan, "/preflight": ep_preflight,
                "/launch": ep_launch, "/stop": ep_stop,
                "/save": ep_save, "/delete_saved": ep_delete_saved,
                "/clean_host": ep_clean_host, "/clean_guest": ep_clean_guest,
-               "/health": ep_health,
+               "/health": ep_health, "/control": ep_control,
                "/migration/request": ep_migration_request,
                "/migration/delete": ep_migration_delete,
                "/migration/clear_history": ep_migration_clear_history,
                "/migration/config": ep_migration_config}
 ROUTES_GET = {"/status": ep_status, "/log": ep_log, "/saved": ep_saved,
-              "/run_status": ep_run_status,
+              "/run_status": ep_run_status, "/capture_status": ep_capture_status,
               "/migration/list": ep_migration_list}
 
 

@@ -81,6 +81,23 @@ mkdir -p "$qPending" "$qProcessing" "$imageDir" "$outputDir"
 VM_STATE_FILE="$qPath/vm_state.txt"
 echo "running" > "$VM_STATE_FILE"
 
+# Live capture status the console reads. Atomic tmp+mv write of
+# {captured, state, workload, updated} to a fixed file in the queue dir.
+# workload comes from the retention env the orchestrator passes to producer and
+# consumer alike. captured counts confirmed pmemsave dumps this trace.
+STATUS_FILE="$qPath/capture_status.json"
+workload="${ZSTD_WORKLOAD:-${BORG_WORKLOAD:-}}"
+captured=0
+write_status() {
+  local state="$1"
+  local tmp="$STATUS_FILE.tmp.$$"
+  printf '{"captured":%d,"state":"%s","workload":%s,"updated":"%s"}\n' \
+    "$captured" "$state" "$(printf '%s' "$workload" | jq -R .)" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp" 2>/dev/null \
+    && mv -f "$tmp" "$STATUS_FILE" 2>/dev/null || true
+}
+write_status "running"
+
 imageFilePrefix="memory_dump"
 prevImage=""
 
@@ -200,6 +217,7 @@ while true; do
       echo "[PRODUCER-PMEM] Backpressure: queue $total >= $maxPending; suspending VM until it drains"
       if suspend_vm; then
         bp_paused=1
+        write_status "backpressure"
       else
         virsh -c qemu:///system resume "$domain" 2>/dev/null || true
         sleep 0.5
@@ -270,6 +288,8 @@ while true; do
   fi
 
   echo "[PRODUCER-PMEM] RAW memory dump OK: $newImage"
+  captured=$((captured + 1))
+  write_status "running"
 
   if [[ -n "$prevImage" && -f "$prevImage" ]]; then
     if [[ -n "${TIMING_APF_STREAM:-}" ]]; then
