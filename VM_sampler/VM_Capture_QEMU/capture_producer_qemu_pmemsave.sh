@@ -165,40 +165,67 @@ wait_state() {
   return 1
 }
 
+# Suspend the domain and wait until it reports paused. Returns 0 on success, 1
+# on failure (caller resumes + retries). Must never be called on an
+# already-paused domain -- virsh rejects a double suspend -- which the loop's
+# bp_paused guard guarantees.
+suspend_vm() {
+  echo "paused" > "$VM_STATE_FILE"
+  if ! virsh -c qemu:///system suspend "$domain" 2>/dev/null; then
+    echo "[PRODUCER-PMEM] WARNING: virsh suspend failed"
+    return 1
+  fi
+  wait_state "paused"
+}
+
 echo "[PRODUCER-PMEM] Starting (domain=$domain, ramSizeMb=$ramSizeMb, interval=${intervalMsec}ms, imageDir=$imageDir)"
 
 while true; do
-  # Backpressure
-  pendingCount=$(find "$qPending" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
-  processingCount=$(find "$qProcessing" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
-  total=$((pendingCount + processingCount))
-  if ((total >= maxPending)); then
-    echo "[PRODUCER-PMEM] Backpressure: queue size $total >= $maxPending, sleeping ${sleepOnBackpressure}s"
+  # Backpressure gate. Hold the VM SUSPENDED for the entire wait, not running.
+  # The guest clock (hence the workload's --duration budget) is frozen while the
+  # domain is paused, so waiting on a slow consumer no longer burns the
+  # workload's time without capturing. This keeps snapshot COUNT and sampling
+  # INTERVAL uniform across workloads regardless of memory churn -- heavy
+  # workloads used to starve to ~75 ragged-interval snapshots, which also
+  # violated the spectral metrics' uniform-sampling assumption. bp_paused == 1
+  # means WE already suspended for the wait, so the snapshot block below must not
+  # suspend again (virsh rejects a double suspend).
+  bp_paused=0
+  while true; do
+    pendingCount=$(find "$qPending" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
+    processingCount=$(find "$qProcessing" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
+    total=$((pendingCount + processingCount))
+    ((total < maxPending)) && break
+    if (( bp_paused == 0 )); then
+      echo "[PRODUCER-PMEM] Backpressure: queue $total >= $maxPending; suspending VM until it drains"
+      if suspend_vm; then
+        bp_paused=1
+      else
+        virsh -c qemu:///system resume "$domain" 2>/dev/null || true
+        sleep 0.5
+        continue
+      fi
+    fi
     if [[ -n "$TIMING_JSONL_PATH" ]]; then
       __bp_t=$(ts_ns)
       printf '{"seq":-1,"backpressure_event":true,"backpressure_wait_ms":%s,"queue_depth":%s,"t_host":%s}\n' \
         "$((sleepOnBackpressure * 1000))" "$total" "$__bp_t" >> "$TIMING_JSONL_PATH"
     fi
     sleep "$sleepOnBackpressure"
-    continue
-  fi
+  done
 
   timestamp=$(date +%Y%m%d%H%M%S%3N)
   newImage="$imageDir/${imageFilePrefix}-${timestamp}.raw"
 
-  echo "paused" > "$VM_STATE_FILE"
-  echo "[PRODUCER-PMEM] Suspending VM via virsh ..."
   __t0=$(ts_ns)
-  if ! virsh -c qemu:///system suspend "$domain" 2>/dev/null; then
-    echo "[PRODUCER-PMEM] WARNING: virsh suspend failed, retrying in 500ms"
-    sleep 0.5
-    continue
-  fi
-
-  if ! wait_state "paused"; then
-    virsh -c qemu:///system resume "$domain" 2>/dev/null || true
-    sleep 0.5
-    continue
+  if (( bp_paused == 0 )); then
+    echo "[PRODUCER-PMEM] Suspending VM via virsh ..."
+    if ! suspend_vm; then
+      echo "[PRODUCER-PMEM] WARNING: virsh suspend failed, retrying in 500ms"
+      virsh -c qemu:///system resume "$domain" 2>/dev/null || true
+      sleep 0.5
+      continue
+    fi
   fi
   __t1=$(ts_ns)
 
