@@ -236,6 +236,16 @@ while true; do
       sleep 0.5
       continue
     fi
+    if [[ "$ctl" == "skip" ]]; then
+      # The orchestrator drives the actual step teardown (kills the workload,
+      # drains + keeps the partial chain, advances). The producer just stops
+      # making snapshots and resumes the VM so nothing is left frozen.
+      echo "[PRODUCER-PMEM] Skip requested; resuming VM and stopping producer"
+      virsh -c qemu:///system resume "$domain" 2>/dev/null || true
+      echo "running" > "$VM_STATE_FILE"
+      write_status "skipped"
+      exit 0
+    fi
     pendingCount=$(find "$qPending" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
     processingCount=$(find "$qProcessing" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l)
     total=$((pendingCount + processingCount))

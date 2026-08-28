@@ -14,8 +14,10 @@ import hashlib
 import os
 import shlex
 import shutil
+import signal
 import smtplib
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -595,6 +597,67 @@ def capture_queue_dir() -> Path | None:
         return Path(q) if q else None
     except Exception:
         return None
+
+
+def capture_control_path() -> Path | None:
+    q = capture_queue_dir()
+    return (q / "capture_control.json") if q is not None else None
+
+
+def write_capture_control(command: str) -> None:
+    """Set the capture control command atomically (best-effort). Reset to 'run'
+    at each step start so a prior trace's pause/skip never leaks forward."""
+    p = capture_control_path()
+    if p is None:
+        return
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.parent / (p.name + ".tmp")
+        tmp.write_text(json.dumps({"command": command}))
+        tmp.replace(p)
+    except OSError:
+        pass
+
+
+def read_capture_control() -> str:
+    """Current operator command (run|pause|skip); 'run' if unset/unreadable."""
+    p = capture_control_path()
+    if p is None:
+        return "run"
+    try:
+        return json.loads(p.read_text()).get("command", "run") or "run"
+    except Exception:
+        return "run"
+
+
+def run_workload_with_control(cmd: str) -> tuple[int, bool]:
+    """Run the workload SSH command, watching capture_control.json between polls.
+    Returns (rc, skipped). On command=='skip' the workload's process group is
+    terminated so this returns promptly with skipped=True. Pause needs nothing
+    here: a frozen VM just blocks the child, and the workload SSH has no
+    keepalive (see ssh_base), so an idle session survives an indefinite freeze.
+    Uses Popen (rc is the real exit code, no os.system >>8 shift).
+    """
+    proc = subprocess.Popen(cmd, shell=True, start_new_session=True)
+    skipped = False
+    while True:
+        try:
+            rc = proc.wait(timeout=1.0)
+            break
+        except subprocess.TimeoutExpired:
+            if read_capture_control() == "skip":
+                skipped = True
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    rc = proc.wait(timeout=10)
+                except (ProcessLookupError, subprocess.TimeoutExpired):
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    rc = proc.wait()
+                break
+    return rc, skipped
 
 
 def step_run_matrix_path(test_name: str) -> str:
@@ -1199,6 +1262,7 @@ def main() -> int:
             print("[CONTROL] WARNING: ZSTD enabled but ZSTD_DIR unset; deltas will be skipped.")
 
     failed_steps: list[tuple[int, str, int]] = []
+    skipped_steps: list[tuple[int, str]] = []   # operator-skipped (partial kept)
     # Scratch dirs a later step reads; excluded from post-cell reclaim.
     guest_keep_dirs = inputs_dirs_from_steps(steps)
     if guest_keep_dirs:
@@ -1258,6 +1322,10 @@ def main() -> int:
         # Derive a step-specific matrix path so each test's frames are isolated.
         step_matrix = ""
         retention_workload = ""
+        # Fresh capture control for this trace BEFORE anything starts, so a prior
+        # trace's pause/skip can never be read by the new producer or the
+        # interruptible workload runner.
+        write_capture_control("run")
         if CAPTURE_MODE:
             step_matrix = step_run_matrix_path(test_name)
             retention_workload = retention_workload_path(test_label, remote_cmd)
@@ -1272,16 +1340,17 @@ def main() -> int:
         log_test_timestamp(i, test_name, "started")
         print("[CONTROL] Running command over SSH...")
         wrapped = shlex.quote(_sustain_wrap(remote_cmd))
+        skipped = False
         with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name}"):
-            rc = run(f"{base} {wrapped}")
-        rc = rc >> 8  # os.system stores wait status
+            rc, skipped = run_workload_with_control(f"{base} {wrapped}")
         # rc == 255 = SSH connection failure (not a workload error): a cold-boot
         # sshd-stabilization race, or the launch landing in a producer VM-suspend
         # window during capture. Both are transient, so re-wait for SSH and retry
         # a few times -- pausing to clear a suspend cycle -- before treating it as
-        # a real failure. A single retry left 7/101 steps failing this way.
+        # a real failure. A single retry left 7/101 steps failing this way. An
+        # operator skip is never retried.
         ssh_retries = 0
-        while rc == 255 and ssh_retries < SSH_WORKLOAD_RETRIES:
+        while not skipped and rc == 255 and ssh_retries < SSH_WORKLOAD_RETRIES:
             ssh_retries += 1
             print(f"[CONTROL] WARNING: workload SSH returned 255 (connection failure, "
                   f"not a workload error). Pausing {SSH_RETRY_PAUSE_S}s, re-waiting for "
@@ -1291,15 +1360,16 @@ def main() -> int:
                 print("[CONTROL] SSH not stable yet; will retry if attempts remain.")
                 continue
             with _WorkloadSpinner(f"step {i}/{len(steps)} {test_name} [retry {ssh_retries}]"):
-                rc = run(f"{base} {wrapped}")
-            rc = rc >> 8
+                rc, skipped = run_workload_with_control(f"{base} {wrapped}")
             print(f"[CONTROL] Retry {ssh_retries} exit code: {rc}")
-        if rc == 255:
+        if not skipped and rc == 255:
             print("[CONTROL] ERROR: workload SSH still 255 after "
                   f"{SSH_WORKLOAD_RETRIES} retries; failing the step.")
         log_test_timestamp(i, test_name, "ended")
         print(f"[CONTROL] Logged test timestamps -> {TIMESTAMPS_LOG}")
-        if rc == 0:
+        if skipped:
+            print(f"[CONTROL] skipping step {i} ({test_name}): operator skip; keeping partial trace.")
+        elif rc == 0:
             print("[CONTROL] Workload completed successfully (rc=0).")
         elif rc == 255:
             print("[CONTROL] SSH command exit code: 255 (CONNECTION FAILURE -- "
@@ -1308,6 +1378,12 @@ def main() -> int:
             print(f"[CONTROL] Workload exit code: {rc}")
 
         if CAPTURE_MODE:
+            if skipped:
+                # Operator skip may have left the VM paused (pause -> skip); the
+                # producer resumes on skip, but resume here too (best-effort) so
+                # the drain + stop_vm below never act on a frozen domain.
+                print("[CONTROL] Skip teardown: resuming VM if paused; partial trace kept.")
+                run(f"virsh -c {shlex.quote(VIRSH_URI)} resume {shlex.quote(VM_DOMAIN)} >/dev/null 2>&1")
             # 1. Stop the producer immediately — no more new dumps for this step.
             stop_producer()
 
@@ -1365,6 +1441,13 @@ def main() -> int:
             reclaim_guest_scratch(base, remote_cmd, guest_keep_dirs)
             stop_vm()
 
+        if skipped:
+            # Operator skip is not a failure: the partial chain is kept and we
+            # advance to the next workload.
+            skipped_steps.append((i, test_name))
+            notify(f"[{i}/{len(steps)}] {test_name}: SKIPPED by operator; partial trace kept.")
+            continue
+
         if rc != 0:
             if CONTINUE_ON_FAILURE:
                 print(f"[CONTROL] WARNING: Step {i} ({test_name}) failed (exit={rc}). "
@@ -1377,6 +1460,11 @@ def main() -> int:
             return rc
 
         notify(f"[{i}/{len(steps)}] {test_name}: done.")
+
+    if skipped_steps:
+        print(f"[CONTROL] {len(skipped_steps)} step(s) SKIPPED by operator (partial trace kept):")
+        for i, name in skipped_steps:
+            print(f"[CONTROL]   step {i}: {name}")
 
     if failed_steps:
         print(f"\n[CONTROL] Completed {len(steps) - len(failed_steps)}/{len(steps)} steps; "

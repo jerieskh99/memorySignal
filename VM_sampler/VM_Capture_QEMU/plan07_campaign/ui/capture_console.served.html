@@ -751,6 +751,7 @@ render();renderCatalog();
       <span id="srv-capture-status" style="font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums">snapshots: &mdash;</span>
       <button class="bigbtn ghost" id="srv-pause" style="margin-left:auto">Pause</button>
       <button class="bigbtn ghost" id="srv-continue">Continue</button>
+      <button class="bigbtn ghost" id="srv-skip">Skip</button>
     </div>
     <div id="srv-msg" style="font-size:12.5px;color:var(--ink-2)"></div>
     <div id="srv-running-list"></div>
@@ -921,6 +922,10 @@ render();renderCatalog();
   });
   $("srv-continue").addEventListener("click", async ()=>{
     if(await sendControl("run")){ msg("Continue — capture resumes where it left off.","var(--ok)"); pollCaptureStatus(); }
+  });
+  $("srv-skip").addEventListener("click", async ()=>{
+    if(!confirm("Skip the current trace? It stops after the in-flight snapshot, keeps the partial chain, and the run advances to the next workload.")) return;
+    if(await sendControl("skip")){ msg("Skip requested — finishing the current snapshot, keeping the partial trace, advancing to the next workload.","var(--warn)"); pollCaptureStatus(); }
   });
 
   // ---- clean leftover state (the residue preflight flags) ----
