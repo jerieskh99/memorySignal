@@ -179,13 +179,21 @@ def add_steps_file_envvar(cmd: str, steps_file: str) -> str:
 
 def add_constant_envvars(cmd: str, capture_mode=1, ssh_wait_timeout=300,
                          continue_on_failure=1, min_free_disk_gb=40,
-                         pythonunbuffered=1) -> str:
+                         pythonunbuffered=1, sustain_loop=1) -> str:
+    # SUSTAIN_LOOP: re-run each workload until its --duration elapses, so
+    # single-pass workloads (e.g. the security_like_safe sandbox family, which
+    # process their files once and exit in seconds) fill the whole capture
+    # window instead of yielding 2-7 snapshots. Safe always-on: a workload that
+    # already honours --duration runs exactly once (the orchestrator checks the
+    # clock only between whole iterations), and a command with no --duration is
+    # left unchanged. Set sustain_loop=0 to capture a natural single pass.
     env_vars = {
         "CAPTURE_MODE": str(capture_mode),
         "SSH_WAIT_TIMEOUT": str(ssh_wait_timeout),
         "CONTINUE_ON_FAILURE": str(continue_on_failure),
         "MIN_FREE_DISK_GB": str(min_free_disk_gb),
         "PYTHONUNBUFFERED": str(pythonunbuffered),
+        "SUSTAIN_LOOP": str(sustain_loop),
     }
     return add_env_variables(cmd, env_vars)
 
