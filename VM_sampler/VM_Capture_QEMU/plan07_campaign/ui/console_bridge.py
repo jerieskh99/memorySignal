@@ -750,13 +750,17 @@ def ep_migration_list(query: dict):
         fam, wl, sig, rep = (parts + ["", "", "", ""])[:4]
         status = "deleted" if e.get("action") == "delete" else "migrated"
         chains.append({"chain": rel, "family": fam, "workload": wl, "param": sig,
-                       "rep": rep, "age_min": None, "status": status, "ts": e.get("ts")})
+                       "rep": rep, "age_min": None, "status": status, "ts": e.get("ts"),
+                       "snapshots": e.get("snapshots"), "bytes": e.get("bytes")})
 
     counts = {}
     for c in chains:
         counts[c["status"]] = counts.get(c["status"], 0) + 1
-    totals = {"snapshots": sum(c.get("snapshots", 0) for c in chains),
-              "bytes": sum(c.get("bytes", 0) for c in chains)}
+    # "on server" totals count present chains only -- migrated chains are gone
+    # from the server (their per-row stats come from the ledger instead).
+    _present = [c for c in chains if c.get("status") not in ("migrated", "deleted")]
+    totals = {"snapshots": sum((c.get("snapshots") or 0) for c in _present),
+              "bytes": sum((c.get("bytes") or 0) for c in _present)}
     return 200, {"chains": chains, "counts": counts, "totals": totals,
                  "config": {"interval_min": ctrl.get("interval_min", MIG_INTERVAL_MIN_DEFAULT),
                             "auto": bool(ctrl.get("auto", True)),

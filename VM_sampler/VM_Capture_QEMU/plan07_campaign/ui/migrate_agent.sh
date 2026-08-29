@@ -58,9 +58,17 @@ pull_chain(){
     echo "  retry $tries/3 for $rel (connection dropped)"
     sleep 5
   done
+  # Retained snapshots + on-disk size of the just-pulled chain, recorded in the
+  # ledger so the console can show them for migrated chains (gone from the
+  # server, so the bridge can't scan them there). du is portable (Mac + Linux);
+  # a chain leaf holds only .zst files, so du of the leaf is the chain size.
+  local snaps kb bytes
+  snaps=$(find "$LOCAL_DIR/$rel" -maxdepth 1 -name '*.zst' 2>/dev/null | wc -l | tr -d ' ')
+  kb=$(du -sk "$LOCAL_DIR/$rel" 2>/dev/null | awk '{print $1+0}')
+  bytes=$(( ${kb:-0} * 1024 ))
   local ts; ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  printf '{"chain":"%s","ts":"%s","host":"%s","action":"%s"}\n' \
-    "$rel" "$ts" "$(hostname -s 2>/dev/null || hostname)" "$mode" \
+  printf '{"chain":"%s","ts":"%s","host":"%s","action":"%s","snapshots":%s,"bytes":%s}\n' \
+    "$rel" "$ts" "$(hostname -s 2>/dev/null || hostname)" "$mode" "${snaps:-0}" "${bytes:-0}" \
     | ssh $SSH_OPTS "$REMOTE_HOST" "mkdir -p '$MIG_DIR' && cat >> '$LEDGER'" || true
   return 0
 }
