@@ -867,15 +867,34 @@ render();renderCatalog();
   });
 
   let pollTimer = null, logOffset = 0, curLabel = null;
-  async function pollCaptureStatus(){
+  // Live per-trace stats. The poll refreshes the base numbers (~1.5s); a 1s
+  // ticker advances elapsed locally between polls so the clock is smooth.
+  // elapsed is server-computed (elapsed_s) to dodge laptop/server clock skew.
+  let capBase = null;
+  function fmtDur(s){
+    s = Math.max(0, s|0);
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+    return h ? (h+"h"+String(m).padStart(2,'0')+"m") : (m+"m"+String(ss).padStart(2,'0')+"s");
+  }
+  function renderCapture(){
     const el = $("srv-capture-status"); if(!el) return;
+    if(!capBase){ el.textContent = "snapshots: -"; return; }
+    const secs = capBase.elapsed_s + Math.floor((Date.now()-capBase.atMs)/1000);
+    const rate = secs>0 ? (capBase.captured/(secs/60)).toFixed(1) : "0.0";
+    const wl = capBase.workload ? String(capBase.workload).split("/").pop() : "";
+    const q = (capBase.queue!=null && capBase.maxpending!=null) ? ` · queue ${capBase.queue}/${capBase.maxpending}` : "";
+    el.textContent = (wl ? wl+" — " : "") + `${capBase.captured} snaps · ${fmtDur(secs)} · ${rate}/min · ${capBase.state}${q}`;
+  }
+  async function pollCaptureStatus(){
     const {ok,data} = await api("/capture_status","GET");
     if(!ok) return;
     const st = data.state || "idle";
-    if(st === "idle"){ el.textContent = "snapshots: -"; return; }
-    const wl = data.workload ? " " + String(data.workload).split("/").pop() : "";
-    el.textContent = "snapshots: " + (data.captured||0) + " (" + st + ")" + wl;
+    if(st === "idle"){ capBase = null; renderCapture(); return; }
+    capBase = {elapsed_s: data.elapsed_s||0, atMs: Date.now(), captured: data.captured||0,
+               state: st, workload: data.workload||"", queue: data.queue, maxpending: data.maxpending};
+    renderCapture();
   }
+  setInterval(renderCapture, 1000);
   async function pollLog(){
     if(!curLabel) return;
     pollCaptureStatus();
@@ -883,7 +902,7 @@ render();renderCatalog();
     if(ok){
       if(data.data){ const el=$("srv-log"); el.textContent += data.data; el.scrollTop = el.scrollHeight; logOffset = data.offset; }
       $("srv-running").textContent = data.eof ? "(finished)" : "(running "+curLabel+")";
-      if(data.eof){ clearInterval(pollTimer); pollTimer=null; $("srv-capture-status").textContent="snapshots: - (finished)"; }
+      if(data.eof){ clearInterval(pollTimer); pollTimer=null; capBase=null; $("srv-capture-status").textContent="snapshots: - (finished)"; }
     }
   }
   $("srv-launch").addEventListener("click", async ()=>{

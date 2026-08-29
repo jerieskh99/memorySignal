@@ -89,11 +89,17 @@ STATUS_FILE="$qPath/capture_status.json"
 CONTROL_FILE="$qPath/capture_control.json"
 workload="${ZSTD_WORKLOAD:-${BORG_WORKLOAD:-}}"
 captured=0
+started=$(date +%s)   # trace start (epoch); elapsed is server-computed to dodge laptop/server clock skew
 write_status() {
   local state="$1"
+  local now qd
+  now=$(date +%s)
+  qd=$(( $(find "$qPending" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l) \
+       + $(find "$qProcessing" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l) ))
   local tmp="$STATUS_FILE.tmp.$$"
-  printf '{"captured":%d,"state":"%s","workload":%s,"updated":"%s"}\n' \
+  printf '{"captured":%d,"state":"%s","workload":%s,"queue":%d,"maxpending":%d,"elapsed_s":%d,"updated":"%s"}\n' \
     "$captured" "$state" "$(printf '%s' "$workload" | jq -R .)" \
+    "$qd" "$maxPending" "$(( now - started ))" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$tmp" 2>/dev/null \
     && mv -f "$tmp" "$STATUS_FILE" 2>/dev/null || true
 }
@@ -254,13 +260,13 @@ while true; do
       echo "[PRODUCER-PMEM] Backpressure: queue $total >= $maxPending; suspending VM until it drains"
       if suspend_vm; then
         bp_paused=1
-        write_status "backpressure"
       else
         virsh -c qemu:///system resume "$domain" 2>/dev/null || true
         sleep 0.5
         continue
       fi
     fi
+    write_status "backpressure"   # each iteration -> live queue depth + elapsed
     if [[ -n "$TIMING_JSONL_PATH" ]]; then
       __bp_t=$(ts_ns)
       printf '{"seq":-1,"backpressure_event":true,"backpressure_wait_ms":%s,"queue_depth":%s,"t_host":%s}\n' \
