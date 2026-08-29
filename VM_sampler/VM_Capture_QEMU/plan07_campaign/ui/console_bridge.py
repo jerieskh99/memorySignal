@@ -872,15 +872,25 @@ def _capture_queue_dir() -> Path | None:
 
 
 def ep_capture_status(_query: dict):
-    """Live snapshot count + state for the trace currently capturing."""
-    default = {"captured": 0, "state": "idle", "workload": "", "updated": None}
+    """Live snapshot count + state for the trace currently capturing. Reads the
+    producer-written status file directly, so it works even for a capture that
+    was already running before this bridge started (survives a bridge restart).
+    age_s (server-computed, seconds since the file was last written) lets the UI
+    distinguish a live capture from a stale file left by a finished run."""
+    default = {"captured": 0, "state": "idle", "workload": "", "updated": None, "age_s": None}
     q = _capture_queue_dir()
     if q is None:
         return 200, default
+    f = q / "capture_status.json"
     try:
-        return 200, json.loads((q / "capture_status.json").read_text())
+        data = json.loads(f.read_text())
     except Exception:
         return 200, default
+    try:
+        data["age_s"] = max(0, int(datetime.now(timezone.utc).timestamp() - f.stat().st_mtime))
+    except OSError:
+        data["age_s"] = None
+    return 200, data
 
 
 CAPTURE_COMMANDS = {"run", "pause", "skip"}

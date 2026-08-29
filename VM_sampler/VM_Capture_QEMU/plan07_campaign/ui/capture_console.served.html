@@ -889,15 +889,22 @@ render();renderCatalog();
     const {ok,data} = await api("/capture_status","GET");
     if(!ok) return;
     const st = data.state || "idle";
-    if(st === "idle"){ capBase = null; renderCapture(); return; }
+    // Stale file (no producer writing) or idle -> show nothing. age_s is
+    // server-computed so it's skew-free; a live producer rewrites every ~1-3s.
+    const stale = (data.age_s == null) || (data.age_s > 8);
+    if(st === "idle" || stale){ capBase = null; renderCapture(); return; }
     capBase = {elapsed_s: data.elapsed_s||0, atMs: Date.now(), captured: data.captured||0,
                state: st, workload: data.workload||"", queue: data.queue, maxpending: data.maxpending};
     renderCapture();
   }
+  // Always-on: reads the producer's status file directly, so the readout shows a
+  // running capture even right after a page reload or bridge restart -- no need
+  // to have launched from this page. Independent of the log tail (curLabel).
+  pollCaptureStatus();
+  setInterval(pollCaptureStatus, 2000);
   setInterval(renderCapture, 1000);
   async function pollLog(){
     if(!curLabel) return;
-    pollCaptureStatus();
     const {ok,data} = await api("/log?label="+encodeURIComponent(curLabel)+"&offset="+logOffset,"GET");
     if(ok){
       if(data.data){ const el=$("srv-log"); el.textContent += data.data; el.scrollTop = el.scrollHeight; logOffset = data.offset; }
