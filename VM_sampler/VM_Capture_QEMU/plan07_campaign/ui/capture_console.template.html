@@ -985,10 +985,19 @@ render();renderCatalog();
   $("mig-interval").addEventListener("focus", ()=>{ migTyping = true; });
   $("mig-auto").addEventListener("focus", ()=>{ migTyping = true; });
 
+  function humanSize(b){
+    b = b||0;
+    if(b < 1024) return b+" B";
+    const u=["KB","MB","GB","TB"]; let i=-1;
+    do { b/=1024; i++; } while(b>=1024 && i<u.length-1);
+    return b.toFixed(b<10?1:0)+" "+u[i];
+  }
   function renderMig(data){
     const c = data.counts || {};
+    const t = data.totals || {};
     $("mig-summary").textContent =
-      `${c.ready||0} ready · ${c.growing||0} growing · ${c.queued||0} queued · ${c.migrated||0} migrated`;
+      `${c.ready||0} ready · ${c.growing||0} growing · ${c.queued||0} queued · ${c.migrated||0} migrated`
+      + (t.snapshots ? `   ·   ${t.snapshots} snaps · ${humanSize(t.bytes)} on server` : "");
     if(!migTyping && data.config){
       $("mig-interval").value = data.config.interval_min;
       $("mig-auto").checked = !!data.config.auto;
@@ -1013,9 +1022,12 @@ render();renderCatalog();
       } else if(x.status==="copied"){
         act = btn("mig-move",x.chain,"Migrate") + btn("mig-del",x.chain,"Delete",";color:var(--bad)");
       }
+      const stats = (x.snapshots!=null && x.snapshots>0)
+        ? `<span class="mono" style="color:var(--ink-3);font-size:11px">${x.snapshots} snaps · ${humanSize(x.bytes)}</span>` : "";
       return `<div class="running" style="display:flex;align-items:center;gap:8px;margin:2px 0">`
         + badge
         + `<span class="mono" style="color:var(--ink-2);font-size:11.5px">${esc(x.workload)}<span style="opacity:.55"> · ${esc(x.param)} · ${esc(x.rep)}</span></span>`
+        + stats
         + `<span style="color:var(--ink-3);font-size:11px;margin-left:auto">${age}</span>${act}</div>`;
     };
     let html = "";

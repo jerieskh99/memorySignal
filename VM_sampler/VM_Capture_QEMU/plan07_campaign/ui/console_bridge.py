@@ -662,6 +662,31 @@ def _chain_leaves(zstd_dir: str):
     return leaves
 
 
+_chain_stats_cache: dict = {}   # rel -> (mtime, snapshots, bytes)
+
+
+def _chain_stats(root: Path, rel: str, mtime: float):
+    """(#snapshots, total .zst bytes) for one chain leaf. Cached by leaf mtime so
+    the frequent migration poll never re-stats a settled chain's files -- a
+    finished chain's mtime is stable, so it's scanned once then served from
+    cache; only a still-growing chain is rescanned."""
+    hit = _chain_stats_cache.get(rel)
+    if hit and hit[0] == mtime:
+        return hit[1], hit[2]
+    n, total = 0, 0
+    try:
+        for f in (root / rel).glob("*.zst"):
+            try:
+                total += f.stat().st_size
+                n += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    _chain_stats_cache[rel] = (mtime, n, total)
+    return n, total
+
+
 def _req_items(ctrl: dict):
     """[(chain, mode)] from control.requested. mode is 'move' (pull + free the
     server) or 'copy' (pull, keep on server). Tolerates legacy bare-string
@@ -713,6 +738,9 @@ def ep_migration_list(query: dict):
             entry["status"] = "growing"
         fam, wl, sig, rep = rel.split("/", 3)
         entry.update({"family": fam, "workload": wl, "param": sig, "rep": rep})
+        n, nbytes = _chain_stats(Path(zstd_dir), rel, mtime)
+        entry["snapshots"] = n            # captured snapshots retained in this chain
+        entry["bytes"] = nbytes           # compressed on-disk size of the chain
         chains.append(entry)
     # ledger entries whose chain is gone from the server: migrated (move) or deleted
     for rel, e in ledger.items():
@@ -727,7 +755,9 @@ def ep_migration_list(query: dict):
     counts = {}
     for c in chains:
         counts[c["status"]] = counts.get(c["status"], 0) + 1
-    return 200, {"chains": chains, "counts": counts,
+    totals = {"snapshots": sum(c.get("snapshots", 0) for c in chains),
+              "bytes": sum(c.get("bytes", 0) for c in chains)}
+    return 200, {"chains": chains, "counts": counts, "totals": totals,
                  "config": {"interval_min": ctrl.get("interval_min", MIG_INTERVAL_MIN_DEFAULT),
                             "auto": bool(ctrl.get("auto", True)),
                             "stable_min": stable_min},
