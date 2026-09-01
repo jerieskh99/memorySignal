@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The failure that wasn't — Reading Memory</title>
+<meta name="description" content="An experiment failed all eighteen of its comparisons. Investigating why turned it into a ninefold win.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="tcu">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson5.html">8 · The collapse</a>
+      <a class="here" href="lesson6.html">9 · The failure that wasn't</a>
+      <a href="lesson7.html">10 · The instrument</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 9</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plans 05 &amp; 06 · Throughput and a second channel</div>
+      <div class="lnum">Entry 9 of 12 · 1–18 June 2026</div>
+      <h1>The failure that wasn't</h1>
+      <p class="dek">A seven-hour experiment failed <b>all eighteen</b> of its comparisons. Filed
+      as a null result, it would have ended there. Asking why instead turned it into the largest
+      single improvement in the project — <b>about ninefold</b>.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>The experiment failed because the <em>baseline already had the cure</em>. It was
+      comparing two fixed things and correctly finding no difference between them.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">Eighteen failed comparisons</a></li>
+        <li><a href="#c2">The seven-second number that was never a constant</a></li>
+        <li><a href="#c3">What deletion actually bought</a></li>
+        <li><a href="#c4">"Duration" was a cap, not a target</a></li>
+        <li><a href="#c5">The twins, and the channel that split them</a></li>
+        <li><a href="#c6">The heaviest writer is benign</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The setup</div>
+      <h2>Eighteen failed comparisons</h2>
+
+      <p>Entry 7 ended at a wall: the rhythm was detectable but under-sampled, and no analysis
+      setting could fix it. The only route was to capture more snapshots per run. The suspected
+      bottleneck was the memory copy, measured in the earlier campaign at a median of
+      <b>7.06 seconds</b> and eating 81% of every cycle.</p>
+
+      <p>So: seventy-two cells, four configurations — memory copy to a RAM disk or to the SSD,
+      with cleanup on or off — and a gate requiring the fastest option to at least halve the
+      baseline. A server reboot killed the run at cell 67; the last six were resumed and
+      aggregated offline.</p>
+
+      <p>The gate failed on all eighteen comparisons. The RAM disk was only <b>1.35×</b> faster,
+      nowhere near the required 2×. And the baseline's memory copy did not measure 7 seconds. It
+      measured <b>0.79</b>.</p>
+
+      <div class="callout note"><div class="clab">The decision that mattered</div>
+        <p>The available move was to run another seven-hour experiment with a different lever.
+        Instead the investigation went <b>offline, against the original data</b> — the timing
+        records from the earlier campaign were still on disk, and nothing new needed capturing to
+        ask why the baseline was nine times faster than the number it was supposed to reproduce.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The detective work</div>
+      <h2>The seven-second number that was never a constant</h2>
+
+      <p>The 7.06 seconds was a median — of a distribution running from <b>0.76 to 21.57
+      seconds</b>. The pilot's 0.79 was not a contradiction; it was sitting on that distribution's
+      floor. Which raises the real question: why did the old campaign's copies get slower as they
+      went?</p>
+
+      <p>Because that campaign never deleted its memory images. The setting that enables
+      delete-as-you-go was off in <b>125 of its 128 cells</b>. Two independent fingerprints
+      confirm it:</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 250" role="img" aria-label="Snapshot counts grow sub-linearly with cell duration when dumps are kept, and linearly when they are deleted">
+          <line x1="70" y1="196" x2="600" y2="196" class="s-hair"/>
+          <line x1="70" y1="30" x2="70" y2="196" class="s-hair"/>
+          <text x="60" y="36" text-anchor="end" class="lbl-m" font-size="10">400</text>
+          <text x="60" y="196" text-anchor="end" class="lbl-m" font-size="10">0</text>
+          <text x="150" y="212" text-anchor="middle" class="lbl-m" font-size="10">120 s</text>
+          <text x="330" y="212" text-anchor="middle" class="lbl-m" font-size="10">300 s</text>
+          <text x="560" y="212" text-anchor="middle" class="lbl-m" font-size="10">600 s</text>
+
+          <path d="M 150 190 L 330 185 L 560 174" class="s-mut no dash"/>
+          <circle cx="150" cy="190" r="4" class="f-wash s-mut"/>
+          <circle cx="330" cy="185" r="4" class="f-wash s-mut"/>
+          <circle cx="560" cy="174" r="4" class="f-wash s-mut"/>
+          <text x="570" y="166" class="lbl-m" font-size="10">14 · 26 · 53</text>
+          <text x="380" y="182" class="lbl-m" font-size="10.5">keeping every image — flattens out</text>
+
+          <path d="M 150 163 L 560 42" class="s-acc no"/>
+          <circle cx="150" cy="163" r="4" class="f-acc"/>
+          <circle cx="560" cy="42" r="4" class="f-acc"/>
+          <text x="500" y="34" class="lbl-a" font-size="10">79 → 398</text>
+          <text x="230" y="110" class="lbl-a" font-size="10.5">deleting as you go — stays straight</text>
+
+          <text x="70" y="240" class="lbl-m" font-size="10.5">A cost that grows during the run bends the line. That bend is the fingerprint.</text>
+        </svg>
+        <figcaption><b>Fig 6.1</b> Snapshots collected against how long the cell ran. The upper
+        line is what the pipeline should do; the lower is what a filling disk does to it.</figcaption>
+      </figure>
+
+      <p>And the reason the gate could never have passed: the pilot enabled the streaming
+      measurement — which is what makes deletion possible — on <b>every</b> arm, including the
+      supposedly unmodified baseline. <b>The experiment was comparing two already-fixed
+      configurations.</b></p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>A gate that fails on every comparison is evidence about the gate. Here the treatment
+        had been accidentally applied to the control group, so the honest measured difference
+        between them was, correctly, nothing.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The real result</div>
+      <h2>What deletion actually bought</h2>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Measure</th><th>Keeping images</th><th>Deleting as you go</th></tr></thead>
+        <tbody>
+          <tr><td>Memory copy</td><td>7.06 s</td><td><b>0.79 s</b></td></tr>
+          <tr><td>Snapshots per 120 s cell</td><td>14</td><td><b>79</b></td></tr>
+          <tr><td>Snapshots per 600 s cell</td><td>53</td><td><b>398</b></td></tr>
+          <tr><td>Analysis windows at 600 s</td><td>~12</td><td><b>~98</b></td></tr>
+        </tbody>
+      </table></div>
+
+      <p>A controlled sixty-second head-to-head isolated it further: keeping everything piled up
+      <b>21 GB in one minute</b> and climbing, with copy times spiking; deleting held flat at
+      2.2 GB. Extrapolated to a ten-minute cell, the keep configuration is a <b>210 GB</b> disk
+      bomb.</p>
+
+      <p>Three previously published conclusions were retracted in one document — that the pilot was
+      a dead end, that guest memory size was the real lever, and that the RAM disk was the win.
+      The RAM disk is a 1.35× bonus on top of a ninefold effect that has nothing to do with it.</p>
+
+      <div class="callout idea"><div class="clab">The retraction that got un-retracted</div>
+        <p>Entry 8's audit had struck out a storage claim as never exercised. This work exercises
+        it — and passes the very disk ceiling that had been withdrawn as unmeasured. But it also
+        dissolves the 7.06 s figure that the same audit had corrected the papers <em>to</em>.
+        A claim can be wrong, correctly retracted, and then vindicated by a better
+        experiment.</p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>The papers were frozen on 1 June and never learned any of this. They still print the
+        7.06 s median with no retention caveat, and still describe the disk ceiling as the biggest
+        open item. Two later papers, written twelve hours after the first, do carry the caveat.
+        The portfolio disagrees with itself.</p></div>
+
+      <p>One more failure worth recording. An early smoke test left <b>41 images and 44 GB</b>
+      behind in two minutes: the deletion call was failing silently because the folder belonged to
+      the virtualisation service rather than the user. Deletion only helps if the delete
+      succeeds — the same class of permission bug as Entry 5, in a different directory.</p>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The measurement that was measuring nothing</div>
+      <h2>"Duration" was a cap, not a target</h2>
+
+      <p>With throughput fixed, the signal from two workloads was still nearly flat. They were
+      doing their jobs correctly — and then stopping.</p>
+
+      <p>A workload told to run for 600 seconds finished its fixed amount of work — six million
+      insertions, or a scan of five thousand files — in <b>one to two seconds</b>, and the machine
+      idled for the remaining ten minutes. The duration setting was a ceiling, never a goal. So
+      the cell recorded a couple of seconds of workload and ten minutes of an empty machine, and
+      the average came out looking like nothing was happening.</p>
+
+      <p>The fix wraps the workload in a loop until the clock runs out. Measured directly
+      afterwards: <span class="term" data-term="apf">activity</span> of <b>0.0875</b> sustained, against <b>0.0018</b> in the original —
+      close to fifty times more signal from the same workload doing the same thing.</p>
+
+      <div class="callout test"><div class="clab">How to test</div>
+        <p>The tell is that the average is low while the peak is normal. A workload that is
+        genuinely quiet is quiet throughout; a workload that finished early is briefly loud and
+        then absent. Entry 10 finds this exact bug again, in a family that had never been checked
+        for it.</p></div>
+
+      <p>With both fixed, the full sixty-six cell campaign ran clean: every cell succeeded,
+      <b>none</b> starved of analysis windows — against 53 of 132 in the previous dataset — for
+      29,003 snapshot pairs and 7,159 windows. Repeat runs of the same workload agreed to the
+      fourth decimal place.</p>
+
+      <div class="callout note"><div class="clab">Three things learned by accident</div>
+        <p>A workload writing <b>64 bytes per page</b> registers almost the same activity as one
+        rewriting the page entirely — the measurement counts <em>pages touched</em>, not bytes
+        changed. One validation log contained <b>2.17 million</b> copies of a single error line,
+        which revealed that a workload had been silently hitting a default memory cap and
+        streaming to disk instead. And the cells with the fewest snapshots were all continuous
+        writers, because their disk traffic competes with the memory copy for the same device.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The blind spot</div>
+      <h2>The twins, and the channel that split them</h2>
+
+      <p>With a properly powered dataset, the honest classification numbers came in: telling
+      threat-like from benign, on features that carry no label leakage, holding out an entire
+      unseen workload — <b>0.636</b> against a 0.545 baseline. Real, but slight. Adding shape
+      features (peak, variability, duty cycle) lifted it to 0.788 and lifted <span class="term" data-term="novelty">novelty detection</span>
+      from 0.739 to <b>0.925</b>.</p>
+
+      <p>Then the harder test: <span class="term" data-term="lofo">hold out the</span> <em>entire</em> threat family, so nothing similar has
+      ever been seen. Three of the four encryptors scored <b>zero</b>. Their high memory activity
+      makes them look exactly like the benign memory-intensive workloads once no example of their
+      own kind is available to train on.</p>
+
+      <div class="pw">
+        <div class="callout power"><div class="clab">What survived that test</div>
+          <ul><li>Novelty detection trained only on benign behaviour: <b>0.933</b> even with the
+          whole threat family unseen.</li>
+          <li>A rule with no machine learning at all — count how many features fall outside the
+          benign range — scores <b>0.95</b>, matching the model and fully interpretable.</li></ul></div>
+        <div class="callout weak"><div class="clab">What did not</div>
+          <p>Supervised classification of an unseen family. And one pair stayed at zero in both
+          directions: a slow trickling encryptor and a benign page-fault workload. Near-idle, rare
+          spikes, opposite labels, mutually indistinguishable.</p></div>
+      </div>
+
+      <div class="callout note"><div class="clab">A prediction that was backwards, recorded as such</div>
+        <p>The expectation was that shape features would rescue the slow trickling encryptor. They
+        rescued the <em>bursty</em> one instead (0.17 → 1.00) and a metadata scanner (0.50 → 1.00),
+        and left the trickler at 0.00. Written into the results file as an explicit honest
+        correction rather than quietly adjusted.</p></div>
+
+      <p>That stubborn pair is the entire premise of the next step. They are twins in memory, but
+      one of them writes files and the other only touches memory — so the second channel is
+      already there, unread. Adding a per-snapshot read of the guest's disk counters, at the same
+      cadence and costing nothing extra since the machine is already paused:</p>
+
+      <div class="study">
+        <div class="scite">plan06_results.md · result 1</div>
+        <p class="sfind">The trickling encryptor writes <b>0.20 MB/s</b>. The benign page-fault
+        workload writes <b>0.002 MB/s</b>. A hundredfold separation on exactly the pair that memory
+        alone could not split.</p>
+        <p class="srel">The blind spot was not a limit of the method. It was a limit of looking at
+        one channel.</p>
+      </div>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The reframe</div>
+      <h2>The heaviest writer is benign</h2>
+
+      <p>The obvious next move is to declare disk activity a threat signal. The full ranking says
+      otherwise, and this is the most thesis-shaping negative result in the project:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Workload</th><th>Type</th><th>Write rate</th></tr></thead>
+        <tbody>
+          <tr><td><b>mem_mmap_traversal</b></td><td><b>benign</b></td><td><b>140.7 MB/s</b></td></tr>
+          <tr><td>ransom_selective</td><td>threat</td><td>22.5 MB/s</td></tr>
+          <tr><td>ransom_seq</td><td>threat</td><td>9.4 MB/s</td></tr>
+          <tr><td>ransom_slowburn</td><td>threat</td><td>0.20 MB/s</td></tr>
+          <tr><td>mem_workingset_sweep</td><td>benign</td><td>0.004 MB/s</td></tr>
+          <tr><td><b>ransom_batched</b></td><td><b>threat</b></td><td><b>0.003 MB/s</b></td></tr>
+          <tr><td>mem_pagefault_density</td><td>benign</td><td>0.002 MB/s</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The heaviest writer in the corpus is benign — a read-modify-write traversal of a
+      memory-mapped file, at 140 MB/s and reaching 231 MB/s over the full dataset. And a threat
+      writes essentially nothing, because it holds its work in memory until a cap forces it out.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>"Writes a lot to disk" is a <em>behaviour</em>, not a threat sign — exactly as memory
+        activity turned out to be. Adding a channel does not add a detector. It adds a second
+        axis on which behaviours that looked identical can be separated.</p></div>
+
+      <p>The full result confirms it precisely. Across the sixty-six cell dataset, adding the disk
+      channel <b>helps characterisation and hurts detection</b>:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Task</th><th>Memory only</th><th>+ shape</th><th>+ disk</th></tr></thead>
+        <tbody>
+          <tr><td>Threat vs benign, unseen workload</td><td>0.606</td><td>0.742</td><td>0.636 ↓</td></tr>
+          <tr><td>Threat vs benign, unseen family</td><td>0.273</td><td>0.576</td><td>0.424 ↓</td></tr>
+          <tr><td>Family identity, unseen workload</td><td>0.364</td><td>0.348</td><td><b>0.455 ↑</b></td></tr>
+          <tr><td>Workload identity, seen before</td><td>0.833</td><td>0.924</td><td><b>0.939 ↑</b></td></tr>
+        </tbody>
+      </table></div>
+
+      <p>Family identity on a never-seen workload crosses the chance line that memory alone could
+      not. Adding disk <em>reads</em> as well pushes workload identification to <b>0.985</b> — the
+      two encrypt-in-place threats have a near-unique signature, reading plaintext and writing
+      ciphertext — while doing nothing at all for detection, because three of the five threats
+      barely read.</p>
+
+      <div class="study">
+        <div class="scite">the sentence that reorganised the thesis</div>
+        <p class="sfind">Two orthogonal channels <b>disambiguate behaviours that one channel
+        aliases</b>. Not: the second channel catches the threat.</p>
+        <p class="srel">Characterisation, not detection. This is the input to everything in the
+        final entry — including the decision to build a hundred workloads whose job is to be
+        confused with each other in predictable ways.</p>
+      </div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Stated at the time: the sixteen-cell subset is ten threats to six benign, so the
+        majority-guess baseline is 0.625 and every cross-validated number from it falls below
+        that. The trustworthy result there is the <em>direct pair measurement</em> — the
+        hundredfold gap — not the classifier scores.</p></div>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Active page fraction</dt><dd>The share of memory pages that changed between two snapshots — one number per snapshot. The single scalar the later work asks whether it can live on.</dd></div>
+        <div class="gitem"><dt>Novelty detection</dt><dd>Training only on normal behaviour and flagging anything unlike it. Survives an unseen threat family, where a classifier trained on known classes scores zero by construction.</dd></div>
+        <div class="gitem"><dt>Held-out family</dt><dd>Removing an entire family of workloads from training. Harsher than holding out one workload, and the test that exposed how much of the earlier score was same-family memorisation.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan05_results.md</b>, <b>plan05_overview.html</b> §"The 7-second mystery" — the investigation and the three retractions.</li>
+        <li id="r2"><b>plan05_campaign/</b> — the downstream analysis: family identification, novelty detection, shape features, the benign-range profiler.</li>
+        <li id="r3"><b>plan06_results.md</b> — results 1 and 2, the write-rate ranking, and the characterisation-versus-detection split.</li>
+        <li id="r4"><b>diskio_features.py</b>, <b>diskio_lift.py</b> — the second channel and its measured lift.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson5.html"><div class="nd">Previous</div><div class="nt">← 8 · The night the headline collapsed</div></a>
+      <a class="n-next" href="lesson7.html"><div class="nd">Next entry</div><div class="nt">10 · Building an instrument worth trusting →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 9</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "apf": [
+          "Active page fraction",
+          "The share of memory pages that changed between two snapshots — one number per snapshot. The single scalar the later work asks whether it can live on."
+      ],
+      "novelty": [
+          "Novelty detection",
+          "Training only on normal behaviour and flagging anything unlike it. Survives an unseen threat family, where a classifier trained on known classes scores zero by construction."
+      ],
+      "lofo": [
+          "Held-out family",
+          "Removing an entire family of workloads from training. Harsher than holding out one workload, and the test that exposed how much of the earlier score was same-family memorisation."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The instrument was lying by 15× — Reading Memory</title>
+<meta name="description" content="A missing utility turned a sleep into sleep 0, and every frequency the analyzer had computed was placed on the wrong part of the spectrum.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="cache">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson1.html">4 · Confusion</a>
+      <a class="here" href="lesson2.html">5 · The 15× lie</a>
+      <a href="lesson3.html">6 · The label</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 5</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plan 01 · Calibration</div>
+      <div class="lnum">Entry 5 of 12 · 19–22 May 2026</div>
+      <h1>The instrument was lying by 15×</h1>
+      <p class="dek">Before choosing how fast to sample, one question had to be answered:
+      <b>does the pipeline actually honour the rate it claims?</b> It did not — and had never
+      done so. Four days, five rounds, and twelve separate defects later, it did.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>You cannot trust a measurement made by an uncalibrated instrument. Every confusing
+      result in the previous entry was computed against a time step that was
+      <em>fifteen times wrong</em>.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">A missing utility, and a sleep that never slept</a></li>
+        <li><a href="#c2">Three clocks, and which one the analyzer needs</a></li>
+        <li><a href="#c3">The consumer was strangling the producer</a></li>
+        <li><a href="#c4">The pause that was secretly doing something else</a></li>
+        <li><a href="#c5">Two checks that were wrong about healthy data</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The headline bug</div>
+      <h2>A missing utility, and a sleep that never slept</h2>
+
+      <p>The first calibration run took three snapshots over fifteen seconds with the sampling
+      interval configured to 100 milliseconds. The measured interval — the time the guest was
+      actually allowed to run between snapshots — was <b>0.0066 seconds</b>. The virtual machine
+      was <span class="term" data-term="pausefrac">frozen</span> for 99.8% of the wall clock.</p>
+
+      <p>The cause was six lines of shell:</p>
+
+      <pre class="code">if command -v bc &amp;&gt;/dev/null; then
+  sleep "$(echo "scale=3; $intervalMsec/1000" | bc)"
+else
+  <span class="cm"># bash integer arithmetic: 100 / 1000 == 0</span>
+  sleep "$(( intervalMsec / 1000 ))"
+fi</pre>
+
+      <p>The calculator utility <code class="ic">bc</code> was not installed on the capture server.
+      So the fallback ran, and integer division took 100 milliseconds to zero. The command was
+      <code class="ic">sleep 0</code>. <b><span class="term" data-term="interval">The interval setting</span> had never set anything at all.</b></p>
+
+      <div class="callout weak"><div class="clab">Why this is worse than a slow pipeline</div>
+        <p>The analyzer was told the spacing between frames was 0.100 seconds. It was 0.0066.
+        Every frequency it computed was therefore placed <b>fifteen times wrong</b> on the
+        spectrum. Workloads with genuinely different rhythms were being compared on a mislabelled
+        axis — which is exactly the "confusion between workloads that should have separated
+        easily" from the previous entry.</p></div>
+
+      <div class="analogy"><div class="cardlab">Analogy</div>
+        <p>Filming something at an unknown frame rate and then playing it back assuming 24 frames
+        per second. Nothing in the footage is corrupt. Every conclusion about how fast anything
+        moved is wrong.</p></div>
+
+      <p>After installing the missing utility, the second run measured <b>0.125 s ± 5 ms</b> at a
+      100 ms setting — the requested interval plus about 25 ms of unavoidable shell bookkeeping,
+      stable to within 4.2%. The knob was connected to reality for the first time.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The bug was not in the analysis, the metric, or the model. It was one absent
+        command-line tool on one server, silently swallowed by a fallback written to be helpful.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The reframe</div>
+      <h2>Three clocks, and which one the analyzer needs</h2>
+
+      <p>The instrumentation added six timestamps around every <span class="term" data-term="snapshot">snapshot</span>: before the freeze, after
+      the freeze is confirmed, either side of the memory copy, and either side of the thaw. With
+      those in place, a confusion that had already produced one wrong conclusion could be named
+      and separated.</p>
+
+      <p>The study that opens this period does so with a correction against <em>its own earlier
+      revision</em>, which had "conflated host wall-clock cost per snapshot with analysis frame
+      spacing in guest time" and concluded the effective time step was 2.5 to 5.5 seconds.
+      Its verdict on itself: <b>"That conclusion was incorrect."</b></p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 660 250" role="img" aria-label="One snapshot cycle divided into freeze, copy, thaw and run phases, showing that the guest clock only advances during the run phase">
+          <rect x="40" y="52" width="52" height="34" rx="4" class="f-wash s-hair"/>
+          <rect x="92" y="52" width="180" height="34" rx="0" class="f-tint s-hair"/>
+          <rect x="272" y="52" width="46" height="34" rx="0" class="f-wash s-hair"/>
+          <rect x="318" y="52" width="118" height="34" rx="4" class="f-acc"/>
+          <text x="66" y="74" text-anchor="middle" class="lbl-m" font-size="10">freeze</text>
+          <text x="182" y="74" text-anchor="middle" class="lbl-m" font-size="10.5">copy all memory</text>
+          <text x="295" y="74" text-anchor="middle" class="lbl-m" font-size="10">thaw</text>
+          <text x="377" y="74" text-anchor="middle" class="lbl" font-size="10.5" fill="#fff">guest runs</text>
+
+          <text x="40" y="42" class="lbl-m" font-size="9.5">guest is frozen for all of this</text>
+
+          <line x1="318" y1="100" x2="436" y2="100" class="s-acc"/>
+          <line x1="318" y1="95" x2="318" y2="105" class="s-acc"/><line x1="436" y1="95" x2="436" y2="105" class="s-acc"/>
+          <text x="446" y="104" class="lbl-a" font-size="11">Axis A — what the analyzer needs</text>
+          <text x="446" y="118" class="lbl-m" font-size="10">the only time the workload advances</text>
+
+          <line x1="40" y1="130" x2="436" y2="130" class="s-mut dash"/>
+          <line x1="40" y1="125" x2="40" y2="135" class="s-mut"/><line x1="436" y1="125" x2="436" y2="135" class="s-mut"/>
+          <text x="446" y="134" class="lbl-m" font-size="11">Axis B — host wall-clock per snapshot</text>
+          <text x="446" y="148" class="lbl-m" font-size="10">what a stopwatch in the room measures</text>
+
+          <text x="40" y="184" class="lbl" font-size="11.5">The mistake: using B where A was required.</text>
+          <text x="40" y="204" class="lbl-m" font-size="11">Copying a gigabyte takes seconds of host time, but the guest is</text>
+          <text x="40" y="220" class="lbl-m" font-size="11">frozen throughout — so none of it counts toward the workload's clock.</text>
+        </svg>
+        <figcaption><b>Fig 2.1</b> The guest's clock advances only in the shaded segment. Reading
+        the pipeline line by line to establish this is what corrected the earlier conclusion.</figcaption>
+      </figure>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>Two different questions were being answered with one number. "How often does the
+        workload get a moment to run?" and "how long does one full snapshot cost me in real
+        time?" are not the same, and only the first belongs on a frequency axis.</p></div>
+
+      <div class="callout note"><div class="clab">A number worth keeping</div>
+        <p>Copying one gigabyte of guest memory measured <b>0.755 s ± 0.010</b>, about a third of
+        the 2.5 s the original planning document had assumed. Meanwhile <em>confirming</em> the
+        freeze averaged 3.66 s with wild variance — dominated not by the copy but by a polling
+        loop waiting for the machine to report itself paused. The expensive part was not the part
+        anyone had budgeted for.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The isolation test</div>
+      <h2>The consumer was strangling the producer</h2>
+
+      <p>The pipeline has two halves: one takes snapshots, the other computes differences between
+      them. Running the second half with the first was making the first far slower than anyone
+      had attributed to it. Turning the consumer off and re-measuring:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Measurement</th><th>Consumer running</th><th>Consumer off</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>Confirming the freeze</td><td>6.380 s</td><td>0.062 s</td><td><b>102× faster</b></td></tr>
+          <tr><td>Copying memory</td><td>1.720 s</td><td>0.900 s</td><td>1.9× faster</td></tr>
+          <tr><td>Full cycle</td><td>9.253 s</td><td>1.642 s</td><td>5.6× faster</td></tr>
+          <tr><td>Time guest spent frozen</td><td>99.8%</td><td>92.3%</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>And the trade-off across sampling rates, measured rather than assumed — the fraction of
+      real time the guest spends frozen, at each interval setting:</p>
+
+      <pre class="code">interval    100ms   250ms   500ms   1000ms   2000ms
+frozen      92.5%   84.8%   74.2%   59.4%    42.5%</pre>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>This table is the honest price list for the whole method. Sampling four times faster
+        does not cost four times more — it costs a steadily larger share of the guest's life,
+        and past a point the machine barely runs at all. Every later decision about sampling rate
+        is an argument with this table.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The best bug of the four days</div>
+      <h2>The pause that was secretly doing something else</h2>
+
+      <p>The producer had a half-second pause after each copy, put there to let the filesystem
+      settle. The question was whether removing it made things faster. The experiment said yes.
+      Then a later round said no, decisively, in the opposite direction:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th></th><th>Round 3 · cleanup on</th><th>Round 4 · cleanup off</th></tr></thead>
+        <tbody>
+          <tr><td>Effect of removing the pause</td><td><b>−0.515 s</b> (faster)</td><td><b>+2.466 s</b> (slower)</td></tr>
+          <tr><td>Copy time, 5th snapshot</td><td>0.77 s</td><td>1.95 s</td></tr>
+          <tr><td>Copy time, 6th snapshot</td><td>0.77 s</td><td><b>7.25 s</b></td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The only difference between the rounds was that the second had dump cleanup switched off,
+      deliberately, so a different check would have files left to inspect. With cleanup off, dirty
+      pages piled up, and by the sixth snapshot every memory copy was blocked waiting for the
+      operating system to flush them to disk.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The half-second pause was never a filesystem courtesy. It was accidentally acting as a
+        <b>dirty-page barrier</b> — and its benefit only appeared once a different setting made
+        dirty pages accumulate. Two knobs that looked independent were coupled through the kernel.</p></div>
+
+      <p>The resolution was to measure before the drift set in. Recomputing on the first five
+      snapshots recovered the original answer (−0.481 s), and the sign of the result turns out to
+      depend entirely on how many snapshots you average over:</p>
+
+      <pre class="code">first 5 snapshots   −0.481 s   <span class="cm">removing the pause helps</span>
+first 6 snapshots   −0.291 s
+first 7 snapshots   +0.609 s   <span class="cm">← the answer flips sign here</span>
+first 10 snapshots  +2.466 s   <span class="cm">drift now dominates the average</span></pre>
+
+      <p>The fix was one line — change the default window from ten snapshots to five — justified
+      directly off the point where the drift begins. Final verdict, written by the orchestrator
+      into its own results file:</p>
+
+      <div class="study">
+        <div class="scite">Round 5 verdict · 2026-05-21</div>
+        <p class="sfind">"<b>REMOVE the flush</b> — dumps remain intact and host_dt drops by
+        0.380 s (25.0%) on the first-5 comparison."</p>
+        <p class="srel">About a tenth of the wall-clock cost of every snapshot, for the rest of the
+        project. Twelve mechanisms and bugs were closed across the five rounds.</p>
+      </div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The recurring shape</div>
+      <h2>Two checks that were wrong about healthy data</h2>
+
+      <p>Two of the four experiments in this round produced garbage, and in both cases the fault
+      was in the checking apparatus rather than the pipeline.</p>
+
+      <p><b>The first.</b> Every result file reported zero dumps removed, and memory copies that
+      should have taken under a second were taking 15 to 31. The deletion call was failing with a
+      permission error — because deleting a file requires write permission on the
+      <em>directory</em>, not on the file. The dumps had been given to the right user; the folder
+      they sat in had not. Roughly 50 GB accumulated, and by the time that experiment ran, every
+      measurement was really measuring "writing a gigabyte to a nearly full disk". The
+      note in the record is blunt: <b>discard</b>.</p>
+
+      <p><b>The second.</b> A check meant to confirm the memory images were not corrupt reported
+      all five as corrupt. It worked by looking for non-zero bytes near the middle and end of the
+      image. The virtual machine was idle, so the top of its physical memory was mostly zeroes.
+      The files were exactly the right size and perfectly valid. <b>The probe was wrong, not the
+      data.</b></p>
+
+      <div class="callout test"><div class="clab">How to test</div>
+        <p>The discipline adopted for this whole period was one rule: <b>"no JSON, no claim."</b>
+        Nothing counted as a finding unless a machine-written results file backed it. That is what
+        made both of these catchable — the contradiction showed up as a field reading zero, not as
+        a vague sense that something was off.</p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Two limits were recorded at the time and still hold. Every number here is a property of
+        <em>one host machine</em> — a different server would re-open all of it. And the whole
+        calibration was done against an idle guest, so it characterises the instrument, not the
+        instrument under load.</p></div>
+
+      <p>This is the first appearance of a pattern that recurs three more times in this diary: a
+      tool that gives a confident, wrong verdict about data that is fine. Entry 10 has the version
+      of it that nearly invalidated a whole campaign.</p>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Snapshot</dt><dd>One complete copy of the virtual machine's memory, taken while the machine is frozen. The whole method is built on comparing consecutive ones.</dd></div>
+        <div class="gitem"><dt>Sampling interval</dt><dd>How long the guest is allowed to run between two snapshots. The knob this entry is about — and the one that turned out not to be connected to anything.</dd></div>
+        <div class="gitem"><dt>Pause fraction</dt><dd>The share of real time the guest spends frozen rather than running. Sampling faster does not cost proportionally more — it costs a steadily larger share of the machine's life.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan01_overview.html</b> — the calibrated readout and the 15× framing. <code class="ic">VM_sampler/VM_Capture_QEMU/docs/</code>.</li>
+        <li id="r2"><b>TIMING_EXPERIMENT_1_CONCLUSIONS.md</b>, <b>EXP2_RESULTS.md</b> — the five rounds, raw.</li>
+        <li id="r3"><b>SNAPSHOT_INTERVAL_TUNING_STUDY.md</b> — the three time axes, and the correction against its own earlier revision.</li>
+        <li id="r4"><b>capture_producer_qemu_pmemsave.sh</b> — the fallback branch, around line 190.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson1.html"><div class="nd">Previous</div><div class="nt">← 4 · The confusion that started it</div></a>
+      <a class="n-next" href="lesson3.html"><div class="nd">Next entry</div><div class="nt">6 · The workload was a label, not a variable →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 5</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "snapshot": [
+          "Snapshot",
+          "One complete copy of the virtual machine's memory, taken while the machine is frozen. The whole method is built on comparing consecutive ones."
+      ],
+      "interval": [
+          "Sampling interval",
+          "How long the guest is allowed to run between two snapshots. The knob this entry is about — and the one that turned out not to be connected to anything."
+      ],
+      "pausefrac": [
+          "Pause fraction",
+          "The share of real time the guest spends frozen rather than running. Sampling faster does not cost proportionally more — it costs a steadily larger share of the machine's life."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

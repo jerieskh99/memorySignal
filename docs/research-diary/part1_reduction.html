@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The reduction — Reading Memory</title>
+<meta name="description" content="Before any detector or any result: the chain of decisions that turns two gigabytes of memory into one number worth trusting.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it set up"}</style>
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a class="here" href="part1_reduction.html">1 · The reduction</a>
+      <a href="part1_thesis.html">2 · The verdict</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part One<span class="sep">/</span>Entry 1</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Part One · The reasoning</div>
+      <div class="lnum">Entry 1 of 12 · September 2024 – February 2025</div>
+      <h1>The reduction</h1>
+      <p class="dek">Before any detector, any dataset, any result — a chain of decisions about
+      how to turn <b>two gigabytes of memory</b> into <b>one number worth trusting</b>. This entry
+      is the reasoning. The verdict on whether it worked comes next.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>Every step in this pipeline is a reduction, and each one was chosen for a
+      <em>physical</em> reason before it was chosen for a mathematical one.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">Stop reading memory. Start listening to it.</a></li>
+        <li><a href="#c2">Five reductions, one after another</a></li>
+        <li><a href="#c3">Two questions in every change</a></li>
+        <li><a href="#c4">Where it happened is noise. What kind is signal.</a></li>
+        <li><a href="#c5">Bracket everything, trust neither extreme</a></li>
+        <li><a href="#c6">Never commit to one lens</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The founding move</div>
+      <h2>Stop reading memory. Start listening to it.</h2>
+
+      <p>Traditional memory forensics reads memory: parse the structures, walk the process list,
+      identify what a region of bytes is <em>for</em>. That requires knowing what you're looking
+      at — a different parser for every operating system, every version, every kind of process.</p>
+
+      <p>The move underneath everything here is to refuse that entirely. Never ask what a byte
+      means. Only ask whether it <em>changed</em>. The abstract names the result a
+      <b>"MEMORY ECG,"</b> and the analogy is doing real work rather than decorating it — a
+      cardiologist does not need to know which heart cells fired to read an irregular trace as
+      irregular. That is the whole warrant for detecting something without knowing what it
+      is.<sup class="c"><a href="#r1">1</a></sup></p>
+
+      <p>But the deeper framing underneath the ECG is musical, and it is the one that actually
+      decides which tools get picked up later:</p>
+
+      <div class="study">
+        <div class="scite">defence presentation, slide 08 · "Multi-Lens Analysis"</div>
+        <p class="sfind">"Each routine is a <b>'note' in a symphony</b>, played by a unique
+        instrument. Memory operates like a complex musical arrangement. <b>Anomalies alter the
+        expected harmonics</b>, disrupting stability."</p>
+        <p class="srel">If memory is a symphony, the natural question is about harmonic
+        structure — which is why a <span class="term" data-term="cepstrum">pitch-detection
+        technique borrowed from speech processing</span> ends up in a memory-forensics project at
+        all. Nobody reaches for that tool unless they already believe the target is something you
+        listen to.</p>
+      </div>
+
+      <div class="analogy"><div class="cardlab">Analogy</div>
+        <p>Two doctors examine the same patient. One reads a chart of symptoms and looks each one
+        up. The other puts a stethoscope to the chest and listens for whether the rhythm sounds
+        right. Neither needs to know what disease they're hearing yet — only whether the rhythm has
+        changed from what a healthy one sounds like.</p></div>
+
+      <div class="callout note"><div class="clab">A tell worth noticing</div>
+        <p>The symphony metaphor, and a companion one describing the data as a <em>"memory
+        blanket"</em> stretched across pages and time, appear only in the slides used to persuade a
+        room. Neither survives into the formal thesis text.<sup class="c"><a href="#r2">2</a></sup>
+        The intuition is load-bearing and gets suppressed the moment the writing turns formal — a
+        pattern worth watching for, because it means the plainest statement of the idea is not in
+        the document that is supposed to contain it.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The reduction, named</div>
+      <h2>Five reductions, one after another</h2>
+
+      <p>"Listen, don't read" is the philosophy. What actually has to happen, mechanically, is a
+      chain of five reductions — each one throwing away information on purpose, each one
+      justified by what the next step needs and nothing more.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 470" role="img" aria-label="Five reduction stages: a two gigabyte memory dump narrows step by step into one page, two numbers, one complex number, and finally one score">
+          <style>
+            .stg{fill:var(--paper,#fff);stroke:var(--hair);stroke-width:1.4;transition:stroke .2s}
+            @keyframes lit{0%,78%,100%{stroke:var(--hair);stroke-width:1.4}
+                           12%,22%{stroke:var(--accent);stroke-width:2.2}}
+            .s1{animation:lit 6s ease-in-out infinite; animation-delay:0s}
+            .s2{animation:lit 6s ease-in-out infinite; animation-delay:1.05s}
+            .s3{animation:lit 6s ease-in-out infinite; animation-delay:2.1s}
+            .s4{animation:lit 6s ease-in-out infinite; animation-delay:3.15s}
+            .s5{animation:lit 6s ease-in-out infinite; animation-delay:4.2s}
+            @keyframes travel{
+              0%{transform:translateY(0px); opacity:0}
+              6%{opacity:1}
+              88%{opacity:1}
+              96%{transform:translateY(392px); opacity:0}
+              100%{transform:translateY(392px); opacity:0}
+            }
+            .dot{animation:travel 6s ease-in-out infinite}
+            @media (prefers-reduced-motion: reduce){
+              .s1,.s2,.s3,.s4,.s5,.dot{animation:none !important}
+              .dot{opacity:0}
+            }
+          </style>
+
+          <rect class="stg s1" x="60" y="18" width="520" height="52" rx="9"/>
+          <text x="320" y="40" text-anchor="middle" class="lbl" font-size="12">Two gigabytes of guest memory</text>
+          <text x="320" y="58" text-anchor="middle" class="lbl-m" font-size="10.5">too much to reason about directly, all at once</text>
+
+          <line x1="320" y1="70" x2="320" y2="102" class="s-hair"/>
+          <path d="M 314 96 L 320 106 L 326 96" class="s-hair no"/>
+
+          <rect class="stg s2" x="110" y="106" width="420" height="48" rx="9"/>
+          <text x="320" y="126" text-anchor="middle" class="lbl" font-size="12">One 4096-byte page, versus its own last version</text>
+          <text x="320" y="143" text-anchor="middle" class="lbl-m" font-size="10.5">reduction 1 — from a whole machine to one unit of it</text>
+
+          <line x1="320" y1="154" x2="320" y2="186" class="s-hair"/>
+          <path d="M 314 180 L 320 190 L 326 180" class="s-hair no"/>
+
+          <rect class="stg s3" x="160" y="190" width="320" height="46" rx="9"/>
+          <text x="320" y="209" text-anchor="middle" class="lbl" font-size="12">Two numbers: how much moved, which way</text>
+          <text x="320" y="226" text-anchor="middle" class="lbl-m" font-size="10.5">reduction 2 — from raw bytes to two measurements</text>
+
+          <line x1="320" y1="236" x2="320" y2="268" class="s-hair"/>
+          <path d="M 314 262 L 320 272 L 326 262" class="s-hair no"/>
+
+          <rect class="stg s4" x="205" y="272" width="230" height="44" rx="9"/>
+          <text x="320" y="290" text-anchor="middle" class="lbl" font-size="12">One complex number, per page</text>
+          <text x="320" y="307" text-anchor="middle" class="lbl-m" font-size="10.5">reduction 3 — two measurements fused into one object</text>
+
+          <line x1="320" y1="316" x2="320" y2="348" class="s-hair"/>
+          <path d="M 314 342 L 320 352 L 326 342" class="s-hair no"/>
+
+          <rect class="stg s5" x="235" y="352" width="170" height="42" rx="9"/>
+          <text x="320" y="369" text-anchor="middle" class="lbl" font-size="12">A block, transformed into shape</text>
+          <text x="320" y="386" text-anchor="middle" class="lbl-m" font-size="10.5">reduction 4 — many pages and moments, tiled</text>
+
+          <line x1="320" y1="394" x2="320" y2="410" class="s-hair"/>
+
+          <circle class="dot" cx="320" cy="66" r="5" fill="var(--accent)"/>
+
+          <rect x="255" y="414" width="130" height="40" rx="9" class="f-acc no"/>
+          <text x="320" y="433" text-anchor="middle" class="lbl" font-size="12" fill="#fff">One score</text>
+          <text x="320" y="448" text-anchor="middle" class="lbl" font-size="10" fill="#fff">reduction 5 — normal, or not</text>
+        </svg>
+        <figcaption><b>Fig 1.1</b> Five throw-away decisions, each justified by the one after it.
+        Every entry in this diary lives somewhere on this ladder.</figcaption>
+      </figure>
+
+      <p>The move from "keep every snapshot" to "keep only what changed between them" is not just
+      cheaper. It has a name in signal processing, and the theoretical notes reach for it directly.
+      Fourier analysis has an exact, clean relationship between a function and its derivative:</p>
+
+      <div class="eq center"><span class="eqn">differentiation property</span>
+        <b>ℱ{ f′(t) }(ω) = jω · ℱ{ f(t) }(ω)</b></div>
+
+      <p>and the note beside it: this is "foundational in signal processing, especially when
+      analysing how <b>small changes (deltas)</b> in the signal relate to the original
+      signal."<sup class="c"><a href="#r3">3</a></sup> The claim underneath reduction 1 is not "a
+      difference is a cheap trick." It is <b>a difference is a derivative</b> — and there is an
+      entire discipline already built for what to do with one of those.</p>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>You cannot compare two-gigabyte files to each other directly and learn anything. So you
+        cut the problem down, again and again, until what's left is small enough to reason about —
+        and the whole question of whether the method works is really the question of whether each
+        cut kept the right thing and threw away the wrong thing.</p></div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>A method built this way can fail at any one of five separate steps without the others
+        being wrong. That is not a weakness of the design — it is what makes each step checkable in
+        isolation, which is exactly the habit Part Two spends a year building tools for.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">Reduction 2 and 3, in detail</div>
+      <h2>Two questions in every change</h2>
+
+      <p>Reduction 2 asks one page two separate questions. <b>How much</b> changed — a count of
+      individual bits that flipped, called the <span class="term" data-term="hamming">Hamming
+      distance</span>. And <b>in what way</b> — treat the page as a long list of numbers, and ask
+      how far its direction moved, called the
+      <span class="term" data-term="cosine">cosine distance</span>.</p>
+
+      <p>Reduction 3 refuses to keep those as two separate numbers. It fuses them into
+      <span class="term" data-term="complex">one complex number</span> — a length and an angle,
+      together.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 250" role="img" aria-label="A page comparison produces two numbers, magnitude and direction, which are combined into the length and angle of one vector">
+          <style>
+            @keyframes spin{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+            .rotv{ animation:spin 11s linear infinite; transform-origin:150px 125px }
+            @media (prefers-reduced-motion: reduce){ .rotv{animation:none} }
+          </style>
+
+          <text x="24" y="26" class="lbl-m" font-size="10.5">one page, compared with its past self</text>
+          <rect x="24" y="34" width="76" height="100" rx="5" class="f-wash s-hair"/>
+          <rect x="124" y="34" width="76" height="100" rx="5" class="f-wash s-hair"/>
+          <rect x="124" y="60" width="76" height="24" class="f-acc"/>
+          <path d="M 210 84 L 250 84" class="s-ink" marker-end="url(#a2)"/>
+          <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ink"/></marker></defs>
+          <text x="66" y="150" text-anchor="middle" class="lbl-m" font-size="9.5">before</text>
+          <text x="162" y="150" text-anchor="middle" class="lbl-m" font-size="9.5">after</text>
+
+          <rect x="258" y="52" width="118" height="34" rx="6" class="f-paper s-acc"/>
+          <text x="317" y="73" text-anchor="middle" class="lbl" font-size="10.5">how much? · length</text>
+          <rect x="258" y="94" width="118" height="34" rx="6" class="f-paper s-acc"/>
+          <text x="317" y="115" text-anchor="middle" class="lbl" font-size="10.5">which way? · angle</text>
+
+          <circle cx="150" cy="200" r="0" fill="none"/>
+          <g transform="translate(400,0)">
+            <circle cx="150" cy="125" r="58" class="no s-hair"/>
+            <line x1="92" y1="125" x2="208" y2="125" class="s-hair"/>
+            <line x1="150" y1="67" x2="150" y2="183" class="s-hair"/>
+            <g class="rotv">
+              <line x1="150" y1="125" x2="150" y2="72" class="s-acc"/>
+              <circle cx="150" cy="72" r="4" class="f-acc"/>
+            </g>
+            <text x="150" y="220" text-anchor="middle" class="lbl-m" font-size="10">length + angle = one vector</text>
+          </g>
+        </svg>
+        <figcaption><b>Fig 1.2</b> Two independent measurements, fused into a single object with a
+        length and an angle — a page's whole story of change, in one value.</figcaption>
+      </figure>
+
+      <p>The justification given at the time is geometric: a complex number is the canonical
+      container for exactly two things, a size and a direction, and the thesis cites Brown and
+      Churchill's <em>Complex Variables and Applications</em> directly on this
+      point.<sup class="c"><a href="#r1">1</a></sup> The reason that actually mattered downstream
+      is more practical, and the defence deck says it more plainly than the thesis does — a
+      genuinely complex-valued signal <b>"enables frequency-based and phase-coherent
+      analysis."</b><sup class="c"><a href="#r2">2</a></sup> Fourier transforms, cepstrum, complex
+      wavelets — all of them natively expect a complex number. Feed them a single real value and
+      half the machinery goes unused.</p>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>One page, one value, and that value already knows both how much changed and in what
+        direction. Every transform downstream inherits both facts for free, instead of having to
+        track two separate numbers through the rest of the pipeline.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">A second, quieter reduction</div>
+      <h2>Where it happened is noise. What kind is signal.</h2>
+
+      <p>A page's address in memory is close to arbitrary — the same program can allocate the same
+      structure at a different address on every run, depending on the allocator's mood that day. So
+      a representation that keys on <em>where</em> a change happened is measuring the memory
+      allocator, not the program.</p>
+
+      <p>This is the reasoning behind reaching for
+      <span class="term" data-term="scattering">wavelet scattering</span> as a fourth lens later
+      on, and the theoretical notes say the quiet part directly: the transform is chosen because it
+      gives <b><span class="term" data-term="invariance">translation invariance</span></b> —
+      features "robust to changes in position (i.e., where
+      the change occurs within the memory)."<sup class="c"><a href="#r3">3</a></sup></p>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>Two runs of the identical program, on the identical input, can dirty completely
+        different addresses. If the method cares about address, it will call those two runs
+        different. If it cares only about the <em>shape</em> of the change, it will correctly call
+        them the same.</p></div>
+
+      <div class="callout note"><div class="clab">A thread that resurfaces</div>
+        <p>This exact reasoning — location is noise, pattern is signal — gets rediscovered from
+        scratch a year later, applied to a completely different question. It is not a coincidence.
+        It is the same intuition, load-bearing enough to survive a full reset of the project.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">A recurring habit</div>
+      <h2>Bracket everything, trust neither extreme</h2>
+
+      <p>Two structural choices had to be made early and cannot be tuned away later: how big is one
+      unit of comparison (a <em>page</em>, fixed at 4096 bytes), and how many pages get processed
+      together at once (a <em>chunk</em>, fixed at 256 kilobytes). Neither number comes from a
+      formula. Both come from the same reasoning move, applied twice.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 150" role="img" aria-label="The chosen page size sits between two failure modes: too small and noise dominates, too large and detail is lost">
+          <line x1="60" y1="80" x2="580" y2="80" class="s-hair"/>
+          <circle cx="120" cy="80" r="5" class="f-wash s-mut"/>
+          <circle cx="320" cy="80" r="7" class="f-acc"/>
+          <circle cx="520" cy="80" r="5" class="f-wash s-mut"/>
+
+          <text x="120" y="106" text-anchor="middle" class="lbl-m" font-size="10.5">smaller unit</text>
+          <text x="120" y="120" text-anchor="middle" class="lbl-m" font-size="9.5">minor fluctuations look huge</text>
+
+          <text x="320" y="60" text-anchor="middle" class="lbl-a" font-size="11">4096 bytes — the page</text>
+          <text x="320" y="106" text-anchor="middle" class="lbl-m" font-size="10.5">chosen: between both failures</text>
+
+          <text x="520" y="106" text-anchor="middle" class="lbl-m" font-size="10.5">larger unit</text>
+          <text x="520" y="120" text-anchor="middle" class="lbl-m" font-size="9.5">real detail gets averaged away</text>
+        </svg>
+        <figcaption><b>Fig 1.3</b> The page-size argument, and the same shape reused for the chunk
+        size. Not derived — bracketed between two named ways it could go wrong.</figcaption>
+      </figure>
+
+      <p>A page too small "would introduce excessive noise due to minor fluctuations." A page too
+      large "would capture fewer details, potentially overlooking significant but subtle
+      changes."<sup class="c"><a href="#r1">1</a></sup> The 256-kilobyte chunk gets the identical
+      treatment — too small and thread-management overhead dominates the work; too large and the
+      parallelism that made per-page comparison affordable disappears.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>Neither value is derived from theory. Both are placed in the middle of two named failure
+        modes. That is a real form of justification, just not a formula — and it is worth naming
+        as its own move, because it repeats at nearly every hyperparameter choice in this project,
+        two years apart.</p></div>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">A principle, not yet a result</div>
+      <h2>Never commit to one lens</h2>
+
+      <p>Reduction 4 needs a transform — a way of turning a tiled block of these complex values into
+      shape. There were four real candidates, each seeing something different in the same data.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 170" role="img" aria-label="One block of data passes through four different transforms in parallel, and a comparison decides afterward which one carries the signal">
+          <rect x="24" y="66" width="90" height="40" rx="7" class="f-tint s-hair"/>
+          <text x="69" y="90" text-anchor="middle" class="lbl" font-size="11">one block</text>
+
+          <path d="M 118 86 L 150 40" class="s-hair"/>
+          <path d="M 118 86 L 150 70" class="s-hair"/>
+          <path d="M 118 86 L 150 100" class="s-hair"/>
+          <path d="M 118 86 L 150 130" class="s-hair"/>
+
+          <circle cx="176" cy="34" r="24" class="f-paper s-acc"/><text x="176" y="39" text-anchor="middle" class="lbl-a" font-size="12">F</text>
+          <circle cx="176" cy="82" r="24" class="f-paper s-acc"/><text x="176" y="87" text-anchor="middle" class="lbl-a" font-size="12">W</text>
+          <circle cx="176" cy="130" r="24" class="f-paper s-acc"/><text x="176" y="135" text-anchor="middle" class="lbl-a" font-size="12">C</text>
+          <circle cx="176" cy="154" r="0" fill="none"/>
+          <text x="230" y="38" class="lbl-m" font-size="10">Fourier — the global rhythm</text>
+          <text x="230" y="86" class="lbl-m" font-size="10">Wavelets — a zoom lens across scales</text>
+          <text x="230" y="134" class="lbl-m" font-size="10">Cepstrum — a rhythm within the rhythm</text>
+
+          <path d="M 200 34 L 460 34" class="s-hair dash"/>
+          <path d="M 200 82 L 460 82" class="s-hair dash"/>
+          <path d="M 200 130 L 460 130" class="s-hair dash"/>
+
+          <rect x="466" y="60" width="150" height="50" rx="8" class="f-wash s-acc"/>
+          <text x="541" y="80" text-anchor="middle" class="lbl-a" font-size="11">compare, afterward</text>
+          <text x="541" y="96" text-anchor="middle" class="lbl-a" font-size="10">not decided in advance</text>
+        </svg>
+        <figcaption><b>Fig 1.4</b> Four lenses run in parallel on the same block. Which one carries
+        the signal is left open — the comparison itself is the method.</figcaption>
+      </figure>
+
+      <p>Fourier gives the global rhythm, at the cost of assuming the rhythm doesn't change
+      character over time. A <span class="term" data-term="wavelet">wavelet transform</span> gives
+      a zoom lens instead — coarse structure and fine detail at once,
+      described in the deck as "an adjustable zoom lens."<sup class="c"><a href="#r2">2</a></sup>
+      Cepstrum asks whether the harmonic structure <em>itself</em> repeats. A fourth lens, wavelet
+      scattering, gets added specifically because it needs no training data — fixed mathematical
+      filters standing in for a neural network, chosen because labelled data was
+      scarce.<sup class="c"><a href="#r1">1</a></sup></p>
+
+      <div class="callout idea"><div class="clab">The habit, stated plainly</div>
+        <p><b>When it isn't clear in advance which representation is right, instrument all of them
+        and let the comparison be the contribution.</b> Not one model — a results table. This is
+        why the thesis's central deliverable reads like a comparison rather than a verdict, and it
+        is a habit that reappears at nearly every scale of this project afterward: three metrics
+        per page, seven wavelet families, sixty-four feature columns two years later.</p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Which lens actually wins is not decided here, on purpose. This entry is the reasoning
+        before the measurement. What each lens actually scored — and the one result that made its
+        own author refuse to believe it — is next.</p></div>
+    </div></div></section>
+
+    <!-- GLOSSARY -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Cepstrum</dt><dd>A transform that looks for repeating patterns in a signal's frequency content rather than in the signal itself. Borrowed from speech processing, where it detects pitch.</dd></div>
+        <div class="gitem"><dt>Hamming distance</dt><dd>The count of individual bits that differ between two blocks of the same size. Measures how much of a page was rewritten between two snapshots — magnitude, not direction.</dd></div>
+        <div class="gitem"><dt>Cosine distance</dt><dd>Treat a page as a long list of numbers and ask how far its direction has rotated from where it was. Zero means the direction didn't change at all; it says nothing about how much the content changed.</dd></div>
+        <div class="gitem"><dt>Complex number encoding</dt><dd>Fusing the two page measurements — how much and which way — into one value with a length and an angle, instead of tracking them as two separate numbers through the rest of the pipeline.</dd></div>
+        <div class="gitem"><dt>Wavelet transform</dt><dd>A way of decomposing a signal that keeps both coarse, large-scale structure and fine, local detail at once — unlike a plain frequency transform, which sees the whole rhythm but loses exactly when each part happened.</dd></div>
+        <div class="gitem"><dt>Wavelet scattering transform</dt><dd>A cascade of wavelet transforms with fixed, untrained filters, producing features that don't shift just because the underlying pattern moved to a different location. Used here specifically because it needs no training data.</dd></div>
+        <div class="gitem"><dt>Translation invariance</dt><dd>A property where a representation gives the same answer regardless of where in the data the pattern occurred. The reasoning behind it: a memory address is close to arbitrary, so location shouldn't be allowed to matter.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>anomaly_detection_through_memory_fingerprinting.pdf</b> (107 pp, 2025-01-28) — §2.1, §2.5.4, §4.3.1. <em>Read by a research agent, not by me directly — treat quoted figures as second-hand.</em></li>
+        <li id="r2"><b>defence presentation</b> (47 pp, defended 2025-02-05) — slides 08, 11, 21. <em>Second-hand, as above.</em></li>
+        <li id="r3"><b>wavelet_feature_extraction_theoretical.pdf</b> — the translation-invariance rationale. <em>Traced — I read this document directly.</em></li>
+        <li id="r4"><b>The "five reductions" framing and "bracket everything" naming</b> — <em>inferred.</em> No document states either as a named principle; both are assembled from re-reading the pipeline and the recurring justification pattern across two years of documents.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="index.html"><div class="nd">Back to</div><div class="nt">← All entries</div></a>
+      <a class="n-next" href="part1_thesis.html"><div class="nd">Next entry</div><div class="nt">2 · The score he didn't believe →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Part One · Entry 1</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+    "cepstrum": ["Cepstrum", "A transform that looks for repeating patterns in a signal's frequency content rather than in the signal itself. Borrowed from speech processing, where it detects pitch."],
+    "hamming": ["Hamming distance", "The count of individual bits that differ between two blocks of the same size. Measures how much of a page was rewritten between two snapshots — magnitude, not direction."],
+    "cosine": ["Cosine distance", "Treat a page as a long list of numbers and ask how far its direction has rotated from where it was. Zero means the direction didn't change at all; it says nothing about how much the content changed."],
+    "complex": ["Complex number encoding", "Fusing the two page measurements — how much and which way — into one value with a length and an angle, instead of tracking them as two separate numbers through the rest of the pipeline."],
+    "wavelet": ["Wavelet transform", "A way of decomposing a signal that keeps both coarse, large-scale structure and fine, local detail at once — unlike a plain frequency transform, which sees the whole rhythm but loses exactly when each part happened."],
+    "scattering": ["Wavelet scattering transform", "A cascade of wavelet transforms with fixed, untrained filters, producing features that don't shift just because the underlying pattern moved to a different location. Used here specifically because it needs no training data."],
+    "invariance": ["Translation invariance", "A property where a representation gives the same answer regardless of where in the data the pattern occurred. The reasoning behind it: a memory address is close to arbitrary, so location shouldn't be allowed to matter."]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The workload was a label, not a variable — Reading Memory</title>
+<meta name="description" content="Ninety cells ran clean and passed every gate. None of them had run a workload.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="cache">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson2.html">5 · The 15× lie</a>
+      <a class="here" href="lesson3.html">6 · The label</a>
+      <a href="lesson4.html">7 · The gates</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 6</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plan 02 · Sampling rate</div>
+      <div class="lnum">Entry 6 of 12 · 22–31 May 2026</div>
+      <h1>The workload was a label, not a variable</h1>
+      <p class="dek">With the instrument finally calibrated, the next question was what sampling
+      rate each kind of workload deserves. The first ninety-cell run came back <b>perfectly
+      clean</b> — and completely empty.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>A pipeline can execute flawlessly, pass every health check, and produce a beautifully
+      structured dataset <em>of nothing at all</em>. Passing is not the same as measuring.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">Ninety clean cells with no workload in them</a></li>
+        <li><a href="#c2">The same afternoon, a second wall</a></li>
+        <li><a href="#c3">A health check that could not answer its own question</a></li>
+        <li><a href="#c4">Measuring before building</a></li>
+        <li><a href="#c5">Sampling faster made the answer worse</a></li>
+        <li><a href="#c6">Failing for having succeeded quietly</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The oversight</div>
+      <h2>Ninety clean cells with no workload in them</h2>
+
+      <p>The design was a grid: five sampling rates × three durations × two workloads × three
+      repeats. Ninety cells. It ran overnight, every <span class="term" data-term="cell">cell</span> completed, every operational check
+      passed. Then someone looked at what was in them.</p>
+
+      <div class="study">
+        <div class="scite">experiment_audit.md · Day 7 · 2026-05-22</div>
+        <p class="sfind">"The <code class="ic">cell.workload</code> field is <b>metadata only</b> —
+        it labels the row in the manifest. The orchestrator never SSHes to the VM to launch the
+        workload binary. So the 90 cells contain <b>idle Kali snapshots</b>, not workload memory
+        behavior. The 'workload' label is currently vacuous."</p>
+        <p class="srel">The grid varied five things correctly. The one thing the experiment was
+        about was written down but never done.</p>
+      </div>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 200" role="img" aria-label="The manifest row lists a workload name, but the orchestrator path goes straight from starting the VM to capturing, with no step that launches the workload">
+          <rect x="24" y="30" width="150" height="48" rx="7" class="f-tint s-hair"/>
+          <text x="99" y="50" text-anchor="middle" class="lbl" font-size="11">manifest row</text>
+          <text x="99" y="66" text-anchor="middle" class="lbl-m" font-size="10">workload: mem_sweep</text>
+
+          <path d="M 182 54 L 214 54" class="s-mut dash"/>
+          <text x="198" y="44" text-anchor="middle" class="lbl-m" font-size="9">read as a label</text>
+
+          <rect x="220" y="30" width="104" height="48" rx="7" class="f-paper s-hair"/>
+          <text x="272" y="58" text-anchor="middle" class="lbl" font-size="11">start VM</text>
+          <path d="M 330 54 L 362 54" class="s-ink" marker-end="url(#a3)"/>
+          <defs><marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ink"/></marker></defs>
+
+          <rect x="368" y="30" width="104" height="48" rx="7" class="f-paper s-hair"/>
+          <text x="420" y="58" text-anchor="middle" class="lbl" font-size="11">capture</text>
+          <path d="M 478 54 L 510 54" class="s-ink" marker-end="url(#a3)"/>
+          <rect x="516" y="30" width="104" height="48" rx="7" class="f-paper s-hair"/>
+          <text x="568" y="58" text-anchor="middle" class="lbl" font-size="11">stop VM</text>
+
+          <rect x="292" y="108" width="180" height="42" rx="7" class="f-wash dash s-acc"/>
+          <text x="382" y="126" text-anchor="middle" class="lbl-a" font-size="11">run the workload</text>
+          <text x="382" y="141" text-anchor="middle" class="lbl-a" font-size="10">this step did not exist</text>
+          <path d="M 382 106 L 382 84" class="s-acc dash"/>
+
+          <text x="24" y="180" class="lbl-m" font-size="10.5">Every check the pipeline ran was a check on the pipeline. None asked whether a workload had started.</text>
+        </svg>
+        <figcaption><b>Fig 3.1</b> The gap between a manifest that names a variable and an
+        orchestrator that acts on it. All ninety cells recorded an idle machine.</figcaption>
+      </figure>
+
+      <p>The engineer's summary is the line worth keeping: <b>"We built the matrix correctly but
+      forgot the workload was a <em>variable</em>, not just a label."</b></p>
+
+      <div class="callout idea"><div class="clab">What was done with them</div>
+        <p>The ninety cells were not thrown away. They were relabelled as what they honestly were
+        — a characterisation of the capture pipeline itself, run ninety times under five different
+        sampling rates. That is "the very thing it succeeded at", and the reproducibility numbers
+        from it are cited for weeks afterward.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The double-bind</div>
+      <h2>The same afternoon, a second wall</h2>
+
+      <p>Hours later, with the missing count back-filled, a second problem surfaced. The analysis
+      needs a minimum number of windows per cell to say anything. At the canonical settings,
+      <b>zero of ninety cells reached it</b>. The best cell in the grid produced <em>one</em>
+      <span class="term" data-term="window">window</span>.</p>
+
+      <p>The arithmetic is brutal: reaching the target needs at least 3,328 snapshots. At the
+      fastest sampling rate that is about seven minutes of guest time. At the slowest it is
+      <b>1.87 hours per cell</b> — for a grid of ninety.</p>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>Two separate requirements had been assumed to be one. "Enough windows for the statistics
+        to be stable" and "enough samples for the frequency analysis to have resolution" are
+        different constraints that happen to be written with the same number. Satisfying the second
+        was never budgeted for.</p></div>
+
+      <p>The resolution was to record the count on every cell and <b>not gate on it</b> — window
+      adequacy became the next experiment's question rather than this one's pass criterion. That
+      single decision is why this particular check stays informational for the rest of the
+      project, a detail that matters again in Entry 8.</p>
+
+      <div class="callout idea"><div class="clab">The argument that changed how thresholds get set</div>
+        <p>The plan had said "accept if the score clears 0.8." Someone went and ran the scorer on
+        <em>deliberate nonsense</em> — uniform noise, an off-frequency sine, all-zero memory — and
+        it returned <b>0.41, 0.55, 0.62</b>. So 0.8 was not "noise plus a margin." It was noise
+        plus about 0.2, and nobody knew that.</p>
+        <p>The objection was that 0.8 is a convention from the segmentation literature and doesn't
+        need re-deriving. The counter is the sentence that won:</p>
+        <p><em>"If the noise floor is 0.7, <b>that's the headline finding</b>. We'd be writing
+        'workload pair X separates at F1=0.78' and a reviewer asks 'is 0.78 above noise?' and we
+        don't know. Cheap to find out."</em></p></div>
+
+      <div class="specbox"><div class="alab">Designed, and never actually run</div>
+        <p>A null-baseline probe was specified in detail — idle guest, 250 ms, 5 minutes, three
+        replicates — and made a <b>prerequisite</b> for the pilot. But the numbers that appear
+        beside it in the audit are labelled
+        <em>"simulated for this audit — would be replaced by real run output in production."</em>
+        The worked example is a placeholder, not a measurement.</p>
+        <p>So what this entry establishes is the <b>principle</b>: set the bar from measured noise,
+        not from convention. The first time that principle was genuinely executed was much later,
+        in the audit of Entry 8 — and when it ran for real, it did exactly what the objection
+        predicted. It retired a gate instead of confirming one.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">Adversarial trust</div>
+      <h2>A health check that could not answer its own question</h2>
+
+      <p>Overnight runs kept dying on a locking error: the virtualisation layer refusing a command
+      because another operation held a state-change lock. The first fix polled the machine's
+      reported state until it looked stable, then proceeded. The bug came straight back with a
+      different lock holder.</p>
+
+      <div class="study">
+        <div class="scite">experiment_audit.md · Day 8 · decision D-34</div>
+        <p class="sfind">"<code class="ic">domstate</code> is <b>read-only and does not acquire
+        the state-change lock</b>… My settle saw 'paused' twice in a row (stable!) and exited.
+        <b>Settle was checking the wrong signal.</b>"</p>
+        <p class="srel">The replacement is not a better poll. The settle step became an actual
+        attempt to resume the machine, retried with backoff — because only a successful write
+        proves the write lock is free.</p>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The principle written down that day: <b>don't trust read-only probes when the question
+        is about write availability.</b> Asking "does it look free?" and asking "can I actually
+        have it?" are different questions, and only one of them is the one you need.</p></div>
+
+      <p>Three other defects surfaced in the same session, and one of them is the same species as
+      the ninety empty cells. A cell reported <code class="ic">ok (snapshots=8)</code> where 444
+      were expected — off by fifty-five times, and still marked as a pass, because "ok" had been
+      defined as <em>snapshots greater than zero and no <span class="term" data-term="backpressure">backpressure</span></em>. It was replaced with a
+      quantitative bar: the ratio of snapshots actually taken to snapshots expected.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Two of the four bugs that day were not code at all. One was a placeholder from the
+        operator's manual pasted into a live command verbatim, so the machine dutifully tried to
+        execute a path with angle brackets in it. Another was an interactive password prompt
+        appearing in an unattended overnight run. Neither is glamorous; both cost a night.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The order of operations</div>
+      <h2>Measuring before building</h2>
+
+      <p>To measure the quality metrics at all, the raw memory images have to be kept. Keeping
+      them was arithmetically impossible: a single long cell would produce around
+      <b>445 GB</b>, and the ninety-cell grid would need "many terabytes".</p>
+
+      <p>The obvious move is compression, and the obvious next move is to start writing a
+      compression layer. What actually happened was a decision to <b>run the benchmark first and
+      write no code until it returned</b>. On one real gigabyte-sized memory image:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Method</th><th>Compressed to</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td><b>zstd level 3</b></td><td><b>15.12%</b></td><td>3.1 s</td></tr>
+          <tr><td>zstd level 9</td><td>14.22%</td><td>13.0 s</td></tr>
+          <tr><td>zstd level 19</td><td>12.33%</td><td>318.8 s</td></tr>
+          <tr><td>gzip level 3</td><td>16.60%</td><td>10.9 s</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The engineer's reaction is in the log: <b>"15% is way better than my 30% prior."</b> The
+      highest setting buys 2.8 percentage points for a hundredfold slowdown, so the level was
+      fixed at 3 and deliberately <em>not</em> exposed as a tunable option.</p>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>And then the honest conclusion: even at 15%, the full archive is about 6 TB — still
+        forty times over budget. So retention stayed <b>off</b> by default. The benchmark did not
+        justify the feature; it correctly killed it for now. Entry 10 is where this problem gets
+        solved properly, by a method that does not compress snapshots individually at all.</p></div>
+
+      <p>The alternative that shipped instead was to compute the measurement <em>during</em>
+      capture and delete each image as soon as its successor arrives — two images alive at any
+      moment, a fixed ceiling of about 2 GB regardless of how long the run goes. Making that
+      asynchronous mattered more than it sounds: the synchronous version added a second per
+      snapshot, which "kills the 100 ms regime — the very regime where detection matters most."</p>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The surprise</div>
+      <h2>Sampling faster made the answer worse</h2>
+
+      <p>With the data layer working, the ninety-cell grid ran for real. The headline is that the
+      two workload types separate enormously: the bursty one varies about <b>76 times more</b>
+      than the steady one at the median. The phasic-versus-steady distinction is not an assumption
+      of the taxonomy — it is visible in the raw variability.</p>
+
+      <p>The unexpected result is what happened across sampling rates. The fastest setting was
+      <em>worse</em> at detecting the bursty workload's phase boundaries than a slower one — and
+      not because it collected fewer samples. Restricted to cells with plenty of snapshots either
+      way, the fast setting still never achieved a perfect score, while the slower setting had no
+      total failures at all.</p>
+
+      <div class="callout note"><div class="clab">Why</div>
+        <p>Two mechanisms, both recorded at the time. The encryption-start transient occupies
+        <em>several</em> consecutive fast windows, so the signal stays high and flat with no single
+        step carrying the jump a boundary detector keys on. And when the trajectory is spiky, the
+        peak drifts four to seven positions away from where the truth marker says it should be.</p></div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>Framed carefully in the write-up as <b>temporal-resolution mismatch, not aliasing</b> —
+        and as an argument against the naive assumption that a finer sampling interval always
+        means better resolution. Sometimes it just spreads the event you were trying to catch
+        across more frames until none of them contains it.</p></div>
+
+      <p>The design-justified recommendation table was replaced with a data-driven one. And one
+      more line was filed, almost in passing, that becomes the central problem of Entry 8: four
+      cells with plenty of snapshots and a zero detection score, "likely indicating <b>ground-truth
+      phase markers misaligned with VM snapshot timestamps</b>."</p>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The failure mode that keeps returning</div>
+      <h2>Failing for having succeeded quietly</h2>
+
+      <p>One cell in the sub-pilot produced 28 clean measurement pairs and perfectly good numbers.
+      It was marked as a failure. The chain took three hops:</p>
+
+      <ol>
+        <li>One slow call to the virtualisation layer timed out.</li>
+        <li>The timeout escaped to an outer handler, which wrote a <em>warning</em> line instead
+        of the canonical status line.</li>
+        <li>The validator's pattern found no match, returned nothing, and "nothing" was treated as
+        a failed check.</li>
+      </ol>
+
+      <p>The cell failed its gate <b>because nothing had gone wrong loudly enough to be
+      reported in the expected format</b>.</p>
+
+      <div class="callout test"><div class="clab">How to test</div>
+        <p>The fix has two halves, and the second is the important one: catch the timeout inside
+        the loop so the canonical line is <em>always</em> emitted, and make the validator treat a
+        genuinely missing line as "not applicable" rather than as "failed". A check that cannot
+        distinguish "this went badly" from "I could not tell" will eventually report the wrong
+        one.</p></div>
+
+      <p>The same shape appeared twice more in this period. A gate failed all six cells of a
+      sub-pilot because its expected-snapshot formula had been calibrated before the new data
+      layer halved the available disk bandwidth — the data was sound, only the gate misfired. And
+      when the full run finally completed, transient disk use peaked at <b>59.5 GB against a 5 GB
+      design target</b>, a twelvefold overshoot caused not by any single cell but by cleanup
+      running in blocks rather than per cell.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Every threshold recalibrated in this entry was moved <em>after</em> seeing where the
+        data landed. Each move is individually defensible and individually documented. Cumulatively
+        it is a pattern the project keeps having to argue with — and in Entry 7 it gets argued with
+        explicitly.</p></div>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Cell</dt><dd>One box in the experiment grid — a single combination of sampling rate, duration, workload and repeat. The unit that either passes or fails.</dd></div>
+        <div class="gitem"><dt>Analysis window</dt><dd>A run of consecutive snapshots analysed together. Frequency analysis needs a minimum number of them, which is the constraint that bites in this entry.</dd></div>
+        <div class="gitem"><dt>Backpressure</dt><dd>What happens when snapshots arrive faster than they can be processed. The queue fills and the producer is forced to slow down.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>experiment_audit.md</b> — Days 1–14, 112 KB, the decision log D-1 through D-76. <code class="ic">docs/tuning_plans/</code>.</li>
+        <li id="r2"><b>keep_dumps_audit.md</b> + <b>keep_dumps_compression_test.sh</b> — the retention benchmark and the decision to run it first.</li>
+        <li id="r3"><b>d51_bplus3_improved_proposal.html</b> §14 — the 76× separation and the finer-is-worse result.</li>
+        <li id="r4"><b>iv_recommendations_v1.json</b> — the design-justified table, published with its own caveats attached.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson2.html"><div class="nd">Previous</div><div class="nt">← 5 · The instrument was lying by 15×</div></a>
+      <a class="n-next" href="lesson4.html"><div class="nd">Next entry</div><div class="nt">7 · Two gates that measured the wrong thing →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 6</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "cell": [
+          "Cell",
+          "One box in the experiment grid — a single combination of sampling rate, duration, workload and repeat. The unit that either passes or fails."
+      ],
+      "window": [
+          "Analysis window",
+          "A run of consecutive snapshots analysed together. Frequency analysis needs a minimum number of them, which is the constraint that bites in this entry."
+      ],
+      "backpressure": [
+          "Backpressure",
+          "What happens when snapshots arrive faster than they can be processed. The queue fills and the producer is forced to slow down."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

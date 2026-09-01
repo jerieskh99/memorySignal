@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Building an instrument worth trusting — Reading Memory</title>
+<meta name="description" content="A hundred and one workloads, thirteen classes of computation, and a prediction written down in advance about what the signal will not be able to tell apart.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="signal">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson6.html">9 · The failure that wasn't</a>
+      <a class="here" href="lesson7.html">10 · The instrument</a>
+      <a href="part_method.html">11 · The method</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 10</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plan 07 · Corpus, campaign, and now</div>
+      <div class="lnum">Entry 10 of 12 · 23 June – 29 August 2026</div>
+      <h1>Building an instrument worth trusting</h1>
+      <p class="dek">A hundred and one workloads across thirteen classes of computation, a
+      retention scheme that keeps every raw snapshot at <b>a two-hundredth of the size</b>, and a
+      written-down prediction about <b>what the signal will fail to distinguish</b> — made before
+      the measurement, so it can be wrong.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>Roughly half of all computation is predicted to look, to this instrument, exactly like a
+      program sweeping through memory. Writing that down <em>in advance</em> converts a limitation
+      into a testable claim.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">The negative was a property of the question</a></li>
+        <li><a href="#c2">Thirteen kinds of computation</a></li>
+        <li><a href="#c3">Predicting your own confusion</a></li>
+        <li><a href="#c4">Keeping everything, affordably</a></li>
+        <li><a href="#c5">Nine bugs between a plan and a result</a></li>
+        <li><a href="#c6">The check that lied about a hundred workloads</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The reframe of the reframe</div>
+      <h2>The negative was a property of the question</h2>
+
+      <p>Entry 9 concluded "characterisation, not detection", and that the two memory twins could
+      not be separated. A review of that conclusion found it had understated its own evidence.</p>
+
+      <p>The same committed results file already contained a novelty detector scoring <b>0.925</b>
+      with an entire unseen family held out. And the two "indistinguishable" workloads are, in the
+      raw signal, <b>not overlapping at all</b> — separated by an effect size of roughly 5.6
+      standard deviations. They scored zero because a <em>supervised classifier</em> was asked to
+      separate them, and it had no example of one of them to learn from.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The failure was in how the question was posed, not in the signal. Ask "which of these
+        known classes is this?" and an unseen class scores zero by construction. Ask "does this
+        look like anything I have seen before?" and the same data answers well.</p></div>
+
+      <p>The whole plan was reorganised around a <b>per-family behaviour recogniser</b>, with
+      threat-flagging demoted to a downstream corollary. Before anything else was touched, the old
+      analysis was re-run as a regression anchor — and it reproduced, slightly beating the quoted
+      numbers at 0.9417 and 0.9593.</p>
+
+      <div class="callout note"><div class="clab">It also reproduced two warnings</div>
+        <p>Family identification on an unseen workload collapsed to 0.3485, below its own baseline;
+        and recall on the held-out threat family was 0.25. Recorded at the time as "an early
+        warning that the four ransomware simulations may not actually look alike in memory" —
+        which is a question about the <em>corpus</em>, not the method.</p></div>
+
+      <div class="callout weak"><div class="clab">A failure mode named before it happened</div>
+        <p>A rule that clears anything matching a known-benign family would <b>launder the stealth
+        workload</b>: it is quiet, so in a magnitude-driven space its nearest neighbour is benign.
+        The guard written in advance — run on magnitude-invariant features, and keep that
+        workload's recall on the headline table so it can never hide inside an average.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The corpus</div>
+      <h2>Thirteen kinds of computation</h2>
+
+      <p>Six workloads (Entry 4) became eleven (Entry 7) became a hundred and one. But the
+      interesting change is not the count — it is that the corpus acquired a <b>second, orthogonal
+      way of being organised</b>.</p>
+
+      <p>The first division is by memory signature: idle, memory-intensive, disk, threaded,
+      bulk-rewrite, enumeration, stealth, application-like, mixed. The second is by <em>what kind
+      of computation</em> the program performs, borrowed from a published taxonomy of thirteen
+      <span class="term" data-term="dwarf">algorithmic motifs</span> — dense and sparse linear algebra, spectral methods, n-body, structured
+      and unstructured grids, Monte Carlo, combinational logic, graph traversal, dynamic
+      programming, backtracking, graphical models, finite state machines.</p>
+
+      <div class="study">
+        <div class="scite">test_families_spec.md · why this taxonomy</div>
+        <p class="sfind">A motif of this kind "captures a pattern of computation and communication
+        — <b>largely a memory-access pattern</b>, which is what the host memory signal sees."</p>
+        <p class="srel">It also answers a reviewer's question the first corpus could not: is this a
+        representative spread of programs, or just the ones that were convenient to write?</p>
+      </div>
+
+      <p>Every workload carries <em>both</em> labels, and every motif is additionally graded by
+      write-visibility — from clearly visible down to <b>quiet</b>: read- or compute-bound, and
+      therefore nearly invisible. Those quiet ones are not omissions. They are the control group
+      for the question Entry 4 raised and never closed: <em>is this kind of computation invisible
+      to memory introspection?</em></p>
+
+      <div class="callout idea"><div class="clab">The cleanest experiment in the corpus</div>
+        <p>Two workloads run the <b>same search</b> over the same problem. One only counts the
+        solutions; the other stores them. Nothing differs but the return type — and that alone
+        should flip the workload from invisible to visible. The same trick is repeated with a
+        pattern matcher that recognises versus one that emits output. The variable being tested is
+        isolated almost perfectly.</p></div>
+
+      <div class="callout note"><div class="clab">On rigour and on safety</div>
+        <p>Every kernel is checked against an <em>independent</em> reference implementation — a
+        factorisation against its own reconstruction, a fast transform against a round trip, an
+        approximate n-body against direct summation, one shortest-path algorithm against another.
+        The smoke battery climbed from 196 to 292 passing checks with zero failures. And a network
+        family was <b>deliberately not built</b>: keeping zero networking code in the tree is a
+        standing safety guarantee, so every "threat" is a reversible transformation on disposable
+        files.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The thesis contribution</div>
+      <h2>Predicting your own confusion</h2>
+
+      <p>Sorting workloads by where they came from produced a problem: <b>59 of the 64 computation
+      kernels landed in a single bucket</b> called "kernel". That bucket is a statement about
+      provenance, not about signal — and their write behaviour genuinely differs.</p>
+
+      <p>The instrument does not see "which algorithm". It sees a <b><span class="term" data-term="writeshape">write shape</span></b>. So each
+      kernel was tagged, before capture, with the archetype it is <em>predicted to be confused
+      with</em>:</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 260" role="img" aria-label="Sixty-four computation kernels collapse into five predicted write-shape archetypes, each anchored by a simple non-compute workload">
+          <text x="24" y="26" class="lbl-m" font-size="10.5">64 computation kernels · one provenance bucket</text>
+          <rect x="24" y="36" width="180" height="40" rx="7" class="f-wash s-hair"/>
+          <text x="114" y="61" text-anchor="middle" class="lbl-m" font-size="11">"kernel"</text>
+
+          <path d="M 210 56 L 250 56" class="s-mut" marker-end="url(#a7)"/>
+          <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ink"/></marker></defs>
+          <text x="230" y="46" text-anchor="middle" class="lbl-m" font-size="9">seen as</text>
+
+          <rect x="258" y="30" width="200" height="26" rx="5" class="f-acc"/>
+          <text x="268" y="47" class="lbl" font-size="11" fill="#fff">WORKING-SET · 33 kernels</text>
+          <text x="466" y="47" class="lbl-m" font-size="10">≈ a memory sweep</text>
+
+          <rect x="258" y="62" width="80" height="26" rx="5" class="f-soft s-acc"/>
+          <text x="266" y="79" class="lbl-a" font-size="10.5">SCATTER · 12</text>
+          <text x="346" y="79" class="lbl-m" font-size="10">≈ random page writes</text>
+
+          <rect x="258" y="94" width="76" height="26" rx="5" class="f-soft s-acc"/>
+          <text x="266" y="111" class="lbl-a" font-size="10.5">SEQ-GROW · 11</text>
+          <text x="342" y="111" class="lbl-m" font-size="10">≈ appending to a file</text>
+
+          <rect x="258" y="126" width="54" height="26" rx="5" class="f-tint s-hair"/>
+          <text x="266" y="143" class="lbl-m" font-size="10.5">IDLE · 6</text>
+          <text x="320" y="143" class="lbl-m" font-size="10">≈ nothing happening</text>
+
+          <rect x="258" y="158" width="70" height="26" rx="5" class="f-tint s-hair"/>
+          <text x="266" y="175" class="lbl-m" font-size="10.5">CHURN · 2</text>
+          <text x="336" y="175" class="lbl-m" font-size="10">no anchor workload yet</text>
+
+          <text x="24" y="216" class="lbl" font-size="12">Roughly half of all compute is predicted to be indistinguishable,</text>
+          <text x="24" y="234" class="lbl" font-size="12">by writes alone, from a plain memory working-set sweep.</text>
+          <text x="24" y="252" class="lbl-m" font-size="10.5">Marked PROVISIONAL. The campaign exists to measure whether it is true.</text>
+        </svg>
+        <figcaption><b>Fig 7.1</b> Each archetype is anchored by a simple non-compute workload, so
+        the prediction is falsifiable: capture both, and see whether they actually collide.</figcaption>
+      </figure>
+
+      <p>The decision was to <b>keep</b> the provenance grouping and put the prediction beside it
+      as a separate column, explicitly marked provisional. Four calls were flagged in advance as
+      genuinely uncertain — a transform that is dense in structure but scattered in access, a
+      tree-rebuilding algorithm that is both scatter and growth, and one whose <em>content</em>
+      may resemble encryption rather than computation.</p>
+
+      <div class="callout idea"><div class="clab">Why this is the contribution</div>
+        <p>"Our method cannot distinguish these" is a limitation. "We predict, in advance, exactly
+        <em>which</em> of these it cannot distinguish, and here is the measured confusion matrix"
+        is a result. The predictions can be wrong — and two already are. One kernel labelled
+        near-idle turned out to be among the heaviest in the corpus; another labelled clearly
+        visible turned out to be the quietest.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The retention answer</div>
+      <h2>Keeping everything, affordably</h2>
+
+      <p>Entry 6 killed raw retention on arithmetic: even well compressed, the archive ran forty
+      times over budget. The fix was to stop compressing snapshots <em>individually</em>.
+      Consecutive memory images are nearly identical, so each is stored as a patch against the one
+      before it — a chain, with only the first stored in full.</p>
+
+      <p>Two approaches were built and measured against real captured data. A deduplicating backup
+      tool came out at about 2.5× the theoretical ideal, even tuned to page-sized chunks. Patch
+      chaining came out at <b>0.97× ideal</b> — essentially optimal. Verified end to end: a
+      forty-snapshot run compressed to about <b>a two-hundredth</b> of its raw size, and the
+      rebuilt images matched byte for byte after transfer to another machine.</p>
+
+      <div class="callout note"><div class="clab">The physics lesson hiding in the calibration</div>
+        <p>The patch tool diffs <em>bytes</em>, while the signal counts <em>pages</em>. A workload
+        writing one byte per page produces maximum measured activity and a tiny 1.7 MB patch. An
+        encryptor producing incompressible output writes 287 MB per snapshot. <b>Activity-heavy
+        and storage-heavy are unrelated</b> — and the snapshot rate turns out to be a clean linear
+        function of patch size.</p></div>
+
+      <p>A design review caught a data-loss bug before it ran. Chain folders were named by workload
+      and run, but the plan runs each workload <em>twice with identical arguments</em> — so both
+      repeats collided in one folder, the tool refused to overwrite, and the second repeat's raw
+      images would never have been deleted. On a long step that is roughly <b>600 GB</b> on the
+      system disk. Fixed with a four-level folder tree before any of it happened.</p>
+
+      <div class="specbox"><div class="alab">Designed, not built</div>
+        <p>The retention makes a richer measurement possible without recapturing — but the richer
+        measurement itself is only partly built. A <b>64-column per-page feature set</b> exists in
+        working code. Two further families are specified and deliberately deferred, because they
+        need something the pipeline cannot currently do: keep a <em>reference</em> — a pinned
+        baseline, a running average, or a buffer of earlier snapshots — where today the previous
+        image is deleted immediately.</p>
+        <p>Also specified and never emitted: <b>magnitude and content entropy</b>. Today's signal
+        measures only <em>breadth</em> — how many pages moved — and is blind to how hard each one
+        changed. That is precisely where a stealth encryptor hides: few pages touched, each
+        completely rewritten. The per-page maximum is designed to catch it. No capture to date
+        carries it.</p></div>
+
+      <div class="callout note"><div class="clab">A judgement call worth recording</div>
+        <p>Step notifications were going to be sent through a popular messaging service — until the
+        realisation that the capture server belongs to a <em>security research department</em> and
+        is likely monitored, and that regular-interval encrypted posts to that particular domain,
+        timed to workload execution, is a textbook description of malware beaconing. Switched to
+        ordinary mail through the server's own local relay, which is unremarkable traffic.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The campaign</div>
+      <h2>Nine bugs between a plan and a result</h2>
+
+      <p>The steps file was verified exhaustively first: all 94 binaries built clean, every flag
+      cross-checked by a parser, all 101 lines dry-run end to end. <b>"Workloads flagged for human
+      review: None. Nothing was guessed."</b></p>
+
+      <p>Then it met a real guest, and nine things went wrong that no amount of checking the
+      <em>commands</em> could have caught:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>#</th><th>What happened</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Nine steps asked for more memory than the guest has. Three failed outright; the other six <b>ran, and measured swap thrashing</b> instead of their access pattern.</td></tr>
+          <tr><td>2</td><td>A memory-cap flag defaulted to 8 GB and was passed to none of the 69 workloads that accept it. Six sized their buffers from that default and tried to map 8 GB on a 1 GB guest.</td></tr>
+          <tr><td>3</td><td><b>Scratch was on a RAM-backed filesystem.</b> Large writes failed — and worse, the ones that succeeded registered as memory activity, so the disk workloads were silently measuring memory.</td></tr>
+          <tr><td>4</td><td>A failed VM start was never checked, and the wait timeout defaulted to about fourteen days. An overnight run simply hung at step 18.</td></tr>
+          <tr><td>5</td><td>Only the next cell's scratch was cleared, so every previous cell's output accumulated until the guest disk filled.</td></tr>
+          <tr><td>6</td><td>Each step's final snapshot was archived but never deleted — about <b>101 GB</b> across a campaign, against 192 GB free.</td></tr>
+          <tr><td>7</td><td>The guest's shell treats a pattern matching nothing as a fatal error, so the cleanup command silently did nothing on every cell without hidden files.</td></tr>
+          <tr><td>8</td><td>Cleanup used elevated privileges on paths that never needed them; the restricted policy denied it, and the script aborted.</td></tr>
+          <tr><td>9</td><td>A workload launched over SSH returns an error if it lands in the window where the machine is paused for a snapshot. Seven of 101 steps failed this way — all tiny, all having passed every check.</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout weak"><div class="clab">The most insidious one</div>
+        <p>Number 3 deserves its own paragraph. The failures it caused loudly were annoying. The
+        failures it caused <b>quietly</b> were dangerous: a disk-reading workload showed nearly ten
+        times the expected activity, because its file writes were landing in memory. <b>Valid-looking
+        data with the wrong physics.</b> And this exact bug had been found and fixed in June, in a
+        different orchestrator — the fix was simply never inherited.</p></div>
+
+      <p>Enlarging the guest to solve the memory problems was considered and rejected for a reason
+      worth keeping: it would have <b>changed the denominator of the signal partway through the
+      campaign</b>, making the earlier and later cells incomparable.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The campaign completed on <b>10 August 2026</b>: 100 workload signal chains captured
+        losslessly, at correct sizing, on a real disk. Every one of the nine failures was a
+        property of the <em>environment</em>, not of the commands — which is exactly what the next
+        thing built was designed to catch.</p></div>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The gate, and its own bugs</div>
+      <h2>The check that lied about a hundred workloads</h2>
+
+      <p>The response to nine bugs was a <span class="term" data-term="preflight">preflight gate</span> that runs before a campaign and refuses it,
+      built on a specific claim: <b>every failure in the failed run was detectable beforehand,
+      given the guest's memory and filesystem facts.</b> Calibrated against that run, it flags all
+      nine that failed — plus four more that <em>completed</em> while writing into the RAM-backed
+      filesystem, and whose data was therefore invalid.</p>
+
+      <p>Its thresholds come from observation rather than theory. On the 964 MB guest: 384 MB runs
+      fine, 512 MB fine, 1024 MB swaps heavily, 2048 MB fails outright. The reserve is set at
+      300 MB because the machine is rebooted before every step, so each workload meets a freshly
+      booted system.</p>
+
+      <p>And then the checker had four bugs of its own, three of which gave <em>confident wrong
+      verdicts about healthy data</em>:</p>
+
+      <div class="pillars">
+        <div class="pillar"><div class="pn">False pass</div><h4>One of 101</h4>
+          <p>A helper read from standard input, consuming the loop's remaining list. It tested a
+          single workload and reported "all 1 workloads exited 0" as a full pass.</p></div>
+        <div class="pillar"><div class="pn">Wrong subject</div><h4>Measuring the wrapper</h4>
+          <p>The memory probe captured the shell's process ID rather than the workload's, so every
+          reading came back at about 1 MB.</p></div>
+        <div class="pillar"><div class="pn">Wrong rule</div><h4>A correct failure that wasn't</h4>
+          <p>It failed a workload for exceeding its memory budget. But that workload maps a file,
+          and file-backed pages can be evicted. The <em>check</em> was wrong.</p></div>
+      </div>
+
+      <div class="study">
+        <div class="scite">commit b072190</div>
+        <p class="sfind">"<b>A QA tool reporting a false pass is worse than no QA tool.</b>"</p>
+        <p class="srel">The fourth recurrence of this diary's most persistent pattern — after
+        Entry 5's two broken probes, Entry 6's cell that failed for succeeding quietly, and Entry
+        8's schema mismatch that faked 132 passes.</p>
+      </div>
+
+      <div class="callout note"><div class="clab">The honest nuance on the third one</div>
+        <p>The workload it wrongly failed <em>had</em> died during the campaign — but on the
+        RAM-backed filesystem, where no page can be evicted. The check was wrong about the rule and
+        accidentally right about the outcome, for a reason that no longer applies.</p></div>
+
+      <p>Two more capture defects were fixed in the final week. Some workloads finish their work in
+      seconds and idle out the rest of their window — <b>the same "duration is a cap" bug from
+      Entry 9</b>, in a family that had never been checked for it, yielding as few as two snapshots.
+      And heavy workloads were being throttled by a full processing queue while the guest kept
+      running, burning their time budget and producing snapshots at irregular intervals — which
+      breaks the even-spacing assumption every frequency measure depends on. The producer now
+      <b>freezes the machine</b> while it waits, so the workload's clock stops with it.</p>
+
+      <div class="callout note"><div class="clab">And one obstacle solved without root</div>
+        <p>Memory copies started failing with a permission error on every snapshot: the security
+        profile generated for this virtual machine does not list the dump directory, and it is
+        regenerated on every start — which is why an earlier hands-on fix had reverted. The durable
+        fix needs administrator access on a shared server, which is not available. The workaround
+        uses a directory the profile <em>does</em> already permit, resolved fresh at each start
+        because its name changes every boot.</p></div>
+    </div></div></section>
+
+    <!-- close -->
+    <section id="c7"><div class="concept"><div class="cn">→</div><div class="cbody">
+      <div class="kicker">Where it stands</div>
+      <h2>The first experiment on the new instrument</h2>
+
+      <p>Chosen on <b>29 August 2026</b>: a characterisation run testing the predicted-confusion
+      claim directly. Seventeen workloads, three repeats, fifty-one cells, about eight hours and
+      five megabytes. Three anchors — one per archetype the kernels are predicted to collapse into
+      — and fourteen kernels spread across all five, deliberately including <b>both predictions
+      already known to be wrong</b>.</p>
+
+      <p>The design rationale, kept explicitly: a separability claim needs a variance
+      decomposition. Repeats establish the noise floor; more than one workload per family
+      establishes cohesion; only then does between-family distance mean anything. "One trace per
+      family" was proposed and rejected for giving the last of those three and none of the
+      others.</p>
+
+      <div class="callout weak"><div class="clab">Two things to watch</div>
+        <p>The word <b>"family"</b> means two different things in this project — a filename prefix
+        in the run planner, and a signature class in the specification — and they do not line up.
+        And the planner emits cells in a fixed order, which over a long run aligns family with
+        wall-clock drift: exactly the confound that the shuffling in the larger campaign generator
+        was built to break.</p></div>
+
+      <div class="takeaway"><div class="cardlab">What ten months bought</div>
+        <p>Not a detector. An instrument whose failure modes are known, whose blind spots are
+        written down in advance, and whose most confident early results have already been taken
+        apart by their own author. The measurements that survived did so because someone kept
+        asking what a number was actually made of.</p></div>
+
+      <p>The analysis for this campaign does not exist yet. That is the next entry.</p>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Algorithmic motif</dt><dd>A recurring pattern of computation and memory access — dense linear algebra, graph traversal, spectral methods. Borrowed from a published taxonomy of thirteen, because the pattern is largely a memory-access pattern, which is what this instrument sees.</dd></div>
+        <div class="gitem"><dt>Write shape</dt><dd>What the instrument actually perceives: not which algorithm ran, but the geometry of which pages got written and how. Two unrelated algorithms with the same write shape are indistinguishable here.</dd></div>
+        <div class="gitem"><dt>Preflight gate</dt><dd>A check that runs before a campaign and refuses to start it, based on the guest's real memory and filesystem facts rather than on the commands alone.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan07_handout.html</b>, <b>plan07_execution_log.html</b> — the reframe, the eight research questions, the regression anchor.</li>
+        <li id="r2"><b>test_families_spec.md</b> — the two divisions, the thirteen motifs, write-visibility grading, and the predicted-confusion table.</li>
+        <li id="r3"><b>feature_substrate_spec.md</b>, <b>magnitude_entropy_spec.md</b> — families A–H, and the deferred magnitude/entropy senses.</li>
+        <li id="r4"><b>qa/README.md</b> and <b>qa/checks/</b> — the preflight gate and its calibration. Commits <code class="ic">b072190</code>, <code class="ic">8b6498d</code>, <code class="ic">e8b4bd9</code> for its own defects.</li>
+        <li id="r5"><b>subset_run.py</b>, <b>separability_matrix.py</b> — the run planner and the intended artifact of the first experiment.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson6.html"><div class="nd">Previous</div><div class="nt">← 9 · The failure that wasn't</div></a>
+      <a class="n-next" href="part_method.html"><div class="nd">Next entry</div><div class="nt">11 · What carries forward →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 10</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "dwarf": [
+          "Algorithmic motif",
+          "A recurring pattern of computation and memory access — dense linear algebra, graph traversal, spectral methods. Borrowed from a published taxonomy of thirteen, because the pattern is largely a memory-access pattern, which is what this instrument sees."
+      ],
+      "writeshape": [
+          "Write shape",
+          "What the instrument actually perceives: not which algorithm ran, but the geometry of which pages got written and how. Two unrelated algorithms with the same write shape are indistinguishable here."
+      ],
+      "preflight": [
+          "Preflight gate",
+          "A check that runs before a campaign and refuses to start it, based on the guest's real memory and filesystem facts rather than on the commands alone."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

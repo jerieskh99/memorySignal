@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The confusion that started it — Reading Memory</title>
+<meta name="description" content="A classifier kept mixing up workloads that should have been obvious. The decision to interrogate the instrument instead of the model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="part1_retreat.html">3 · The retreat</a>
+      <a class="here" href="lesson1.html">4 · Confusion</a>
+      <a href="lesson2.html">5 · The 15× lie</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 4</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Foundations</div>
+      <div class="lnum">Entry 4 of 12 · November 2025 – May 2026</div>
+      <h1>The confusion that started it</h1>
+      <p class="dek">Seven months of building a machine that watches memory, and then a
+      classifier that kept confusing workloads it should have separated easily. The turning
+      point was <b>refusing to tune the model</b> and asking what the instrument was actually
+      able to see.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>The instrument records only <em>writes</em>. Everything confusing about the early
+      results follows from that one sentence, and it took six months to take it seriously.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">What the machine actually writes down</a></li>
+        <li><a href="#c2">A probe that read one byte for three months</a></li>
+        <li><a href="#c3">Idle is never idle</a></li>
+        <li><a href="#c4">The confusion matrix is a map, not a scorecard</a></li>
+        <li><a href="#c5">Half the signal was going in the bin</a></li>
+        <li><a href="#c6">Refusing the easy sample size</a></li>
+      </ol>
+    </div>
+
+    <!-- ===== 1 ===== -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The primitive</div>
+      <h2>What the machine actually writes down</h2>
+
+      <p>Pause a virtual machine. Copy its entire physical memory to a file. Let it run for a
+      moment. Copy it again. Now compare the two copies
+      <span class="term" data-term="page">page</span> by page — 4096 bytes at a time — and
+      write down two numbers per page.</p>
+
+      <p>The first is the <span class="term" data-term="hamming">Hamming distance</span>: how many
+      individual bits flipped. The second is the cosine similarity between the two pages read as
+      vectors of numbers: not <em>how much</em> changed, but in what <em>direction</em>. One page
+      of memory, two numbers, repeated for every page, every snapshot, for the length of a run.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 250" role="img" aria-label="Two memory snapshots are compared page by page, producing a bit-flip count and a direction value, which combine into one complex number per page">
+          <text x="72" y="26" text-anchor="middle" class="lbl-m" font-size="11">snapshot t</text>
+          <text x="212" y="26" text-anchor="middle" class="lbl-m" font-size="11">snapshot t+1</text>
+          <rect x="32" y="36" width="80" height="104" rx="5" class="f-wash s-hair"/>
+          <rect x="172" y="36" width="80" height="104" rx="5" class="f-wash s-hair"/>
+          <g class="s-hair">
+            <line x1="32" y1="62" x2="112" y2="62"/><line x1="32" y1="88" x2="112" y2="88"/><line x1="32" y1="114" x2="112" y2="114"/>
+            <line x1="172" y1="62" x2="252" y2="62"/><line x1="172" y1="88" x2="252" y2="88"/><line x1="172" y1="114" x2="252" y2="114"/>
+          </g>
+          <rect x="32" y="62" width="80" height="26" class="f-soft no"/>
+          <rect x="172" y="62" width="80" height="26" class="f-acc"/>
+          <text x="72" y="158" text-anchor="middle" class="lbl-m" font-size="10">one page = 4096 B</text>
+
+          <path d="M 262 88 L 310 88" class="s-ink" marker-end="url(#a1)"/>
+          <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-ink"/></marker></defs>
+
+          <rect x="318" y="44" width="128" height="38" rx="6" class="f-paper s-acc"/>
+          <text x="382" y="60" text-anchor="middle" class="lbl" font-size="11">bits flipped</text>
+          <text x="382" y="74" text-anchor="middle" class="lbl-m" font-size="10">magnitude</text>
+
+          <rect x="318" y="94" width="128" height="38" rx="6" class="f-paper s-acc"/>
+          <text x="382" y="110" text-anchor="middle" class="lbl" font-size="11">direction of change</text>
+          <text x="382" y="124" text-anchor="middle" class="lbl-m" font-size="10">phase</text>
+
+          <path d="M 454 63 L 496 80" class="s-mut"/><path d="M 454 113 L 496 96" class="s-mut"/>
+          <rect x="500" y="66" width="112" height="44" rx="6" class="f-tint s-acc"/>
+          <text x="556" y="84" text-anchor="middle" class="lbl" font-size="11">one complex</text>
+          <text x="556" y="98" text-anchor="middle" class="lbl" font-size="11">number per page</text>
+
+          <text x="320" y="176" class="lbl-m ser" font-size="12">combined = hamming · e</text>
+          <text x="470" y="170" class="lbl-m ser" font-size="10">j·2π·cosine</text>
+          <text x="320" y="200" class="lbl-m" font-size="10.5">How much it moved, and which way it moved, in a single value.</text>
+          <text x="320" y="218" class="lbl-m" font-size="10.5">Written on day one and never changed since.</text>
+        </svg>
+        <figcaption><b>Fig 1.1</b> Every downstream result in this diary is computed from this
+        one primitive. Choosing it fixed what the research could and could not see.</figcaption>
+      </figure>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>The machine takes two photographs of memory and describes the difference between them
+        with two numbers per page: how much changed, and in which direction. Everything after
+        this is an argument about what those numbers mean.</p></div>
+
+      <div class="callout note"><div class="clab">Where the first version came from</div>
+        <p>The repository opens on <b>4 November 2025</b> with a README that says the project is
+        "used <b>only for correctness validation</b> — not full analysis, feature extraction, or
+        modeling." Before asking what the signal meant, the question was whether the subtraction
+        was even self-consistent: does comparing a page with itself give zero, does the comparison
+        give the same answer in both directions, does a frozen machine produce a flat line.</p></div>
+    </div></div></section>
+
+    <!-- ===== 2 ===== -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The blind spot</div>
+      <h2>A probe that read one byte for three months</h2>
+
+      <p>Six workloads were written to act as known reference signals — three that stress memory,
+      three that stress disk. One of them, <code class="ic">mem_pointer_chase</code>, was supposed
+      to walk pseudo-randomly across a gigabyte of memory, producing a scattered, unstructured
+      pattern to contrast against the neat sequential one.</p>
+
+      <p>Its loop computed the next position and then never moved to it:</p>
+
+      <pre class="code"><span class="cm">// the next index is computed…</span>
+i = (a * x + c) % m
+<span class="cm">// …and then the OLD one is used. x is never assigned i.</span>
+idx = x * stride
+acc ^= arr[idx]</pre>
+
+      <p>For 300 seconds per run, the "random walk over a gigabyte" read <b>the same single byte,
+      over and over</b>. It was written on 16 January 2026 and fixed on 20 April — three months
+      later, and after the entire 48-recording campaign that produced the results in this entry.</p>
+
+      <p>And the fix did not make it a good probe, because of the sentence that governs the whole
+      project:</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>A page contributes to the signal only when its bytes <em>change</em>. Reading produces
+        nothing. <code class="ic">mem_pointer_chase</code> only ever reads — so even working
+        perfectly, it is invisible to the instrument.</p></div>
+
+      <p>The audit that established this put it flatly: rewriting the workload in C "makes the
+      invisible workload faster but not observable." The class that was supposed to anchor one end
+      of the memory family was contributing a flat line, and its label was still pulling the
+      family's centre of gravity around.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>This is a permanent property of the method, not a bug that got fixed. Any workload
+        whose signature is mostly reads — a cache-resident scan, a compute kernel that streams
+        from a table it never writes — is close to invisible here. Later entries return to this
+        as a designed-in control rather than a flaw.</p></div>
+    </div></div></section>
+
+    <!-- ===== 3 ===== -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The contaminated baseline</div>
+      <h2>Idle is never idle</h2>
+
+      <p>The experiment ran workloads in cycles with 60 seconds of idle between them, and recorded
+      the idle stretches too — 24 of them — as a baseline for "nothing is happening."</p>
+
+      <p>They were the least consistent class in the entire dataset. Run-to-run variation for idle
+      came out at <b>0.973</b>, against 0.048 for the most stable workload. One coherence measure
+      ranged <b>135-fold</b> across idle recordings alone.</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Workload</th><th>Run-to-run variation</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>io_many_files</td><td>0.048</td><td>very stable</td></tr>
+          <tr><td>mem_alloc_touch_pages</td><td>0.054</td><td>very stable</td></tr>
+          <tr><td>io_seq_fsync</td><td>0.092</td><td>very stable</td></tr>
+          <tr><td>io_rand_rw</td><td>0.189</td><td>stable</td></tr>
+          <tr><td>mem_stream</td><td>0.528</td><td>unstable</td></tr>
+          <tr><td>mem_pointer_chase</td><td>0.617</td><td>unstable</td></tr>
+          <tr><td><b>run_idle</b></td><td><b>0.973</b></td><td>non-stationary</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The reason is obvious once stated. Sixty seconds after a workload stops, the operating
+      system is still writing back dirty pages, still reclaiming caches, still holding a gigabyte
+      of buffer mapped. Each idle window was measuring <em>the residue of whatever ran before
+      it</em> — a different residue every time.</p>
+
+      <div class="analogy"><div class="cardlab">Analogy</div>
+        <p>Trying to record silence in a room where someone has just stopped talking. What you
+        capture is the reverberation, and it differs depending on what was said.</p></div>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>The two earliest idle recordings in the campaign sat <em>inside</em> the active
+        workloads' territory geometrically. That is not noise — it is the instrument correctly
+        reporting that the machine was still busy. The verdict was that idle is a protocol
+        problem, not a code problem: drop caches first, extend the gap, and record which workload
+        preceded each idle.</p></div>
+    </div></div></section>
+
+    <!-- ===== 4 ===== -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The reframe</div>
+      <h2>The confusion matrix is a map, not a scorecard</h2>
+
+      <p>With four runs of each of six workloads, the classifier's results split cleanly in two.
+      Telling <em>active from idle</em> worked: 32 of 41 measures separated them significantly.
+      Telling <em>memory from disk</em> collapsed entirely — the two families' centres sat 0.301
+      apart while the spread <em>within</em> each family was 1.846 and 1.594. The memory class
+      scored a negative cohesion value, meaning its recordings sat geometrically inside the disk
+      cluster.</p>
+
+      <pre class="code">mem_alloc_touch_pages  4/4
+io_many_files          4/4
+io_seq_fsync           4/4
+mem_pointer_chase      3/4   <span class="cm">→ mem_stream</span>
+io_rand_rw             3/4   <span class="cm">→ mem_alloc_touch_pages</span>
+mem_stream             2/4   <span class="cm">→ run_idle, → io_rand_rw</span></pre>
+
+      <p>The decisive move was to stop reading this as an accuracy table. Two long documents
+      written on 10 May 2026 reframed it as <b>a diagnostic map of behavioural overlap, hidden
+      side effects, test impurity, and metric limitations</b> — and imposed a rule that every
+      off-diagonal cell must be attributed to one of four causes before any conclusion is drawn:</p>
+
+      <div class="pillars">
+        <div class="pillar"><div class="pn">Cause 1</div><h4>Real overlap</h4>
+          <p>The two workloads genuinely do similar things to memory.</p></div>
+        <div class="pillar"><div class="pn">Cause 2</div><h4>Capture artifact</h4>
+          <p>The instrument, the runtime, or the kernel introduced it.</p></div>
+        <div class="pillar"><div class="pn">Cause 3</div><h4>Order contamination</h4>
+          <p>What ran before this recording leaked into it.</p></div>
+      </div>
+      <div class="pillars">
+        <div class="pillar"><div class="pn">Cause 4</div><h4>Metric inadequacy</h4>
+          <p>The measurement cannot express the difference, even though it exists.</p></div>
+        <div class="pillar"><div class="pn">The rule</div><h4>Overlap is last</h4>
+          <p>Claiming real behavioural overlap is only defensible once the other three are ruled unlikely.</p></div>
+        <div class="pillar"><div class="pn">The rule</div><h4>Direction matters</h4>
+          <p>Always "true → predicted", never "A confuses with B" — the two directions have different mechanisms.</p></div>
+      </div>
+
+      <p>Order contamination was not hypothetical. One workload's coherence measure decayed
+      monotonically across the four cycles of the campaign — <b>0.483, 0.345, 0.134, 0.133</b> —
+      a fingerprint of position in the run rather than of the workload itself.</p>
+
+      <div class="study">
+        <div class="scite">confusion_matrix_diagnostic_methodology.md · 2026-05-10 · 798 lines</div>
+        <p class="sfind">"A workload label should be treated as the <b>intended stimulus</b>, not
+        as a guarantee that the observed memory signal is pure."</p>
+        <p class="srel">This is the sentence the rest of the project is built on. Everything from
+        here is an effort to make the observed signal closer to the intended stimulus — and to be
+        explicit about the remaining gap.</p>
+      </div>
+
+      <div class="callout test"><div class="clab">How to test</div>
+        <p>The same document requires every future workload spec to <b>pre-register its expected
+        confusions</b> — write down, before capture, which other workloads you think it will be
+        mistaken for. Entry 10 shows this idea grown to its full size, applied to a hundred
+        workloads at once.</p></div>
+    </div></div></section>
+
+    <!-- ===== 5 ===== -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The quiet loss</div>
+      <h2>Half the signal was going in the bin</h2>
+
+      <p>The measurement produces two channels — magnitude and direction — and the design combines
+      them into one complex number. On 20 April 2026 it emerged that the pipeline had not been
+      doing that for months.</p>
+
+      <p>The engine faithfully wrote both channels to disk from day one. The consumer that
+      assembled them into an analysable matrix appended <b>only the cosine channel</b>. And the
+      loader then cast the result to a plain floating-point type, which discards a complex
+      number's phase entirely. Every synchrony and stability measure computed up to that point had
+      been running on half the data.</p>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>The response was not to discard the earlier results. It was to write the constraint into
+        three documents and into a comment beside the offending line, along with a standing rule:
+        <b>reported results must explicitly state which path was used.</b> The stated reason —
+        "prevents future overclaiming" — and the honest reading: cosine-only separability is a
+        real baseline result, not a failure.</p></div>
+
+      <p>The repair, two weeks later, was only possible by luck. The raw memory dumps were long
+      deleted; the rotated per-channel text files had survived. A rebuild tool reconstructed every
+      matrix from those, pairing the two channels by the timestamp in their filenames.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Nothing in the design guaranteed that recovery. It worked because an intermediate
+        artifact happened to still be on disk. That is not a reproducibility practice — it is a
+        near miss, and it is part of why later entries treat raw retention as a first-class
+        problem rather than an afterthought.</p></div>
+
+      <p>The same April week produced the other reason the pipeline could not be trusted yet: it
+      was being asked to sample roughly <b>600 times faster than it could actually serve</b>. The
+      configuration requested ten samples per second; the measured time to process one pair was
+      57 to 68 seconds. The engine was allocating around a million short-lived buffers per job,
+      running sixteen redundant async runtimes, and funnelling all of its parallel reads through a
+      single lock. After the rewrite: thirty-two allocations, no async runtime, and lock-free
+      reads — with the output verified bit-for-bit identical.</p>
+
+      <div class="callout note"><div class="clab">The line worth keeping</div>
+        <p>From the throughput analysis, on the temptation to raise the queue limit and make the
+        backlog warning go away: <b>"It does not increase throughput; it only delays the visible
+        backpressure signal while accumulating more RAW files."</b></p></div>
+    </div></div></section>
+
+    <!-- ===== 6 ===== -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The discipline</div>
+      <h2>Refusing the easy sample size</h2>
+
+      <p>The campaign had 48 recordings. Four per workload is a thin basis for any claim, and there
+      was an obvious way to make the number bigger: each run is a time series, so cut every run
+      into segments and count each segment as a sample. Forty-eight becomes one hundred and
+      ninety-two.</p>
+
+      <p>The plan written to introduce segmentation forbids this, in its own first section:</p>
+
+      <div class="study">
+        <div class="scite">segment_level_analysis_critique_and_plan.md · 2026-05-10</div>
+        <p class="sfind">Segment-level analysis is "<b>scientifically valid as a within-run
+        diagnostic tool. It is not valid as a sample-size inflation tool.</b>" Converting k
+        segments × 48 runs into "192 samples" for any inferential test is explicitly prohibited.</p>
+        <p class="srel">Segments from one run are not independent observations — they share the
+        run's machine, its moment, and its drift. Counting them as separate samples would have
+        made every significance test look far better than the evidence supports.</p>
+      </div>
+
+      <p>The prohibition was then copied into the command-line help text of the tool that performs
+      the segmentation, so that a future user — including a future version of the author — could
+      not do it by accident.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The most reusable habit established in this period is not a technique. It is writing
+        the argument against your own convenience down, in the place where the temptation will
+        actually occur.</p></div>
+
+      <p>By 18 May 2026 the workloads were rebuilt — eighteen of them, mostly in C, each designed
+      to isolate a single mechanism, with a safety model capping files, bytes and runtime before
+      the first byte is touched. The build passed 52 of 52 smoke checks.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>That smoke run was executed on a Mac, and the document says so: it validates that
+        everything <em>builds</em>, not that it behaves. The three features most likely to matter
+        for a memory experiment — pinning a process to a CPU, suppressing huge pages, and
+        pre-faulting memory — are precisely the three that do nothing on macOS and could not be
+        tested there.</p></div>
+
+      <p>Everything was now in place: workloads that write, a metric that records, a pipeline fast
+      enough to keep up, and a diagnostic framework for reading the results. The next question was
+      whether the instrument was telling the truth about time. It was not.</p>
+    </div></div></section>
+
+    <!-- ===== GLOSSARY ===== -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Page</dt><dd>The 4096-byte unit the operating system moves memory
+        around in. The instrument compares memory one page at a time, so a change of one byte and
+        a change of all 4096 both register as "this page moved".</dd></div>
+        <div class="gitem"><dt>Hamming distance</dt><dd>The count of individual bits that differ
+        between two blocks of the same size. Here it measures how much of a page was rewritten
+        between two snapshots.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>confusion_matrix_diagnostic_methodology.md</b> — the four-cause model and the direction rule. <code class="ic">VM_executables/</code>, 2026-05-10.</li>
+        <li id="r2"><b>segment_level_analysis_critique_and_plan.md</b> — the sample-size prohibition. <code class="ic">VM_executables/</code>, 2026-05-10.</li>
+        <li id="r3"><b>python_runtime_os_artifact_audit.md</b> — "only writes produce a delta", and the per-workload audit. <code class="ic">VM_executables/</code>.</li>
+        <li id="r4"><b>issue/01-real-vs-combined-delta-path.md</b> — the cosine-only discovery. <code class="ic">docs/controlled-qemu-pipeline/</code>, 2026-04-20.</li>
+        <li id="r5"><b>issue/02, issue/03, CHANGES.md</b> — the throughput analysis and the engine rewrite. 2026-04-20.</li>
+        <li id="r6"><b>Commit b52a26f</b> — the pointer-chase fix, 2026-04-20. <b>513c41f</b> — phase preservation, 2026-05-04.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="part1_retreat.html"><div class="nd">Previous</div><div class="nt">← 3 · Six weeks later, he threw the detector away</div></a>
+      <a class="n-next" href="lesson2.html"><div class="nd">Next entry</div><div class="nt">5 · The instrument was lying by 15× →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 4</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "page": [
+          "Page",
+          "The 4096-byte unit the operating system moves memory around in. The instrument compares memory one page at a time, so a change of one byte and a change of all 4096 both register as \"this page moved\"."
+      ],
+      "hamming": [
+          "Hamming distance",
+          "The count of individual bits that differ between two blocks of the same size. Here it measures how much of a page was rewritten between two snapshots."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

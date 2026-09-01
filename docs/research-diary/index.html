@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading Memory — a research diary</title>
+<meta name="description" content="Two years of building an instrument that watches a virtual machine's memory and tries to say what it is doing. Told in order, including the parts that did not work.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a class="here" href="index.html">Cover</a>
+      <a href="part1_reduction.html">1 · The reduction</a>
+      <a href="part_method.html">11 · The method</a>
+    </div>
+  </div>
+
+  <div class="cover">
+    <div class="ceyebrow">Research diary · 2024–2026</div>
+    <h1>Reading Memory</h1>
+    <p class="csub">Two years of building an instrument that watches a virtual machine's memory
+    and tries to say what the machine is <em>doing</em> — without reading a single system call.
+    It began as a detector that worked. This is the diary of everything that happened after
+    <b>refusing to believe it</b>.</p>
+  </div>
+
+  <div class="toc">
+
+    <div class="toclab">Part One · The reasoning, and the detector it produced</div>
+
+    <a class="tocard" data-domain="core" href="part1_reduction.html">
+      <div class="tnum">1</div>
+      <div>
+        <div class="tk">Sep 2024 – Feb 2025</div>
+        <h3>The reduction</h3>
+        <p>Before any detector or any result: the chain of decisions that turns two gigabytes of
+        memory into one number worth trusting. Why listen instead of read, why a difference is a
+        derivative, why two numbers per page become one.</p>
+        <div class="tmeta">five reductions · magnitude and phase · bracket everything</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="core" href="part1_thesis.html">
+      <div class="tnum">2</div>
+      <div>
+        <div class="tk">Sep 2024 – Feb 2025</div>
+        <h3>The score he didn't believe</h3>
+        <p>The reasoning, built and run. A detector chosen because nothing else was available, a
+        perfect score its own results chapter refused to accept, and a failure mode that had
+        nothing to do with malware.</p>
+        <div class="tmeta">cepstrum wins · too good to be true · it fears reboots</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="cache" href="part1_retreat.html">
+      <div class="tnum">3</div>
+      <div>
+        <div class="tk">21 March 2025</div>
+        <h3>Six weeks later, he threw the detector away</h3>
+        <p>A paper that keeps the measuring apparatus and deletes the thing the thesis was named
+        for. And starts asking a question the thesis never had: is the sampling even real?</p>
+        <div class="tmeta">the hinge · forensic integrity · four retreats, none planned</div>
+      </div>
+    </a>
+
+    <div class="toclab">Part Two · The instrument cannot be trusted yet</div>
+
+    <a class="tocard" data-domain="core" href="lesson1.html">
+      <div class="tnum">4</div>
+      <div>
+        <div class="tk">Nov 2025 – May 2026</div>
+        <h3>The confusion that started it</h3>
+        <p>A classifier kept mixing up workloads that should have been obvious. The decision not to
+        tune the model, and to ask what the instrument was actually seeing instead — which turned
+        out to be a lot less than assumed.</p>
+        <div class="tmeta">only writes are visible · 48 recordings · the four-cause model</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="cache" href="lesson2.html">
+      <div class="tnum">5</div>
+      <div>
+        <div class="tk">May 19 – 22, 2026 · Plan 01</div>
+        <h3>The instrument was lying by 15×</h3>
+        <p>A missing utility on the server turned a sleep into <code class="ic">sleep 0</code>.
+        Every frequency the analyzer had ever computed was placed on the wrong part of the
+        spectrum.</p>
+        <div class="tmeta">the bc bug · three time axes · the flush that was a barrier</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="cache" href="lesson3.html">
+      <div class="tnum">6</div>
+      <div>
+        <div class="tk">May 22 – 31, 2026 · Plan 02</div>
+        <h3>The workload was a label, not a variable</h3>
+        <p>Ninety cells ran clean and passed every gate. None of them had run a workload. Plus the
+        day a health check was found to be asking a question it structurally could not answer.</p>
+        <div class="tmeta">90 idle cells · the window double-bind · adversarial trust</div>
+      </div>
+    </a>
+
+    <div class="toclab">Part Three · The results, and what they were really made of</div>
+
+    <a class="tocard" data-domain="tcu" href="lesson4.html">
+      <div class="tnum">7</div>
+      <div>
+        <div class="tk">May 27 – Jun 1, 2026 · Plan 03</div>
+        <h3>Two gates that measured the wrong thing</h3>
+        <p>The first parameter sweep declared no winner at all. Both reasons turned out to be
+        defects in how the gates were built — and fixing them produced the one setting the whole
+        thesis still runs on.</p>
+        <div class="tmeta">winner=null · W=8 H=4 · the coverage wall</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="cache" href="lesson5.html">
+      <div class="tnum">8</div>
+      <div>
+        <div class="tk">June 1, 2026 · one long night</div>
+        <h3>The night the headline collapsed</h3>
+        <p>A perfect score, and the audit that took it apart. A schema mismatch had been faking
+        every gate pass. A detector and its ground truth were found to be looking for different
+        kinds of event entirely.</p>
+        <div class="tmeta">100% → leakage · 63-hour skew · the negatives are the contribution</div>
+      </div>
+    </a>
+
+    <div class="toclab">Part Four · Rebuilding on what survived</div>
+
+    <a class="tocard" data-domain="tcu" href="lesson6.html">
+      <div class="tnum">9</div>
+      <div>
+        <div class="tk">Jun 1 – 18, 2026 · Plans 05 &amp; 06</div>
+        <h3>The failure that wasn't</h3>
+        <p>An experiment failed all eighteen of its comparisons. Read as a null result it would
+        have ended there. The investigation into <em>why</em> found a ninefold win hiding behind a
+        number that was never a constant.</p>
+        <div class="tmeta">the 7-second mystery · 14 → 79 snapshots · disk is not a threat marker</div>
+      </div>
+    </a>
+
+    <a class="tocard" data-domain="signal" href="lesson7.html">
+      <div class="tnum">10</div>
+      <div>
+        <div class="tk">Jun 23 – Aug 29, 2026 · Plan 07</div>
+        <h3>Building an instrument worth trusting</h3>
+        <p>A hundred and one workloads, thirteen classes of computation, and a prediction written
+        down in advance about which of them the signal will be unable to tell apart. Then the
+        campaign, and the nine bugs standing between it and a result.</p>
+        <div class="tmeta">the dwarfs · predicted confusion · 100 chains · a false pass on 100 of 101</div>
+      </div>
+    </a>
+
+    <div class="toclab">Part Five · What carries forward</div>
+
+    <a class="tocard" data-domain="core" href="part_method.html">
+      <div class="tnum">11</div>
+      <div>
+        <div class="tk">the whole record, read backwards</div>
+        <h3>What carries forward</h3>
+        <p>The method, extracted from the story: the handful of moves that produced every result and
+        caught every mistake — stated so they could be carried into work that has nothing to do with
+        memory. This is the part meant to outlast the project.</p>
+        <div class="tmeta">a perfect score is a symptom · form over realisation · seven moves</div>
+      </div>
+    </a>
+
+    <div class="toclab">Part Six · Still open</div>
+
+    <a class="tocard soon" data-domain="cache" href="#">
+      <div class="tnum">12</div>
+      <div>
+        <div class="tk">31 August 2026 · in progress</div>
+        <h3>The angle that hid an allocation</h3>
+        <p>The representation from Entry 1, measured at last. Two opposite events — a page being
+        written to, and a page being created — share the same angle. Across six workloads, most of
+        the data sits exactly where they collide.</p>
+        <div class="tmeta">being written</div>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="covernote">
+    <p><b>How to read this.</b> Each entry is one stretch of work: what the question was, what got
+    built, what happened, and what it forced next. The colour of each card is not decoration —
+    <b style="color:#5B57E0">violet</b> marks the entries where something was built,
+    <b style="color:#B4530B">amber</b> where something was found to be broken, and
+    <b style="color:#0E8C9A">teal</b> where something was measured.</p>
+    <p>Every number here comes from a file, a commit, or a measurement I ran. Each entry's sources
+    are listed at its foot and marked <b>traced</b> (I opened it or ran it myself) or
+    <b>inferred</b> (assembled, and the document does not say so). Anything designed but not yet
+    built carries a dashed amber box, so a plan is never mistaken for a result.</p>
+    <p>This is a private working record. It is deliberately harder on the work than any paper would
+    be, including on the parts that were graded well.</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

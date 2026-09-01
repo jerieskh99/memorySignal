@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two gates that measured the wrong thing — Reading Memory</title>
+<meta name="description" content="The first parameter sweep declared no winner at all. Both reasons were defects in the gates, not in the data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="tcu">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson3.html">6 · The label</a>
+      <a class="here" href="lesson4.html">7 · The gates</a>
+      <a href="lesson5.html">8 · The collapse</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 7</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plan 03 · Analysis window</div>
+      <div class="lnum">Entry 7 of 12 · 27 May – 1 June 2026</div>
+      <h1>Two gates that measured the wrong thing</h1>
+      <p class="dek">An experiment that needed <b>no new captures at all</b> — 4.7 megabytes of
+      existing trajectories and fifteen seconds of laptop time. It returned
+      <code class="ic">winner = null</code>, and both reasons turned out to be defects in how the
+      pass criteria were built.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>When every option fails your test, suspect the test. Both failures here came from gates
+      that were <em>structurally incapable</em> of measuring what they claimed — one blind to the
+      variable it was scoring, one counting cells that could never have passed.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">A score that was blind to the thing it scored</a></li>
+        <li><a href="#c2">A denominator full of impossible cells</a></li>
+        <li><a href="#c3">One answer, arrived at from opposite directions</a></li>
+        <li><a href="#c4">The wall that was not the analyzer's fault</a></li>
+        <li><a href="#c5">Moving a threshold after seeing the data</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The first defect</div>
+      <h2>A score that was blind to the thing it scored</h2>
+
+      <p>The question was narrow and cheap: given the sampling rate from the previous entry, what
+      <span class="term" data-term="window">window size</span> and step should the analysis use to slice each trajectory? Twelve combinations,
+      ninety trajectories, no capture required.</p>
+
+      <p>Before it ran, the plan written eight days earlier was already obsolete. It had proposed
+      windows from 32 up to 512 samples. The actual trajectories held between 5 and 73 samples —
+      so <b>zero of ninety cells could accommodate even the smallest proposed window</b>. The
+      range was cut by a factor of eight, to 8 through 64.</p>
+
+      <p>Then the sweep ran and declared no winner for either workload. Every combination failed at
+      least one <span class="term" data-term="gate">gate</span>. The first reason:</p>
+
+      <div class="study">
+        <div class="scite">plan03_window_hop_proposal.html · defect 1</div>
+        <p class="sfind">The gate scoring the bursty workload used a boundary-detection score. But
+        the detector's function signature takes <b>only the trajectory</b> — no window, no step. So
+        its score was <b>identical across all twelve combinations</b> for a given cell.</p>
+        <p class="srel">A gate meant to choose between twelve options was returning the same number
+        for all twelve. It could not discriminate even in principle.</p>
+      </div>
+
+      <p>It was replaced with a measure that genuinely depends on window size — the sharpness of
+      the dominant <span class="term" data-term="cepstral">periodic peak</span>, whose frequency resolution is set by the window length. The
+      old score was kept, but demoted to a regression guard against the previous dataset.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>Before trusting a gate to rank options, check that its output actually varies with the
+        thing being ranked. A constant is not a criterion.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The second defect</div>
+      <h2>A denominator full of impossible cells</h2>
+
+      <p>The second gate required that a healthy fraction of cells yield a usable number of
+      windows. It was failing everywhere — because its denominator counted <em>every</em> cell,
+      including the short ones that hold five to fifteen samples and therefore cannot produce the
+      required windows at <b>any</b> sensible setting.</p>
+
+      <div class="analogy"><div class="cardlab">Analogy</div>
+        <p>Judging a high-jump competition by the fraction of everyone in the stadium who cleared
+        the bar. Most of them never attempted it. The ratio says nothing about the jumpers.</p></div>
+
+      <p>The fix restricts the denominator to cells that are physically eligible — those with
+      enough samples to fit the window and step under test. With both gates repaired, the sweep
+      returned an answer.</p>
+
+      <div class="callout note"><div class="clab">Cost of the whole experiment</div>
+        <p>Ninety trajectories, 4.7 MB on disk, about fifteen seconds of computation. Later, over
+        the full dataset: 132 cells × 12 combinations = 1,584 rows in roughly thirty seconds. The
+        expensive part of this research is capture; the analysis is nearly free, which is exactly
+        why the later entries argue so hard about what to keep.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The result</div>
+      <h2>One answer, arrived at from opposite directions</h2>
+
+      <p>Both workload types converge on the same setting — a window of 8 samples with a step of 4
+      — and the interesting part is that they get there for incompatible reasons.</p>
+
+      <div class="pillars">
+        <div class="pillar"><div class="pn">Steady workloads</div><h4>Smallest is cleanest</h4>
+          <p>Variability rises monotonically with window size — 0.037 at width 8, climbing to
+          0.868 at width 64. A long window swallows several complete cycles of the workload and
+          smears them together.</p></div>
+        <div class="pillar"><div class="pn">Bursty workloads</div><h4>Smallest that still resolves</h4>
+          <p>Picked as the smallest window that still produces a strong periodic peak (8.87 dB) —
+          among the few gates this family can reach at all.</p></div>
+        <div class="pillar"><div class="pn">Verdict</div><h4>Universal, with one exception</h4>
+          <p>Across all eleven workloads later, the same setting wins everywhere. One workload
+          prefers a wider window, and that pick was flagged as fragile — only two cells in the
+          dataset can even support it.</p></div>
+      </div>
+
+      <p>This setting is still what the whole thesis runs on. It is one of the few decisions from
+      this period that has never been revisited.</p>
+
+      <div class="callout idea"><div class="clab">The classification result</div>
+        <p>Feeding ten features from this sweep into a classifier gave a perfect score at telling
+        bursty from steady — 1.000, every one of 118 cells correct. Identifying <em>which</em> of
+        eleven workloads produced a trace was far weaker at 33%, but structured: the errors stay
+        almost entirely <b>inside</b> a workload's own family. Two workloads that share a
+        sweeping access pattern were mutually confused, which is the instrument behaving correctly.</p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Recorded at the time: all four repeats came from the same host, the same guest, within
+        a single day. Nothing here tests whether the result survives a different machine or a
+        different week. And that perfect binary score is the subject of the next entry, where it
+        does not survive contact with an audit.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The honest negative</div>
+      <h2>The wall that was not the analyzer's fault</h2>
+
+      <p>One gate fails universally — zero of twelve combinations, for every bursty workload, in
+      both datasets. And unlike the two defects above, this one is real.</p>
+
+      <p>To resolve a rhythm, the analysis window has to span at least two of its cycles. The
+      encryption phase being detected lasts about twenty seconds, so the window needs to cover
+      forty — which at the chosen sampling rate means at least eighty samples. The longest bursty
+      trajectory in the entire dataset is sixty-seven.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 210" role="img" aria-label="The analysis window needed to span two cycles of the workload rhythm is longer than the longest trajectory available">
+          <text x="24" y="30" class="lbl-m" font-size="10.5">what the rhythm requires</text>
+          <rect x="24" y="38" width="420" height="26" rx="4" class="f-soft s-acc"/>
+          <line x1="234" y1="38" x2="234" y2="64" class="s-acc dash"/>
+          <text x="129" y="55" text-anchor="middle" class="lbl-a" font-size="10">one cycle ≈ 20 s</text>
+          <text x="339" y="55" text-anchor="middle" class="lbl-a" font-size="10">one cycle ≈ 20 s</text>
+          <text x="452" y="55" class="lbl-a" font-size="10.5">= 80 samples needed</text>
+
+          <text x="24" y="100" class="lbl-m" font-size="10.5">what the longest trajectory offers</text>
+          <rect x="24" y="108" width="352" height="26" rx="4" class="f-wash s-hair"/>
+          <text x="200" y="125" text-anchor="middle" class="lbl-m" font-size="10">67 samples, at best</text>
+
+          <path d="M 376 121 L 440 121" class="s-mut dash"/>
+          <text x="448" y="125" class="lbl-m" font-size="10.5">the gap is structural</text>
+
+          <text x="24" y="172" class="lbl" font-size="11.5">Coverage peaks at 0.8 against a floor of 2.0 — and no window setting can close it.</text>
+          <text x="24" y="192" class="lbl-m" font-size="11">The rhythm is detectable. It is not adequately sampled. Those are different claims.</text>
+        </svg>
+        <figcaption><b>Fig 4.1</b> No choice of analysis parameters can manufacture samples that
+        were never captured. Fixing this required going back to the capture side — which is
+        Entry 9.</figcaption>
+      </figure>
+
+      <p>The alternative was written down explicitly: relax the coverage requirement from 2.0 to
+      0.5, lower the detection bar, and the gate passes. That option was <b>recorded and
+      rejected</b>.</p>
+
+      <div class="study">
+        <div class="scite">plan03_overview.html</div>
+        <p class="sfind">"The team's recommendation is to retain the honest <b>best-feasible</b>
+        label."</p>
+        <p class="srel">The result is reported as: the rhythm is present and measurable, but
+        under-sampled at this capture rate. That phrasing survives every later review intact — it
+        is one of the few claims in the project that no audit has dented.</p>
+      </div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The tension</div>
+      <h2>Moving a threshold after seeing the data</h2>
+
+      <p>When the analysis was re-run over the full eleven-workload dataset, two problems appeared
+      at once. The first was mechanical: the code recognised only two workload names as
+      substrings, so on the new dataset <b>every</b> workload classified as unknown and no
+      criterion was computed at all.</p>
+
+      <p>The second was substantive. The thresholds had been calibrated against two probes — one
+      clean burst and one clean cycle, with a baseline variability of 0.022 that the write-up
+      itself calls <b>"toy-clean"</b>. Applied to eleven real sustained workloads, they rejected
+      essentially everything.</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Threshold</th><th>Was</th><th>Became</th><th>Because</th></tr></thead>
+        <tbody>
+          <tr><td>Periodic peak strength</td><td>5.0 dB</td><td>4.5 dB</td><td>one workload sits at 4.78; 4.5 still demands a peak ~2.8× the noise floor</td></tr>
+          <tr><td>Steady variability, short</td><td>0.05</td><td>0.30</td><td>real sustained workloads run 0.06–0.33</td></tr>
+          <tr><td>Steady variability, long</td><td>0.15</td><td>0.50</td><td>multi-cycle drift over longer runs</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The write-up argues at length that this is <em>recalibration, not relaxation</em> — a
+      genuine stall still trips the gate. But the project's own founding principles include the
+      line <b>"no metric is ever picked post-hoc to make the result look good."</b> The document
+      resolves the tension by not hiding behind it:</p>
+
+      <div class="callout note"><div class="clab">The admission, verbatim</div>
+        <p>"The thresholds were <b>post-data-tuned</b> against v3's per-workload medians, as
+        recorded in the D-83 commit."</p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Stating a violation clearly is better than concealing it, but it is not the same as
+        avoiding it. There was no held-out set here — the same cells that calibrated the
+        thresholds were then certified by them. This pattern recurs three more times in the next
+        entry, and by the fourth occurrence it has consequences.</p></div>
+
+      <p>One commit from this week deserves a mention on its own: <em>"rewrite all prose in
+      academic style (no caveman)."</em> The research notes had been written in clipped fragments
+      for speed; turning them into a document that someone else could read was a deliberate,
+      separate act of work.</p>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Analysis window</dt><dd>A run of consecutive snapshots analysed as one unit. Its length sets the frequency resolution — which is exactly why a score that ignores it cannot rank window sizes.</dd></div>
+        <div class="gitem"><dt>Gate</dt><dd>A pass/fail criterion applied to a cell or a workload. This entry is about two of them that were structurally incapable of measuring what they claimed.</dd></div>
+        <div class="gitem"><dt>Periodic peak strength</dt><dd>How sharply a repeating rhythm stands out above the noise floor, measured in decibels. Unlike the score it replaced, it genuinely depends on the window length.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan03_window_hop_proposal.html</b> — the two gate defects and their repairs.</li>
+        <li id="r2"><b>plan03_overview.html</b> §12 — the full-dataset result and the recalibration argument.</li>
+        <li id="r3"><b>workload_classification_results.html</b> — the ten features, the perfect binary score, the within-family error structure.</li>
+        <li id="r4"><b>tuning_plans/README.md</b> — the five cross-cutting principles, including the one D-83 is in tension with.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson3.html"><div class="nd">Previous</div><div class="nt">← 6 · The workload was a label, not a variable</div></a>
+      <a class="n-next" href="lesson5.html"><div class="nd">Next entry</div><div class="nt">8 · The night the headline collapsed →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 7</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "window": [
+          "Analysis window",
+          "A run of consecutive snapshots analysed as one unit. Its length sets the frequency resolution — which is exactly why a score that ignores it cannot rank window sizes."
+      ],
+      "gate": [
+          "Gate",
+          "A pass/fail criterion applied to a cell or a workload. This entry is about two of them that were structurally incapable of measuring what they claimed."
+      ],
+      "cepstral": [
+          "Periodic peak strength",
+          "How sharply a repeating rhythm stands out above the noise floor, measured in decibels. Unlike the score it replaced, it genuinely depends on the window length."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What carries forward — Reading Memory</title>
+<meta name="description" content="The method, extracted from the record: the handful of moves that survive when the memory-signal domain is stripped away.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 the evidence"}</style>
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson7.html">10 · The instrument</a>
+      <a class="here" href="part_method.html">11 · The method</a>
+      <a href="index.html">12 · Still open</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part Five<span class="sep">/</span>Entry 11</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Part Five · What carries forward</div>
+      <div class="lnum">Entry 11 of 12 · the whole record, read backwards</div>
+      <h1>What carries forward</h1>
+      <p class="dek">Everything before this was one project. This entry is what is left when the
+      memory-signal subject is stripped away — <b>the handful of moves that produced every result
+      and caught every mistake</b>, stated so they could be carried into work that has nothing to
+      do with memory.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>The transferable thing in two years of work is not the signal, the pipeline, or the
+      detector. It is <em>a way of not being fooled</em> — and it is small enough to write down.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">A perfect score is a symptom</a></li>
+        <li><a href="#c2">When everything fails the test, suspect the test</a></li>
+        <li><a href="#c3">Budget the design by what the data can support</a></li>
+        <li><a href="#c4">Set the bar from measured noise, not convention</a></li>
+        <li><a href="#c5">Write the objection where the temptation will occur</a></li>
+        <li><a href="#c6">Analogy, then object, then formula</a></li>
+        <li><a href="#c7">The form is the contribution, not the realisation</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The reflex</div>
+      <h2>A perfect score is a symptom</h2>
+
+      <p>The move: when a number looks too good, treat it as a report of a <em>bug in the
+      measurement</em> until proven otherwise. Do not celebrate it. Go find what it is made of.</p>
+
+      <div class="study">
+        <div class="scite">Entry 2 (2025) and Entry 8 (2026) — the same reflex, sixteen months apart</div>
+        <p class="sfind">In the thesis: 100% detection, and the results chapter itself says
+        <em>"this performance is too good to be true and likely indicates a bias."</em> In the
+        2026 review: 100% classification, and the verdict is <em>"a red flag, not a triumph."</em>
+        Both were followed, not filed. The first was a degenerate model; the second was one leaked
+        feature.</p>
+        <p class="srel">Entries <a href="part1_thesis.html">2</a> and
+        <a href="lesson5.html">8</a>.</p>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">The rule, portable</div>
+        <p>High performance on a hard problem is a hypothesis about a leak, not evidence of success.
+        The first question is always "what could produce this number <em>without</em> the thing I
+        want being true?"</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The inversion</div>
+      <h2>When everything fails the test, suspect the test</h2>
+
+      <p>The move: a check that fails uniformly, or passes uniformly, is more likely broken than
+      right. Turn the instrument on itself before you trust its verdict on the data.</p>
+
+      <div class="pw">
+        <div class="callout idea"><div class="clab">Where it caught a false negative</div>
+          <p>A parameter sweep returned "no winner" for every option. The gate was scoring on a
+          number that didn't depend on the parameter being swept — it could not discriminate in
+          principle. (Entry 7.)</p></div>
+        <div class="callout idea"><div class="clab">Where it caught a false positive</div>
+          <p>A gate passed all 132 cells. It was reading a field that didn't exist, and "missing"
+          fell through to "pass." Every cell had actually failed. (Entry 8.)</p></div>
+      </div>
+
+      <p>The same shape appears at least four times across the record — a health check that tested
+      the wrong signal, a preflight that reported a pass on one workload of a hundred, a checker
+      that called healthy captures corrupt. The lesson is not "checks are unreliable." It is that
+      <b>a check is itself an experiment, and needs its own null result</b>: run it where you know
+      the answer, and confirm it says so.</p>
+
+      <div class="takeaway"><div class="cardlab">The rule, portable</div>
+        <p>Before trusting a verdict, feed the verdict-maker a case whose answer you already know.
+        A tool that cannot fail on bad input cannot be believed on good input.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The constraint-first choice</div>
+      <h2>Budget the design by what the data can support</h2>
+
+      <p>The move: choose the method by counting what you can afford to estimate, not by reaching
+      for the most powerful tool. Sophistication you cannot feed is a liability.</p>
+
+      <div class="study">
+        <div class="scite">Entry 8 — the detector selection</div>
+        <p class="sfind">Five change-point detectors were on the table. The deciding question was
+        not "which is most accurate" but <em>"how many cells do we have for hyperparameter
+        selection?"</em> — about twenty. So: <em>"anything with more than one knob is
+        over-parameterised for our data."</em> The winner was the one with a single knob. The
+        Bayesian option needed a prior, the penalty method a cost model, the network a training set
+        that did not exist.</p>
+        <p class="srel">Entry <a href="lesson5.html">8</a>; the same logic set the replicate count
+        and the "no pooled score" rule.</p>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">The rule, portable</div>
+        <p>Count your <span class="term" data-term="dof">degrees of freedom</span> before you choose
+        your model. The right complexity is the most the evidence can constrain, and not one knob
+        more.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The calibration instinct</div>
+      <h2>Set the bar from measured noise, not convention</h2>
+
+      <p>The move: before accepting a threshold, run the metric on <em>deliberate nonsense</em> and
+      see what it scores. An acceptance bar that isn't anchored to the noise floor is decoration.</p>
+
+      <div class="study">
+        <div class="scite">Entry 6 (the principle) and Entry 8 (the payoff)</div>
+        <p class="sfind">The planned bar was a literature convention, 0.8. Run on noise, the scorer
+        returned 0.41–0.62 — so 0.8 was noise plus a margin nobody had measured. The objection that
+        won: <em>"if the noise floor is 0.7, that's the headline finding."</em> When this was finally
+        executed for real, a gate scored <b>identically on real data and on shuffled noise</b> —
+        gap 0.000 — and the output flagged itself <code class="ic">band_near_unfalsifiable</code>.
+        The calibration retired the gate.</p>
+        <p class="srel">Entries <a href="lesson3.html">6</a> and <a href="lesson5.html">8</a>.</p>
+      </div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>The principle was stated in 2026 and, in its first appearance, <em>not actually run</em> —
+        the worked numbers beside it were placeholders. Stating a discipline and executing it are
+        different acts, and the record is careful to distinguish them. The discipline only became
+        real the day it cost something.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The honesty mechanism</div>
+      <h2>Write the objection where the temptation will occur</h2>
+
+      <p>The move: when you notice a shortcut you must not take, don't just resolve not to take it —
+      put the prohibition <em>in the place</em> where a future you will be tempted. Powers are never
+      recorded without their matching weakness.</p>
+
+      <div class="pw">
+        <div class="callout power"><div class="clab">How it shows up</div>
+          <ul>
+            <li>A sample-inflation shortcut, forbidden in a plan's own first section — and the
+            prohibition copied into the tool's help text so it can't be done by accident.</li>
+            <li>Disconfirming audits committed <em>with their disconfirming numbers intact</em>,
+            beside the claims they undercut.</li>
+            <li>Every gate constant carrying the decision that moved it and the distribution that
+            justified the move.</li>
+          </ul></div>
+        <div class="callout weak"><div class="clab">The cost it accepts</div>
+          <p>This makes the record harder on itself than any outside reviewer would be. That is the
+          point — the honesty is the credibility, and it is only worth anything if it is spent on
+          the work you are proud of, not just the work you are not.</p></div>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">The rule, portable</div>
+        <p>An objection recorded far from the temptation is a note. An objection recorded <em>at</em>
+        the temptation is a guardrail. Put it where the hand reaches.</p></div>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The order of thought</div>
+      <h2>Analogy, then object, then formula</h2>
+
+      <p>The move: reach for a physical or sensory picture first, convert it into a mathematical
+      object, and only then write the equation. Never the reverse. The intuition is load-bearing;
+      the formula is its realisation.</p>
+
+      <div class="study">
+        <div class="scite">Entry 1 — the founding chain</div>
+        <p class="sfind">Memory is <em>listened to</em>, like an ECG or a symphony (analogy). A
+        difference between snapshots <em>is a derivative of a state signal</em> (object). Therefore
+        <code class="ic">ℱ{f′} = jω·ℱ{f}</code> and the whole signal-processing toolkit applies by
+        right (formula). Every method choice in the project descends from taking the first step
+        literally.</p>
+        <p class="srel">Entry <a href="part1_reduction.html">1</a>; the same order recurs at every
+        scale, two years apart.</p>
+      </div>
+
+      <div class="callout note"><div class="clab">A tell to preserve</div>
+        <p>The sharpest statements of the intuition live in the <em>slides</em>, not the formal
+        write-ups — the symphony, the zoom lens, the memory blanket. The instinct is to reach for
+        the picture to persuade and then hide it when the writing turns formal. An agent built on
+        this thinking should keep the picture, not suppress it.</p></div>
+    </div></div></section>
+
+    <!-- 7 -->
+    <section id="c7"><div class="concept"><div class="cn">7</div><div class="cbody">
+      <div class="kicker">The deepest one</div>
+      <h2>The form is the contribution, not the realisation</h2>
+
+      <p>The move underneath all the others: separate <em>what any valid version must preserve</em>
+      from <em>the one version you happened to build</em>. The roles, the invariants, the conditions
+      under which an observation means anything — that is the
+      <span class="term" data-term="form">form</span>. The QEMU pipeline, the Rust engine, the
+      particular detector — those are one realisation, and disposable.</p>
+
+      <div class="study">
+        <div class="scite">The architectural-form paper (2026) and the test it proposes</div>
+        <p class="sfind">Every requirement is written three times — as a bullet, as a requirement,
+        as polished prose — and the test for whether a sentence belongs to the form is a single
+        question: <em>"could a different implementation still satisfy this?"</em> If yes, it is
+        form. If no, it is realisation.</p>
+        <p class="srel">This is why the whole project could retreat four times — detector, then
+        substrate, then signal validity, then form — without losing itself. Each retreat kept the
+        form and discarded a realisation. See Entry <a href="part1_retreat.html">3</a>.</p>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">Why this entry exists</div>
+        <p>An agent that inherits these seven moves inherits the form of the thinking, not the
+        memory-signal realisation of it. That is the whole point of writing them down: the subject
+        was never the transferable part. <b>The method was.</b></p></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Seven moves extracted from one project are a <em>hypothesis</em> about how this person
+        thinks, not a proven account of it. They are what the record supports so far. The test of
+        whether they are really the method is whether they hold on the next problem — which, by the
+        standard of this very list, is the only test that counts.</p></div>
+    </div></div></section>
+
+    <!-- GLOSSARY -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Form vs realisation</dt><dd>The form is what any valid version of a system must preserve — its roles, invariants, and the conditions under which its output means anything. A realisation is one concrete way of building it. The test for form: could a different implementation still satisfy this sentence?</dd></div>
+        <div class="gitem"><dt>Degrees of freedom</dt><dd>Loosely, how much the data can actually pin down — set by the number of independent observations. A method with more free parameters than the data can constrain will fit noise, so the right complexity is bounded by the evidence, not by ambition.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>The evidence</h2>
+      <ol>
+        <li id="r1"><b>Every entry is a source.</b> This page asserts nothing new; each move is drawn from an episode told in full elsewhere in the diary, cited inline.</li>
+        <li id="r2"><b>Traced vs inferred.</b> The seven moves are <em>inferred</em> — assembled from recurring behaviour across the record. No document states them as a list. That is exactly why this entry closes on the caveat that they are a hypothesis, not a proof.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson7.html"><div class="nd">Previous</div><div class="nt">← 10 · Building an instrument worth trusting</div></a>
+      <a class="n-next" href="index.html"><div class="nd">Still open</div><div class="nt">12 · The angle that hid an allocation →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Part Five · Entry 11</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+    "form": ["Form vs realisation","The form is what any valid version of a system must preserve - its roles, invariants, and the conditions under which its output means anything. A realisation is one concrete way of building it. The test for form: could a different implementation still satisfy this sentence?"],
+    "dof": ["Degrees of freedom","Loosely, how much the data can actually pin down - set by the number of independent observations. A method with more free parameters than the data can constrain will fit noise, so the right complexity is bounded by the evidence, not by ambition."]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The night the headline collapsed — Reading Memory</title>
+<meta name="description" content="A perfect score, and the audit that took it apart. A schema mismatch had been faking every gate pass.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it changed"}</style>
+</head>
+<body data-domain="cache">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="lesson4.html">7 · The gates</a>
+      <a class="here" href="lesson5.html">8 · The collapse</a>
+      <a href="lesson6.html">9 · The failure that wasn't</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Entry 8</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Plan 04 · Segmentation &amp; review</div>
+      <div class="lnum">Entry 8 of 12 · 1 June 2026</div>
+      <h1>The night the headline collapsed</h1>
+      <p class="dek">A change-point detector, built and corrected five times between <b>00:55 and
+      02:30</b>. Then, the same day, a review that took the project's best number apart and found
+      it was <b>a single feature wearing a disguise</b>.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>The perfect score was real, reproducible, and meaningless. One feature was
+      <em>the label, rewritten</em> — and finding that out is the most valuable thing this
+      project produced all month.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">Ninety-five minutes, and why the detector has one knob</a></li>
+        <li><a href="#c2">A schema mismatch that faked every pass</a></li>
+        <li><a href="#c3">Sixty-three hours, and then the real problem</a></li>
+        <li><a href="#c4">The retreat, in five steps</a></li>
+        <li><a href="#c5">A hundred percent from one leaked number</a></li>
+        <li><a href="#c6">What survived</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The build</div>
+      <h2>Ninety-five minutes, and why the detector has one knob</h2>
+
+      <p>The previous entry left a placeholder: a boundary detector that ignored the window size.
+      Replacing it properly meant choosing from five candidates — a classical <span class="term" data-term="cusum">cumulative-sum</span> test,
+      two Bayesian and penalty-based segmenters, a robust derivative rule, and a small neural
+      network.</p>
+
+      <p>The selection argument is the sharpest piece of reasoning in the period, and it is about
+      budget rather than sophistication:</p>
+
+      <div class="study">
+        <div class="scite">plan04_segmenter_proposal.html · dispute 1 · unanimous</div>
+        <p class="sfind">"With approximately <b>20 marker-rich cells per duration stratum</b>, any
+        detector with <b>more than one knob is over-parameterised</b>."</p>
+        <p class="srel">The Bayesian option needs a prior, the penalty method needs a cost model,
+        the network needs a training set that does not exist. The winner has exactly one tunable
+        number.</p>
+      </div>
+
+      <p>What shipped: a two-sided cumulative-sum test running on the rolling mean, with the scale
+      estimated robustly so a few large spikes cannot inflate it, and one sensitivity knob whose
+      default is the familiar two-standard-deviation rule. Around 370 lines, no file access, six
+      pure functions, and a 736-line test suite.</p>
+
+      <p>The entire arc — proposal, implementation, quality review, and five corrective decisions —
+      is committed between <b>00:55 and 02:30</b> on a single night.</p>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The blocker</div>
+      <h2>A schema mismatch that faked every pass</h2>
+
+      <p>The quality review found the detector itself was correct. What was wrong sat between the
+      detector and the thing that judged it.</p>
+
+      <p>The driver wrote its gate results as top-level fields. The validator looked for them
+      nested inside a sub-object, under different names. The chain:</p>
+
+      <pre class="code">the nested dictionary did not exist
+  → the lookup returned <span class="kw">None</span>
+    → <span class="fn">bool</span>(<span class="kw">None</span>) is <span class="kw">False</span>
+      → so the validator took its fallback path
+        → and the fallback path was the "not applicable" branch
+          → <span class="cm">which counts as a PASS</span></pre>
+
+      <p>Every one of 132 cells appeared to clear the gate. <b>Every bursty workload had in fact
+      failed it.</b> Once the schema was fixed, the honest figure was 60 of 132.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>A missing value and a passing value were indistinguishable to the validator. This is the
+        same defect as Entry 6's cell that "failed for having succeeded quietly" — the identical
+        confusion between <em>absent</em> and <em>fine</em>, pointed the opposite way, and this
+        time it manufactured a perfect score instead of destroying a good one.</p></div>
+
+      <div class="callout note"><div class="clab">Two smaller ones, same review</div>
+        <p>The exported helper used the previous time step where the actual implementation used the
+        current one — the detector was right, but its own public function disagreed with it. And
+        the implemented gates were quietly looser than the written specification: a median
+        threshold where the spec required a median <em>and</em> a proportion.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The real problem</div>
+      <h2>Sixty-three hours, and then the real problem</h2>
+
+      <p>With the gates honest, the detector still scored zero. The first cause was mundane and
+      fixable: a <b>63-hour wall-clock skew</b> between the log the workload wrote and the log the
+      capture wrote. The matcher that aligned them by absolute time collapsed <em>every</em> truth
+      marker onto the first snapshot. Aligning them relatively instead — first marker to first
+      snapshot, spacing preserved — made <span class="term" data-term="marker">markers</span> land in sensible places.</p>
+
+      <p>And the score stayed at zero. Across every setting tried.</p>
+
+      <p>Inspecting individual cells showed why. One trace with 66 samples had 13 declared truth
+      markers and the detector emitted <b>none</b>. Another with 93 samples had 2 markers and 3
+      detections, none of which overlapped.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 230" role="img" aria-label="Truth markers fire at workload-internal events while the detector responds to shifts in the memory signal level; the two do not coincide">
+          <text x="24" y="28" class="lbl-m" font-size="10.5">what the workload says happened</text>
+          <line x1="24" y1="52" x2="600" y2="52" class="s-hair"/>
+          <g class="s-acc">
+            <line x1="70" y1="40" x2="70" y2="64"/><line x1="140" y1="40" x2="140" y2="64"/>
+            <line x1="210" y1="40" x2="210" y2="64"/><line x1="280" y1="40" x2="280" y2="64"/>
+            <line x1="350" y1="40" x2="350" y2="64"/><line x1="420" y1="40" x2="420" y2="64"/>
+          </g>
+          <text x="70" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 1</text>
+          <text x="140" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 2</text>
+          <text x="210" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 3</text>
+          <text x="280" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 4</text>
+          <text x="350" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 5</text>
+          <text x="420" y="80" text-anchor="middle" class="lbl-a" font-size="9">file 6</text>
+
+          <text x="24" y="124" class="lbl-m" font-size="10.5">what the memory signal does</text>
+          <path d="M 24 176 L 60 174 L 96 178 L 132 158 L 168 160 L 204 156 L 240 159 L 276 157 L 312 161 L 348 158 L 384 160 L 420 157 L 456 175 L 492 177 L 528 174 L 564 176 L 600 175"
+                class="s-ink no"/>
+          <line x1="24" y1="196" x2="600" y2="196" class="s-hair"/>
+          <line x1="132" y1="140" x2="132" y2="196" class="s-mut dash"/>
+          <line x1="456" y1="140" x2="456" y2="196" class="s-mut dash"/>
+          <text x="132" y="214" text-anchor="middle" class="lbl-m" font-size="9.5">level shifts up</text>
+          <text x="456" y="214" text-anchor="middle" class="lbl-m" font-size="9.5">level shifts down</text>
+          <text x="294" y="146" text-anchor="middle" class="lbl-m" font-size="10">the workload is busy — but at a steady level</text>
+        </svg>
+        <figcaption><b>Fig 5.1</b> Six workload events; two signal events. The detector is not
+        missing the markers — it is answering a different question, and answering it correctly.</figcaption>
+      </figure>
+
+      <div class="study">
+        <div class="scite">plan04_overview.html §10</div>
+        <p class="sfind">"The detector and the markers were not failing to find the same events;
+        <b>they were finding different kinds of event.</b>"</p>
+        <p class="srel">Phase markers describe events <em>inside the workload</em> — a file
+        processed, a phase begun. The detector finds shifts in the <em>level of memory activity</em>.
+        For a workload that encrypts steadily, those two definitions of "event" almost never
+        coincide.</p>
+      </div>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>The ground truth and the measurement were never measuring the same thing. No amount of
+        tuning reconciles them, because there is nothing wrong with either one.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The walk-back</div>
+      <h2>The retreat, in five steps</h2>
+
+      <p>Faced with a ground truth that could not be used, the gate was progressively redefined
+      until something passed. Each step is individually defensible. Read together, they are the
+      most instructive sequence in this diary.</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Step</th><th>What changed</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>D-84</td><td>Fix the schema faking every pass; tighten gates to spec</td><td>132/132 → <b>60/132</b></td></tr>
+          <tr><td>D-85</td><td>Work around the 63-hour clock skew</td><td>markers land, score still 0.0</td></tr>
+          <tr><td>D-86</td><td><b>Abandon ground truth.</b> A cell now passes if the detector emits between 1 and 20 boundaries</td><td>bursty 0/5 → 3/5</td></tr>
+          <tr><td>D-87</td><td>Give bursty workloads a knob 20× more sensitive than steady ones</td><td>96/132 cells</td></tr>
+          <tr><td>D-88</td><td>Lower the pass floor from 0.80 to 0.70</td><td>5/5 bursty, <b>120/132</b>, "10 of 11 workloads pass"</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The justification for the last one is that two workloads sat at exactly 0.75, and the 0.80
+      floor had been calibrated <em>before</em> the gate's meaning changed at D-86 — so it was
+      measuring something else by then. That is a real argument. It is also the fourth threshold
+      moved after seeing the data in two entries.</p>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>The published headline became "10 of 11 workloads pass segmentation." What that
+        sentence actually certifies, after D-86, is <b>"the detector emitted somewhere between 1
+        and 20 boundaries"</b> — a claim about liveness, not about phases. The next concept is
+        what happened when someone checked whether even that much was true.</p></div>
+
+      <div class="callout note"><div class="clab">One gate was honestly labelled a placeholder</div>
+        <p>A fifth gate returns <code class="ic">true</code> for everything — a hardcoded
+        placeholder, because the scores it would compare against are all zero. This is disclosed
+        in the overview document. It is also, elsewhere, reported as "11/11 pass" — a discrepancy
+        that is still open.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The audit</div>
+      <h2>A hundred percent from one leaked number</h2>
+
+      <p>Later the same day, the results were put through a structured internal review — a device
+      this project had been using since the previous month, in which the work is argued over by a
+      set of named <em>roles</em> rather than people. The documents say so plainly: the exchanges
+      are reconstructions, and every number cited comes from files on disk. The critiques are
+      staged; the ablations they produced, and the retractions, are real.</p>
+
+      <p>The first blocking objection was aimed straight at the perfect binary classification
+      score from Entry 7:</p>
+
+      <div class="study">
+        <div class="scite">reviewer_memo.html · finding B-1 · blocking</div>
+        <p class="sfind">"A RandomForest reporting a <code class="ic">[[54,0],[0,64]]</code>
+        confusion matrix on a <b>one-number-per-snapshot signal</b> is a red flag, not a triumph."</p>
+        <p class="srel">An ablation was written and run. It confirmed the objection completely.</p>
+      </div>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Features used</th><th>Accuracy</th></tr></thead>
+        <tbody>
+          <tr><td>All ten</td><td>1.000</td></tr>
+          <tr><td><b>One feature — <code class="ic">coverage_ratio</code> — alone</b></td><td><b>1.000</b></td></tr>
+          <tr><td>Drop the three suspect features</td><td>0.644</td></tr>
+          <tr><td>Mean and spread of the raw signal</td><td>0.576</td></tr>
+          <tr><td>Always guess the larger class</td><td>0.542</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>That one feature takes the value <b>0.1333 for every steady cell and 0.200 for every
+      bursty one</b>. Zero variation within either group. It is not a measurement of the workload —
+      it is the label, arithmetically re-encoded. Two further features leak the same way through
+      their <em>absence</em>: one is undefined for all bursty cells, the other for all steady ones,
+      so which one is missing tells you the answer.</p>
+
+      <div class="callout note"><div class="clab">The line from the research log</div>
+        <p>"So the model was rediscovering our labelling rule, not memory behavior.
+        <b>The hundred percent is feature construction.</b>"</p></div>
+
+      <p>A second round, 46 minutes later, stopped arguing about method and instead re-derived
+      every printed number from the raw files. Its opening verdict on whether the portfolio's
+      figures matched the data: <b>"It mostly is not."</b> Nine numeric corrections followed,
+      including that the memory-copy cost had been quoted at its distribution <em>minimum</em>
+      (0.75 s) when the median was 7.06 s, and that a claimed storage contribution had never been
+      exercised at all — the relevant setting was on in 125 of 128 cells.</p>
+
+      <p>Three follow-up scripts closed the remaining questions against existing data, and all
+      three came back negative:</p>
+
+      <div class="pw">
+        <div class="callout weak"><div class="clab">Significance</div>
+          <p>The 0.644 residual is not distinguishable from guessing (p = 0.119). A bootstrap over
+          the 33 genuinely independent groups puts its confidence interval at
+          [0.541, 0.746] — the lower bound sits <em>below</em> the baseline.</p></div>
+        <div class="callout weak"><div class="clab">Generalisation</div>
+          <p>Held out an entire <span class="term" data-term="lowo">unseen workload</span>: <b>0.466</b> — worse than always guessing. The
+          leaky version stays at exactly 1.000 in every fold, confirming the leaked feature is a
+          per-family constant.</p></div>
+      </div>
+
+      <p>And the detector from earlier in this entry was run against nulls — shuffled versions of
+      its own inputs, and pure noise matched for length and spread:</p>
+
+      <pre class="code">real bursty cells                 0.850
+same data, time-shuffled          0.850   <span class="cm">gap: 0.000</span>
+pure noise, matched statistics    0.850   <span class="cm">gap: 0.000</span></pre>
+
+      <p>The output file flags itself: <code class="ic">band_near_unfalsifiable: true</code>. The
+      gate cannot tell a workload from its own shuffled noise, because what it actually certifies
+      is that the trajectory is not flat.</p>
+    </div></div></section>
+
+    <!-- 6 -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">The salvage</div>
+      <h2>What survived</h2>
+
+      <p>Losing every headline in a day sounds like a catastrophe. The position taken in the
+      documents is the opposite, and it is correct:</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p><b>"The negatives are the contribution."</b> These are not failures to bury — several
+        are the most publishable findings in the project.</p></div>
+
+      <p>What came through the review intact:</p>
+
+      <div class="callout power"><div class="clab">Claims that held</div>
+        <ul>
+          <li><b>The cost model</b> — and it got <em>stronger</em>. The correction turned "the
+          snapshot dominates" from an assertion into a measured 81% of the cycle.</li>
+          <li><b>The coverage limit from Entry 7</b> — attacked on degrees-of-freedom grounds and
+          it held. Restricted to the cells with the most windows, the peak strength <em>rises</em>
+          from 5.78 to 6.92 dB.</li>
+          <li><b>The leakage finding itself</b> — the second round only sharpened why it is true.</li>
+          <li><b>Marker non-observability</b> — the negative from concept 3. Structurally
+          unavailable, not merely low.</li>
+          <li><b>Identity does not survive the coarsening</b> — 33% on an eleven-way task, with
+          errors confined within families. Never challenged.</li>
+          <li><b>The central thesis</b> — one deliberately impoverished number carries a coarse,
+          weak hint of workload family and nothing finer.</li>
+        </ul></div>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Two of the fourteen quantities audited checked out exactly as printed. That is the real
+        ratio, and it is why the next entry's habit — chase the number you do not believe — is
+        the one that pays off.</p></div>
+
+      <p>One loop from this day was never closed. The papers were frozen on 1 June; the documents
+      that state the classification result still describe it as a genuine 100%, and the word
+      "<span class="term" data-term="leakage">leakage</span>" does not appear in them. The retraction lives in one directory and the claim lives
+      in another.</p>
+
+      <div class="specbox"><div class="alab">Open, not done</div>
+        <p>Bringing those documents into line with their own audit is outstanding work, not a
+        finished decision. It is listed here so the gap is visible rather than quietly inherited by
+        whatever gets written next.</p></div>
+    </div></div></section>
+
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>CUSUM</dt><dd>A change-point detector that accumulates how far the signal has drifted from its recent average, and fires when the running total crosses a threshold. Chosen because it has exactly one tunable knob.</dd></div>
+        <div class="gitem"><dt>Phase marker</dt><dd>A timestamp the workload itself emits to say "a phase started here" — the intended ground truth. The finding of this entry is that it describes a different kind of event than the detector measures.</dd></div>
+        <div class="gitem"><dt>Leakage</dt><dd>When a feature encodes the answer rather than measuring the thing. Here one feature was a constant per class, so a model using it was reading the label, not the memory.</dd></div>
+        <div class="gitem"><dt>Held-out workload</dt><dd>Training with one entire workload removed, then testing on it. The honest test of whether a result generalises to something never seen — as opposed to merely to a new repeat of something familiar.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan04_segmenter_proposal.html</b>, <b>plan04_overview.html</b> — the detector choice, the five decisions, the marker finding.</li>
+        <li id="r2"><b>research_log.html</b>, <b>reviewer_memo.html</b>, <b>reviewer_memo_round2.html</b> — the two review rounds. The framing device is described in the documents themselves.</li>
+        <li id="r3"><b>leakage_ablation.py / .json</b> — the ablation table, committed with its disconfirming result.</li>
+        <li id="r4"><b>robustness_reanalysis.json</b>, <b>null_calibration.json</b> — significance, held-out generalisation, and the null comparison.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="lesson4.html"><div class="nd">Previous</div><div class="nt">← 7 · Two gates that measured the wrong thing</div></a>
+      <a class="n-next" href="lesson6.html"><div class="nd">Next entry</div><div class="nt">9 · The failure that wasn't →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 8</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+      "cusum": [
+          "CUSUM",
+          "A change-point detector that accumulates how far the signal has drifted from its recent average, and fires when the running total crosses a threshold. Chosen because it has exactly one tunable knob."
+      ],
+      "marker": [
+          "Phase marker",
+          "A timestamp the workload itself emits to say \"a phase started here\" — the intended ground truth. The finding of this entry is that it describes a different kind of event than the detector measures."
+      ],
+      "leakage": [
+          "Leakage",
+          "When a feature encodes the answer rather than measuring the thing. Here one feature was a constant per class, so a model using it was reading the label, not the memory."
+      ],
+      "lowo": [
+          "Held-out workload",
+          "Training with one entire workload removed, then testing on it. The honest test of whether a result generalises to something never seen — as opposed to merely to a new repeat of something familiar."
+      ]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

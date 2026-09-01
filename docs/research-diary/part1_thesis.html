@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The score he didn't believe — Reading Memory</title>
+<meta name="description" content="A detector chosen by elimination, a perfect score its own author refused to accept, and a failure mode that turned out to be reboots rather than malware.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it set up"}</style>
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="part1_reduction.html">1 · The reduction</a>
+      <a class="here" href="part1_thesis.html">2 · The verdict</a>
+      <a href="part1_retreat.html">3 · The retreat</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part One<span class="sep">/</span>Entry 2</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Part One · The verdict</div>
+      <div class="lnum">Entry 2 of 12 · September 2024 – February 2025</div>
+      <h1>The score he didn't believe</h1>
+      <p class="dek">The reasoning from Entry 1, built and run. A detector chosen because nothing
+      else was available, a perfect score that its own results chapter <b>refused to accept</b>,
+      and a failure mode that had nothing to do with malware.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>A perfect score is a symptom, not a triumph — and the first time that reflex shows up in
+      this project, it is aimed at the author's own headline result, in his own results chapter,
+      unprompted.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">The claim nobody tested</a></li>
+        <li><a href="#c2">A detector chosen by elimination</a></li>
+        <li><a href="#c3">The score he didn't believe</a></li>
+        <li><a href="#c4">It doesn't fear malware. It fears reboots.</a></li>
+        <li><a href="#c5">What wasn't written down</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The gap between reasoning and evidence</div>
+      <h2>The claim nobody tested</h2>
+
+      <p>Entry 1 laid out why one complex number per page made sense — a size and a direction,
+      fused so every downstream transform gets both for free. That argument is geometric, and
+      it's sound as far as it goes. What it is not, anywhere in the thesis, is
+      <em>measured</em>.</p>
+
+      <div class="specbox"><div class="alab">Claimed, never checked</div>
+        <p>There is no
+        <span class="term" data-term="ablation">ablation</span> anywhere in the thesis comparing
+        the full complex representation against a magnitude-only version of the same
+        pipeline.<sup class="c"><a href="#r1">1</a></sup>
+        The single most consequential design decision in the whole project — fuse two numbers into
+        one, or keep them separate — is asserted and never tested.</p>
+        <p>There is a second, quieter gap in the same place. The angle is built by stretching a
+        distance that only ever runs from 0 to 1 around a <em>full</em> turn of the circle — which
+        means its two extremes land on the same angle. Nothing in the thesis discusses that. What
+        it costs, measured on real data, is Entry 12.</p></div>
+
+      <p>And there is a third gap, which is different in kind because <em>it was known at the
+      time</em>. The thesis says the wavelet transform runs on the delta's magnitude and phase.
+      The code that produced the results runs it on the real and imaginary parts instead — a
+      different decomposition of the same complex signal, giving different coefficients and
+      therefore different features. Both paths exist in the source. Only one was wired to the
+      configuration that ran.</p>
+
+      <p>Sitting between them, in the function itself:</p>
+
+      <pre class="code"><span class="cm">#TODO MAKE IT ALSO FOR MAGNITUDE PHASE!!!!!!!!!!!!!!</span></pre>
+
+      <div class="callout note"><div class="clab">Eleven exclamation marks</div>
+        <p>This is not a defect that slipped through unnoticed. It is a note to self, in the
+        author's own hand, saying the magnitude/phase route was the one he meant to take and
+        hadn't finished. The results were produced on the other branch and written up as though
+        they had been produced on this one.</p>
+        <p>Traced: <code class="ic">wavelet_analysis_features_memmapped.py</code>, inside
+        <code class="ic">process_wavelet_2d</code>. With the driver's defaults
+        (<code class="ic">--exp-decay --parallel</code>) the dispatch routes through
+        <code class="ic">…_overlap_parallel</code> → <code class="ic">…_decay_features_single_batch</code>
+        → <code class="ic">is_mag=False</code>. The magnitude branch is reachable only with decay
+        switched off.</p></div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The most useful artifact in a codebase is often the comment where someone told
+        themselves the truth. An urgent-sounding TODO is a dated record of what the author knew was
+        unfinished — and it outlives the intention that wrote it.</p></div>
+
+      <div class="callout weak"><div class="clab">Why this belongs here, not as a footnote</div>
+        <p>Every result in the rest of this entry rests on that representation. If a result looks
+        strong, it is worth remembering that the foundation under it was never independently
+        checked — which is exactly the habit the rest of this diary spends two years building
+        tools for.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">Under the hood</div>
+      <h2>A detector chosen by elimination</h2>
+
+      <p>The full pipeline: pause the guest, dump memory, compute per-page differences in Rust,
+      assemble a page-by-time matrix, tile it into overlapping blocks, push each block through the
+      four lenses from Entry 1, reduce to energy and shape statistics, compress the dimensions, and
+      hand the result to a model.</p>
+
+      <p>The model is a single
+      <span class="term" data-term="autoencoder">autoencoder</span>, and the reason is stated
+      without ceremony: <b>"the lack of labelled memory data limited the use of supervised
+      methods."</b><sup class="c"><a href="#r1">1</a></sup> No labelled corpus existed, so the only
+      move available was a
+      <span class="term" data-term="oneclass">one-class model</span> — learn what normal looks
+      like, and flag whatever deviates, without ever being shown an example of the other
+      class. Trained only on normal blocks, the autoencoder's
+      <span class="term" data-term="reconerr">reconstruction error</span> becomes the anomaly
+      score — large when a block looks unfamiliar, small when it looks like training data.</p>
+
+      <p>Two machines were tested. The first ran simulated ransomware in a continuous loop. The
+      second ran a real cryptominer, sampled across three clean phases and three infected ones,
+      deliberately spanning <b>two restarts</b> — a built-in stress test for whether "normal" holds
+      still.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 190" role="img" aria-label="The same four lenses from entry one, now scored: cepstrum wins outright, wavelets hold steady, Fourier degrades late, and scattering is erratic">
+          <rect x="24" y="24" width="90" height="140" rx="8" class="f-tint s-hair"/>
+          <text x="69" y="98" text-anchor="middle" class="lbl" font-size="11" transform="rotate(-90 69 98)">one block, four lenses</text>
+
+          <circle cx="176" cy="42" r="20" class="f-acc"/><text x="176" y="47" text-anchor="middle" class="lbl" font-size="11" fill="#fff">C</text>
+          <rect x="212" y="30" width="200" height="24" rx="5" class="f-acc no"/>
+          <text x="222" y="47" class="lbl" font-size="10.5" fill="#fff">cepstrum — won outright</text>
+
+          <circle cx="176" cy="86" r="20" class="f-paper s-acc"/><text x="176" y="91" text-anchor="middle" class="lbl-a" font-size="11">W</text>
+          <rect x="212" y="74" width="150" height="24" rx="5" class="f-wash s-acc"/>
+          <text x="222" y="91" class="lbl-a" font-size="10.5">wavelets — solid, then wobbled</text>
+
+          <circle cx="176" cy="126" r="20" class="f-paper s-hair"/><text x="176" y="131" text-anchor="middle" class="lbl-m" font-size="11">F</text>
+          <rect x="212" y="114" width="120" height="24" rx="5" class="f-tint s-hair"/>
+          <text x="222" y="131" class="lbl-m" font-size="10.5">Fourier — dropped after reboot 2</text>
+
+          <circle cx="176" cy="150" r="0"/>
+          <circle cx="176" cy="150" r="20" transform="translate(0,20)" class="f-paper s-hair"/><text x="176" y="175" text-anchor="middle" class="lbl-m" font-size="11">S</text>
+          <rect x="212" y="158" width="90" height="24" rx="5" class="f-tint s-hair"/>
+          <text x="222" y="175" class="lbl-m" font-size="10.5">scattering — erratic, 0.4% to 100%</text>
+        </svg>
+        <figcaption><b>Fig 2.1</b> Entry 1 asked which lens would carry the signal without deciding
+        in advance. This is the same comparison, filled in — and the lens that was in the thesis's
+        original title is not the one that won.</figcaption>
+      </figure>
+
+      <div class="callout idea"><div class="clab">The habit paying off</div>
+        <p>The lens introduced almost as an afterthought — cepstrum — reached 100% across every
+        clean phase, unaffected by block size or by either reboot. The lens the thesis was
+        <em>originally titled after</em>, wavelets, placed second. That only happened because
+        nothing was committed to in advance.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The result</div>
+      <h2>The score he didn't believe</h2>
+
+      <p>The ransomware machine's numbers were spectacular and worthless:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Machine 1 — ransomware</th><th>On clean data</th><th>On infected data</th></tr></thead>
+        <tbody>
+          <tr><td>Accuracy</td><td><b>0.00%</b></td><td><b>100%</b></td></tr>
+          <tr><td>False positives</td><td>100%</td><td>—</td></tr>
+        </tbody>
+      </table></div>
+
+      <p>The model was calling <em>everything</em> anomalous. That scores perfectly on infected
+      data and catastrophically on clean data — the two numbers are the same failure, read from
+      opposite sides. And the thesis says so, in its own results chapter, without being asked:</p>
+
+      <div class="study">
+        <div class="scite">thesis §8.1, p. 93</div>
+        <p class="sfind">"However, this performance is <b>too good to be true</b> and likely
+        indicates a bias in the model."</p>
+        <p class="srel">This reflex reappears sixteen months later, almost word for word, aimed at
+        a second perfect score that turns out to be one leaked feature. See Entry 8.</p>
+      </div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>A perfect score is a symptom, not a triumph. It shows up here first, unprompted, in a
+        results chapter that had no obligation to say it.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The real failure mode</div>
+      <h2>It doesn't fear malware. It fears reboots.</h2>
+
+      <p>The cryptominer machine's numbers are the ones the thesis actually rests on, and they
+      degrade in a specific place: every method except cepstrum falls off sharply
+      <b>after the second restart</b>.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 200" role="img" aria-label="Detector accuracy holds across the first clean phases and drops sharply after the second reboot for every method except cepstrum">
+          <line x1="70" y1="150" x2="600" y2="150" class="s-hair"/>
+          <line x1="70" y1="26" x2="70" y2="150" class="s-hair"/>
+          <text x="60" y="32" text-anchor="end" class="lbl-m" font-size="10">100%</text>
+          <text x="60" y="150" text-anchor="end" class="lbl-m" font-size="10">0</text>
+          <text x="150" y="168" text-anchor="middle" class="lbl-m" font-size="10">clean 1</text>
+          <text x="330" y="168" text-anchor="middle" class="lbl-m" font-size="10">clean 2</text>
+          <text x="510" y="168" text-anchor="middle" class="lbl-m" font-size="10">clean 3</text>
+          <text x="420" y="186" text-anchor="middle" class="lbl-a" font-size="10">↑ second reboot here</text>
+          <line x1="420" y1="26" x2="420" y2="158" class="s-acc dash"/>
+
+          <path d="M 150 26 L 330 26 L 510 26" class="s-acc no"/>
+          <circle cx="150" cy="26" r="4" class="f-acc"/><circle cx="330" cy="26" r="4" class="f-acc"/><circle cx="510" cy="26" r="4" class="f-acc"/>
+          <text x="524" y="30" class="lbl-a" font-size="10">cepstrum</text>
+
+          <path d="M 150 26 L 330 26 L 510 61" class="s-mut no"/>
+          <circle cx="510" cy="61" r="4" class="f-wash s-mut"/>
+          <text x="524" y="65" class="lbl-m" font-size="10">Fourier · 71.8%</text>
+
+          <path d="M 150 68 L 330 68 L 510 149" class="s-mut no dash"/>
+          <circle cx="510" cy="149" r="4" class="f-wash s-mut"/>
+          <text x="524" y="146" class="lbl-m" font-size="10">scattering · 0.4%</text>
+        </svg>
+        <figcaption><b>Fig 2.2</b> The thing that breaks this detector is not an adversary. It is
+        the machine restarting — an ordinary event that quietly changes what "normal" looks
+        like.</figcaption>
+      </figure>
+
+      <div class="callout weak"><div class="clab">Why this matters more than it looks</div>
+        <p>A detector whose baseline shifts on an ordinary restart cannot be deployed, and the
+        problem is not in the model — it is that <b>"normal" was assumed to be a stable thing that
+        could be learned once</b>. Two years later the project is still working on that exact
+        assumption, and it is most of why later effort goes into controlled, repeatable capture
+        rather than better classifiers.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The unwritten limitations</div>
+      <h2>What wasn't written down</h2>
+
+      <p>The thesis states its limitations honestly: not enough clean data, a bias toward calling
+      things anomalous, the scattering transform needing work. Those are real. A harder set was
+      never stated, and this is where a private diary earns its keep.<sup class="c"><a href="#r2">2</a></sup></p>
+
+      <div class="pw">
+        <div class="callout weak"><div class="clab">n is one</div>
+          <p>Two machines, one piece of malware each. Machine 1 is unusable. <b>Every reported
+          success rests on a single virtual machine running a single cryptominer.</b></p></div>
+        <div class="callout weak"><div class="clab">The labels aren't real</div>
+          <p>Accuracy on an infected batch assumes <em>every block in it</em> is anomalous. A miner
+          touches a small fraction of two gigabytes; most blocks in an "infected" batch are almost
+          certainly normal.</p></div>
+      </div>
+
+      <div class="pw">
+        <div class="callout weak"><div class="clab">The infection is confounded</div>
+          <p>Malware is introduced by <em>starting another process</em>. Nothing separates the
+          signature of mining from the signature of one more program existing.</p></div>
+        <div class="callout weak"><div class="clab">The threshold sets its own floor</div>
+          <p>Flagging anything above the 95th percentile of training error guarantees that ~5% of
+          <em>clean</em> blocks get flagged, by construction, before any test data is seen.</p></div>
+      </div>
+
+      <div class="callout note"><div class="clab">And one that became the next two years of work</div>
+        <p>The pipeline pauses a machine, dumps two gigabytes, computes, resumes. <b>Nothing
+        verifies that snapshots are evenly spaced in time</b> — yet every one of the four lenses in
+        this entry assumes exactly that. Part Two is what happens when someone finally checks.</p></div>
+
+      <p>None of this makes the thesis bad work. It was graded 10.0 and nominated for the highest
+      distinction available. What it makes it is <b>a result standing on ground nobody had
+      surveyed</b> — and the same person who built it is the one who went back to survey it.</p>
+    </div></div></section>
+
+    <!-- GLOSSARY -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Autoencoder</dt><dd>A model trained to compress its input and rebuild it. Train it only on normal data and it rebuilds normal things well and unfamiliar things badly, so the size of the reconstruction error becomes an anomaly score. Chosen here because no labelled data existed.</dd></div>
+        <div class="gitem"><dt>Reconstruction error</dt><dd>How far the autoencoder's rebuilt version of a block differs from the real one. Small error means the block looked like the normal data it was trained on; large error is the anomaly signal.</dd></div>
+        <div class="gitem"><dt>Ablation</dt><dd>A test that removes one part of a method to see whether the result survives without it — here, comparing the full complex representation against a version with only the magnitude. The comparison this thesis never ran.</dd></div>
+        <div class="gitem"><dt>One-class model</dt><dd>A model trained on examples of only one category — here, "normal" — because no labelled examples of the other category exist. It learns what normal looks like and flags anything unlike it, rather than learning to tell two known classes apart.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>anomaly_detection_through_memory_fingerprinting.pdf</b> (107 pp, 2025-01-28) — abstract, §2.5.4, §7, §8.1. <em>Read by a research agent, not by me directly — treat quoted figures as second-hand.</em></li>
+        <li id="r2"><b>Unstated limitations</b> — <em>inferred</em> from the thesis's method and results by a research agent; the thesis itself does not make these criticisms. The missing ablation was confirmed by full-text search.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="part1_reduction.html"><div class="nd">Previous</div><div class="nt">← 1 · The reduction</div></a>
+      <a class="n-next" href="part1_retreat.html"><div class="nd">Next entry</div><div class="nt">3 · Six weeks later, he threw the detector away →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Part One · Entry 2</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+    "autoencoder": ["Autoencoder", "A model trained to compress its input and rebuild it. Train it only on normal data and it rebuilds normal things well and unfamiliar things badly, so the size of the reconstruction error becomes an anomaly score. Chosen here because no labelled data existed."],
+    "reconerr": ["Reconstruction error", "How far the autoencoder's rebuilt version of a block differs from the real one. Small error means the block looked like the normal data it was trained on; large error is the anomaly signal."],
+    "ablation": ["Ablation", "A test that removes one part of a method to see whether the result survives without it — here, comparing the full complex representation against a version with only the magnitude. The comparison this thesis never ran."],
+    "oneclass": ["One-class model", "A model trained on examples of only one category — here, 'normal' — because no labelled examples of the other category exist. It learns what normal looks like and flags anything unlike it, rather than learning to tell two known classes apart."]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>

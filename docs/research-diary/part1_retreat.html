@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Six weeks later, he threw the detector away — Reading Memory</title>
+<meta name="description" content="The March 2025 paper drops the headline capability, keeps only the substrate, and starts worrying about whether the sampling is real.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>.study .srel::before{content:"\2192 what it set up"}</style>
+</head>
+<body data-domain="cache">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="part1_thesis.html">2 · The verdict</a>
+      <a class="here" href="part1_retreat.html">3 · The retreat</a>
+      <a href="lesson1.html">4 · Confusion</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part One<span class="sep">/</span>Entry 3</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Part One · The retreat</div>
+      <div class="lnum">Entry 3 of 12 · 21 March 2025</div>
+      <h1>Six weeks later, he threw the detector away</h1>
+      <p class="dek">A conference draft written six weeks after the defence. It keeps the
+      measurement apparatus and <b>deletes the thing the thesis was named for</b> — no autoencoder,
+      no malware detection. This is the hinge the whole rest of the project turns on.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>When you cannot defend the conclusion, you can still defend the <em>instrument</em>. He
+      dropped the claim and kept the substrate — and immediately started asking a question the
+      thesis never had: <em>is the sampling even real?</em></p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">The paper that removed its own headline</a></li>
+        <li><a href="#c2">Writing memory down as an object</a></li>
+        <li><a href="#c3">The sentence that seeded two years of work</a></li>
+        <li><a href="#c4">The plan predicted the opposite of what happened</a></li>
+        <li><a href="#c5">The shape: four retreats, none of them planned</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The deletion</div>
+      <h2>The paper that removed its own headline</h2>
+
+      <p>The thesis was titled for a capability: detecting anomalies by fingerprinting memory. Six
+      weeks after defending it, the follow-up paper presents <b>the acquisition and representation
+      layer alone</b> as the contribution.<sup class="c"><a href="#r1">1</a></sup></p>
+
+      <p>Gone: the autoencoder. Gone: the malware detection claim. What remains is the part that
+      turns a running machine into a stream of numbers — and an argument that <em>that</em> is the
+      thing worth publishing.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>Nobody asked for this. The thesis passed with the highest grade available. Six weeks
+        later its author quietly withdrew its central claim and kept the plumbing — which is a
+        judgement about what he actually believed, made when there was no external pressure to make
+        it.</p></div>
+
+      <div class="callout note"><div class="clab">Why the timing matters</div>
+        <p>Entry 2's results chapter already contained the sentence "this performance is too good to
+        be true." The retreat is that sentence taking six weeks to finish its thought.</p></div>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">Formalisation</div>
+      <h2>Writing memory down as an object</h2>
+
+      <p>The thesis described its pipeline. The paper defines it. Memory becomes a formal
+      mapping — an address and a time index to a block of bits — and the whole capture becomes a
+      formal <span class="term" data-term="discsignal">three-dimensional signal</span>: pages by
+      snapshots by content.<sup class="c"><a href="#r1">1</a></sup></p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 220" role="img" aria-label="Successive memory snapshots stacked as layers of one formal object, with pages as rows within each layer">
+          <rect x="196" y="26" width="220" height="60" rx="7" class="f-wash s-hair"/>
+          <rect x="172" y="46" width="220" height="60" rx="7" class="f-wash s-hair"/>
+          <rect x="148" y="66" width="220" height="60" rx="7" class="f-wash s-hair"/>
+          <rect x="124" y="86" width="220" height="60" rx="7" class="f-acc"/>
+          <line x1="134" y1="103" x2="334" y2="103" class="s-hair" stroke="#fff" opacity=".55"/>
+          <line x1="134" y1="118" x2="334" y2="118" class="s-hair" stroke="#fff" opacity=".55"/>
+          <line x1="134" y1="133" x2="334" y2="133" class="s-hair" stroke="#fff" opacity=".55"/>
+
+          <path d="M 370 40 L 420 20" class="s-mut" marker-end="url(#a5)"/>
+          <defs><marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-mut"/></marker></defs>
+          <text x="428" y="24" class="lbl-m" font-size="10.5">snapshots — the time axis</text>
+
+          <path d="M 130 150 L 110 178" class="s-mut" marker-end="url(#a5)"/>
+          <text x="60" y="196" class="lbl-m" font-size="10.5">pages, within one snapshot</text>
+
+          <text x="234" y="180" text-anchor="middle" class="lbl-a" font-size="11">one formal object: pages × snapshots × content</text>
+        </svg>
+        <figcaption><b>Fig 3.1</b> Not a folder of files any more — one array with a stated shape.
+        A capture either satisfies that shape or it doesn't, which is a question the thesis had no
+        way to ask.</figcaption>
+      </figure>
+
+      <p>And the transform that produces the difference is named for exactly what Entry 1 already
+      argued: a function "inspired by the concept of a
+      <b><span class="term" data-term="discderiv">discrete derivative</span></b>."</p>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>The intuition from the thesis — <em>I am holding the derivative of a state signal</em> —
+        stops being a motivating analogy and becomes a definition. That is the difference between
+        a metaphor that justifies a toolkit and a claim you can be wrong about.</p></div>
+
+      <div class="callout idea"><div class="clab">Where this earns its keep</div>
+        <p>Once memory is an object with a stated shape, you can ask whether a given capture
+        <em>is</em> one — whether it satisfies the definition. That question does not exist in the
+        thesis. Everything from Entry 5 onward is that question being asked over and over.</p></div>
+    </div></div></section>
+
+    <!-- 3 -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The seed</div>
+      <h2>The sentence that seeded two years of work</h2>
+
+      <p>The paper adds something the thesis had nothing equivalent to: an analysis of
+      <b>what sets the <span class="term" data-term="samprate">sampling rate</span></b>. It weighs
+      the processor's clock, the operating system's scheduler tick, and an external timer — and
+      picks the external timer, "to maintain <b>forensic integrity</b>."<sup class="c"><a href="#r1">1</a></sup></p>
+
+      <p>Then it makes the claim that everything afterwards is a reckoning with:</p>
+
+      <div class="study">
+        <div class="scite">IEEE conference draft, 2025-03-21</div>
+        <p class="sfind">Pausing the machine makes each snapshot "an <b>instantaneous, zero-duration
+        sampling event</b>," ensuring "each snapshot forms a <b>mathematically valid discrete
+        signal</b>."</p>
+        <p class="srel">It is the right thing to worry about, and the reasoning is sound. It is
+        also, at this point, entirely unverified — a statement about what the code ought to do.</p>
+      </div>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 190" role="img" aria-label="The claimed uniform sampling versus the interval that was actually measured fourteen months later">
+          <text x="24" y="30" class="lbl-m" font-size="10.5">claimed, March 2025 — evenly spaced samples</text>
+          <line x1="24" y1="58" x2="600" y2="58" class="s-hair"/>
+          <g class="s-acc">
+            <line x1="80" y1="46" x2="80" y2="70"/><line x1="184" y1="46" x2="184" y2="70"/>
+            <line x1="288" y1="46" x2="288" y2="70"/><line x1="392" y1="46" x2="392" y2="70"/>
+            <line x1="496" y1="46" x2="496" y2="70"/><line x1="600" y1="46" x2="600" y2="70"/>
+          </g>
+          <text x="132" y="86" text-anchor="middle" class="lbl-a" font-size="10">requested 100 ms</text>
+
+          <text x="24" y="124" class="lbl-m" font-size="10.5">measured, May 2026 — the interval was never set at all</text>
+          <line x1="24" y1="152" x2="600" y2="152" class="s-hair"/>
+          <g class="s-mut">
+            <line x1="80" y1="140" x2="80" y2="164"/><line x1="87" y1="140" x2="87" y2="164"/>
+            <line x1="94" y1="140" x2="94" y2="164"/><line x1="101" y1="140" x2="101" y2="164"/>
+            <line x1="108" y1="140" x2="108" y2="164"/><line x1="115" y1="140" x2="115" y2="164"/>
+            <line x1="122" y1="140" x2="122" y2="164"/><line x1="129" y1="140" x2="129" y2="164"/>
+          </g>
+          <text x="150" y="156" class="lbl-m" font-size="10">actual 6.6 ms — a missing utility made the wait a no-op</text>
+          <text x="24" y="182" class="lbl-a" font-size="10.5">Every frequency computed before May 2026 sat 15× wrong on the axis.</text>
+        </svg>
+        <figcaption><b>Fig 3.2</b> The claim, and what checking it fourteen months later actually
+        found. Entry 5 is that discovery.</figcaption>
+      </figure>
+
+      <div class="callout weak"><div class="clab">Be honest about the limits</div>
+        <p>Nothing in this paper measures the thing it asserts. The gap between "this design makes
+        the sampling valid" and "the sampling was measured and is valid" is fourteen months wide,
+        and the answer when it finally arrives is <b>no</b>.</p></div>
+    </div></div></section>
+
+    <!-- 4 -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The mis-prediction</div>
+      <h2>The plan predicted the opposite of what happened</h2>
+
+      <p>The thesis has a Future Work section. It is a <b>scaling-up</b> agenda: hybrid feature
+      stacks, GPU acceleration for real-time operation, extension to network traffic, dedicated
+      hardware, recurrent and attention models, more malware
+      families.<sup class="c"><a href="#r2">2</a></sup></p>
+
+      <p>Almost none of it happened. What happened was the reverse:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>The plan said</th><th>What actually followed</th></tr></thead>
+        <tbody>
+          <tr><td>More models — LSTM, attention</td><td>The model was removed entirely</td></tr>
+          <tr><td>More speed — GPUs, real time</td><td>Deliberately slower, controlled capture</td></tr>
+          <tr><td>More malware, more variety</td><td>No real malware at all; safe synthetic workloads</td></tr>
+          <tr><td>A richer feature stack</td><td>A single scalar, and the question of whether it suffices</td></tr>
+          <tr><td>Broader deployment</td><td>Two years spent on whether one machine measures correctly</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>The retreat was <b>not a plan</b>. Nothing written in January 2025 anticipates it. Each
+        step downward happened because the floor gave way — and the written Future Work is the best
+        evidence that it was discovered rather than designed.</p></div>
+    </div></div></section>
+
+    <!-- 5 -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The shape</div>
+      <h2>Four retreats, none of them planned</h2>
+
+      <p>Seen from here, the whole project has one motion. Every time a claim could not hold, the
+      response was not to defend it but to go one level lower and secure the thing underneath.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 240" role="img" aria-label="Four successive retreats, each going one level deeper toward the conditions under which observation is valid">
+          <rect x="40" y="24" width="290" height="40" rx="8" class="f-acc"/>
+          <text x="56" y="42" class="lbl" font-size="11.5" fill="#fff">1 · A detector that finds anomalies</text>
+          <text x="56" y="57" class="lbl-m" font-size="10" fill="#fff">Sep 2024 – Feb 2025 · defended</text>
+
+          <path d="M 70 66 L 70 84" class="s-acc"/>
+          <rect x="70" y="86" width="290" height="40" rx="8" class="f-soft s-acc"/>
+          <text x="86" y="104" class="lbl-a" font-size="11.5">2 · Only the instrument, not the verdict</text>
+          <text x="86" y="119" class="lbl-m" font-size="10">Mar 2025 · the detector is deleted</text>
+
+          <path d="M 100 128 L 100 146" class="s-acc"/>
+          <rect x="100" y="148" width="290" height="40" rx="8" class="f-wash s-acc"/>
+          <text x="116" y="166" class="lbl-a" font-size="11.5">3 · Is the signal itself real?</text>
+          <text x="116" y="181" class="lbl-m" font-size="10">Nov 2025 · validation before modelling</text>
+
+          <path d="M 130 190 L 130 208" class="s-acc"/>
+          <rect x="130" y="210" width="290" height="26" rx="8" class="f-tint s-hair"/>
+          <text x="146" y="227" class="lbl-a" font-size="11.5">4 · What must ANY valid observation preserve?</text>
+
+          <text x="440" y="118" class="lbl-m" font-size="10.5">Each step down was forced,</text>
+          <text x="440" y="134" class="lbl-m" font-size="10.5">not chosen. The written plan</text>
+          <text x="440" y="150" class="lbl-m" font-size="10.5">predicts none of it.</text>
+        </svg>
+        <figcaption><b>Fig 3.3</b> The motion of the whole project: from a claim about the world,
+        down to a claim about the instrument, down to a claim about what an instrument must be.</figcaption>
+      </figure>
+
+      <div class="specbox"><div class="alab">The fourth level is still being written</div>
+        <p>By April 2026 the framing is that the contribution is an
+        <b><span class="term" data-term="archform">architectural form</span></b> —
+        what any valid realisation must preserve, expressed as roles, invariants and
+        <em>conditions of valid observation</em>. The working test for whether a sentence belongs to
+        the form: <em>"could a different implementation still satisfy this?"</em><sup class="c"><a href="#r3">3</a></sup></p>
+        <p>That paper is not finished. It is listed here because it is the current top of the stack,
+        not because it is done.</p></div>
+
+      <div class="callout idea"><div class="clab">What this reframes</div>
+        <p>Read this way, the engineering disasters in the entries that follow stop being a list of
+        bugs. Each one is <b>a condition of valid observation being violated and then repaired</b> —
+        sampling that wasn't uniform, a role separation that had collapsed, contextual identity
+        destroyed by scratch files in the wrong place. Same story, seven times.</p></div>
+
+      <p>Part Two starts on 4 November 2025, with a repository whose README says it exists
+      <em>only</em> to check that the arithmetic is self-consistent. That modesty is the whole
+      point.</p>
+    </div></div></section>
+
+    <!-- GLOSSARY -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Three-dimensional signal</dt><dd>Memory redefined as one formal object rather than a folder of files — an address, a time index, and a content value, all three treated as axes of the same array. Once it has a stated shape, a real capture either satisfies that shape or it doesn't.</dd></div>
+        <div class="gitem"><dt>Discrete derivative</dt><dd>The difference between one sample and the next, treated as the rate of change of a signal that only exists at discrete moments in time — the memory equivalent of a continuous function's derivative.</dd></div>
+        <div class="gitem"><dt>Sampling rate</dt><dd>How often a signal is measured. Every frequency computed downstream is only meaningful relative to the true rate the samples were actually taken at — which is exactly what turns out to be wrong, later in this diary.</dd></div>
+        <div class="gitem"><dt>Architectural form</dt><dd>What any valid version of a system must preserve — its roles, its invariants, the conditions under which its output means anything — as distinct from one particular implementation of it. The test for whether a sentence belongs to the form: could a different implementation still satisfy it?</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>paper1/IEEE_Conference_Template__1_-5.pdf</b> (2025-03-21) — the formalisation, the sampling-rate analysis, and the zero-duration claim. <em>Read by a research agent, not directly by me.</em></li>
+        <li id="r2"><b>thesis §9.2, Future Works</b> — the scaling-up agenda. <em>Second-hand, as above.</em></li>
+        <li id="r3"><b>arch_form_paper/architectural_form_balanced_instructions.md</b> (Apr 2026) — form versus realisation, and the writing test. <em>Traced — I read this document directly.</em></li>
+        <li id="r4"><b>The four-retreat framing</b> — <em>inferred.</em> No document states it; it is assembled from the dates and content of the four artifacts above.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="part1_thesis.html"><div class="nd">Previous</div><div class="nt">← 2 · The score he didn't believe</div></a>
+      <a class="n-next" href="lesson1.html"><div class="nd">Next entry</div><div class="nt">4 · The confusion that started it →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Part One · Entry 3</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+    "discsignal": ["Three-dimensional signal", "Memory redefined as one formal object rather than a folder of files - an address, a time index, and a content value, all three treated as axes of the same array. Once it has a stated shape, a real capture either satisfies that shape or it doesn't."],
+    "discderiv": ["Discrete derivative", "The difference between one sample and the next, treated as the rate of change of a signal that only exists at discrete moments in time - the memory equivalent of a continuous function's derivative."],
+    "samprate": ["Sampling rate", "How often a signal is measured. Every frequency computed downstream is only meaningful relative to the true rate the samples were actually taken at - which is exactly what turns out to be wrong, later in this diary."],
+    "archform": ["Architectural form", "What any valid version of a system must preserve - its roles, its invariants, the conditions under which its output means anything - as distinct from one particular implementation of it. The test: could a different implementation still satisfy it?"]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>
