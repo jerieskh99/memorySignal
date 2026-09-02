@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The whole experiment as a graph — Reading Memory</title>
+<meta name="description" content="The pipeline was one path. It turns out to be one traversal of a graph of sixty-four metrics, four tiers of composition, and a question that is still open.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+<style>
+  .gv{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .tgl{display:inline-block;font:600 11px 'JetBrains Mono',monospace;border-radius:8px;
+       padding:4px 11px;margin:0 8px 12px 0;cursor:pointer;user-select:none}
+  .tgl.g{color:#b8860b;border:1.5px dashed #b8860b}
+  .tgl.r{color:#6d28d9;border:1.5px dashed #6d28d9}
+  #showgates:checked ~ .tgl.g{color:#fff;background:#b8860b}
+  #showrival:checked ~ .tgl.r{color:#fff;background:#6d28d9}
+  .tgl .off{display:none}
+  #showgates:checked ~ .tgl.g .on{display:none}  #showgates:checked ~ .tgl.g .off{display:inline}
+  #showrival:checked ~ .tgl.r .on{display:none}  #showrival:checked ~ .tgl.r .off{display:inline}
+  .gates,.rival{display:none}
+  #showgates:checked ~ figure .gates{display:inline}
+  #showrival:checked ~ figure .rival{display:inline}
+  /* crop the reserved gate-panel band when gates are hidden; reveal it when shown */
+  #graph{aspect-ratio:760/868;overflow:hidden;transition:none}
+  #showgates:checked ~ figure #graph{aspect-ratio:760/992}
+</style>
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="part_method.html">11 · The method</a>
+      <a class="here" href="part_graph.html">13 · The graph</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part Six<span class="sep">/</span>Entry 13</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> The graph reframe · one pipe becomes many</div>
+      <div class="lnum">Entry 13 of 13 · 2 September 2026</div>
+      <h1>The whole experiment as a graph</h1>
+      <p class="dek">Every entry before this one moved through a single pipe: two metrics into a
+      complex number, into one analysis, into one model. That pipe turns out to be <b>one path
+      through something much larger</b> — sixty-four built metric channels, four more only
+      specified, and four tiers of composition to route them through. This entry is that graph,
+      drawn in full.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>A metric was never a primitive. It is a point in a small designed space —
+      <em>representation × reading × reference × unit</em> — and the pipeline this whole diary has
+      been describing is one traversal of a graph it did not know it was part of.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">One pipe becomes a graph of sixty-four</a></li>
+        <li><a href="#c2">Which path wins is not yet answered</a></li>
+      </ol>
+    </div>
+
+    <!-- 1 -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The reframe</div>
+      <h2>One pipe becomes a graph of sixty-four</h2>
+
+      <p>Hamming and Cosine, the two metrics behind every entry so far, were never irreducible.
+      Each is four choices — a representation, a reading, a reference, and a unit — and changing
+      any one of them produces a different, equally legitimate metric. Sixty-four such channels are
+      already built, across four families; four more are specified but not yet captured. The 2025
+      pipeline picked exactly one route through that space and never saw the rest of it.</p>
+
+      <input type="checkbox" id="showgates" class="gv">
+      <input type="checkbox" id="showrival" class="gv">
+      <label for="showgates" class="tgl g"><span class="on">▸ show validation gates</span><span class="off">▾ hide validation gates</span></label>
+      <label for="showrival" class="tgl r"><span class="on">▸ show a rival path</span><span class="off">▾ hide rival path</span></label>
+
+      <figure class="fig">
+        <svg id="graph" viewBox="0 0 760 992" preserveAspectRatio="xMidYMin slice" role="img" aria-label="The whole experiment as a five-tier directed graph. A worked example at the top shows Hamming and Cosine as four coordinate choices each, differing in only two. Below: 64 built metric channels in four families opened to their types, four more families specified but uncaptured, then compose, analyse, organise and model tiers. One lit path is the 2025 pipeline. Optional layers add the validation gates that guard each transition, and a second rival path to compare against.">
+          <style>
+            .rail{font:600 11px 'JetBrains Mono',monospace;fill:var(--accent);letter-spacing:.14em}
+            .rail-s{font:9px 'JetBrains Mono',monospace;fill:var(--faint)}
+            .fam{fill:#fff;stroke:var(--border-strong,#c8c4bc);stroke-width:1.4}
+            .sub{fill:var(--tint,#f0eeea);stroke:var(--hair);stroke-width:1}
+            .spec{fill:none;stroke:var(--amber,#b8860b);stroke-width:1.2;stroke-dasharray:5 4;opacity:.85}
+            .lit{fill:var(--accent-wash,#e8f0f7);stroke:var(--accent);stroke-width:2}
+            .lane{fill:var(--accent-wash,#e8f0f7);opacity:.45}
+            .ghost{fill:none;stroke:var(--hair);stroke-width:1;stroke-dasharray:4 4;opacity:.55}
+            .famh{font:600 14px 'Space Grotesk',sans-serif;fill:var(--accent-ink,#1e4d7b)}
+            .famn{font:600 11px 'Space Grotesk',sans-serif;fill:var(--ink)}
+            .nlbl-a{font:600 11px 'Space Grotesk',sans-serif;fill:var(--accent-ink,#1e4d7b)}
+            .nlbl-g{font:11px 'Space Grotesk',sans-serif;fill:var(--muted);opacity:.75}
+            .sub-t{font:600 10px 'Space Grotesk',sans-serif;fill:var(--text-secondary,#4a5568)}
+            .cnt{font:600 11px 'JetBrains Mono',monospace;fill:var(--accent)}
+            .cnt-m{font:600 9px 'JetBrains Mono',monospace;fill:var(--muted)}
+            .cnt-am{font:600 9px 'JetBrains Mono',monospace;fill:var(--amber,#b8860b)}
+            .chip{fill:var(--accent);opacity:.20}
+            .chip-t{font:600 9px 'JetBrains Mono',monospace;fill:var(--accent-ink,#1e4d7b)}
+            .chipm{fill:#9aa;opacity:.20}
+            .chipm-t{font:600 10px 'JetBrains Mono',monospace;fill:var(--muted)}
+            .colh{font:600 9.5px 'JetBrains Mono',monospace;fill:var(--text-secondary,#4a5568);letter-spacing:.03em}
+            .menu{font:9px 'JetBrains Mono',monospace;fill:var(--faint)}
+            .rowl{font:600 12px 'Source Serif 4',serif;fill:var(--ink)}
+            .grp{font:600 9px 'JetBrains Mono',monospace;fill:var(--faint);letter-spacing:.08em}
+            .e-lit{stroke:var(--accent);stroke-width:2.6;fill:none;opacity:1}
+            .e-halo{stroke:var(--accent);stroke-width:6;fill:none;opacity:.12}
+            .e-gho{stroke:#9aa;stroke-width:.9;fill:none;stroke-dasharray:3 4;opacity:.26}
+            .seam{stroke:var(--amber,#b8860b);stroke-width:1.5;fill:none;stroke-dasharray:2 3}
+            .seam-t{font:600 9.5px 'JetBrains Mono',monospace;fill:var(--amber,#b8860b)}
+            .keyt{font:9.5px 'Space Grotesk',sans-serif;fill:var(--muted)}
+            .punch{font:600 11px 'JetBrains Mono',monospace;fill:var(--accent-ink,#1e4d7b)}
+            .e-riv{stroke:#6d28d9;stroke-width:2.4;fill:none;opacity:.92}
+            .rivring{fill:none;stroke:#6d28d9;stroke-width:2.2}
+            .riv-t{font:600 9.5px 'JetBrains Mono',monospace;fill:#6d28d9}
+            .gitem{font:9.5px 'Space Grotesk',sans-serif;fill:var(--text-secondary,#4a5568)}
+            .gnum{font:600 11px 'JetBrains Mono',monospace;fill:#b8860b}
+            .gnumw{font:600 10px 'JetBrains Mono',monospace;fill:#fff}
+            .gq{font:600 11px 'Space Grotesk',sans-serif;fill:var(--ink)}
+            .groll{font:600 11px 'Space Grotesk',sans-serif;fill:var(--amber,#b8860b)}
+            .ctag{font:600 8px 'JetBrains Mono',monospace;fill:#9aa;letter-spacing:.02em}
+            .gchk path{fill:none;stroke:#b8860b;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+            @keyframes flow{0%{offset-distance:0%;opacity:0}7%{opacity:1}90%{opacity:1}100%{offset-distance:100%;opacity:0}}
+            .tok{offset-path:path('M 148 231 L 205 512 L 225 558 L 169 594 L 169 636 L 230 700 L 230 748 L 236 806 L 236 826');
+                 animation:flow 6.5s ease-in-out infinite;fill:var(--accent)}
+            @media (prefers-reduced-motion: reduce){ .tok{animation:none;opacity:0} }
+          </style>
+
+          <!-- ================= WORKED-BUILD LEGEND ================= -->
+          <text x="30" y="32" class="famn" font-size="12.5">A metric isn't a primitive — it's four choices.</text>
+          <text x="150" y="58" text-anchor="middle" class="colh">representation</text>
+          <text x="150" y="70" text-anchor="middle" class="menu">bit · vector · hist</text>
+          <text x="290" y="58" text-anchor="middle" class="colh">reading</text>
+          <text x="290" y="70" text-anchor="middle" class="menu">amount · direction</text>
+          <text x="426" y="58" text-anchor="middle" class="colh">reference</text>
+          <text x="426" y="70" text-anchor="middle" class="menu">prev · baseline · EWMA</text>
+          <text x="556" y="58" text-anchor="middle" class="colh">unit</text>
+          <text x="556" y="70" text-anchor="middle" class="menu">page · field · time</text>
+          <path d="M 112 76 L 188 76" class="e-lit" opacity=".5"/>
+          <path d="M 254 76 L 326 76" class="e-lit" opacity=".5"/>
+          <text x="30" y="99" class="rowl">Hamming</text>
+          <rect x="118" y="88" width="64" height="18" rx="4" class="chip"/><text x="150" y="101" text-anchor="middle" class="chip-t" font-size="10">bit</text>
+          <rect x="256" y="88" width="68" height="18" rx="4" class="chip"/><text x="290" y="101" text-anchor="middle" class="chip-t" font-size="10">amount</text>
+          <rect x="396" y="88" width="60" height="18" rx="4" class="chipm"/><text x="426" y="101" text-anchor="middle" class="chipm-t">prev</text>
+          <rect x="528" y="88" width="56" height="18" rx="4" class="chipm"/><text x="556" y="101" text-anchor="middle" class="chipm-t">page</text>
+          <text x="30" y="127" class="rowl">Cosine</text>
+          <rect x="118" y="116" width="64" height="18" rx="4" class="chip"/><text x="150" y="129" text-anchor="middle" class="chip-t" font-size="10">vector</text>
+          <rect x="256" y="116" width="68" height="18" rx="4" class="chip"/><text x="290" y="129" text-anchor="middle" class="chip-t" font-size="10">direction</text>
+          <rect x="396" y="116" width="60" height="18" rx="4" class="chipm"/><text x="426" y="129" text-anchor="middle" class="chipm-t">prev</text>
+          <rect x="528" y="116" width="56" height="18" rx="4" class="chipm"/><text x="556" y="129" text-anchor="middle" class="chipm-t">page</text>
+          <text x="30" y="150" class="punch">Swap any chip → a different metric.  Grey = same for both.  64 are built below.</text>
+
+          <!-- signal key -->
+          <path d="M 612 30 L 636 30" class="e-lit"/><text x="642" y="33" class="keyt">the 2025 path</text>
+          <path d="M 612 48 L 636 48" class="e-gho"/><text x="642" y="51" class="keyt">built, off path</text>
+          <path d="M 612 66 L 636 66" class="seam"/><text x="642" y="69" class="keyt">designed, unbuilt</text>
+
+          <!-- tier rail -->
+          <text x="12" y="190" class="rail">METRICS</text><text x="12" y="202" class="rail-s">64</text>
+          <text x="12" y="524" class="rail">COMPOSE</text>
+          <text x="12" y="618" class="rail">ANALYSE</text>
+          <text x="12" y="730" class="rail">ORGANISE</text>
+          <text x="12" y="838" class="rail">MODEL</text>
+
+          <!-- faint lit lane -->
+          <rect x="150" y="500" width="168" height="374" rx="16" class="lane"/>
+
+          <!-- dashed edges (behind) -->
+          <path d="M 470 456 L 476 512" class="e-gho"/>
+          <path d="M 636 456 L 560 512" class="e-gho"/>
+          <path d="M 300 560 L 420 592" class="e-gho"/>
+          <path d="M 470 560 L 470 592" class="e-gho"/>
+          <path d="M 560 560 L 636 592" class="e-gho"/>
+          <path d="M 420 636 L 470 700" class="e-gho"/>
+          <path d="M 560 636 L 500 700" class="e-gho"/>
+          <path d="M 505 748 L 380 806" class="e-gho"/>
+          <path d="M 505 748 L 470 806" class="e-gho"/>
+          <path d="M 505 748 L 548 806" class="e-gho"/>
+
+          <!-- lit path: halo then core. anchors: chip-bottoms -> COMPOSE top -> node top-centres -> ORGANISE top -> autoencoder top -->
+          <path d="M 148 231 L 205 512" class="e-halo"/><path d="M 312 230 L 245 512" class="e-halo"/>
+          <path d="M 205 558 L 97 594" class="e-halo"/><path d="M 225 558 L 169 594" class="e-halo"/><path d="M 245 558 L 309 594" class="e-halo"/>
+          <path d="M 97 636 L 215 700" class="e-halo"/><path d="M 169 636 L 230 700" class="e-halo"/><path d="M 309 636 L 245 700" class="e-halo"/>
+          <path d="M 230 748 L 236 806" class="e-halo"/>
+          <path d="M 148 231 L 205 512" class="e-lit"/><path d="M 312 230 L 245 512" class="e-lit"/>
+          <path d="M 205 558 L 97 594" class="e-lit"/><path d="M 225 558 L 169 594" class="e-lit"/><path d="M 245 558 L 309 594" class="e-lit"/>
+          <path d="M 97 636 L 215 700" class="e-lit"/><path d="M 169 636 L 230 700" class="e-lit"/><path d="M 309 636 L 245 700" class="e-lit"/>
+          <path d="M 230 748 L 236 806" class="e-lit"/>
+
+          <!-- ===== rival path B (violet, optional) ===== -->
+          <g class="rival">
+            <path d="M 430 262 L 420 592" class="e-riv"/>
+            <path d="M 420 636 L 300 700" class="e-riv"/>
+            <path d="M 244 748 L 452 806" class="e-riv"/>
+            <rect x="420" y="594" width="72" height="42" rx="7" class="rivring"/>
+            <rect x="420" y="806" width="76" height="40" rx="7" class="rivring"/>
+            <circle cx="430" cy="255" r="9" class="rivring"/>
+            <text x="540" y="666" class="riv-t">rival path B</text>
+            <text x="540" y="680" class="riv-t" font-size="8.5">entropy → Wavelet → novelty</text>
+          </g>
+
+          <!-- ================= METRICS: built families A–D (thinned) ================= -->
+          <!-- A -->
+          <rect x="30" y="176" width="176" height="188" rx="10" class="fam"/>
+          <text x="42" y="200" class="famh">A</text><text x="62" y="200" class="famn">amount</text><text x="196" y="200" class="cnt" text-anchor="end">20</text>
+          <rect x="40" y="212" width="156" height="30" rx="5" class="sub"/><text x="48" y="231" class="sub-t">positional</text><text x="188" y="231" class="cnt-m" text-anchor="end">7</text>
+          <rect x="118" y="215" width="60" height="16" rx="4" class="chip"/><text x="148" y="227" text-anchor="middle" class="chip-t">hamming</text>
+          <rect x="40" y="248" width="156" height="30" rx="5" class="sub"/><text x="48" y="267" class="sub-t">distributional</text><text x="188" y="267" class="cnt-m" text-anchor="end">8</text>
+          <rect x="40" y="284" width="156" height="30" rx="5" class="sub"/><text x="48" y="303" class="sub-t">informational</text><text x="188" y="303" class="cnt-m" text-anchor="end">5</text>
+          <text x="40" y="336" class="grp">how much changed</text>
+
+          <!-- B -->
+          <rect x="220" y="176" width="150" height="188" rx="10" class="fam"/>
+          <text x="232" y="200" class="famh">B</text><text x="252" y="200" class="famn">direction</text><text x="360" y="200" class="cnt" text-anchor="end">19</text>
+          <rect x="230" y="212" width="130" height="28" rx="4" class="sub"/><text x="238" y="230" class="sub-t">structure</text><text x="352" y="230" class="cnt-m" text-anchor="end">5</text>
+          <rect x="286" y="215" width="52" height="15" rx="4" class="chip"/><text x="312" y="226" text-anchor="middle" class="chip-t">cosine</text>
+          <rect x="230" y="246" width="62" height="24" rx="4" class="sub"/><text x="238" y="262" class="sub-t">level <tspan class="cnt-m">3</tspan></text>
+          <rect x="298" y="246" width="62" height="24" rx="4" class="sub"/><text x="306" y="262" class="sub-t">spread <tspan class="cnt-m">5</tspan></text>
+          <rect x="230" y="276" width="62" height="24" rx="4" class="sub"/><text x="238" y="292" class="sub-t">polarity <tspan class="cnt-m">2</tspan></text>
+          <rect x="298" y="276" width="62" height="24" rx="4" class="sub"/><text x="306" y="292" class="sub-t">shift <tspan class="cnt-m">4</tspan></text>
+          <text x="230" y="336" class="grp">which way it changed</text>
+
+          <!-- C -->
+          <rect x="384" y="176" width="176" height="188" rx="10" class="fam"/>
+          <text x="396" y="200" class="famh">C</text><text x="416" y="200" class="famn">content of q</text><text x="550" y="200" class="cnt" text-anchor="end">13</text>
+          <rect x="394" y="212" width="156" height="30" rx="5" class="sub"/><text x="402" y="231" class="sub-t">reference-free</text>
+          <rect x="496" y="215" width="56" height="16" rx="4" class="chip"/><text x="524" y="227" text-anchor="middle" class="chip-t">entropy</text>
+          <text x="396" y="262" class="cnt-m">describes the new page itself:</text>
+          <text x="396" y="278" class="cnt-m">entropy · χ² · bigram · autocorr</text>
+          <text x="396" y="298" class="cnt-m">the “is it ciphertext?” tests</text>
+          <text x="384" y="336" class="grp">what the new page looks like</text>
+
+          <!-- D -->
+          <rect x="574" y="176" width="156" height="188" rx="10" class="fam"/>
+          <text x="586" y="200" class="famh">D</text><text x="606" y="200" class="famn">texture</text><text x="720" y="200" class="cnt" text-anchor="end">12</text>
+          <rect x="584" y="212" width="136" height="30" rx="5" class="sub"/><text x="592" y="231" class="sub-t">change-location</text><text x="712" y="231" class="cnt-m" text-anchor="end">5</text>
+          <rect x="584" y="248" width="136" height="30" rx="5" class="sub"/><text x="592" y="267" class="sub-t">texture of q</text><text x="712" y="267" class="cnt-m" text-anchor="end">7</text>
+          <text x="584" y="336" class="grp">where &amp; how in the page</text>
+
+          <!-- spec families E–H -->
+          <text x="300" y="392" class="nlbl-g" font-size="10">Four more families — specified, not yet captured:</text>
+          <rect x="300" y="400" width="100" height="52" rx="9" class="spec"/><text x="310" y="418" class="nlbl-g" font-size="10">E · spatial</text><text x="390" y="418" class="cnt-am" text-anchor="end">9</text><text x="310" y="440" class="cnt-am" font-size="8.5">derived offline</text>
+          <rect x="406" y="400" width="100" height="52" rx="9" class="spec"/><text x="416" y="418" class="nlbl-g" font-size="10">F · temporal</text><text x="496" y="418" class="cnt-am" text-anchor="end">10</text><text x="416" y="440" class="cnt-am" font-size="8.5">derived offline</text>
+          <rect x="512" y="400" width="100" height="52" rx="9" class="spec"/><text x="522" y="418" class="nlbl-g" font-size="10">G · reference</text><text x="602" y="418" class="cnt-am" text-anchor="end">6</text><text x="522" y="440" class="cnt-am" font-size="8.5">needs state</text>
+          <rect x="618" y="400" width="100" height="52" rx="9" class="spec"/><text x="628" y="418" class="nlbl-g" font-size="10">H · learned</text><text x="708" y="418" class="cnt-am" text-anchor="end">4</text><text x="628" y="440" class="cnt-am" font-size="8.5">needs a model</text>
+
+          <!-- seam -->
+          <path d="M 360 480 L 730 480" class="seam"/>
+          <text x="730" y="474" class="seam-t" text-anchor="end">metric selection — resolved in the run config, wired to nothing in capture</text>
+
+          <!-- COMPOSE -->
+          <rect x="150" y="512" width="150" height="46" rx="9" class="lit"/>
+          <text x="225" y="532" text-anchor="middle" class="nlbl-a">combine → complex</text>
+          <text x="225" y="547" text-anchor="middle" class="nlbl-g" font-size="9">one node, not the core</text>
+          <rect x="400" y="512" width="200" height="46" rx="9" class="ghost"/>
+          <text x="500" y="537" text-anchor="middle" class="nlbl-g">other combiners · gates</text>
+
+          <!-- ANALYSE -->
+          <text x="97"  y="590" class="grp" text-anchor="middle">synchrony</text>
+          <text x="266" y="590" class="grp" text-anchor="middle">spectral</text>
+          <text x="452" y="590" class="grp" text-anchor="middle">time–frequency</text>
+          <text x="637" y="590" class="grp" text-anchor="middle">change-point</text>
+          <rect x="64"  y="594" width="66" height="42" rx="7" class="lit"/><text x="97"  y="620" text-anchor="middle" class="nlbl-a">PLV</text>
+          <rect x="136" y="594" width="66" height="42" rx="7" class="lit"/><text x="169" y="620" text-anchor="middle" class="nlbl-a">MSC</text>
+          <rect x="210" y="594" width="52" height="42" rx="7" class="ghost"/><text x="236" y="620" text-anchor="middle" class="nlbl-g">FFT</text>
+          <rect x="268" y="594" width="82" height="42" rx="7" class="lit"/><text x="309" y="620" text-anchor="middle" class="nlbl-a" font-size="10">Cepstrum</text>
+          <rect x="384" y="594" width="72" height="42" rx="7" class="ghost"/><text x="420" y="620" text-anchor="middle" class="nlbl-g">Wavelet</text>
+          <rect x="462" y="594" width="76" height="42" rx="7" class="ghost"/><text x="500" y="620" text-anchor="middle" class="nlbl-g" font-size="10">Scattering</text>
+          <rect x="604" y="594" width="66" height="42" rx="7" class="ghost"/><text x="637" y="620" text-anchor="middle" class="nlbl-g">CUSUM</text>
+
+          <!-- ORGANISE -->
+          <rect x="150" y="700" width="160" height="48" rx="8" class="lit"/>
+          <text x="230" y="720" text-anchor="middle" class="nlbl-a" font-size="10.5">scale → reduce</text>
+          <text x="230" y="736" text-anchor="middle" class="nlbl-g" font-size="9">flatten · StandardScaler · PCA</text>
+          <rect x="400" y="700" width="212" height="48" rx="8" class="ghost"/>
+          <text x="506" y="728" text-anchor="middle" class="nlbl-g">other feature organisations</text>
+
+          <!-- MODEL -->
+          <rect x="184" y="806" width="104" height="40" rx="7" class="lit"/><text x="236" y="830" text-anchor="middle" class="nlbl-a">autoencoder</text>
+          <rect x="340" y="806" width="72" height="40" rx="7" class="ghost"/><text x="376" y="830" text-anchor="middle" class="nlbl-g">OCSVM</text>
+          <rect x="420" y="806" width="76" height="40" rx="7" class="ghost"/><text x="458" y="830" text-anchor="middle" class="nlbl-g">novelty</text>
+          <rect x="504" y="806" width="56" height="40" rx="7" class="ghost"/><text x="532" y="830" text-anchor="middle" class="nlbl-g">RF</text>
+          <rect x="568" y="806" width="60" height="40" rx="7" class="ghost"/><text x="598" y="830" text-anchor="middle" class="nlbl-g" font-size="10">LSTM</text>
+
+          <!-- ================= GATES (optional) — plain-language ================= -->
+          <g class="gates">
+            <!-- numbered guard badges on the path -->
+            <circle cx="228" cy="488" r="11" fill="#fff" stroke="#b8860b" stroke-width="1.8"/><text x="228" y="492" text-anchor="middle" class="gnum">1</text>
+            <text x="245" y="485" class="gq">did we really observe it?</text><text x="245" y="497" class="ctag">gate C1–C6</text>
+            <circle cx="252" cy="690" r="11" fill="#fff" stroke="#b8860b" stroke-width="1.8"/><text x="252" y="694" text-anchor="middle" class="gnum">2</text>
+            <text x="269" y="687" class="gq">is the analysis sound?</text><text x="269" y="699" class="ctag">gates G1–G5  ·  rolls up as C7</text>
+            <circle cx="234" cy="776" r="11" fill="#fff" stroke="#b8860b" stroke-width="1.8"/><text x="234" y="780" text-anchor="middle" class="gnum">3</text>
+            <text x="251" y="773" class="gq">are the phase edges real?</text><text x="251" y="785" class="ctag">Plan-04 gates  ·  rolls up as C8</text>
+
+            <!-- panel: three plain checklists -->
+            <line x1="30" y1="876" x2="730" y2="876" stroke="#b8860b" stroke-width="1" stroke-dasharray="2 3" opacity=".55"/>
+            <text x="30" y="894" class="groll">A captured path is trusted only if every check on it passes.</text>
+
+            <!-- column 1 · observation -->
+            <circle cx="37" cy="911" r="8" fill="#b8860b"/><text x="37" y="915" text-anchor="middle" class="gnumw">1</text>
+            <text x="52" y="915" class="gq">did we really observe it?</text>
+            <g class="gchk"><path d="M 32 927 l 3 3 l 6 -7"/></g><text x="46" y="932" class="gitem">the workload actually ran</text><text x="248" y="932" text-anchor="end" class="ctag">C1</text>
+            <g class="gchk"><path d="M 32 943 l 3 3 l 6 -7"/></g><text x="46" y="948" class="gitem">snapshots evenly spaced in time</text><text x="248" y="948" text-anchor="end" class="ctag">C2</text>
+            <g class="gchk"><path d="M 32 959 l 3 3 l 6 -7"/></g><text x="46" y="964" class="gitem">no errors or lock stalls</text><text x="248" y="964" text-anchor="end" class="ctag">C4·C5</text>
+            <g class="gchk"><path d="M 32 975 l 3 3 l 6 -7"/></g><text x="46" y="980" class="gitem">the trajectory is complete</text><text x="248" y="980" text-anchor="end" class="ctag">C6</text>
+
+            <!-- column 2 · analysis -->
+            <circle cx="271" cy="911" r="8" fill="#b8860b"/><text x="271" y="915" text-anchor="middle" class="gnumw">2</text>
+            <text x="286" y="915" class="gq">is the analysis sound?</text><text x="470" y="915" text-anchor="end" class="ctag">= C7</text>
+            <g class="gchk"><path d="M 266 927 l 3 3 l 6 -7"/></g><text x="280" y="932" class="gitem">the signal holds still enough</text><text x="470" y="932" text-anchor="end" class="ctag">G1</text>
+            <g class="gchk"><path d="M 266 943 l 3 3 l 6 -7"/></g><text x="280" y="948" class="gitem">the window spans the rhythm</text><text x="470" y="948" text-anchor="end" class="ctag">G2</text>
+            <g class="gchk"><path d="M 266 959 l 3 3 l 6 -7"/></g><text x="280" y="964" class="gitem">the beat clears the noise floor</text><text x="470" y="964" text-anchor="end" class="ctag">G3</text>
+            <g class="gchk"><path d="M 266 975 l 3 3 l 6 -7"/></g><text x="280" y="980" class="gitem">enough overlapping windows</text><text x="470" y="980" text-anchor="end" class="ctag">G4·G5</text>
+
+            <!-- column 3 · segmentation -->
+            <circle cx="493" cy="911" r="8" fill="#b8860b"/><text x="493" y="915" text-anchor="middle" class="gnumw">3</text>
+            <text x="508" y="915" class="gq">are the phase edges real?</text><text x="726" y="915" text-anchor="end" class="ctag">= C8</text>
+            <g class="gchk"><path d="M 488 927 l 3 3 l 6 -7"/></g><text x="502" y="932" class="gitem">the detected boundaries are</text>
+            <text x="502" y="947" class="gitem">trustworthy, not noise</text><text x="726" y="947" text-anchor="end" class="ctag">Plan-04</text>
+          </g>
+
+          <!-- token -->
+          <circle r="5" class="tok"/>
+        </svg>
+        <figcaption><b>Fig 13.1</b> The whole experiment as a graph. At the top, two metrics you
+        already trust — Hamming and Cosine — shown as what they are: four coordinate choices each,
+        differing in only two. So the 64 built channels are points in a designed space that nests
+        <em>family → type → metric</em> (four families opened; four more, E–H, specified but not
+        captured). The lit path is the entire 2025 pipeline — one traversal of a graph it did not
+        know it was part of. Toggle the <b>validation gates</b> to see the conditions that guard
+        each transition (rolled up into the C-claims), and toggle a <b>rival path</b> to see a
+        second route through the same graph: which path separates the workloads better is the
+        science.</figcaption>
+      </figure>
+    </div></div></section>
+
+    <!-- 2 -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">Still open</div>
+      <h2>Which path wins is not yet answered</h2>
+
+      <p>The figure's lit path is what actually ran. The grey ghost paths are built but never
+      tried; the amber ones are specified but not yet captured. Toggling the validation gates shows
+      the conditions each transition has to clear before its output can be trusted; toggling the
+      rival path shows one concrete alternative route through the same graph.</p>
+
+      <div class="takeaway"><div class="cardlab">What this entry is, and isn't</div>
+        <p>This is the map, not the answer. Which route through this graph actually separates the
+        workloads is the open question the rest of the project is now aimed at.</p></div>
+    </div></div></section>
+
+    <div class="refs">
+      <h2>The evidence</h2>
+      <ol>
+        <li id="r1"><b>Traced vs inferred.</b> The metric counts (20 + 19 + 13 + 12 = 64) and the
+        four unbuilt families were established in an earlier discovery pass over the project's
+        metric-selection code and planning notes, not re-verified line-by-line for this entry.</li>
+        <li id="r2"><b>The graph framing is inferred.</b> It restates a reframing worked out in
+        conversation with the author — no single document states the pipeline as a graph. That
+        reframing is this entry's contribution, not a citation.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="part_method.html"><div class="nd">Previous</div><div class="nt">← 11 · What carries forward</div></a>
+      <a class="n-next" href="index.html"><div class="nd">Still open</div><div class="nt">12 · The angle that hid an allocation →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Part Six · Entry 13</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>
