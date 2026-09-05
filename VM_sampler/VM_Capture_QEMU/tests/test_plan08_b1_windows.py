@@ -111,5 +111,21 @@ def test_windows(tmp_path=None):
     print("PASS: window counts, exact values, overlap, APF/wAPF defs, labels/reps, min-pairs all OK")
 
 
+def test_family_of_prefix():
+    """Regression: family is the first token, not a substring. io_read_cache_hit
+    must be io, never cache."""
+    sys.path.insert(0, str(QEMU_DIR / "plan08_b1"))
+    from b1_features import family_of
+    assert family_of("io_read_cache_hit_v2") == "io", "io_read_cache_hit misfiled"
+    assert family_of("io_direct_write_like_v2") == "io"
+    assert family_of("cache_hot_loop_v2") == "cache"
+    assert family_of("cache_cold_scan_v2") == "cache"
+    assert family_of("mem_random_write_pages_v2") == "mem"
+    assert family_of("sandbox_stealth_paced") == "sandbox"
+    assert family_of("cpu_hash_loop_v2") == "cpu"
+    print("PASS: family_of is prefix-based (io_read_cache_hit -> io, not cache)")
+
+
 if __name__ == "__main__":
+    test_family_of_prefix()
     test_windows()

@@ -33,20 +33,15 @@ BITS_PER_PAGE = 4096 * 8
 ARMS = ("apf", "wapf", "intensity")
 FEAT = ("mean", "std", "cov", "median", "max", "p95", "peak2med", "duty")
 
-FAMILIES = [
-    ("sandbox", ("sandbox", "ransom", "stealth", "scanner")),
-    ("mem", ("mem_",)), ("cache", ("cache_",)), ("io", ("io_",)),
-    ("cpu", ("cpu_",)), ("app", ("app_",)), ("thread", ("thread_",)),
-]
 RUN_RE = re.compile(r"test(\d+)_")
 
 
 def family_of(wl: str) -> str:
-    w = wl.lower()
-    for fam, keys in FAMILIES:
-        if any(k in w for k in keys):
-            return fam
-    return "other"
+    """Family = the workload name's first token. The naming convention is
+    <family>_<detail>..., so a prefix is exact. A SUBSTRING match is not:
+    io_read_cache_hit_v2 contains 'cache_' and a substring rule misfiles it as
+    cache instead of io (this bit us once -- keep it a prefix)."""
+    return wl.split("_", 1)[0].lower() if wl else "other"
 
 
 def _pct(xs_sorted, q):
