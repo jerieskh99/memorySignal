@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan 08 -- The encoding floor (APF vs weighted APF)</title>
+<style>
+  :root{--bg:#15171a;--card:#1d2024;--text:#e8e8ea;--muted:#9aa0a8;--accent:#d4a85a;
+        --good:#7cb96e;--bad:#e8553a;--info:#6ea7d4;--line:#2c3036;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,
+       Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  main{max-width:860px;margin:0 auto;padding:40px 22px 80px}
+  h1{font-size:26px;margin:0 0 4px} h2{font-size:20px;margin:34px 0 10px}
+  h3{font-size:16px;margin:22px 0 8px}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:20px 22px;margin:18px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600} .r{text-align:right}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  .good{color:var(--good)} .bad{color:var(--bad)} .info{color:var(--info)} code{color:var(--accent)}
+  .callout{border-left:3px solid var(--accent);background:rgba(212,168,90,.06);
+           padding:12px 16px;border-radius:6px;margin:14px 0}
+  .callout.good{border-color:var(--good);background:rgba(124,185,110,.07)}
+  .callout.warn{border-color:var(--bad);background:rgba(232,85,58,.06)}
+  .pipe{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+        color:var(--muted);line-height:1.9}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;
+       background:rgba(124,185,110,.15);color:var(--good);margin-left:6px}
+  .tag.plan{background:rgba(212,168,90,.15);color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Plan 08 &mdash; The encoding floor</h1>
+  <p class="sub">First analysis-stage plan: APF vs magnitude-weighted APF, the base-paper
+     comparison. Pre-registration:
+     <a href="../../../docs/EXPERIMENT_B1_ENCODING_FLOOR.md" style="color:var(--info)">EXPERIMENT_B1_ENCODING_FLOOR.md</a>.
+     Status: <strong class="good">pipeline built, tested, and run on the real corpus</strong>;
+     models pending.</p>
+
+  <div class="card">
+    <h2>The spine</h2>
+    <p>Every earlier plan measured memory with one number per snapshot: the
+       <strong>Active Page Fraction</strong> (APF) &mdash; the <em>fraction of pages that
+       changed</em>. Plan 08 asks whether weighting each page by <em>how much</em> it changed
+       buys anything. Weighted APF (<code>wAPF</code>) is the same reduction with one
+       substitution:</p>
+    <table>
+      <thead><tr><th>arm</th><th>per snapshot</th><th>measures</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">E0 &middot; APF</td><td class="mono">(1/N) &Sigma; [h&gt;0]</td><td>breadth: how many pages moved</td></tr>
+        <tr><td class="mono">E1 &middot; wAPF</td><td class="mono">(1/N) &Sigma; (h/32768)</td><td>breadth &amp; depth, as one number</td></tr>
+        <tr><td class="mono">E2 &middot; pair</td><td class="mono">(K/N, mean&nbsp;intensity)</td><td>breadth &amp; depth, kept apart</td></tr>
+      </tbody>
+    </table>
+    <p>where <code>h</code> is per-page Hamming (bits flipped), <code>N</code>=262144 pages,
+       <code>K</code>=changed pages. APF gives a changed page <code>1</code>; wAPF gives it its
+       graded amount. This is the thesis's <em>baseline-grounded encoding comparison</em> (R2)
+       run for the first time &mdash; if the protocol can't work on the two simplest encodings,
+       it can't be trusted on the complex one later.</p>
+  </div>
+
+  <div class="card">
+    <h2>The data already held the answer &mdash; no raw memory needed</h2>
+    <p>The August campaign captured in <code>substrate</code> mode, so per-page Hamming (and
+       cosine) already sit in the trajectory CSVs on the server. So APF and wAPF are a
+       <strong>column-sum away</strong>, not a re-diff of 40&nbsp;GB of raw dumps. One streaming
+       pass per cell over the (up to 28&nbsp;GB) CSV extracts both.</p>
+    <div class="callout good">
+      <strong>55 cells &rarr; 8971 windows</strong>, 19 workloads, 7 families. Extractor's
+      derived APF verified <span class="mono">IDENTICAL</span> to the reference
+      <code>plan02_apf_helper</code>. Data lives at <code>~/b1_out/&lt;cell&gt;/</code> on the
+      server (source substrate CSVs at <code>~/memory_traces/queue_dir/</code>). The raw
+      chains are <em>not</em> on this server, so the fat substrate CSVs are the recompute
+      backstop &mdash; keep them.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The pipeline (built and tested)</h2>
+    <p class="pipe">hamming field &rarr; (K, ham_sum)/snapshot &rarr; APF &amp; wAPF series
+       &rarr; 8/4 windows [n&times;8] &times;2 arms &rarr; grouped splits</p>
+    <table>
+      <thead><tr><th>step</th><th>file</th><th>output</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>extract</td><td class="mono">b1_extract_hamming.py</td><td>hc_field.csv.zst + b1_trajectory.jsonl</td><td><span class="tag">test</span></td></tr>
+        <tr><td>batch</td><td class="mono">b1_extract_all.sh</td><td>all cells, resumable</td><td></td></tr>
+        <tr><td>features</td><td class="mono">b1_features.py</td><td>per-cell, per-arm shape features</td><td></td></tr>
+        <tr><td>windows</td><td class="mono">b1_windows.py</td><td>X_apf, X_wapf [n&times;8] + labels</td><td><span class="tag">test</span></td></tr>
+        <tr><td>splits</td><td class="mono">b1_splits.py</td><td>within-trace / LORO / LOWO folds</td><td><span class="tag">test</span></td></tr>
+      </tbody>
+    </table>
+    <p>Everything on git-tracked code (branch <code>b1-encoding-floor</code>); the server pulls,
+       never pastes. Windows carry <code>cell / workload / family / rep</code> on every row, so
+       the same folds apply to both arms &mdash; that row-alignment is what keeps the APF-vs-wAPF
+       comparison fair. Window values are <strong>raw</strong>; per-fold standardization happens
+       in the model step to avoid leaking across the split.</p>
+  </div>
+
+  <div class="card">
+    <h2>First real signal &mdash; the two arms reorder the workloads</h2>
+    <p>Before any model, the per-workload means already show the arms are not redundant. The
+       ratio <code>wAPF/APF</code> is the mean bits-changed per changed page.</p>
+    <table>
+      <thead><tr><th>workload</th><th class="r">mean APF</th><th class="r">mean wAPF</th><th class="r">ratio</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">mem_workingset_sweep</td><td class="r mono">0.249</td><td class="r mono">0.00014</td><td class="r mono bad">0.0005</td></tr>
+        <tr><td class="mono">mem_writemag_sweep</td><td class="r mono">0.252</td><td class="r mono">0.00319</td><td class="r mono">0.013</td></tr>
+        <tr><td class="mono">mem_random_write_pages</td><td class="r mono">0.250</td><td class="r mono">0.00208</td><td class="r mono">0.008</td></tr>
+        <tr><td class="mono">app_sqlite_oltp</td><td class="r mono">0.028</td><td class="r mono">0.00510</td><td class="r mono">0.18</td></tr>
+        <tr><td class="mono">app_json_parse</td><td class="r mono">0.030</td><td class="r mono">0.00936</td><td class="r mono">0.31</td></tr>
+        <tr><td class="mono">app_compress_gzip</td><td class="r mono">0.052</td><td class="r mono">0.02218</td><td class="r mono good">0.42</td></tr>
+      </tbody>
+    </table>
+    <div class="callout good">
+      <strong>The encodings disagree on the ranking.</strong> By APF, <code>writemag</code>
+      (0.252) is ~5&times; more active than <code>compress</code> (0.052). By wAPF,
+      <code>compress</code> (0.022) is ~7&times; more intense than <code>writemag</code> (0.0032)
+      &mdash; a complete reversal. The mem/cache sweeps that dominate APF touch many pages one
+      bit each (<code>workingset</code> writes 1&nbsp;byte/page &rarr; ratio 0.0005); the
+      app/compute workloads change fewer pages but rewrite them hard. wAPF is not a rescaling of
+      APF &mdash; it changes what a simple learner can separate. <em>That is the paper's point,
+      visible before the first model.</em>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The corpus (all 7 families; the thin ones are labeled, not hidden)</h2>
+    <table>
+      <thead><tr><th>family</th><th class="r">workloads</th><th class="r">windows</th><th>note</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">mem</td><td class="r">4</td><td class="r mono">2095</td><td class="good">solid</td></tr>
+        <tr><td class="mono">thread</td><td class="r">3</td><td class="r mono">1976</td><td class="good">solid</td></tr>
+        <tr><td class="mono">cpu</td><td class="r">3</td><td class="r mono">1785</td><td class="good">solid</td></tr>
+        <tr><td class="mono">app</td><td class="r">3</td><td class="r mono">1676</td><td class="good">solid</td></tr>
+        <tr><td class="mono">io</td><td class="r">2</td><td class="r mono">1253</td><td class="good">solid</td></tr>
+        <tr><td class="mono">cache</td><td class="r">3</td><td class="r mono">150</td><td class="bad">thin: 3 singletons, two ~16 windows</td></tr>
+        <tr><td class="mono">sandbox</td><td class="r">1</td><td class="r mono">36</td><td class="bad">singleton: novelty case only</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      cache and sandbox will score low or erratic. That is the corpus (few workloads/reps), not
+      APF/wAPF or the method. The comparison is read on the five solid families; cache and
+      sandbox are reported with this caveat attached &mdash; <strong>do not panic on a weak
+      score there.</strong>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The splits</h2>
+    <table>
+      <thead><tr><th>split</th><th class="r">folds</th><th>what it tests</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">within_trace</td><td class="r">1</td><td>same trace both sides &mdash; memorization <strong>ceiling</strong>, never the headline</td></tr>
+        <tr><td class="mono">loro</td><td class="r">55</td><td>leave-one-cell-out &mdash; unseen run of a known workload</td></tr>
+        <tr><td class="mono">lowo</td><td class="r">19</td><td>leave-one-workload-out &mdash; unseen workload (the honest headline)</td></tr>
+      </tbody>
+    </table>
+    <p>Grouping is enforced (no cell or workload straddles a split). <code>sandbox_stealth_paced</code>
+       is auto-flagged <span class="info">novelty</span> under LOWO: it is the only workload in
+       its family, so holding it out leaves nothing to train &mdash; expect recall ~0, by
+       construction.</p>
+  </div>
+
+  <div class="card">
+    <h2>The instrument caught itself twice</h2>
+    <div class="callout warn">
+      <strong>Family mislabel.</strong> <code>io_read_cache_hit</code> was being filed under
+      <code>cache</code>, not <code>io</code> &mdash; the family label did a loose substring
+      match and <span class="mono">"cache_"</span> hides inside the name. It inflated cache to
+      777 windows and shrank io. Fixed to a first-token prefix; regression-guarded. Left
+      unnoticed it would have corrupted the family ground truth.
+    </div>
+    <div class="callout warn">
+      <strong>Reps not grouping.</strong> The queue's <code>run_matrix_testN_</code> prefix
+      leaked into the workload label, so 55 cells read as 55 "workloads" (reps=1 each), breaking
+      leave-one-rep-out. Fixed by deriving the canonical name from the source path.
+    </div>
+    <p>Both are the project's own reflex: a gate that refuses bad data beats one that reports it.
+       Three tests lock the load-bearing steps &mdash; extractor APF equals the reference,
+       window values and 50% overlap are exact, splits never leak a group.</p>
+  </div>
+
+  <div class="card">
+    <h2>What's left</h2>
+    <p>The plumbing is finished and trustworthy; the model that reads it is the only unbuilt
+       piece. All of it runs <strong>twice &mdash; APF and wAPF &mdash; and the number that
+       matters is the difference between the arms.</strong></p>
+    <ul>
+      <li><strong>Phase 1 &middot; AE bank</strong> <span class="tag plan">next</span> &mdash;
+        one autoencoder per family, argmin reconstruction error &rarr; predicted family; then
+        finer, per workload. Per-fold standardization fit on train only.</li>
+      <li><strong>Phase 2 &middot; single models</strong> &mdash; k-means, GMM, hierarchical
+        (do families emerge unsupervised? judged by ARI/NMI vs a label-shuffle null), plus a
+        random-forest supervised foil.</li>
+      <li><strong>Later paper</strong> &mdash; the complex encoding (cosine restored, already
+        stored in <code>hc_field</code>), spatial localization, and diffusion.</li>
+    </ul>
+    <p class="pipe">reproduce: pull b1-encoding-floor &rarr; b1_extract_all.sh ~/b1_sources.txt
+       ~/b1_out &rarr; b1_windows.py ~/b1_out &rarr; b1_splits.py ~/b1_out/b1_windows.npz</p>
+  </div>
+</main>
+</body>
+</html>
