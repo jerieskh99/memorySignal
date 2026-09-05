@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import statistics as st
 from pathlib import Path
@@ -71,10 +72,25 @@ def features(xs) -> dict:
     }
 
 
+def clean_workload(prov: dict) -> str:
+    """Canonical workload name from the source path, independent of what the
+    extractor happened to write into provenance. Strips the queue's
+    `run_matrix_test<N>_` prefix and the `.npy.substrate_trajectory` suffix, so
+    reps of one workload (test12/28/29/30 ...) group together."""
+    src = prov.get("source", "") or ""
+    base = os.path.basename(src)
+    for suf in (".zst", ".gz", ".csv"):
+        if base.endswith(suf):
+            base = base[: -len(suf)]
+    base = re.sub(r"(\.npy)?\.substrate_trajectory$", "", base)
+    base = re.sub(r"^run_matrix_test\d+_", "", base)
+    return base or prov.get("workload", "?")
+
+
 def load_cell(cell_dir: Path, min_pairs: int):
     prov = json.loads((cell_dir / "provenance.json").read_text())
     N = prov["n_pages"]
-    wl = prov.get("workload", "?")
+    wl = clean_workload(prov)
     m = RUN_RE.search(prov.get("source", ""))
     run_index = int(m.group(1)) if m else -1
     apf, wapf, inten = [], [], []
