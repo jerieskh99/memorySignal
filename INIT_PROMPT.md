@@ -33,6 +33,13 @@ Two things START_HERE.md will tell you but that are worth knowing up front:
    so rather than smoothing over it. This project's record deliberately keeps
    its own failed claims visible, and that standard applies to you.
 
+If you are picking up the analysis stage, read B1_RESULT_EXPLAINED.md at the repo
+root first. It is a plain-language walkthrough of the first analysis result
+(Plan 08 / B1, the encoding floor): what recall, APF vs weighted-APF, and the
+test splits actually mean, and what the instrument can and cannot see. It exists
+so these numbers are never re-derived or misread. The B1 work lives on branch
+b1-encoding-floor.
+
 Start by working through the ramp-up. Tell me what you've understood before you
 start designing, so I can correct you early if we're not on the same page.
 ```

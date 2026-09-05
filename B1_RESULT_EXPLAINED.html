@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Understanding the B1 result — in plain terms</title>
+<style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;background:#faf9f6;color:#1c1b19;
+    font:17px/1.7 "Iowan Old Style",Georgia,"Times New Roman",serif;-webkit-font-smoothing:antialiased}
+  main{max-width:740px;margin:0 auto;padding:48px 24px 90px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+  h2{font-size:21px;margin:40px 0 10px;padding-top:14px;border-top:1px solid #e7e3da}
+  .lede{color:#5c5850;font-size:16px;margin:0 0 8px}
+  .why{background:#f3efe6;border-left:3px solid #b98a3e;border-radius:6px;
+    padding:14px 18px;margin:22px 0;font-size:15.5px;color:#403c34}
+  p{margin:12px 0}
+  em{color:#8a6a20;font-style:italic}
+  strong{color:#111}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;
+    background:#efece4;padding:1px 5px;border-radius:4px}
+  pre{background:#f3efe6;border:1px solid #e7e3da;border-radius:8px;padding:14px 16px;
+    overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;line-height:1.6}
+  pre code{background:none;padding:0}
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:14px 0;
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+  th,td{padding:8px 11px;text-align:left;border-bottom:1px solid #e7e3da}
+  th{color:#6b6659;font-weight:600}
+  .step-kicker{font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:12px;
+    letter-spacing:.06em;text-transform:uppercase;color:#b98a3e;font-weight:700}
+  .takeaway{background:#eef3ec;border-left:3px solid #5e8a4e;border-radius:6px;
+    padding:14px 18px;margin:24px 0;font-size:16px}
+  blockquote{margin:14px 0;padding:8px 18px;border-left:3px solid #cfc8ba;color:#403c34;font-style:italic}
+  .foot{margin-top:44px;padding-top:16px;border-top:1px solid #e7e3da;color:#8a857a;font-size:14px;
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+</style>
+</head>
+<body>
+<main>
+  <h1>Understanding the B1 result — in plain terms</h1>
+  <p class="lede">The first analysis-stage result (Plan 08 / B1, the encoding floor), from the
+     ground up, no jargon. What the experiment does and what the numbers mean.</p>
+
+  <div class="why">
+    <strong>Why this exists.</strong> A plain-language companion so you — and any future chat or
+    agent — can read the numbers (recall, APF vs wAPF, the three splits) without re-deriving them.
+    The technical log is <code>plan08_overview.html</code>; the pre-registration is
+    <code>docs/EXPERIMENT_B1_ENCODING_FLOOR.md</code>; the raw numbers are
+    <code>b1_ae_results.json</code>.
+  </div>
+
+  <h2><span class="step-kicker">Step 1</span><br>What are we even looking at?</h2>
+  <p>Every half-second we photograph the computer's memory and compare it to the previous photo.
+     For each 4&nbsp;KB chunk (a <strong>page</strong>) we note how much it changed. Then we squash
+     the whole photo-diff into <strong>one number</strong>: "how busy was memory this instant?"</p>
+  <p>Two flavors: <strong>APF</strong> = what <em>fraction of pages</em> changed (yes/no, averaged).
+     <strong>wAPF</strong> = the same, but each page counts by <em>how much</em> of it changed.
+     Do that every half-second and you get a wiggly line over time — a heartbeat monitor for
+     memory. One line per recording.</p>
+
+  <h2><span class="step-kicker">Step 2</span><br>What is a "window"?</h2>
+  <p>We chop that heartbeat line into pieces of <strong>8 readings in a row</strong> (stepping 4,
+     so they overlap). Each 8-number piece is one <strong>window</strong> — think of an 8-second
+     clip of a song. One recording gives ~170 clips. Every clip is one thing we classify.</p>
+
+  <h2><span class="step-kicker">Step 3</span><br>What are we trying to do with a clip?</h2>
+  <p>Sort it into its <strong>family</strong>: was this memory activity made by a <em>memory</em>
+     program, a <em>cpu</em> program, an <em>app</em>, a <em>disk (io)</em> program, etc.? Seven
+     families. We guess the family from the clip alone — we never see the actual program.</p>
+
+  <h2><span class="step-kicker">Step 4</span><br>How do we guess? (the "autoencoder bank")</h2>
+  <p>We train one <strong>expert per family</strong>. Each studies <em>only its own family's
+     clips</em> until it knows them. To classify a new clip, we ask <strong>all 7 experts</strong>
+     "how familiar is this?" and give the clip to whichever is <em>most comfortable</em>.</p>
+  <p>The "expert" is a small neural net (an <strong>autoencoder</strong>) that squeezes a clip into
+     3 numbers and rebuilds it. It rebuilds its own family's clips well and unfamiliar ones badly,
+     so "badly rebuilt" means "not my family."</p>
+
+  <h2><span class="step-kicker">Step 5</span><br>What is "recall"? (the number that carries the story)</h2>
+  <p>Recall answers one specific question, per family:</p>
+  <blockquote>Of all the clips that <em>truly</em> belong to this family, what fraction did we
+     correctly catch?</blockquote>
+  <p>If 100 clips are truly <strong>mem</strong> and we correctly label 75 of them "mem", then
+     <strong>mem recall = 75/100 = 0.75</strong>. So recall = "did we <strong>find</strong> the ones
+     that really belong here?" — a per-family batting average.</p>
+  <p><strong>app recall 0.84</strong> → we caught 84% of real app clips. <strong>cpu recall
+     0.02</strong> → we caught almost no cpu clips; they got labeled as something else. Recall shows,
+     family by family, which families the instrument can find and which it is blind to.</p>
+
+  <h2><span class="step-kicker">Step 6</span><br>What do our recall numbers say? (unseen-workload test)</h2>
+  <table>
+    <thead><tr><th>family</th><th>APF recall</th><th>wAPF recall</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>app</td><td>0.84</td><td>0.54</td><td>found</td></tr>
+      <tr><td>mem</td><td>0.75</td><td>0.64</td><td>found</td></tr>
+      <tr><td>io</td><td>0.02</td><td>0.02</td><td>missed</td></tr>
+      <tr><td>cpu</td><td>0.02</td><td>0.00</td><td>missed</td></tr>
+      <tr><td>thread</td><td>0.01</td><td>0.01</td><td>missed</td></tr>
+      <tr><td>cache</td><td>0.00</td><td>0.00</td><td>missed (too little data)</td></tr>
+      <tr><td>sandbox</td><td>0.00</td><td>0.00</td><td>missed (special case)</td></tr>
+    </tbody>
+  </table>
+  <p>Two families we find; five we basically cannot.</p>
+
+  <h2><span class="step-kicker">Step 7</span><br>Why?</h2>
+  <p>The instrument only sees memory <strong>writes</strong>. Programs that mostly compute or read
+     (a cpu hashing loop, threads fighting over a lock) barely write, so their clips are almost all
+     <strong>near-zero</strong> — flat lines. And one flat line looks like every other: the experts
+     for cpu/io/thread cannot tell them apart, so they mislabel each other and recall goes to ~0.
+     app and mem <strong>write a lot</strong> → real shape → recognized.</p>
+  <p>This "loud vs quiet" split is the instrument's <strong>write-only blind spot</strong> —
+     predicted years ago ("only writes are visible"), measured for the first time here. It is
+     <em>mutual</em>, not random: cpu is mislabeled as thread, thread as io — the quiet families
+     pour into one indistinguishable pool.</p>
+
+  <h2><span class="step-kicker">Step 8</span><br>The three "splits" (how hard we make the test)</h2>
+  <table>
+    <thead><tr><th>split</th><th>the test</th><th>difficulty</th></tr></thead>
+    <tbody>
+      <tr><td>within_trace</td><td>same recording we trained on</td><td>easy (memorizing) — the "ceiling"</td></tr>
+      <tr><td>loro</td><td>a different run of the same program</td><td>medium</td></tr>
+      <tr><td>lowo</td><td>a program never seen, only others of its family</td><td>hard — the honest headline</td></tr>
+    </tbody>
+  </table>
+  <p>Overall accuracy (all families lumped), APF vs wAPF, majority-guess baseline 0.234:</p>
+  <pre><code>                 APF acc  wAPF acc
+within_trace      0.576    0.480     (ceiling)
+loro              0.623    0.427     (unseen run)
+lowo              0.342    0.254     (unseen workload — the headline)</code></pre>
+  <p><code>lowo 0.342</code> beats blind guessing (0.234) but not by much — 5 of 7 families are
+     invisible and drag the average down. Crucially, at the ceiling the <em>visible</em> families
+     are near-perfect (mem 1.00, app 0.98, io 0.97), so the model is <strong>not broken</strong> —
+     it separates families fine where there is a sound to hear.</p>
+
+  <h2><span class="step-kicker">Step 9</span><br>APF vs wAPF (the actual experiment)</h2>
+  <p>We ran the whole thing twice — once with APF clips, once with wAPF clips. <strong>APF won
+     everywhere.</strong> The families we can see (memory sweeps) change many pages a tiny bit each;
+     wAPF weights by "how much," shrinking them toward zero — into the same flat-line blind spot as
+     the quiet families. APF just counts pages, keeping them visible. For telling families apart, the
+     plain <strong>count</strong> beats the <strong>weighted amount</strong>. Clearest at the ceiling:
+     mem falls from 1.00 (APF) to 0.66 (wAPF).</p>
+
+  <h2><span class="step-kicker">Step 10</span><br>The full picture in one breath</h2>
+  <p>We turn memory into a busyness-heartbeat, slice it into 8-beat clips, and ask a panel of
+     family-experts which family each clip belongs to. <strong>Recall</strong> tells us, per family,
+     how many of that family's clips we caught. The result: the instrument catches the two families
+     that write heavily (<strong>app, mem</strong>), is deaf to the three that mostly compute
+     (<strong>cpu, io, thread</strong>), and the plain <strong>count</strong> (APF) beats the
+     <strong>weighted</strong> version (wAPF). That is the <strong>floor</strong> everything else
+     gets measured against.</p>
+
+  <div class="takeaway">
+    <strong>The one open question that changes the verdict.</strong> wAPF is APF <em>times</em> an
+    intensity — a product, and a product hides its factors. So wAPF losing is ambiguous: maybe
+    intensity carries nothing, or maybe <em>multiplying</em> it into one number destroyed it. The
+    next experiment (<strong>E2</strong>) keeps breadth and intensity as two separate channels. If E2
+    beats APF, the loss was the product; if E2 matches APF, intensity adds nothing for family
+    classification. That single test turns "weighting lost" into the real verdict.
+  </div>
+
+  <div class="takeaway">
+    <strong>Remember this.</strong> The instrument hears writers and is deaf to thinkers; among the
+    writers, counting beats weighting; and the honest score rests on two families, not seven.
+    Everything the next experiments do is measured against that.
+  </div>
+
+  <div class="foot">
+    Companion to <code>plan08_overview.html</code> and the diary lesson
+    <code>docs/research-diary/part_b1_result.html</code>. Canonical text:
+    <code>B1_RESULT_EXPLAINED.md</code>.
+  </div>
+</main>
+</body>
+</html>
