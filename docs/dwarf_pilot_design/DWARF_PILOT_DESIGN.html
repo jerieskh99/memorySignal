@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dwarf Pilot Design</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --fg:#1c1b19; --muted:#6b6862; --rule:#e3e0d8;
+    --card:#ffffff; --accent:#7a4b1e; --accent2:#2f5d50; --code:#f3f1ea;
+    --go:#2f6b3a; --nogo:#8a3324; --warn:#8a6d1e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171614; --fg:#eae7df; --muted:#a29d92; --rule:#33302a;
+      --card:#1f1e1b; --accent:#d9a86a; --accent2:#7fc0ad; --code:#232220;
+      --go:#7fc98a; --nogo:#e0876f; --warn:#d8bd6e;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{max-width:920px;margin:0 auto;padding:56px 28px 96px;}
+  header.title{border-bottom:2px solid var(--rule);padding-bottom:22px;margin-bottom:8px}
+  .kicker{font-size:12.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:30px;line-height:1.15;margin:.35em 0 .15em;font-weight:750;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:15px;max-width:70ch}
+  .meta{color:var(--muted);font-size:13px;margin-top:14px}
+  h2{font-size:22px;margin:2.2em 0 .5em;padding-top:.4em;border-top:1px solid var(--rule);
+     letter-spacing:-.01em;font-weight:720}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:.35em}
+  h3{font-size:16.5px;margin:1.5em 0 .3em;font-weight:700}
+  h4{font-size:14px;margin:1.2em 0 .2em;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:.55em 0}
+  ul,ol{margin:.5em 0 .5em 0;padding-left:1.25em}
+  li{margin:.32em 0}
+  code{background:var(--code);padding:.08em .4em;border-radius:4px;font:13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  strong{font-weight:680}
+  .lede{font-size:17px;color:var(--fg)}
+  .callout{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--accent);
+    border-radius:8px;padding:16px 20px;margin:18px 0}
+  .callout.go{border-left-color:var(--go)}
+  .callout.nogo{border-left-color:var(--nogo)}
+  .callout.warn{border-left-color:var(--warn)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    padding:2px 8px;border-radius:20px;border:1px solid var(--rule);color:var(--muted);vertical-align:middle}
+  .tag.go{color:var(--go);border-color:var(--go)}
+  .tag.nogo{color:var(--nogo);border-color:var(--nogo)}
+  .tag.warn{color:var(--warn);border-color:var(--warn)}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+  th,td{border:1px solid var(--rule);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--card);font-weight:700}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .infeasible{color:var(--nogo);font-weight:600}
+  .feasible{color:var(--go);font-weight:600}
+  .solo{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:6px 24px 20px;margin:20px 0}
+  .solo h3{color:var(--accent2);border-bottom:1px solid var(--rule);padding-bottom:8px}
+  .axes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+  @media (max-width:640px){.axes{grid-template-columns:1fr}}
+  .axis{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:14px 16px}
+  .axis .lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .gate{border-left:3px solid var(--accent2);padding:2px 0 2px 16px;margin:14px 0}
+  .gate .g{font-weight:700;color:var(--accent2)}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+  hr{border:0;border-top:1px solid var(--rule);margin:2em 0}
+  .foot{margin-top:60px;padding-top:16px;border-top:1px solid var(--rule);color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="title">
+  <div class="kicker">Part 2 · Kernel/Dwarf Experiment · Design Review</div>
+  <h1>The Dwarf Pilot: four experts, two rounds, one verdict</h1>
+  <p class="sub">Can memory-write behavior identify a Berkeley numerical dwarf? A DSP engineer, an ML engineer,
+  an ECG signal scientist, and a volatile-memory systems engineer reasoned in four phases &mdash; alone,
+  together, alone again, together &mdash; over the write-visible kernel corpus. This is each expert's final
+  standalone verdict and the joint one.</p>
+  <p class="meta">Method: independent Phase-1 verdicts &rarr; Phase-2 cross-examination &rarr; Phase-3 revised
+  solo verdicts (below) &rarr; Phase-4 synthesis. All claims grounded in kernel source, the differ metrics,
+  and the capture config; estimates labelled. No capture has run yet &mdash; every separability statement is a
+  falsifiable prediction, not a measurement.</p>
+</header>
+
+<h2><span class="n">&#167;0</span>The one-line result</h2>
+<p class="lede">&ldquo;Dwarf&rdquo; is not a learnable target. The 500&nbsp;ms snapshot is a 2&nbsp;Hz stroboscope that
+integrates thousands of compute passes into &ldquo;footprint fully lit,&rdquo; collapsing the 13 dwarfs into a
+<strong>~6&ndash;8-cell region of a two-axis space</strong>: an always-visible <em>spatial image</em> (footprint
+size &times; saturation &times; per-page magnitude) and a <em>conditionally-visible temporal trajectory</em>
+(front migration / magnitude decay) that survives only for a handful of high-arithmetic-intensity kernels once
+deliberately resized. The founding byte-domain FFT lens is demoted. A single ~1&ndash;2&nbsp;hour gated pilot
+decides whether this earns a full campaign or whether the honest deliverable is the dwarf&rarr;archetype
+confusion matrix the spec asked for.</p>
+
+<h2><span class="n">&#167;1</span>Joint verdict <span class="tag">Phase 4</span></h2>
+
+<h3>1 &middot; The target is a product space, not a list</h3>
+<p>Two of the four experts (ML and ECG) arrived <em>independently</em> at the same decomposition. The dwarf is a
+region of a two-axis product; the honest ceiling is ~6&ndash;8 populated cells for the numerical dwarfs, not 13.</p>
+<div class="axes">
+  <div class="axis">
+    <div class="lab">Axis 1 &mdash; per-snapshot image <span class="tag go">always observable</span></div>
+    <p class="small">Footprint <strong>size</strong> &times; <strong>saturation</strong> (dense-full vs sparse-stable)
+    &times; per-page <strong>magnitude regime</strong> (high-entropy re-seed vs low-amplitude smooth). This is the
+    ~3&ndash;5 write-shape archetypes &mdash; the instantaneous shape.</p>
+  </div>
+  <div class="axis">
+    <div class="lab">Axis 2 &mdash; across-snapshot trajectory <span class="tag warn">conditional</span></div>
+    <p class="small">Time-series shape of footprint extent/centroid and magnitude envelope:
+    <strong>static / grow / shrink / translating-band / decaying</strong>. Observable only for high-intensity
+    fronts sized up, plus converging iteratives.</p>
+  </div>
+</div>
+<p>Deliverable framing: predict the <em>cell</em>, and report the <strong>dwarf&rarr;cell confusion matrix</strong>
+&mdash; which is what <code>test_families_spec.md</code> set out to produce in the first place.</p>
+
+<h3>2 &middot; Temporal &mdash; resolved per-kernel by an arithmetic-intensity law under a hard RAM cap</h3>
+<p>Rhythm is dead (2&nbsp;Hz Nyquist). The one-time <em>evolution envelope</em> (LU's shrinking front, QR's growing
+front, a solver's convergence) is a sub-Hz trend, not a rhythm, and is rescuable &mdash; but <strong>only for
+kernels whose work grows faster than their footprint</strong> (arithmetic intensity = flops per byte written).
+The 1&nbsp;GiB guest RAM is the binding constraint.</p>
+<table>
+  <thead><tr><th>Kernel</th><th>Intensity</th><th class="n">Default N</th><th class="n">Target N (~4s/pass)</th><th class="n">Footprint</th><th class="n">Guest RAM</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>QR</td><td>O(N&sup3;)/O(N&sup2;)</td><td class="n">1024</td><td class="n">~2000 (2&times;)</td><td class="n">~7,600 pg</td><td class="n">~3%</td><td class="feasible">Cheap rescue &mdash; first</td></tr>
+    <tr><td>LU</td><td>O(N&sup3;)/O(N&sup2;)</td><td class="n">1024</td><td class="n">~3,800 (3.7&times;)</td><td class="n">~27,000 pg</td><td class="n">~11%</td><td class="feasible">Moderate &mdash; second</td></tr>
+    <tr><td>DP (edit-dist)</td><td>O(N&sup2;)/O(N&sup2;)</td><td class="n">8192</td><td class="n">~58,000 (7&times;)</td><td class="n">13.4 GB</td><td class="n">1340%</td><td class="infeasible">Infeasible</td></tr>
+    <tr><td>Stencil (Jacobi)</td><td>O(1) flops/byte</td><td class="n">1024</td><td class="n">~44,400 (43&times;)</td><td class="n">31.6 GB</td><td class="n">3080%</td><td class="infeasible">Infeasible + moot</td></tr>
+    <tr><td>FFT (1D)</td><td>O(N&thinsp;log&thinsp;N)</td><td class="n">2&sup2;&#8304;</td><td class="n">~2&sup2;&#8311;</td><td class="n">2.1 GB</td><td class="n">210%</td><td class="infeasible">Infeasible</td></tr>
+  </tbody>
+</table>
+<p><strong>Rescuable temporal arm:</strong> the dense O(N&sup3;)/O(N&sup2;) fronts (QR, LU, and by the same law
+Cholesky, Floyd, Smith-Waterman). <strong>Permanently aliased:</strong> the O(1)-flops/byte saturators (stencils,
+multigrid, nbody, LBM, FDTD, DWT) and the memory-bound DP/FFT &mdash; they cannot be slowed past a snapshot without
+overflowing the guest. These reclassify into a <em>footprint-size, no-front</em> bucket; their only signal is fixed
+footprint magnitude and, for iteratives, magnitude decay.</p>
+<p class="small muted">Caveat (memory): the QR/LU targets are extrapolated from cache-resident smoke timing. At
+N&asymp;2000&ndash;4000 the working set blows past L2/L3, so real per-pass time scales <em>worse</em> than N&sup3;
+&mdash; meaning the true N is likely <em>smaller</em>, and the rescue is <em>stronger</em>. Gate&nbsp;1 (a real
+timing readout) must confirm before capture budget is spent.</p>
+
+<h3>3 &middot; The features &mdash; a placement-invariant core, a gated address-shape extension</h3>
+<ul>
+  <li><strong>Demoted:</strong> the founding byte-domain complex-page FFT / wavelet / cepstrum lens &mdash; aliased by
+  the stroboscope and switched off at <code>substrateSpeed 2</code>. ECG withdrew its own multigrid-cepstrum;
+  cepstrum is even the wrong tool for a monotone ramp (no quefrency peak &mdash; use ramp slope/curvature).</li>
+  <li><strong>Surviving leads (all four agree):</strong>
+    <ol>
+      <li><strong>Per-page magnitude distribution</strong> (hamming / l1 / l2) &mdash; separates smooth low-amplitude
+      writers (n-body, barnes-hut, MD, gibbs, belief-prop) from high-entropy re-seeders. The founding intuition's
+      real payoff, and exactly what APF's binary changed/not indicator destroys.</li>
+      <li><strong>Footprint trajectory</strong> (changed-page-index extent/centroid series) &mdash; for resized
+      high-intensity fronts only.</li>
+      <li><strong>Magnitude-envelope decay</strong> &mdash; converging iteratives (gibbs/BP) whose later overwrites
+      flip fewer bits.</li>
+    </ol>
+  </li>
+  <li><strong>Model:</strong> no autoencoder bank (degenerate on near-flat inputs in B1; a forest beat it 19&ndash;59&times;
+  on identical inputs). Discriminative trees on a small feature vector. <strong>Effective n = dwarfs, not windows</strong>
+  &mdash; a trajectory is one realization per cell, so a generalization campaign needs ~100&ndash;135 cells.</li>
+  <li><strong>Memory's schema catch:</strong> the existing <code>change_centroid/span/runs</code> channels are
+  <em>per-page</em> (byte offsets inside one 4&nbsp;KiB page), <em>not</em> whole-dump position. The address-space
+  shape feature must be built from the <code>page_index</code> column &mdash; and that is the feature most exposed to
+  guest-physical scrambling. Placement-invariant aggregates (run-length distribution, total footprint size, magnitude
+  histograms) are the safe core.</li>
+</ul>
+
+<h3>4 &middot; Guest-physical contiguity &mdash; the deepest validity threat, and it is free to test</h3>
+<p>Kernels get virtual contiguity from one <code>mmap()</code>, but pmemsave dumps guest-<em>physical</em> RAM, and the
+guest buddy allocator decides the mapping. All 61 phase-2 kernels call <code>MADV_NOHUGEPAGE</code> (a deliberate THP
+opt-out), which <em>removes</em> the one mechanism that would force physical contiguity &mdash; so the concern is more
+exposed, not less. But the differ already emits <code>page_index</code>, so the test costs nothing extra: capture
+<code>gemm</code> at default for ~15&nbsp;s with <code>--speed 0 --sparse</code>, take two consecutive snapshots deep
+in the measure phase, and check whether the changed pages form a contiguous run or scatter across the 262,144-page
+range. This single check gates every address-shape claim in the pilot.</p>
+
+<h3>5 &middot; Leakage guards (B1's hollow success, sharpened for trajectories)</h3>
+<ul>
+  <li><strong>Split unit = DWARF</strong> for the cross-motif claim (B1's LORO leaked: 0.836 vs 0.457). Never cell/rep.</li>
+  <li><strong>IDLE controls are the tripwire:</strong> spmv/bfs/mc_pi must stay mutually inseparable at floor after
+  masking. If they separate, you are reading the environment, not the workload.</li>
+  <li><strong>Level-normalization:</strong> separation must survive removing absolute write volume &mdash; else you
+  rebuilt APF.</li>
+  <li><strong>Trajectory-specific:</strong> normalize to trace-<em>fraction</em> (kills the duration confound) and
+  <strong>drop warm-up snapshots</strong> (the allocation/page-fault-in transient is a per-workload fingerprint).</li>
+  <li><strong>Normalize the capture protocol by pass-duration, not by dimension</strong> &mdash; so footprint size
+  cannot leak as the dwarf label.</li>
+</ul>
+
+<h3>6 &middot; The pilot &mdash; unanimous, gated cheapest-first</h3>
+<div class="gate"><span class="g">Gate 0</span> &mdash; arithmetic, done, zero cost. The intensity table above.
+Output: QR&rarr;~2000, LU&rarr;~3800 as resize targets; DP/stencil/FFT ruled out for resizing.</div>
+<div class="gate"><span class="g">Gate 1</span> &mdash; server, seconds per kernel, no capture pipeline. Run
+<code>kernel_qr_v2 --dim 2000</code> and <code>kernel_lu_v2 --dim 3800</code> standalone (<code>--dry-run</code>
+first), read the factorisation counter. Confirms the cache-effect caveat before any capture budget is spent.</div>
+<div class="gate"><span class="g">Gate 2</span> &mdash; first real capture, small, decisive. <code>gemm</code> default
+~15&nbsp;s at <code>--speed 0 --sparse</code> &rarr; the contiguity test. <strong>The single most important
+go/no-go in the whole pilot</strong> &mdash; every address-shape feature depends on it.</div>
+<div class="gate"><span class="g">Gate 3</span> &mdash; pilot proper, <code>--speed 0</code>, duration &ge;70&nbsp;s
+(145 frames, clears the 128-frame streaming threshold), only if Gate 2 passes:
+  <ul class="small">
+    <li>resized <strong>QR + LU</strong> &mdash; front migration via Jaccard overlap of consecutive changed-page-index
+    sets (overlap &lt;1 with a shifting boundary = front survived; overlap &asymp;1 = still aliased);</li>
+    <li><strong>gemm</strong> default &mdash; WORKING-SET / static null;</li>
+    <li><strong>barnes_hut vs nbody</strong> &mdash; the address-shape pair, most sensitive to Gate 2;</li>
+    <li><strong>gibbs</strong> &mdash; thinnest visible control (256 pages), magnitude-decay envelope;</li>
+    <li><strong>stencil_jacobi</strong> default &mdash; ECG's <em>falsification control</em>: the law predicts it stays
+    saturated and static; if it separates, the intensity law is wrong;</li>
+    <li><strong>dp</strong> reduced to <code>--dim 2048</code> (not the coded 8192 &mdash; backpressure risk);</li>
+    <li>ML's cross-motif extension: add <strong>rmat + lexer</strong> (also spec-SEQUENTIAL-GROW) so QR can be held out
+    <em>leave-one-dwarf-out</em> &mdash; train on rmat+lexer, does held-out QR read &ldquo;growing&rdquo;?</li>
+  </ul>
+</div>
+<div class="callout go">
+  <span class="tag go">GO</span> &nbsp;Resized LU/QR (and the growing triad) separate from GEMM on the trajectory lead,
+  <em>and</em> barnes_hut/gibbs separate on the magnitude lead, <em>and</em> the separation survives level-normalization,
+  placement-invariant-only features, and warm-up dropping &rarr; the multi-lens (minus byte-FFT) is vindicated. Commit the
+  ~100-cell campaign at controlled pass-duration.
+</div>
+<div class="callout nogo">
+  <span class="tag nogo">NO-GO</span> &nbsp;Resized LU/QR still collapse into GEMM &rarr; the front was workload
+  memorization, temporal is dead even sized (ML's position wins outright), and Part&nbsp;2 honestly reduces to a spatial
+  magnitude + footprint-size classifier. Deliver the <strong>dwarf&rarr;archetype confusion matrix</strong> and stop
+  spending server time on the temporal arm.
+</div>
+
+<h3>7 &middot; The one residual disagreement &mdash; pilot speed</h3>
+<div class="callout warn">
+ECG voted <strong>speed 2</strong> (the surviving leads are alive there, and it matches production cadence). Memory voted
+<strong>speed 0</strong> (the rich magnitude channels, the contiguity test, and a free byte-FFT A/B all need it; speed 2
+is a documented throughput compromise). <strong>Resolution:</strong> run the <em>pilot</em> at speed 0 &mdash; cheap at
+pilot scale (only a few thousand changed pages), and it guarantees axis&nbsp;C, contiguity, and the byte-FFT A/B are all
+observable at once. Then confirm axis&nbsp;C survives at speed 2 before the campaign runs at production cadence.
+DSP's &ldquo;free speed-0 A/B on the same retained dumps&rdquo; is the bridge.
+</div>
+
+<h2><span class="n">&#167;2</span>The four solo verdicts <span class="tag">Phase 3</span></h2>
+<p class="muted small">Each expert's final standalone position after the cross-examination. Condensed from their own words;
+unverified items are flagged as they flagged them.</p>
+
+<div class="solo">
+<h3>DSP engineer &mdash; the sampling lens</h3>
+<p><strong>Verdict.</strong> The governing filter is the 500&nbsp;ms boxcar-OR, a 2&nbsp;Hz stroboscope. At default sizes
+it aliases every kernel's intra-pass geometry to &ldquo;footprint fully lit,&rdquo; so the visible dwarfs collapse into
+~5 write-shape archetypes = a small grid of (footprint-size &times; magnitude) buckets. Rhythm is dead; ML is right on
+that. But the <em>evolution envelope</em> (LU shrink, QR grow) is a DC-to-0.05&nbsp;Hz trend, not a rhythm, and is
+rescuable &mdash; the key arithmetic: to slow one evolution to span many snapshots while fitting 1&nbsp;GiB, <strong>work
+must grow faster than space</strong>. Dense LA (O(N&sup3;)/O(N&sup2;)) qualifies; append-growers and band-migrators
+(work &asymp; space) fold.</p>
+<p><strong>What he conceded/withdrew.</strong> Adopted ML's placement-invariance as a hard filter and <em>withdrew his own
+&ldquo;contiguous-vs-scatter shape&rdquo; feature</em> &mdash; ASLR + guest-physical fragmentation make absolute position
+non-reproducible. What survives: translation-invariant stats (footprint size, run-length histogram) and temporal
+derivatives of spatial moments (centroid velocity, span growth-rate), which are invariant to the random origin.
+Corrected ECG: read convergence-decay on <code>l1/l2</code>, not <code>hamming</code> (a 1e-10 update still flips low
+mantissa bits, so hamming won't decay); and a converging solver shows footprint shrinkage <em>and</em> magnitude decay
+together, which distinguishes it from an LU shrink at constant front magnitude &mdash; the joint (size(t), l2(t))
+trajectory is the discriminator.</p>
+<p><strong>Pilot vote.</strong> Two arms, both speed 2 (+ a free speed-0 A/B on retained dumps): Arm A the collapse null
+(GEMM, stencil, hmm, diffusion &mdash; if they don't separate, archetype is the ceiling, deliver the confusion matrix);
+Arm B the evolution rescue (GEMM/LU/QR resized + a slowed stencil &mdash; if the {static, shrink, grow, decay}
+trajectory classes separate, the sub-type is real).</p>
+</div>
+
+<div class="solo">
+<h3>ML engineer &mdash; the representation / leakage lens</h3>
+<p><strong>Verdict.</strong> Neither &ldquo;family&rdquo; nor &ldquo;dwarf&rdquo; is a coherent learnable target. The
+identifiable target is a point in a three-axis product: A = instantaneous footprint density (~3 levels at 2&nbsp;Hz;
+SCATTER largely collapses into dense under the boxcar-OR), B = footprint trajectory, C = per-page magnitude distribution
+and its evolution. Dwarf is recoverable as a <em>region</em> (~8&ndash;15 cells) &mdash; dwarf-informative for the
+numerical dwarfs but not reaching 13 (Jacobi/Floyd/Gibbs share a cell).</p>
+<p><strong>The catch he owns.</strong> Axes B and C are <strong>once-per-cell trajectory features</strong>: one LU run =
+one shrinking curve, and the windows inside it are points on that curve, not independent samples. So effective n
+collapses from thousands of windows to one realization per cell, and a defensible cross-motif claim needs
+&ge;3 dwarfs &times; &ge;3 workloads &times; &ge;3 reps &asymp; 100&ndash;135 cells. The target got richer and the data got
+thinner at the same time &mdash; that tension, not signal presence, is what the program lives or dies on.</p>
+<p><strong>Two new leak guards:</strong> normalize each trajectory to trace-fraction (duration confound); drop warm-up
+snapshots (the allocation transient is a workload fingerprint &mdash; a trajectory-flavored rerun of B1's floor
+recognition). <strong>Pilot vote:</strong> a sized, gated, growing-front <em>generalization triad</em> &mdash; QR, rmat,
+lexer (three different motifs the spec all calls SEQUENTIAL-GROW) + GEMM contrast + spmv idle-null, speed 2,
+leave-one-<em>dwarf</em>-out on the axis-B label. Held-out growing dwarf recognized across motif (surviving the three
+guards) &rarr; GO; collapses &rarr; archetype is the ceiling, deliver the confusion matrix.
+<span class="muted">Unverified and gating: whether speed 2 actually emits per-page magnitude, or only the binary
+indicator &mdash; if not, axis C needs speed 0.</span></p>
+</div>
+
+<div class="solo">
+<h3>ECG signal scientist &mdash; the morphology / analogy lens</h3>
+<p><strong>Verdict.</strong> The write-visible dwarfs do not carry 13 separable morphologies. After the stroboscope
+integrates thousands of sub-snapshot passes (his own gate: 16&ndash;30,000 passes/snapshot at smoke sizes), the target
+collapses to a small set of cells on two axes &mdash; an always-present spatial image and a conditionally-present
+temporal trajectory. The founding byte-domain FFT/wavelet/cepstrum lens is demoted.</p>
+<p><strong>His law.</strong> The temporal rescue is governed by arithmetic intensity (flops per byte). High-intensity
+fronts (O(N&sup3;)/O(N&sup2;): LU, QR, DP, Floyd, Cholesky, Smith-Waterman) can be sized so one pass spans &ge;3
+snapshots under the cap; low-intensity saturators (stencils, multigrid, nbody, all O(1) flops/byte) never can, at any
+feasible size. He <em>withdrew his own Phase-1 multigrid-cepstrum</em> as impractical and conceded multigrid to ML.
+Cepstrum is the wrong tool for a monotone ramp anyway &mdash; use the change-centroid ramp slope/curvature; reserve
+cepstrum for the one surviving recurrence, the convergence-decay envelope, which he adopts.</p>
+<p><strong>Falsifiable prediction + pilot.</strong> Only the high-intensity fronts separate from GEMM on the
+footprint-trajectory lead; low-intensity kernels stay inseparable except by footprint size, at every feasible size.
+Pilot adds a <em>negative control</em>: capture a maximally-resized stencil alongside &mdash; the law predicts it stays
+aliased; if it separates, the intensity rule is falsified. Speed 2. <span class="muted">Flagged a discrepancy: in his
+smoke read, qr/lu/dp emit no pass counter and stencil is 30,157/snap, so memory's &ldquo;QR ~0.9&rdquo; is from a larger
+sizing &mdash; which is exactly the resizability curve, and what Gate 1 resolves.</span></p>
+</div>
+
+<div class="solo">
+<h3>Volatile-memory systems engineer &mdash; the ground-truth lens</h3>
+<p><strong>Verdict.</strong> Aliasing is a per-kernel continuum spanning four orders of magnitude at the same cadence,
+which is what makes sizing-rescue a targeted question rather than a blanket &ldquo;temporal is dead.&rdquo; None of these
+dwarfs has a <em>volume</em> problem (they write 2&times;&ndash;555&times; the ~118-page OS floor); ~15 of ~20 collapse
+into the same footprint-magnitude bucket regardless of identity, which floor-subtraction does nothing to fix. Speed 2
+dropping the heavy channels is documented and deliberate (<code>--help</code>: use speed 2&ndash;4 at 500&nbsp;ms) &mdash;
+the magnitude/texture leads require an explicit <code>--speed 0</code>.</p>
+<p><strong>His hard numbers.</strong> The per-kernel resize table (QR ~2000 at ~3% RAM; LU ~3800 at ~11%; DP 13.4&nbsp;GB,
+stencil 31.6&nbsp;GB &mdash; both infeasible on a 1&nbsp;GiB guest) turns ECG's law into RAM-bounded fact. The
+cache-effect caveat makes QR/LU's real N smaller, strengthening the rescue &mdash; but Gate&nbsp;1 must confirm.
+Two source-read mislabel root causes: <code>sddmm</code>'s sparsity is index-metadata invisible to a byte differ
+(inherent limit), while <code>fem_assembly</code> zeroes the whole matrix every pass (a fixable coding choice).</p>
+<p><strong>The contiguity gate.</strong> All 61 kernels opt out of THP (<code>MADV_NOHUGEPAGE</code>), so physical
+contiguity is more exposed &mdash; but the differ already emits <code>page_index</code>, so a single ~15&nbsp;s gemm
+capture at <code>--speed 0 --sparse</code> settles it before any address-shape feature is trusted. <strong>Vote:</strong>
+proceed, gates cheapest-first (0 arithmetic &rarr; 1 server timing &rarr; 2 contiguity &rarr; 3 pilot at speed 0,
+&ge;70&nbsp;s). If Gate 2 shows severe scattering, drop barnes_hut/nbody and the LU/QR-front claims, keep only
+magnitude + footprint-size, and treat contiguity as a separate follow-up.</p>
+</div>
+
+<div class="foot">
+Four-expert deliberation, memory-signal thesis Part 2. Phases 1&ndash;4. Design only &mdash; no capture has run; all
+separability statements are predictions to be tested by the pilot above. Kernel sources: <code>VM_executables_phase2/kernel/</code>;
+differ metrics: <code>VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/</code>; capture config:
+<code>config_qemu_upc.json</code> (500&nbsp;ms, 1&nbsp;GiB); taxonomy: <code>docs/test_families_spec.md</code>.
+</div>
+
+</div>
+</body>
+</html>

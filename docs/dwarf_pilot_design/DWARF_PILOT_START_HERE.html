@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dwarf Pilot: Start Here</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --fg:#1c1b19; --muted:#6b6862; --rule:#e3e0d8;
+    --card:#ffffff; --accent:#7a4b1e; --accent2:#2f5d50; --code:#f3f1ea;
+    --go:#2f6b3a; --nogo:#8a3324; --q:#4a3a63;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#171614; --fg:#eae7df; --muted:#a29d92; --rule:#33302a;
+      --card:#1f1e1b; --accent:#d9a86a; --accent2:#7fc0ad; --code:#232220;
+      --go:#7fc98a; --nogo:#e0876f; --q:#b39ddb;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:17px/1.65 Georgia,"Iowan Old Style",Palatino,"Times New Roman",serif;}
+  .wrap{max-width:760px;margin:0 auto;padding:56px 28px 90px;}
+  .kicker{font-size:12.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:700;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  h1{font-size:30px;line-height:1.15;margin:.3em 0 .5em;font-weight:700;letter-spacing:-.01em}
+  h2{font-size:15px;margin:2.1em 0 .3em;font-weight:700;color:var(--accent2);text-transform:uppercase;
+    letter-spacing:.07em;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  p{margin:.6em 0}
+  strong{font-weight:700}
+  code{background:var(--code);padding:.06em .38em;border-radius:4px;
+    font:13.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .aim{background:var(--card);border:1px solid var(--rule);border-left:4px solid var(--accent);
+    border-radius:8px;padding:18px 22px;margin:14px 0 6px;font-size:18px}
+  .q{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:4px 22px 16px;margin:18px 0}
+  .q .head{font-size:17px;font-weight:700;color:var(--q);border-bottom:1px solid var(--rule);
+    padding:14px 0 8px;margin-bottom:4px}
+  .q .a{font-weight:700}
+  .plan{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:6px 22px 14px;margin:14px 0}
+  .plan ol{padding-left:1.3em;margin:.4em 0}
+  .plan li{margin:.45em 0}
+  .go{color:var(--go);font-weight:700}
+  .nogo{color:var(--nogo);font-weight:700}
+  .muted{color:var(--muted)}
+  .foot{margin-top:52px;padding-top:14px;border-top:1px solid var(--rule);color:var(--muted);font-size:12.5px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+  .analogy{font-style:italic;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="kicker">Start here &middot; the one-page version</div>
+<h1>What this file is, in five minutes</h1>
+
+<div class="aim">
+<strong>The aim.</strong> This is the <strong>plan</strong> for the next experiment &mdash; actually running the
+Berkeley dwarfs through your memory-capture &mdash; together with four experts' <strong>prediction</strong> of what
+that run will find. It is not results. It answers one thing: <em>before we spend server time, what should we capture,
+what can we realistically learn, and how will one cheap test tell us whether the big campaign is worth it?</em>
+</div>
+
+<h2>The whole story in a breath</h2>
+<p>The snapshot fires every 500&nbsp;ms. A fast compute kernel sweeps its whole array <em>thousands</em> of times in
+that half-second, and the snapshot blends every sweep into one &ldquo;everything got touched&rdquo; picture. So the
+13&nbsp;dwarfs you wanted to tell apart blur down to only about <strong>6&ndash;8 distinguishable behaviors</strong>.
+The guaranteed result is a map of which dwarfs are twins; the only open question is whether a few can be
+<em>un-blurred</em>; and one afternoon of testing decides it.</p>
+
+<h2>Your three questions, answered</h2>
+
+<div class="q">
+  <div class="head">1. Is he saying we get another deliverable &mdash; the confusion matrix?</div>
+  <p><span class="a">Yes.</span> Two outcomes, and <em>both</em> hand you a real result:</p>
+  <p>&bull; If the dwarfs separate cleanly &rarr; you get a working <strong>classifier</strong>. The win.</p>
+  <p>&bull; If they blur together &rarr; the <strong>confusion matrix is the deliverable.</strong> It is a table:
+  &ldquo;I ran dwarf X; the memory-signal called it Y.&rdquo; It shows exactly which dwarfs memory-writes <em>can</em>
+  and <em>cannot</em> tell apart. That is a real, publishable finding &mdash; not a failure. It is the floor you cannot
+  fall below: you never walk away empty-handed.</p>
+</div>
+
+<div class="q">
+  <div class="head">2. Is that what we see if we run the dwarf?</div>
+  <p><span class="a">Yes, exactly.</span> Run a dwarf, look at its write-signal, and the matrix shows what it looks
+  <em>identical</em> to. It is the empirical picture of &ldquo;what does each dwarf's memory footprint actually look
+  like, and which ones are indistinguishable twins.&rdquo; It turns the whole question from a guess into a measured
+  chart.</p>
+</div>
+
+<div class="q">
+  <div class="head">3. Are they saying 500&nbsp;ms is too big an interval?</div>
+  <p><span class="a">Yes</span> &mdash; that is the central physical finding, for the compute kernels. In 500&nbsp;ms a
+  fast kernel sweeps its array thousands of times; the snapshot ORs all those sweeps into one flat frame, so the
+  internal <em>motion</em> disappears. The camera blinks too slowly to catch the moving parts.</p>
+  <p>But here is the twist that matters: <strong>the fix is not &ldquo;shrink the interval.&rdquo;</strong> 500&nbsp;ms
+  is the fixed production cadence, and a finer one means far more overhead and data. So instead of speeding up the
+  camera, they <strong>slow down the subject</strong> &mdash; make the kernel <em>bigger</em> so a single sweep takes
+  longer than 500&nbsp;ms.</p>
+  <p class="analogy">Like photographing a spinning fan: you can't make the shutter faster, so you slow the fan until a
+  single blade holds still long enough to see.</p>
+  <p>That trick only works where the compute grows faster than the memory it uses &mdash; QR and LU qualify (grow them
+  ~2&times;&ndash;4&times; and one sweep finally spans several snapshots). Stencils and their kind never can: to slow
+  them you'd need tens of gigabytes, far past the 1&nbsp;GiB guest. Those stay a permanent blur &mdash; you will only
+  ever see their <em>size</em>, never their <em>motion</em>.</p>
+</div>
+
+<h2>The plan itself &mdash; one cheap afternoon, gated</h2>
+<div class="plan">
+  <ol>
+    <li><strong>Gate 0</strong> &mdash; pure arithmetic (done): which kernels can be grown enough to un-blur? QR and LU
+    yes; stencil, DP, FFT no.</li>
+    <li><strong>Gate 1</strong> &mdash; seconds on the server, no capture: run enlarged QR and LU, check they really
+    slow down as predicted.</li>
+    <li><strong>Gate 2</strong> &mdash; the one decisive check: capture <code>gemm</code> for ~15&nbsp;s and see
+    whether an array's changed pages sit together or scatter. Every &ldquo;shape&rdquo; feature depends on this.</li>
+    <li><strong>Gate 3</strong> &mdash; the pilot proper: capture the enlarged QR/LU (do they show motion?), a few
+    controls, and one deliberately-un-rescuable stencil as a trap that <em>should</em> stay blurred.</li>
+  </ol>
+  <p><span class="go">GO</span> &mdash; enlarged QR/LU show their motion &rarr; the campaign is worth it, run the full
+  set.<br>
+  <span class="nogo">NO-GO</span> &mdash; they stay blurred &rarr; motion is unrecoverable, and Part&nbsp;2's honest
+  result is the confusion matrix plus a size-and-magnitude classifier. Ship that, stop there.</p>
+</div>
+
+<p class="muted">Either way you have a thesis result. The pilot only decides whether it is the ambitious version (you
+can read a dwarf's motion) or the honest modest one (you can read its shape and name its twins).</p>
+
+<div class="foot">
+One-page plain summary of the four-expert dwarf-pilot design. Fuller versions beside it:
+<code>DWARF_PILOT_DESIGN_RAJA.{html,pdf}</code> (RAJA, full) and <code>DWARF_PILOT_DESIGN.{html,pdf}</code> (technical,
+with the tables and verbatim verdicts). Design only &mdash; no capture has run yet.
+</div>
+
+</div>
+</body>
+</html>
