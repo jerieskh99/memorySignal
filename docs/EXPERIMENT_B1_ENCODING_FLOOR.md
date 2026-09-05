@@ -357,3 +357,39 @@ tested against its own factors.
 
 Urgent: the manifest, and the margin. Neither is analysis — both are prerequisites that decide
 whether the analysis means anything. Everything else can wait for them.
+
+---
+
+## Realized panel (as captured, 2026-09) and family caveats
+
+Decision (JK): run the initial plan on **all 7 families**. Weak families are expected and
+documented here so a low score on them is read as a corpus property, not a method failure. Don't
+panic on cache/sandbox.
+
+State after extraction + windowing (8/4, `--min-pairs 50`, 2 aborted ransom stubs dropped):
+55 cells, **8971 windows**, 19 workloads, 7 families.
+
+| family | workloads | windows | notes |
+|---|---|---|---|
+| mem | 4 | 2095 | solid |
+| thread | 3 | 1976 | solid |
+| cpu | 3 | 1785 | solid |
+| app | 3 | 1676 | solid |
+| io | 2 | 1253 | solid |
+| cache | 3 | 150 | **THIN**: all singletons (1 rep each); two tiny (16, 17 windows) |
+| sandbox | 1 | 36 | **SINGLETON**: one workload (stealth_paced); ransom aborted/dropped |
+
+**Split applicability (structural, not a bug):**
+- **within-trace** (sanity ceiling): all cells.
+- **LORO** (leave-one-rep-out): only workloads with >= 2 reps. Excludes all cache workloads,
+  sandbox_stealth, mem_writemag (each 1 rep) -- nothing to hold out.
+- **LOWO** (leave-one-workload-out): only families with >= 2 workloads. cache (3 workloads) runs
+  but on tiny data -- expect weak. **sandbox (1 workload) cannot** hold out within-family: remove
+  its only workload and no sandbox AE can be trained, so its LOWO recall is structurally ~0. It
+  therefore doubles as a **novelty case** (does the bank flag it as none-of-the-known?).
+
+**What to remember:** cache and sandbox will likely score low or erratic. That is the corpus
+(few workloads/reps), not APF/wAPF or the method. The APF-vs-wAPF comparison is read on the five
+solid families; cache and sandbox are reported with this caveat attached, never as the headline.
+`b1_splits.py` records which families/workloads actually participated in each split, so the tables
+are self-documenting.
