@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The first thing the analysis saw — Reading Memory</title>
+<meta name="description" content="The analysis stage's first result: the instrument recognizes the workloads that write loudly and is deaf to the ones that compute quietly. And counting pages beats weighting them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="course.css">
+</head>
+<body data-domain="core">
+<div id="prog"></div>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><a href="index.html">Reading Memory</a></div>
+    <div class="lnav">
+      <a href="index.html">Cover</a>
+      <a href="part_graph.html">13 · The graph</a>
+      <a class="here" href="part_b1_result.html">14 · The first result</a>
+    </div>
+  </div>
+
+  <div class="inner">
+    <div class="crumbs"><a href="index.html">Reading Memory</a><span class="sep">/</span>Part Seven / Entry 14</div>
+
+    <div class="lesson-head">
+      <div class="badge"><span class="dot"></span> Part Seven · The analysis stage begins</div>
+      <div class="lnum">Entry 14 · September 2026 · Plan 08 (B1, the encoding floor)</div>
+      <h1>The first thing the analysis saw</h1>
+      <p class="dek">Everything until now was building the instrument. This is the first time it
+      was pointed at a real question and asked to answer: given a short window of memory activity,
+      which <b>kind</b> of workload made it? The answer is lopsided, honest, and exactly the shape
+      the earlier entries predicted.</p>
+    </div>
+
+    <div class="hero">
+      <div class="hl">The one idea to hold onto</div>
+      <p>The instrument recognizes the workloads that <em>write loudly</em> and is deaf to the ones
+      that <em>compute quietly</em>. And where it hears anything at all, <em>counting</em> the pages
+      that changed beats <em>weighting</em> them by how much &mdash; because what little it hears,
+      it hears by breadth.</p>
+    </div>
+
+    <div class="onpage">
+      <div class="olab">On this page</div>
+      <ol>
+        <li><a href="#c1">Two numbers, a window, a bank of listeners</a></li>
+        <li><a href="#c2">It works &mdash; where there is a sound to hear</a></li>
+        <li><a href="#c3">The quiet families collapse into one</a></li>
+        <li><a href="#c4">Weighting made it worse, and we know why</a></li>
+        <li><a href="#c5">The honest headline, and what it is not</a></li>
+        <li><a href="#c6">The one test that is still open</a></li>
+      </ol>
+    </div>
+
+    <!-- ===== 1 ===== -->
+    <section id="c1"><div class="concept"><div class="cn">1</div><div class="cbody">
+      <div class="kicker">The setup</div>
+      <h2>Two numbers, a window, a bank of listeners</h2>
+
+      <p>From the captured traces we take one number per snapshot, two ways. The
+      <span class="term" data-term="apf">Active Page Fraction</span> (APF) is <em>how many</em>
+      pages changed. The <span class="term" data-term="wapf">weighted APF</span> (wAPF) is the same
+      average but each page counts by <em>how much</em> of it changed &mdash; the count replaced by
+      the amount. Both are computed from the per-page Hamming already stored in the traces; no raw
+      memory is re-read.</p>
+
+      <p>Each is then cut into <span class="term" data-term="window">windows</span> of 8 consecutive
+      snapshots (hop 4). One window &mdash; eight numbers &mdash; is one sample. To decide a
+      window's family we train one <span class="term" data-term="ae">autoencoder</span> per family
+      on that family's windows, then ask every family's autoencoder to rebuild the new window; the
+      family whose autoencoder rebuilds it best (lowest
+      <span class="term" data-term="recon">reconstruction error</span>) wins. A bank of listeners,
+      each tuned to one family's sound, and the window goes to whoever recognizes it.</p>
+
+      <div class="plain"><div class="cardlab">In plain terms</div>
+        <p>Turn each trace into a thin strip of "how busy was memory" numbers, slice it into
+        eight-at-a-time windows, and hand each window to a panel of judges &mdash; one per family.
+        Each judge only really knows its own family. The window is assigned to whichever judge is
+        least surprised by it.</p></div>
+    </div></div></section>
+
+    <!-- ===== 2 ===== -->
+    <section id="c2"><div class="concept"><div class="cn">2</div><div class="cbody">
+      <div class="kicker">The reassurance</div>
+      <h2>It works &mdash; where there is a sound to hear</h2>
+
+      <p>The first fear with any weak-looking number is that the model is broken. It is not. When
+      the judges are tested on windows from traces they trained on (the memorization
+      <span class="term" data-term="ceiling">ceiling</span>), the loud families are recognized
+      almost perfectly:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>family</th><th>ceiling recall (APF)</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>mem</td><td>1.00</td><td>heavy writers</td></tr>
+          <tr><td>app</td><td>0.98</td><td>databases, compression, parsing</td></tr>
+          <tr><td>io</td><td>0.97</td><td>file writers</td></tr>
+          <tr><td>cpu</td><td>0.11</td><td>compute &mdash; barely writes</td></tr>
+          <tr><td>thread</td><td>0.02</td><td>synchronization &mdash; barely writes</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout idea"><div class="clab">What this settles</div>
+        <p>Three families are near-perfect even at the ceiling, so the machinery separates families
+        fine <em>when there is something to separate</em>. The low overall score is not a broken
+        model &mdash; it is a handful of families that carry it while the rest contribute nothing.
+        cpu and thread are near-zero <em>even while memorizing</em>: the model cannot tell them
+        apart even when it is allowed to cheat.</p></div>
+    </div></div></section>
+
+    <!-- ===== 3 ===== -->
+    <section id="c3"><div class="concept"><div class="cn">3</div><div class="cbody">
+      <div class="kicker">The blind spot, measured</div>
+      <h2>The quiet families collapse into one</h2>
+
+      <p>Entry 4 warned it in one sentence: <em>the instrument records only writes.</em> A workload
+      that mostly computes or reads &mdash; a hashing loop, a lock fight, a cache scan &mdash;
+      barely writes memory, so its windows are almost all zeros. And to a detector that only hears
+      writes, one silence sounds like another.</p>
+
+      <figure class="fig">
+        <svg viewBox="0 0 640 250" role="img" aria-label="app and mem stand as distinct recognized boxes; cpu, io, and thread arrows all converge into a single grey indistinguishable blob">
+          <text x="90" y="30" text-anchor="middle" class="lbl" font-size="12">heard</text>
+          <rect x="30" y="44" width="120" height="40" rx="6" class="f-acc"/>
+          <text x="90" y="69" text-anchor="middle" class="lbl" font-size="12">app &middot; 0.84</text>
+          <rect x="30" y="96" width="120" height="40" rx="6" class="f-acc"/>
+          <text x="90" y="121" text-anchor="middle" class="lbl" font-size="12">mem &middot; 0.75</text>
+
+          <text x="330" y="30" text-anchor="middle" class="lbl-m" font-size="12">near-silent</text>
+          <rect x="250" y="44" width="120" height="30" rx="5" class="f-wash s-hair"/>
+          <text x="310" y="63" text-anchor="middle" class="lbl-m" font-size="11">cpu</text>
+          <rect x="250" y="86" width="120" height="30" rx="5" class="f-wash s-hair"/>
+          <text x="310" y="105" text-anchor="middle" class="lbl-m" font-size="11">io</text>
+          <rect x="250" y="128" width="120" height="30" rx="5" class="f-wash s-hair"/>
+          <text x="310" y="147" text-anchor="middle" class="lbl-m" font-size="11">thread</text>
+
+          <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="f-mut"/></marker></defs>
+          <path d="M 372 59 C 420 59 430 96 476 100" class="s-mut" marker-end="url(#a1)"/>
+          <path d="M 372 101 L 476 105" class="s-mut" marker-end="url(#a1)"/>
+          <path d="M 372 143 C 420 143 430 112 476 110" class="s-mut" marker-end="url(#a1)"/>
+
+          <ellipse cx="556" cy="104" rx="60" ry="46" class="f-soft s-hair"/>
+          <text x="556" y="100" text-anchor="middle" class="lbl-m" font-size="10.5">one</text>
+          <text x="556" y="114" text-anchor="middle" class="lbl-m" font-size="10.5">indistinct blob</text>
+
+          <text x="30" y="188" class="lbl-m" font-size="10.5">The confusion is mutual, not random:</text>
+          <text x="30" y="206" class="lbl-m ser" font-size="11">cpu &rarr; thread (1431) &nbsp; io &rarr; thread (1164) &nbsp; thread &rarr; io (1851)</text>
+          <text x="30" y="228" class="lbl-m" font-size="10.5">Near-zero windows all look alike, so the quiet families are assigned to each other.</text>
+        </svg>
+        <figcaption><b>Fig 14.1</b> The two loud families stand apart and are recognized on an
+        unseen workload. The quiet three do not scatter randomly &mdash; they pour into one
+        indistinguishable pool. That mutual confusion is the write-only blind spot, now a
+        measurement rather than a warning.</figcaption>
+      </figure>
+
+      <div class="callout note"><div class="clab">Why "mutual" matters</div>
+        <p>If cpu, io and thread scattered at random, the model would be broken. Instead they land
+        on <em>each other</em> &mdash; cpu becomes thread, thread becomes io. That is the signature
+        of families that are genuinely identical in this representation, not of a faulty judge. The
+        negative is real and it is a property of the instrument, not a bug.</p></div>
+    </div></div></section>
+
+    <!-- ===== 4 ===== -->
+    <section id="c4"><div class="concept"><div class="cn">4</div><div class="cbody">
+      <div class="kicker">The encoding comparison</div>
+      <h2>Weighting made it worse, and we know why</h2>
+
+      <p>This whole plan exists to compare two encodings: APF (count) against wAPF (weighted
+      amount). wAPF lost on every split. That is worth understanding rather than shrugging at,
+      and the reason is mechanical.</p>
+
+      <p>The families the instrument <em>can</em> see are the memory sweeps &mdash; and a sweep
+      writes one byte to a great many pages. It has huge <em>breadth</em> and tiny <em>intensity</em>.
+      APF, which counts breadth, places it at the loud end (a quarter of all pages moving). wAPF,
+      which weights by intensity, shrinks it back toward zero &mdash; straight into the silent blob
+      with the quiet families. The clearest reading is at the ceiling: mem recall falls from
+      <b>1.00 under APF to 0.66 under wAPF</b>.</p>
+
+      <div class="takeaway"><div class="cardlab">Takeaway</div>
+        <p>Family separation here is carried by <b>breadth</b> &mdash; how many pages moved &mdash;
+        which is exactly what APF measures and what weighting throws away. So for telling families
+        apart, the plain count wins. This is a genuine negative for wAPF, and the contribution is
+        knowing precisely <em>why</em> it loses.</p></div>
+    </div></div></section>
+
+    <!-- ===== 5 ===== -->
+    <section id="c5"><div class="concept"><div class="cn">5</div><div class="cbody">
+      <div class="kicker">The result, stated honestly</div>
+      <h2>The honest headline, and what it is not</h2>
+
+      <p>The number that counts is the hardest split: hold out an entire workload the model has
+      never seen, and ask which family it belongs to. On that test only two families survive:</p>
+
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>family (unseen workload)</th><th>APF</th><th>wAPF</th></tr></thead>
+        <tbody>
+          <tr><td>app</td><td>0.84</td><td>0.54</td></tr>
+          <tr><td>mem</td><td>0.75</td><td>0.64</td></tr>
+          <tr><td>io / cpu / thread</td><td>~0.02</td><td>~0.01</td></tr>
+          <tr><td>cache / sandbox</td><td>0.00</td><td>0.00</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="callout weak"><div class="cardlab">Be honest about the limits</div>
+        <p>Only the two high-write families generalize to an unseen workload. Five of seven are
+        invisible or do not generalize. cache is three tiny singleton workloads; sandbox is a
+        single workload held out with nothing left to train, so its zero is by construction, not by
+        failure. This is one task (family), one model (the autoencoder bank), one window size (8/4,
+        inherited). It is a floor, not a verdict on the whole method.</p></div>
+
+      <p>Read the way this project reads its own results, that is not a disappointment. "Half of
+      computation is invisible to a write-only memory signal, and the visible half is separated by
+      breadth, not intensity" is a finding. The negatives are the contribution.</p>
+    </div></div></section>
+
+    <!-- ===== 6 ===== -->
+    <section id="c6"><div class="concept"><div class="cn">6</div><div class="cbody">
+      <div class="kicker">Still open</div>
+      <h2>The one test that is still open</h2>
+
+      <p>wAPF is APF <em>times</em> an intensity &mdash; a product. A product hides its factors: a
+      few pages fully rewritten and many pages barely touched can land on the same number. So
+      wAPF's loss is ambiguous. It could mean intensity carries nothing, or it could mean that
+      <em>multiplying</em> it into a single number is what destroyed it.</p>
+
+      <div class="specbox"><div class="cardlab">Proposed &mdash; not yet run</div>
+        <p><b>The E2 arm.</b> Keep breadth and intensity as <em>two separate channels</em> rather
+        than one product (sixteen numbers per window instead of eight). If E2 beats APF, the loss
+        was the collapse into one number and intensity does carry signal. If E2 matches APF,
+        intensity genuinely adds nothing for family classification. That single test turns
+        "weighting lost" into the real verdict.</p></div>
+
+      <p>After that come the unsupervised models &mdash; do the families fall out on their own,
+      without labels? &mdash; and, much later, the richer encodings this floor exists to be measured
+      against. For now, the floor is set: <b>the plain count of changed pages, on the workloads that
+      write.</b></p>
+
+      <div class="takeaway"><div class="cardlab">What to remember</div>
+        <p>The instrument hears writers and is deaf to thinkers; among the writers, breadth beats
+        weighted amount; and the honest score rests on two families, not seven. Everything the next
+        experiments do is measured against that.</p></div>
+    </div></div></section>
+
+    <!-- ===== GLOSSARY ===== -->
+    <div class="glossary">
+      <h2>Glossary</h2>
+      <p class="gnote">Hover any dotted term for its definition.</p>
+      <dl class="glist">
+        <div class="gitem"><dt>Active Page Fraction (APF)</dt><dd>The fraction of memory pages that
+        changed between two snapshots &mdash; a count of how many pages moved, ignoring how much.</dd></div>
+        <div class="gitem"><dt>Weighted APF (wAPF)</dt><dd>The same average, but each page counts by
+        how many of its bits changed instead of a flat one. The count replaced by the amount.</dd></div>
+        <div class="gitem"><dt>Window</dt><dd>Eight consecutive snapshots of one signal, stepped by
+        four. One window is one sample handed to the model.</dd></div>
+        <div class="gitem"><dt>Autoencoder</dt><dd>A small network trained to squeeze its input into
+        a few numbers and rebuild it. Trained on one family, it rebuilds that family's windows well
+        and unfamiliar ones badly.</dd></div>
+        <div class="gitem"><dt>Reconstruction error</dt><dd>How far the autoencoder's rebuilt window
+        is from the real one. Low means "this looks like what I was trained on." The family with the
+        lowest error wins the window.</dd></div>
+        <div class="gitem"><dt>Ceiling</dt><dd>Testing on windows from traces the model trained on
+        &mdash; the easiest possible test. A low ceiling means the families are genuinely
+        inseparable, not that the model is under-trained.</dd></div>
+      </dl>
+    </div>
+
+    <div class="refs">
+      <h2>Sources</h2>
+      <ol>
+        <li id="r1"><b>plan08_b1/b1_ae.py</b>, <b>b1_ae_results.json</b> — the autoencoder bank and the run this entry reports. <code class="ic">VM_sampler/VM_Capture_QEMU/</code>.</li>
+        <li id="r2"><b>plan08_overview.html</b> — the plan log with the arm &times; split table and confusion counts.</li>
+        <li id="r3"><b>EXPERIMENT_B1_ENCODING_FLOOR.md</b> — the pre-registration: arms, splits, decision rule, family caveats. <code class="ic">docs/</code>.</li>
+        <li id="r4"><b>b1_windows.py / b1_splits.py</b> — 8/4 windowing and the within-trace / LORO / LOWO folds.</li>
+        <li id="r5">Entry 4 (<b>Confusion</b>) and Entry 10 (<b>The instrument</b>) — the write-only blind spot this result measures.</li>
+      </ol>
+    </div>
+
+    <div class="next">
+      <a href="part_graph.html"><div class="nd">Previous</div><div class="nt">← 13 · The whole experiment as a graph</div></a>
+      <a class="n-next" href="index.html"><div class="nd">Still open</div><div class="nt">the E2 arm, then the unsupervised models →</div></a>
+    </div>
+
+    <div class="foot">
+      <span>Reading Memory · Entry 14</span>
+      <span><a href="index.html">All entries</a></span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var GLOSSARY = {
+    "apf": ["Active Page Fraction (APF)", "The fraction of memory pages that changed between two snapshots — a count of how many moved, ignoring how much."],
+    "wapf": ["Weighted APF (wAPF)", "The same average, but each page counts by how many of its bits changed instead of a flat one. The count replaced by the amount."],
+    "window": ["Window", "Eight consecutive snapshots of one signal, stepped by four. One window is one sample handed to the model."],
+    "ae": ["Autoencoder", "A small network trained to squeeze its input into a few numbers and rebuild it. Trained on one family, it rebuilds that family's windows well and unfamiliar ones badly."],
+    "recon": ["Reconstruction error", "How far the autoencoder's rebuilt window is from the real one. Low means it looks like the training family; the lowest-error family wins the window."],
+    "ceiling": ["Ceiling", "Testing on windows from traces the model trained on — the easiest test. A low ceiling means the families are genuinely inseparable, not that the model is under-trained."]
+  };
+  var tip=null,hideT=null,curEl=null;
+  function ensureTip(){ if(tip)return tip; tip=document.createElement("div"); tip.className="tip";
+    tip.addEventListener("mouseenter",cancelHide); tip.addEventListener("mouseleave",scheduleHide);
+    document.body.appendChild(tip); return tip; }
+  function cancelHide(){ if(hideT){clearTimeout(hideT);hideT=null;} }
+  function scheduleHide(){ cancelHide(); hideT=setTimeout(hide,240); }
+  function hide(){ cancelHide(); if(tip)tip.classList.remove("on"); curEl=null; }
+  function show(el){ var k=el.getAttribute("data-term"), g=GLOSSARY[k]; if(!g)return;
+    cancelHide(); curEl=el; var t=ensureTip();
+    t.innerHTML='<span class="tk">'+g[0]+'</span>'+g[1]; t.classList.add("on"); position(el,t); }
+  function position(el,t){ var r=el.getBoundingClientRect(),tw=t.offsetWidth,th=t.offsetHeight;
+    var sx=window.scrollX,sy=window.scrollY,m=8;
+    var left=r.left+sx+r.width/2-tw/2;
+    left=Math.max(m+sx,Math.min(left,sx+document.documentElement.clientWidth-tw-m));
+    var above=r.top>=th+m+4; t.classList.toggle("above",above); t.classList.toggle("below",!above);
+    var ax=(r.left+sx+r.width/2)-left; ax=Math.max(14,Math.min(ax,tw-24));
+    t.style.setProperty("--ax",ax+"px"); t.style.left=left+"px";
+    t.style.top=(above?(r.top+sy-th-9):(r.bottom+sy+9))+"px"; }
+  function wire(){
+    document.querySelectorAll("[data-term]").forEach(function(el){
+      if(!GLOSSARY[el.getAttribute("data-term")])return;
+      el.setAttribute("tabindex","0"); el.setAttribute("role","button");
+      el.addEventListener("mouseenter",function(){show(el);});
+      el.addEventListener("mouseleave",scheduleHide);
+      el.addEventListener("focus",function(){show(el);});
+      el.addEventListener("blur",scheduleHide);
+      el.addEventListener("click",function(e){ e.preventDefault();
+        (tip&&tip.classList.contains("on")&&curEl===el)?hide():show(el); });
+    });
+    window.addEventListener("scroll",hide,{passive:true}); window.addEventListener("resize",hide);
+  }
+  function prog(){ var b=document.getElementById("prog"); if(!b)return;
+    var h=document.documentElement,sc=h.scrollTop||document.body.scrollTop;
+    var mx=(h.scrollHeight-h.clientHeight)||1; b.style.width=Math.min(100,(sc/mx)*100)+"%"; }
+  document.addEventListener("DOMContentLoaded",function(){
+    wire(); prog(); window.addEventListener("scroll",prog,{passive:true}); window.addEventListener("resize",prog);
+  });
+})();
+</script>
+</body>
+</html>
