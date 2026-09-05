@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why B1's quiet families fail — the four-expert diagnosis</title>
+<style>
+  @page { size: letter; margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font: 11.5pt/1.6 "Iowan Old Style", Georgia, "Times New Roman", serif; color: #1b1b19; }
+  h1 { font-size: 22pt; line-height: 1.15; margin: 0 0 4pt; }
+  h2 { font-size: 15pt; margin: 22pt 0 6pt; padding-top: 10pt; border-top: 2px solid #2b2b28; }
+  h3 { font-size: 12.5pt; margin: 16pt 0 4pt; color: #2b2b28; }
+  .sub { color: #6a655c; font-size: 11pt; margin: 0 0 4pt; font-family: -apple-system, "Segoe UI", sans-serif; }
+  .kicker { font-family: -apple-system, "Segoe UI", sans-serif; font-size: 8.5pt; letter-spacing: .08em;
+            text-transform: uppercase; color: #a06a1c; font-weight: 700; }
+  p { margin: 7pt 0; }
+  em { color: #8a6a20; }
+  strong { color: #111; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 10pt; background: #f0ece3;
+         padding: 0 3px; border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.8pt; margin: 8pt 0;
+          font-family: -apple-system, "Segoe UI", sans-serif; }
+  th, td { padding: 4pt 7pt; text-align: left; border-bottom: 1px solid #ddd8ce; }
+  th { color: #6a655c; font-weight: 600; }
+  .r { text-align: right; }
+  .good { color: #3f7a34; font-weight: 600; }
+  .bad { color: #b0442c; font-weight: 600; }
+  .box { border-left: 3px solid #a06a1c; background: #f6f1e7; padding: 8pt 12pt; margin: 10pt 0; border-radius: 4px; }
+  .box.key { border-color: #b0442c; background: #faf0ec; }
+  .box.take { border-color: #3f7a34; background: #eff4ec; }
+  .part { page-break-before: always; }
+  .verdict { page-break-inside: avoid; }
+  .oneline { font-style: italic; color: #403c34; }
+  .foot { margin-top: 20pt; padding-top: 8pt; border-top: 1px solid #ddd8ce; color: #8a857a;
+          font-size: 9pt; font-family: -apple-system, "Segoe UI", sans-serif; }
+  ul { margin: 6pt 0; padding-left: 18pt; }
+  li { margin: 3pt 0; }
+</style>
+</head>
+<body>
+
+<h1>Why B1's quiet families fail</h1>
+<p class="sub">A four-expert diagnosis of the encoding-floor result (Plan 08 / B1). Retold in plain
+language. September 2026.</p>
+<p class="sub">Four independent experts — a DSP engineer, an ML engineer, a volatile-memory engineer,
+and an ECG signal scientist — each analyzed the real data on the laptop, took a position, and named
+a falsifying test. This document is their discussion (Part 1) and their individual verdicts (Part 2),
+retold so a reader who does not live in this material can hold the whole thing in their head.</p>
+
+<!-- ============================ PART 1 ============================ -->
+<h2>Part 1 &mdash; The discussion, retold</h2>
+
+<p class="oneline">The spine: we asked why five of seven workload families scored near zero. The
+uncomfortable answer the four converged on is that what looked like the method recognizing
+<em>workloads</em> is largely it recognizing the machine's idle <em>background</em> — and the
+workloads that genuinely write are the ones it rejects.</p>
+
+<h3><span class="kicker">The setup, in one paragraph</span></h3>
+<p>B1 turns memory into one "how busy" number per half-second (APF = fraction of pages changed),
+cuts it into 8-reading windows, and asks a bank of per-family autoencoders which family a window
+belongs to. It recognized the two write-heavy families (app 0.84, mem 0.75 on unseen workloads) and
+scored the five compute/read/thin families near zero. The question put to the experts: is that a
+too-short-trace problem, a too-small-window problem, or a too-poor-metric problem?</p>
+
+<h3><span class="kicker">Story 1</span> Three obvious explanations, all dead on arrival</h3>
+<p>Every easy answer failed on the laptop, with data in hand. <strong>Window too small?</strong> The
+DSP engineer sized it: 8 samples at 2 Hz spans 4 seconds and can only represent a level plus one slow
+ramp — but the signal decorrelates within one or two samples for <em>every</em> family, so there is
+no rhythm a bigger window could recover. <strong>Traces too short?</strong> Even at the maximal
+window (the whole trace) the quiet families stay one overlapping band. <strong>They write nothing?</strong>
+The ECG scientist's surrogate test found 100% of the quiet series are <em>structured</em>, not flat —
+there is a heartbeat. All three easy hypotheses ruled out before the debate even started.</p>
+
+<h3><span class="kicker">Story 2</span> The model was broken — and fixing it doesn't save you</h3>
+<p>The ML engineer found the autoencoder bank was pathologically degenerate: for the quiet families,
+every family's autoencoder rebuilds their near-flat windows equally well (error ~0.0001), so the
+"which family" decision is settled by fourth-decimal noise — a synthetic cpu window gets labeled
+thread. Swapping in a random forest on the <em>same</em> windows lifted cpu from 0.024 to 0.457 and
+thread from 0.010 to 0.568 — a 19x-to-59x jump from changing only the model. But the ECG scientist,
+running her own forest, noted the sober truth: that "0.4" does not beat the majority baseline (0.39).
+The forest crushes the broken autoencoder yet only reaches chance. <strong>The model bug is real and
+fixable, but fixing it does not solve the problem.</strong></p>
+
+<h3><span class="kicker">Story 3</span> The reversal: it recognizes the floor, not the workload</h3>
+<p>One test settled it. We ran the forest recall <em>per workload</em> instead of per family, and it
+inverted everyone's guess:</p>
+<table>
+  <thead><tr><th>workload</th><th class="r">forest recall (unseen-workload)</th><th>what it was predicted to be</th></tr></thead>
+  <tbody>
+    <tr><td>thread_lock_contention</td><td class="r good">0.833</td><td>predicted a wall</td></tr>
+    <tr><td>cpu_branch_random</td><td class="r good">0.725</td><td>predicted a wall (read-only)</td></tr>
+    <tr><td>thread_producer_consumer</td><td class="r good">0.714</td><td>&mdash;</td></tr>
+    <tr><td>cpu_hash_loop</td><td class="r good">0.678</td><td>predicted a wall (read-only)</td></tr>
+    <tr><td>thread_parallel_alloc</td><td class="r bad">0.114</td><td>predicted re-representable</td></tr>
+    <tr><td>cpu_matrix_mult</td><td class="r bad">0.011</td><td>predicted "the structured writer!"</td></tr>
+    <tr><td>io_direct_write / io_read</td><td class="r bad">0.000 / 0.000</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+<div class="box key">
+  <strong>The forest recovers the workloads that barely write and rejects the ones that write the
+  most.</strong> The reason is the test itself: to judge an unseen cpu workload, the model trains on
+  the <em>other</em> cpu workloads. cpu is two floor-riders plus one real writer (matrix_mult). Hold
+  out matrix_mult and the model has only floor-riders to learn from, so the one workload that
+  actually writes looks nothing like "cpu" and is rejected. Hold out a floor-rider and its floor twin
+  is in training, so it is recognized.
+</div>
+
+<h3><span class="kicker">Story 4</span> So "family" was never a real question here</h3>
+<p>Put the reversal together with the memory engineer's floor finding — the workloads designed to
+write nothing still show ~118 changed pages every half-second, the operating system's own background
+(timekeeping, scheduler, per-CPU counters) — and the picture is clear. <strong>The model is largely
+recognizing the OS background, not the workload.</strong> Each quiet family is mostly floor-riders
+sharing an idle signature, with a rare real writer as the odd one out. The classifier learns the
+majority — the floor — which is why it "recognizes" the floor-riders and rejects the writers. The
+target itself is incoherent: "family" averages a writer with near-silent members that share nothing
+but the machine's idle hum. This also throws a shadow on app and mem: their 0.84 / 0.75 may be plain
+<em>level</em> recognition (loud vs quiet), not behavior recognition.</p>
+
+<h3><span class="kicker">Story 5</span> What is actually true, and what to do about it</h3>
+<ul>
+  <li><strong>Not silence, but not family-signal either.</strong> The quiet workloads write and are
+    structured, but their distinguishing information is not in write-<em>breadth</em> (APF) or
+    write-<em>magnitude</em> (proven to the ceiling on the laptop) — it is in <em>where</em> and
+    <em>what</em> they write: the spatial and directional channels APF averaged away.</li>
+  <li><strong>A genuine wall exists.</strong> The pure readers and spinners (io_read_cache_hit,
+    lock_contention as a futex spin) do their work in reads, disk, registers, and the scheduler —
+    places a memory-write diff physically cannot see. No transform invents a signal that never wrote.</li>
+  <li><strong>The founding lens was switched off.</strong> At the campaign's speed setting, the
+    phase / FFT-shift channels the whole idea centered on were literally not computed (they emit
+    zeros). Testing them needs a few targeted re-captures.</li>
+</ul>
+
+<div class="box take">
+  <strong>The shape of it.</strong> B1's "success" is substantially the model recognizing the
+  machine's idle floor and the loud-vs-quiet level, not workload behavior; the workloads that truly
+  write are the ones the family model rejects; and the honest signal — where any exists — is spatial
+  and per-workload, not per-family. What is urgent: one <em>idle-baseline</em> capture (does idle
+  equal the floor-riders? — the clean proof the "recovery" is environment, not workload) and one
+  <em>spatial</em> pass over already-captured per-page data (do the real writers have distinct
+  write-location signatures?). Both are cheap and specific; neither needs the full corpus.
+</div>
+
+<!-- ============================ PART 2 ============================ -->
+<h2 class="part">Part 2 &mdash; The four verdicts, retold</h2>
+<p class="sub">Each expert reached an independent position on the same data. Here is each one's
+finding in plain language, with the number that carries it and their one-line verdict.</p>
+
+<div class="verdict">
+<h3><span class="kicker">The DSP engineer</span> It's not time, it's space</h3>
+<p>He did the arithmetic first: an 8-sample window at two-per-second can resolve almost nothing — a
+level and one slow ramp — and the signal decorrelates within one or two samples anyway, so no window
+length recovers a rhythm that isn't there. Then he showed the discriminator that <em>does</em> exist
+is being thrown away: the average bits-changed-per-page differs 5x across the quiet families
+(cpu 0.137, io 0.093, thread 0.027), a real magnitude signal that lives in the per-page data and is
+destroyed the moment you average 262,144 pages into one number.</p>
+<p class="oneline">Verdict: the cause is the metric's <em>spatial averaging</em>, not the window or
+the trace length. The quiet families write (~130&ndash;150 pages a snapshot) — the information is
+still in the per-page field, just averaged out. Falsify me by computing spatial/magnitude features
+from the already-captured per-page data and re-running the hard split.</p>
+</div>
+
+<div class="verdict">
+<h3><span class="kicker">The ML engineer</span> The autoencoder was the bug, but not the whole story</h3>
+<p>He proved the autoencoder bank collapses the quiet families <em>by construction</em>: their windows
+are so flat that every family's autoencoder reconstructs them equally, so the winner is noise. A plain
+random forest on the identical windows and splits lifted cpu 19x and thread 59x — the signal was in
+the window, the model was discarding it. He was careful about the ceiling: the honest gains survive
+the leave-one-workload-out split, but the thin families (io with two workloads, cache, sandbox) are a
+<em>data</em> limit no model fixes.</p>
+<p class="oneline">Verdict: the dominant fixable fault is the model/scoring rule; the metric limits
+only io; the thin families are limited by too few workloads. Falsify me by running a forest on the
+raw windows — if it also flatlines, it is representation or data, not the model. (It did not flatline;
+the position survived, but the follow-up per-workload test showed the "recovery" is floor-recognition,
+not behavior — a caveat he flagged as his lens's blind spot.)</p>
+</div>
+
+<div class="verdict">
+<h3><span class="kicker">The volatile-memory engineer</span> Below the noise floor of the machine</h3>
+<p>His was the reality check. The two workloads <em>designed</em> to write nothing — a cache-resident
+hash loop, a register-accumulating branch test — still register ~118 changed pages a snapshot, which
+is the operating system's own background. Every quiet workload sits within a few dozen pages of that
+floor: <strong>the workload signal is smaller than the OS noise it rides on.</strong> Reading the
+actual workload source, he split the families by workload: one real structured writer (matrix_mult, a
+512-page contiguous matrix), one aliasing case (parallel_alloc, whose recycled pages are rewritten
+thousands of times but counted once per snapshot), and the rest genuine walls whose work is reads,
+direct-to-disk writes, or scheduler state a RAM diff cannot see.</p>
+<p class="oneline">Verdict: mostly an observability wall, per workload, not per family — the quiet
+families' identity lives in channels this instrument does not record. Falsify me by capturing an idle
+guest: if the near-silent workloads are statistically identical to idle, no representation of their
+(absent) writes can classify them.</p>
+</div>
+
+<div class="verdict">
+<h3><span class="kicker">The ECG signal scientist</span> A heartbeat, but not a diagnostic one</h3>
+<p>She held the founding analogy to account with numbers. A surrogate test proved none of the quiet
+families is a flatline — 100% are structured, all autocorrelated; there <em>is</em> a beat. But she
+then swept every feature she could build from the laptop's two scalars — shape, spectral, longer
+windows, magnitude, the two-channel pairing — and none beat chance. The beat exists but looks the same
+in this lead. Crucially, she caught that the phase and FFT-shift channels the whole idea rests on were
+<em>switched off</em> at the campaign's speed setting, and that each quiet family is not acoustically
+one family — it pairs a writer with a near-silent member, io most of all.</p>
+<p class="oneline">Verdict: the founding intuition is vindicated but bounded — the real writers
+(matrix_mult, producer_consumer, parallel_alloc, io_direct_write) are re-representable through the
+spatial and directional leads that were averaged away or turned off; the pure readers and spinners
+(io_read_cache_hit above all) are true asystole. Restore the leads for the former; expect nothing from
+the latter. Falsify by computing the spatial write-location signature from the existing per-page data.</p>
+</div>
+
+<h2>Where they agree, in one place</h2>
+<ul>
+  <li><strong>Ruled out (all four):</strong> window size and trace length are not the cause.</li>
+  <li><strong>Agreed:</strong> the quiet families write and are structured, but sit at/below the OS
+    idle floor; their discriminative signal — where any exists — is spatial/directional, not temporal
+    or breadth-based.</li>
+  <li><strong>The reversal all four now accept:</strong> the family "recovery" is largely
+    floor/level/environment recognition, and the real writers are the workloads the family model
+    rejects — so "family" is not a coherent target for the quiet workloads.</li>
+  <li><strong>The genuine wall:</strong> pure readers/spinners are unobservable to a write diff; no
+    metric or model recovers them.</li>
+</ul>
+
+<div class="box">
+  <strong>The two cheap tests that would confirm all of this</strong> (specific, not the full corpus):
+  <br>1. Capture an <em>idle</em> guest and compare it to the near-silent workloads — proves the
+  "recovery" is the OS floor, not the workload.
+  <br>2. Compute <em>spatial</em> write-location features from the already-captured per-page data and
+  re-run the hard split — proves whether the real writers (matrix_mult, producer_consumer,
+  parallel_alloc, io_direct_write) carry a distinct signature the scalar threw away.
+</div>
+
+<div class="foot">
+  Sources: independent Round-1 reports from the dsp-engineer, ml-engineer, volatile-memory-expert, and
+  ecg-signal-scientist agents; the orchestrator's per-workload forest test on ~/b1_data/b1_windows.npz.
+  Companion: B1_RESULT_EXPLAINED.md, plan08_overview.html, EXPERIMENT_B1_ENCODING_FLOOR.md. All figures
+  computed on the laptop copy of the B1 windows; server-side confirmations (idle baseline, per-page
+  spatial pass) are proposed, not yet run.
+</div>
+
+</body>
+</html>
