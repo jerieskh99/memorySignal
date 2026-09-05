@@ -65,7 +65,12 @@ SSH_KEY_OPT=()
 SSH_OPTS="${SSH_OPTS:-}"
 
 WORKLOAD_DUR="${WORKLOAD_DUR:-20}"   # guest-side kernel_gemm_v2 --duration
-CAPTURE_SECS="${CAPTURE_SECS:-25}"   # how long producer+consumer run (wall clock)
+CAPTURE_SECS="${CAPTURE_SECS:-25}"   # how long the PRODUCER captures dumps
+# --speed 0 costs ~39s per pair on a 1 GiB dump (differ's own --help), so the
+# consumer is far slower than the producer and must keep draining the queue
+# after dump capture stops. Poll until TARGET_SNAPS pairs are done, or give up.
+TARGET_SNAPS="${TARGET_SNAPS:-3}"
+DRAIN_SECS="${DRAIN_SECS:-240}"
 SCRATCH="${SCRATCH:-/var/tmp/gate2_dwarf_pilot}"
 GUEST_OUTDIR="${GUEST_OUTDIR:-/tmp/gate2_gemm}"
 
@@ -131,15 +136,39 @@ CONFIG="$GATE2_CONFIG" CAPTURE_METRIC=substrate nohup bash "$QEMU_DIR/capture_co
   > "$SCRATCH/consumer.log" 2>&1 &
 CONSUMER_PID=$!
 
-echo "[gate2] producer pid=$PRODUCER_PID consumer pid=$CONSUMER_PID -- running ${CAPTURE_SECS}s ..."
+echo "[gate2] producer pid=$PRODUCER_PID consumer pid=$CONSUMER_PID -- capturing dumps for ${CAPTURE_SECS}s ..."
 sleep "$CAPTURE_SECS"
 
-echo "[gate2] stopping producer + consumer (both run 'while true' -- no snapshot-count flag exists, so this script owns the stop)"
-kill "$PRODUCER_PID" "$CONSUMER_PID" 2>/dev/null || true
+# Stop the PRODUCER only: dump capture is done, the VM stops being suspended,
+# and the guest is left alone. The consumer keeps chewing through the queue.
+echo "[gate2] stopping producer (dump capture done); consumer keeps draining the queue"
+kill "$PRODUCER_PID" 2>/dev/null || true
 sleep 1
-kill -9 "$PRODUCER_PID" "$CONSUMER_PID" 2>/dev/null || true
+kill -9 "$PRODUCER_PID" 2>/dev/null || true
 
 TRAJ="$OUTPUT_DIR/substrate_trajectory.csv"
+
+# Poll until enough pairs are differed, or DRAIN_SECS elapses. At speed 0 each
+# pair is ~39s, so this is minutes, not seconds -- report progress as it goes.
+echo "[gate2] draining: want $TARGET_SNAPS snapshot(s), timeout ${DRAIN_SECS}s (~39s per pair at speed 0) ..."
+drain_start=$SECONDS
+last_seen=-1
+while (( SECONDS - drain_start < DRAIN_SECS )); do
+  if [ -s "$TRAJ" ]; then
+    nseq=$(awk -F, 'NR>1{print $1}' "$TRAJ" | sort -n -u | wc -l | tr -d ' ')
+    if [ "$nseq" != "$last_seen" ]; then
+      echo "[gate2]   ... $nseq snapshot(s) differed ($((SECONDS - drain_start))s elapsed)"
+      last_seen="$nseq"
+    fi
+    [ "${nseq:-0}" -ge "$TARGET_SNAPS" ] && break
+  fi
+  sleep 5
+done
+
+echo "[gate2] stopping consumer"
+kill "$CONSUMER_PID" 2>/dev/null || true
+sleep 1
+kill -9 "$CONSUMER_PID" 2>/dev/null || true
 if [ ! -s "$TRAJ" ]; then
   echo "[gate2] ERROR: no $TRAJ produced."
   echo "[gate2] Check $SCRATCH/producer.log and $SCRATCH/consumer.log -- likely causes: VM domain name/state,"
@@ -151,8 +180,9 @@ NROWS=$(($(wc -l < "$TRAJ") - 1))
 NSEQ=$(awk -F, 'NR>1{print $1}' "$TRAJ" | sort -n -u | wc -l | tr -d ' ')
 echo "[gate2] $TRAJ: $NROWS changed-page rows across $NSEQ snapshots"
 
-if [ "$NSEQ" -lt 3 ]; then
-  echo "[gate2] WARNING: only $NSEQ snapshot(s) captured -- raise CAPTURE_SECS and rerun."
+if [ "$NSEQ" -lt 2 ]; then
+  echo "[gate2] NOTE: only $NSEQ snapshot differed -- enough to answer contiguity,"
+  echo "        but raise DRAIN_SECS/TARGET_SNAPS if you also want the pair comparison."
 fi
 
 # --- 3. contiguity check on two consecutive snapshots, skipping the first
@@ -161,13 +191,21 @@ awk -F, '
 NR==1 { next }
 { seq=$1+0; pidx=$2+0; rows[seq]=rows[seq]" "pidx; cnt[seq]++; if(!(seq in seen)){order[++m]=seq; seen[seq]=1} }
 END {
-  if (m < 3) { print "[gate2] not enough distinct snapshots to pick an interior pair"; exit 0 }
-  # pick two consecutive snapshots from the middle of the run
-  mid = int(m/2); if (mid < 2) mid = 2; if (mid > m-1) mid = m-1;
-  s1 = order[mid]; s2 = order[mid+1];
-  printf "[gate2] checking snapshots seq=%d (n=%d pages) and seq=%d (n=%d pages)\n", s1, cnt[s1], s2, cnt[s2];
-  for (which = 1; which <= 2; which++) {
-    s = (which==1) ? s1 : s2;
+  # Analyse an interior pair when we have >=3 snapshots; otherwise analyse
+  # whatever exists -- a SINGLE snapshot already answers the contiguity
+  # question (are one array is changed pages one run, or scattered?).
+  if (m >= 3) {
+    mid = int(m/2); if (mid < 2) mid = 2; if (mid > m-1) mid = m-1;
+    pick[1] = order[mid]; pick[2] = order[mid+1]; npick = 2;
+    printf "[gate2] checking interior snapshots seq=%d (n=%d) and seq=%d (n=%d)\n", \
+           pick[1], cnt[pick[1]], pick[2], cnt[pick[2]];
+  } else {
+    npick = 0;
+    for (i = 1; i <= m; i++) { pick[++npick] = order[i]; }
+    printf "[gate2] only %d snapshot(s) available -- analysing all of them\n", m;
+  }
+  for (which = 1; which <= npick; which++) {
+    s = pick[which];
     n = split(rows[s], arr, " ");
     delete vals; k=0;
     for (i=1;i<=n;i++) if (arr[i]!="") vals[++k]=arr[i]+0;
