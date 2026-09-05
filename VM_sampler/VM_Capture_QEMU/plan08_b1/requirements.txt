@@ -1,0 +1,8 @@
+# B1 modeling env (Phase 1 AE bank + Phase 2 clustering/forest).
+# Pinned to match the versions the smoke tests passed against on the laptop,
+# so MLPRegressor results are reproducible across machines.
+# Setup on the server (no root needed):
+#   python3 -m venv ~/b1venv && source ~/b1venv/bin/activate
+#   pip install -r VM_sampler/VM_Capture_QEMU/plan08_b1/requirements.txt
+numpy>=1.24,<3
+scikit-learn==1.7.2
