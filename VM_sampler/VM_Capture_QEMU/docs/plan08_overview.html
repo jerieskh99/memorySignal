@@ -20,7 +20,7 @@
   th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
   th{color:var(--muted);font-weight:600} .r{text-align:right}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
-  .good{color:var(--good)} .bad{color:var(--bad)} .info{color:var(--info)} code{color:var(--accent)}
+  .good{color:var(--good)} .bad{color:var(--bad)} .info{color:var(--info)} .muted{color:var(--muted)} code{color:var(--accent)}
   .callout{border-left:3px solid var(--accent);background:rgba(212,168,90,.06);
            padding:12px 16px;border-radius:6px;margin:14px 0}
   .callout.good{border-color:var(--good);background:rgba(124,185,110,.07)}
@@ -38,8 +38,8 @@
   <p class="sub">First analysis-stage plan: APF vs magnitude-weighted APF, the base-paper
      comparison. Pre-registration:
      <a href="../../../docs/EXPERIMENT_B1_ENCODING_FLOOR.md" style="color:var(--info)">EXPERIMENT_B1_ENCODING_FLOOR.md</a>.
-     Status: <strong class="good">pipeline built, tested, and run on the real corpus</strong>;
-     models pending.</p>
+     Status: <strong class="good">Phase-1 AE bank run</strong> &mdash; APF beats wAPF; two
+     high-write families generalize, the low-write ones are invisible. E2 arm next.</p>
 
   <div class="card">
     <h2>The spine</h2>
@@ -185,14 +185,77 @@
   </div>
 
   <div class="card">
+    <h2>Result &mdash; the first AE-bank run (APF vs wAPF)</h2>
+    <p>One autoencoder per family, argmin reconstruction error &rarr; predicted family, over the
+       three splits, each arm. Accuracy (majority baseline 0.234):</p>
+    <table>
+      <thead><tr><th>split</th><th class="r">APF</th><th class="r">wAPF</th><th></th></tr></thead>
+      <tbody>
+        <tr><td class="mono">within_trace</td><td class="r mono">0.576</td><td class="r mono">0.480</td><td class="muted">memorization ceiling</td></tr>
+        <tr><td class="mono">loro</td><td class="r mono">0.623</td><td class="r mono">0.427</td><td>unseen run</td></tr>
+        <tr><td class="mono">lowo</td><td class="r mono"><strong>0.342</strong></td><td class="r mono">0.254</td><td>unseen workload (headline)</td></tr>
+      </tbody>
+    </table>
+    <p>LOWO per-family recall &mdash; where the story is:</p>
+    <table>
+      <thead><tr><th>family</th><th class="r">APF</th><th class="r">wAPF</th><th></th></tr></thead>
+      <tbody>
+        <tr><td class="mono">app</td><td class="r mono good">0.84</td><td class="r mono">0.54</td><td>high-write, generalizes</td></tr>
+        <tr><td class="mono">mem</td><td class="r mono good">0.75</td><td class="r mono">0.64</td><td>high-write, generalizes</td></tr>
+        <tr><td class="mono">io</td><td class="r mono bad">0.02</td><td class="r mono bad">0.02</td><td>collapses</td></tr>
+        <tr><td class="mono">cpu</td><td class="r mono bad">0.02</td><td class="r mono bad">0.00</td><td>collapses</td></tr>
+        <tr><td class="mono">thread</td><td class="r mono bad">0.01</td><td class="r mono bad">0.01</td><td>collapses</td></tr>
+        <tr><td class="mono">cache</td><td class="r mono bad">0.00</td><td class="r mono bad">0.00</td><td>thin (documented)</td></tr>
+        <tr><td class="mono">sandbox</td><td class="r mono bad">0.00</td><td class="r mono bad">0.00</td><td>novelty (documented)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>What it means &mdash; the loud and the quiet</h2>
+    <div class="callout">
+      <strong>Analogy.</strong> The instrument is a microphone that only hears <em>writes</em>.
+      Workloads that write a lot (app, mem) are recognized even in a room it has never heard
+      before. Workloads that barely write (cpu, thread, io) are near-silent &mdash; and to a
+      microphone, one silence sounds like another.
+    </div>
+    <p>The model is not broken: at the memorization ceiling the loud families are near-perfect
+       (<strong>mem 1.00, app 0.98, io 0.97</strong>). It separates families fine <em>where there
+       is a sound to hear</em>. The quiet families are the problem &mdash; cpu (0.11) and thread
+       (0.02) can't be told apart <em>even while memorizing</em>.</p>
+    <div class="callout warn">
+      <strong>The quiet families collapse into one blob.</strong> The confusion matrix shows it
+      is mutual, not random: <code>cpu&rarr;thread</code> (1431), <code>io&rarr;thread</code>
+      (1164), <code>thread&rarr;io</code> (1851). Their windows are all near-zero, so they look
+      alike &mdash; the write-only blind spot the diary predicted (only writes are visible),
+      now measured.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Why weighting lost</h2>
+    <p>wAPF is worse than APF on every split. The reason is mechanical: the visible families are
+       <strong>high-breadth, low-intensity</strong> &mdash; the mem sweeps write one byte to many
+       pages. Weighting by amount pushes those windows toward zero, <em>into</em> the silent blob.
+       Clearest at the ceiling: <strong>mem 1.00 (APF) &rarr; 0.66 (wAPF)</strong>.</p>
+    <div class="callout good">
+      Family separation here is carried by <strong>breadth</strong> &mdash; <em>how many</em> pages
+      moved, which is exactly what APF measures. Weighting throws breadth away. So for family
+      classification, the plain count wins. This is a real result, and a negative for wAPF: the
+      contribution is knowing <em>why</em>.
+    </div>
+  </div>
+
+  <div class="card">
     <h2>What's left</h2>
-    <p>The plumbing is finished and trustworthy; the model that reads it is the only unbuilt
-       piece. All of it runs <strong>twice &mdash; APF and wAPF &mdash; and the number that
-       matters is the difference between the arms.</strong></p>
+    <p>Phase 1 (AE bank) is <strong class="good">run</strong> &mdash; result above. Everything
+       runs <strong>twice, APF and wAPF; the number that matters is the difference between the
+       arms.</strong></p>
     <ul>
-      <li><strong>Phase 1 &middot; AE bank</strong> <span class="tag plan">next</span> &mdash;
-        one autoencoder per family, argmin reconstruction error &rarr; predicted family; then
-        finer, per workload. Per-fold standardization fit on train only.</li>
+      <li><strong>E2 &middot; the decisive arm</strong> <span class="tag plan">next</span> &mdash;
+        wAPF (breadth &times; intensity, a product) lost. E2 keeps breadth and intensity as two
+        <em>separate</em> channels (16-dim input). If E2 &gt; APF, the loss was the product, not
+        depth; if E2 &asymp; APF, depth adds nothing for family. That is the actual verdict.</li>
       <li><strong>Phase 2 &middot; single models</strong> &mdash; k-means, GMM, hierarchical
         (do families emerge unsupervised? judged by ARI/NMI vs a label-shuffle null), plus a
         random-forest supervised foil.</li>
