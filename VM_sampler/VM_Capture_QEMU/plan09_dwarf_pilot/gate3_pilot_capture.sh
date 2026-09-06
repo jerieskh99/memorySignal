@@ -44,6 +44,8 @@ REPS="${REPS:-3}"
 CAPTURE_SECS="${CAPTURE_SECS:-70}"   # producer capture window (wall clock)
 WORKLOAD_DUR="${WORKLOAD_DUR:-120}"  # guest --duration; > CAPTURE_SECS so it outlives capture
 DRAIN_SECS="${DRAIN_SECS:-30}"       # at speed 2 the consumer ~keeps up; small tail drain
+BOOT_WAIT="${BOOT_WAIT:-180}"        # max seconds to wait for a just-started guest's SSH to come up
+SETTLE_AFTER_BOOT="${SETTLE_AFTER_BOOT:-20}"  # let boot churn subside before capturing
 SCRATCH="${SCRATCH:-/var/tmp/gate3_dwarf_pilot}"
 GUEST_OUTBASE="${GUEST_OUTBASE:-/tmp/gate3_cells}"
 
@@ -73,17 +75,38 @@ resume_vm() { $VIRSH resume "$DOMAIN" >/dev/null 2>&1 || true; }   # idempotent
 
 vm_state() { $VIRSH domstate "$DOMAIN" 2>/dev/null || echo unknown; }
 
-ensure_vm_running() {
-  local st; st="$(vm_state)"
+# Ensure the domain is RUNNING before a cell. The guest is usually left shut off,
+# so this STARTS it when off (not just resume-if-paused), waits for 'running', and
+# settles after a fresh boot. Called at the top of every cell.
+ensure_vm_up() {
+  local st booted=0; st="$(vm_state)"
   case "$st" in
-    running) return 0 ;;
-    paused)  echo "[gate3] VM was paused -- resuming"; resume_vm; sleep 2; return 0 ;;
-    *) echo "[gate3] VM state='$st' (not running/paused). Start it first:  $VIRSH start \"$DOMAIN\""; return 1 ;;
+    running) : ;;
+    paused)  echo "[gate3] VM paused -- resuming"; resume_vm ;;
+    *)       echo "[gate3] VM state='$st' -- starting it ($VIRSH start \"$DOMAIN\")"
+             $VIRSH start "$DOMAIN" >/dev/null 2>&1 || { echo "[gate3] ERROR: start failed"; return 1; }
+             booted=1 ;;
   esac
+  local i=0
+  while [ "$(vm_state)" != running ] && (( i < 60 )); do sleep 1; i=$((i+1)); done
+  [ "$(vm_state)" = running ] || { echo "[gate3] VM never reached 'running'"; return 1; }
+  if [ "$booted" = 1 ]; then echo "[gate3] VM booted; settling ${SETTLE_AFTER_BOOT}s"; sleep "$SETTLE_AFTER_BOOT"; fi
+  return 0
 }
 
 ssh_guest() { ssh -o ConnectTimeout="$SSH_CT" -o BatchMode=yes "${SSH_KEY_OPT[@]}" $SSH_OPTS "$SSH_TARGET" "$@"; }
 guest_reachable() { ssh_guest true >/dev/null 2>&1; }
+
+# Poll until the guest answers SSH, or give up after BOOT_WAIT (covers a fresh boot
+# where sshd is not up yet, and distinguishes it from a truly-unreachable guest).
+wait_for_reachable() {
+  local i=0
+  until guest_reachable; do
+    (( i >= BOOT_WAIT )) && return 1
+    sleep 5; i=$((i+5))
+  done
+  return 0
+}
 
 stop_bg() { # <pid> <name> [wait_s] : graceful TERM, then KILL if still alive
   local pid="$1" name="${2:-proc}" waitn="${3:-8}" i=0
@@ -118,11 +141,12 @@ run_cell() { # label binary args rep seed
   local celldir="$CELLS_DIR/${label}_rep${rep}"; mkdir -p "$celldir"
   echo "[gate3] === cell=$label rep=$rep seed=$seed ==="
 
-  ensure_vm_running || return 2
+  ensure_vm_up || return 2
 
   if [ -n "$bin" ]; then
-    if ! guest_reachable; then
-      echo "[gate3] FATAL: guest $SSH_TARGET unreachable before cell $label rep$rep"
+    if ! wait_for_reachable; then
+      echo "[gate3] FATAL: guest $SSH_TARGET not reachable within ${BOOT_WAIT}s before cell $label rep$rep"
+      echo "[gate3]        (guest may have a new IP -- check: $VIRSH domifaddr \"$DOMAIN\")"
       return 2
     fi
     local gout="$GUEST_OUTBASE/${label}_rep${rep}"
@@ -181,9 +205,11 @@ run_cell() { # label binary args rep seed
 }
 
 # --- preflight --------------------------------------------------------------
-ensure_vm_running || { echo "[gate3] aborting: VM not runnable"; exit 1; }
-if ! guest_reachable; then
-  echo "[gate3] guest $SSH_TARGET unreachable at start. Check:  $VIRSH domifaddr \"$DOMAIN\"  (IP may have changed)"
+# Start/resume the guest if needed, then wait for SSH (it may be a cold boot).
+ensure_vm_up || { echo "[gate3] aborting: VM not runnable"; exit 1; }
+if ! wait_for_reachable; then
+  echo "[gate3] guest $SSH_TARGET not reachable within ${BOOT_WAIT}s of start."
+  echo "[gate3] The IP may have changed on boot -- check:  $VIRSH domifaddr \"$DOMAIN\"  and rerun with that SSH_TARGET."
   exit 1
 fi
 
