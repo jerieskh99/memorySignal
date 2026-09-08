@@ -321,12 +321,39 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             cross_out[n] = {rid: stages.concat([m[rid] for m in maps]) for rid in rec_ids if all(rid in m for m in maps)}
         elif mod == "write":
             maps = [fetch(s) for s in multi_ins]
-            written = _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs, differ.differ_version(), st)
+            written = _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs,
+                             _extraction_provenance(stores, st), st)
         else:
             raise ValueError(f"cross-recording node of kind {mod} not handled")
     st.write(state="done", phase="done", message=f"{written['n_rows']} rows, {written['n_features']} features in {time.time() - t0:.1f}s" if written else "no Write module reached")
     st.logline(st.d["message"])
     return 0
+
+
+def _extraction_provenance(stores: dict, st) -> dict:
+    """Which differ produced each L1 store, read from the store's own meta.
+
+    In remote mode the differ that ran is the SERVER's, and its path and mtime are in the
+    meta extract_cli wrote there and the runner pulled back. Reading the local binary here
+    would record the wrong provenance, and would also demand a local differ that a remote
+    run never uses. Falls back to the local binary only for a store whose meta is missing.
+    """
+    per: dict = {}
+    for rid, npz in stores.items():
+        meta = Path(str(npz).replace(".npz", ".meta.json"))
+        if meta.exists():
+            try:
+                per[rid] = json.loads(meta.read_text()).get("differ")
+                continue
+            except (OSError, json.JSONDecodeError):
+                pass
+        try:
+            per[rid] = differ.differ_version()
+        except differ.DifferError as e:
+            per[rid] = {"error": str(e)}
+    uniq = {json.dumps(v, sort_keys=True) for v in per.values()}
+    return {"per_recording": per, "same_for_all": len(uniq) <= 1,
+            "differ": json.loads(next(iter(uniq))) if len(uniq) == 1 else None}
 
 
 def _eval_local(n, g, mod_of, memo, store_d, rid):
@@ -416,7 +443,9 @@ def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, c
         "speed": speed, "speed_source": "run parameter (config default when unset); unrecorded per recording",
         "max_pairs": max_pairs,
         "n_pages_default": ctx.config["n_pages_default"],
-        "differ": dv,
+        "differ": dv.get("differ"),
+        "differ_per_recording": dv["per_recording"] if not dv["same_for_all"] else None,
+        "extraction_ran": src.describe().get("mode", "local" if src.kind == "local" else "fetch"),
         "roster_sha": roster["derivation"]["source_sha256_16"],
         "python": platform.python_version(), "numpy": np.__version__,
         "written_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

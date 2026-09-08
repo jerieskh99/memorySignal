@@ -147,3 +147,22 @@ mem_pagefault_density against 0.07 to 2.4 for cpu_branch_random and 2.24 for io_
 
 PLV on a real complex page-resolution tile fits one PLV per page over 10,005 pages, which is
 what `PLVStability` was written for and what no collapsed tile can give it.
+
+### Verified against the real server (2026-09-09)
+
+`jeries@cybersecurity.ac.upc.edu` (`pcrserral`), repo at
+`/project/homes/jeries/memorySignal/VM_sampler/VM_Capture_QEMU`, traces at
+`/project/homes/jeries/memory_traces/zstd_local`.
+
+- **probe**: python 3.13.14, numpy 2.4.6, zstd, and the server's own differ binary.
+- **listing**: the remote `find` produced the manifest in one round trip: 1 recording,
+  470 pairs, 5.9 GB.
+- **remote extraction**: 6 pairs of a real 1 GiB dump in 22 s. What came back was a
+  **164 KB npz** holding 29,583 rows over 8,379 active pages; no `.zst` crossed the network.
+- **full scheme**: validated, reused the server's L1 store on the second run, and wrote
+  features (APF 0.0201 and 0.0162 per window) with a sidecar naming the host and mode.
+
+The server's `plan10_analysis` is a copy pushed with rsync, not a git checkout; the branch has
+not been pushed there. Re-sync it after changing the runner, or a remote run executes the old
+code. **Fetch mode has still not been run against the real server** (it would pull the whole
+5.9 GB recording); only its rsync argv is asserted.

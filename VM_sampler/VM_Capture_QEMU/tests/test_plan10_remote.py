@@ -208,6 +208,14 @@ def test_executor_runs_a_scheme_remotely():
         # the sidecar records that this ran remotely, and where
         side = json.loads((out / "sidecar.json").read_text())
         assert side["source"]["mode"] == "remote" and side["source"]["host"] == "server.example"
+        assert side["extraction_ran"] == "remote"
+        # and the differ it names is the one that actually ran, read from the store's own
+        # meta rather than from whatever binary happens to sit on this machine. Against the
+        # real server this first recorded the laptop's path.
+        meta = json.loads((td / "local_l1" / next(iter(
+            p for p in (td / "local_l1").iterdir() if p.name.endswith(".meta.json"))).name).read_text())
+        assert side["differ"] == meta["differ"]
+        assert side["differ_per_recording"] is None      # one differ for every recording here
         # one extraction command per recording, and nothing pulled but L1 files
         assert sum(1 for c in tr.commands if "--probe" not in c) == 2
         assert all(p[0].endswith((".npz", ".meta.json")) for p in tr.pulls)
