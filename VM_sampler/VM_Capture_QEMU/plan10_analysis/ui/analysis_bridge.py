@@ -98,7 +98,22 @@ def ep_source_test(_q, body):
     try:
         src = make_source(body.get("source") or ST.source)
         ok, msg = src.test()
-        return {"ok": ok, "message": msg, "source": src.describe()}
+        out = {"ok": ok, "message": msg, "source": src.describe()}
+        if ok and getattr(src, "mode", None) == "remote":
+            # a remote run needs more than a reachable host: report what the server has
+            try:
+                probe = src.probe_remote()
+                missing = [k for k, got in (("numpy", probe.get("numpy")), ("zstd", probe.get("zstd")),
+                                            ("differ", "error" not in (probe.get("differ") or {})),
+                                            ("trace root", probe.get("root_exists"))) if not got]
+                out["probe"] = probe
+                out["ok"] = not missing
+                out["message"] = (msg + "; server ready" if not missing
+                                  else msg + "; server is missing " + ", ".join(missing))
+            except SourceError as e:
+                out["ok"] = False
+                out["message"] = f"{msg}; remote probe failed: {e}"
+        return out
     except SourceError as e:
         return {"ok": False, "message": str(e)}
 

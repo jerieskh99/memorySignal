@@ -175,6 +175,16 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
     t0 = time.time()
     # ---- context: roster, manifest (from the source), modules, config
     src = make_source(source_spec or {"kind": "local", "root": str(corpus_manifest.default_root())})
+    if getattr(src, "mode", None) == "remote":
+        probe = src.probe_remote()
+        missing = [k for k, ok in (("numpy", probe.get("numpy")), ("zstd", probe.get("zstd")),
+                                   ("the differ binary", "error" not in (probe.get("differ") or {})),
+                                   ("the trace root", probe.get("root_exists"))) if not ok]
+        if missing:
+            raise RunRefused(1, {"hard": [{"msg": f"the server is missing {', '.join(missing)}", "probe": probe}],
+                                 "soft_unacknowledged": []})
+        st.logline(f"remote host ready: python {probe['python']}, numpy {probe['numpy']}, "
+                   f"differ {Path(probe['differ']['path']).name}")
     roster = channel_roster.build_roster()
     manifest = json.loads(Path(manifest_path).read_text()) if manifest_path else corpus_manifest.scan_source(src)
     ctx = S.Context(roster, manifest, build_modules(), S.load_config())
@@ -228,6 +238,14 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
         if hit:
             stores[rid] = hit
             st.logline(f"[{i}/{len(rec_ids)}] {rid}: L1 store reused")
+            continue
+        if getattr(src, "mode", None) == "remote":
+            # the chain never crosses the network: the differ runs on the server and only
+            # the extracted channels come back
+            st.logline(f"[{i}/{len(rec_ids)}] {rid}: extracting on {src.host}")
+            stores[rid] = src.remote_extract(rid, speed, sorted(union), store_dir, max_pairs, log=st.logline)
+            st.d["per_recording"][rid] = {"extracted": True, "where": "remote",
+                                          "n_pairs": extract.load(stores[rid])["n_pairs"]}
             continue
         local = src.fetch(rid)
         st.logline(f"[{i}/{len(rec_ids)}] {rid}: extracting ({'fetched' if src.kind == 'ssh' else 'local'})")

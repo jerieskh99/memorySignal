@@ -94,7 +94,8 @@ button{font:inherit; cursor:pointer} input,select{font:inherit; color:inherit}
 .bridge-st{font-family:"IBM Plex Mono",monospace; font-size:10px; padding:2px 7px; border-radius:5px; background:var(--sunk); color:var(--ink-3)}
 .bridge-st.ok{background:var(--ok-soft); color:var(--ok)} .bridge-st.bad{background:var(--bad-soft); color:var(--bad)}
 .tab{padding:9px 12px 10px; overflow:auto; min-height:0}
-.src-ssh,.src-local{display:none} .drawer[data-kind="ssh"] .src-ssh{display:block} .drawer[data-kind="local"] .src-local{display:block}
+.src-ssh,.src-local,.src-remote{display:none} .drawer[data-kind="ssh"] .src-ssh{display:block} .drawer[data-kind="local"] .src-local{display:block}
+.drawer[data-kind="ssh"][data-mode="remote"] .src-remote{display:block}
 .runstat{font-size:11.5px; color:var(--ink-2); line-height:1.4} .runstat b{color:var(--ink)}
 .runlog{max-height:120px; margin-top:8px; font-size:10px}
 .runlist{display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto}
@@ -258,8 +259,12 @@ pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-
         <div class="field src-ssh" style="flex:2"><label class="fl">host / IP</label><input type="text" id="src-host" class="mono" spellcheck="false" placeholder="server.example.org"></div>
         <div class="field src-ssh" style="flex:1"><label class="fl">user</label><input type="text" id="src-user" class="mono" spellcheck="false"></div>
         <div class="field src-ssh" style="flex:0 0 80px"><label class="fl">port</label><input type="number" id="src-port" value="22"></div>
-        <div class="field src-ssh" style="flex:2"><label class="fl">key path</label><input type="text" id="src-key" class="mono" spellcheck="false" placeholder="~/.ssh/id_ed25519"></div>
+        <div class="field src-ssh" style="flex:2"><label class="fl">key path</label><input type="text" id="src-key" class="mono" spellcheck="false" ></div>
         <div class="field src-ssh" style="flex:3"><label class="fl">remote root</label><input type="text" id="src-rroot" class="mono" spellcheck="false" placeholder="/project/homes/.../zstd_local"></div>
+        <div class="field src-ssh" style="flex:0 0 190px"><label class="fl">where extraction runs</label>
+          <select class="f" id="src-mode"><option value="fetch">fetch: pull chains here</option><option value="remote">remote: run on the server</option></select></div>
+        <div class="field src-ssh src-remote" style="flex:3"><label class="fl">repo on the server</label><input type="text" id="src-repo" class="mono" spellcheck="false"></div>
+        <div class="field src-ssh src-remote" style="flex:2"><label class="fl">L1 store on the server</label><input type="text" id="src-rstore" class="mono" spellcheck="false"></div>
         <div class="field" style="flex:0 0 auto"><button class="bigbtn ghost" id="src-test">Test</button> <button class="bigbtn" id="src-scan">Scan</button></div>
       </div>
       <div class="subnote" id="src-msg">Recordings are read where they live; an ssh source is fetched one recording at a time into a local cache before extraction.</div>
@@ -794,11 +799,20 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
   /* source */
   const src = B.source || {kind: "local"};
   $("src-kind").value = src.kind || "local"; drawer.dataset.kind = $("src-kind").value;
+  $("src-mode").value = src.mode || "fetch"; drawer.dataset.mode = $("src-mode").value;
   $("src-root").value = src.root || (MANIFEST_CUR.root || ""); $("src-host").value = src.host || ""; $("src-user").value = src.user || ""; $("src-port").value = src.port || 22; $("src-key").value = src.key || ""; $("src-rroot").value = src.remote_root || "";
+  $("src-repo").value = src.remote_repo || ""; $("src-rstore").value = src.remote_store || "";
+  $("src-repo").placeholder = DEFAULTS.remote_repo; $("src-rstore").placeholder = DEFAULTS.remote_store;
+  $("src-key").placeholder = DEFAULTS.key_hint;
   $("src-kind").onchange = () => { drawer.dataset.kind = $("src-kind").value; };
+  $("src-mode").onchange = () => { drawer.dataset.mode = $("src-mode").value; };
   const spec = () => $("src-kind").value === "local" ? {kind: "local", root: $("src-root").value.trim()}
-    : {kind: "ssh", host: $("src-host").value.trim(), user: $("src-user").value.trim() || null, port: +$("src-port").value || 22, key: $("src-key").value.trim() || null, remote_root: $("src-rroot").value.trim()};
-  $("src-test").onclick = async () => { $("src-msg").textContent = "testing..."; try { const r = await api("/source/test", {source: spec()}); $("src-msg").textContent = (r.ok ? "reachable: " : "not reachable: ") + r.message; } catch (e) { $("src-msg").textContent = "error: " + e.message; } };
+    : {kind: "ssh", host: $("src-host").value.trim(), user: $("src-user").value.trim() || null, port: +$("src-port").value || 22, key: $("src-key").value.trim() || null, remote_root: $("src-rroot").value.trim(),
+       mode: $("src-mode").value, remote_repo: $("src-repo").value.trim() || null, remote_store: $("src-rstore").value.trim() || null};
+  $("src-test").onclick = async () => { $("src-msg").textContent = "testing..."; try { const r = await api("/source/test", {source: spec()});
+    let m = (r.ok ? "ok: " : "not usable: ") + r.message;
+    if (r.probe) m += ` (python ${esc(r.probe.python || "?")}, numpy ${esc(String(r.probe.numpy))}, zstd ${r.probe.zstd ? "yes" : "no"}, differ ${r.probe.differ && r.probe.differ.path ? "present" : "missing"})`;
+    $("src-msg").textContent = m; } catch (e) { $("src-msg").textContent = "error: " + e.message; } };
   $("src-scan").onclick = async () => { $("src-msg").textContent = "scanning..."; try { const m = await api("/scan", {source: spec()}); setManifest(m); renderBuildbar(); renderAll(); $("src-msg").textContent = `scanned ${m.n_recordings} recordings (${m.n_with_chain} with a chain, ${m.n_workloads} workloads) from ${m.root}; the Cells module now selects from these`; } catch (e) { $("src-msg").textContent = "scan refused: " + e.message; } };
 
   /* run */

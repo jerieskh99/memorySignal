@@ -45,6 +45,7 @@ sys.path.insert(0, str(QEMU_DIR))
 
 from plan10_analysis import channel_roster, corpus_manifest, known_issues  # noqa: E402
 from plan10_analysis.modules import build_modules                          # noqa: E402
+from plan10_analysis import sources                                        # noqa: E402
 from plan10_analysis.scheme import load_config, make_examples              # noqa: E402
 
 TEMPLATE = HERE / "analysis_console.template.html"
@@ -136,6 +137,9 @@ def build(root: Path | None, metrics_root: Path | None, out: Path, manifest_path
         js_const("ISSUES", issues),
         js_const("MODULES", modules),
         js_const("CONFIG", config),
+        js_const("DEFAULTS", {"remote_repo": sources.DEFAULT_REMOTE_REPO,
+                              "remote_store": sources.DEFAULT_REMOTE_STORE,
+                              "cache": sources.DEFAULT_CACHE, "key_hint": "~/.ssh/id_ed25519"}),
         js_const("EXAMPLES", examples),
         js_const("BUILD", build_meta),
     ])

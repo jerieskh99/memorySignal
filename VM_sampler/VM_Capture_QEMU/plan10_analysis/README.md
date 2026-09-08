@@ -12,7 +12,15 @@ cd VM_sampler/VM_Capture_QEMU
 plan10_analysis/ui/analysis.sh                                   # local corpus, console.sh's default root
 plan10_analysis/ui/analysis.sh --root /path/to/zstd_local        # local corpus elsewhere
 plan10_analysis/ui/analysis.sh --ssh user@host --key ~/.ssh/id_ed25519 --remote-root /project/.../zstd_local
+plan10_analysis/ui/analysis.sh --ssh user@host --key ~/.ssh/id_ed25519 --remote-root /project/.../zstd_local --remote
 ```
+
+`--remote` runs the extraction **on the server**: the chain never crosses the network and only
+the L1 npz comes back. It needs the repo there (where the capture console already puts it,
+`--remote-repo`, default `$HOME/memorySignal/VM_sampler/VM_Capture_QEMU`) and a python with
+numpy (`remote_python`, since a login shell may resolve a different interpreter than the venv
+holding it). Test in the Source tab first: it probes the server and reports its python, numpy,
+zstd, differ and trace root before any run starts.
 
 The launcher scans the source, rebuilds the served console against it, starts the bridge on
 `127.0.0.1:8766` and opens the browser at the tokenised URL it prints. Ctrl-C stops the
@@ -61,8 +69,8 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-Remote execution (SSH fetches to a local cache; the runner is local). It refuses
-with a message in the run log and, where the console can see it, as a hard constraint.
+Nothing. Every module runs, and an SSH source can either fetch chains here or run the
+extraction on the server.
 
 Blocks along the address axis take any width and hop: equal to tile, smaller to overlap
 (each page's row is replicated once per block it falls in, so cost scales with wp/hp), larger

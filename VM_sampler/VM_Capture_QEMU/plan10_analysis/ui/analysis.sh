@@ -8,20 +8,30 @@
 #   ./analysis.sh                                   local corpus at console.sh's default root
 #   ./analysis.sh --root /path/to/zstd_local        local corpus elsewhere
 #   ./analysis.sh --ssh user@host --key ~/.ssh/id --remote-root /project/.../zstd_local
+#   ./analysis.sh --ssh user@host --key ~/.ssh/id --remote-root /project/.../zstd_local --remote
+#
+# --remote runs the extraction ON the server (the chain never crosses the network; only the
+# extracted channels come back). It needs the repo there, which is where the capture console
+# already puts it: --remote-repo, default $HOME/memorySignal/VM_sampler/VM_Capture_QEMU.
 #
 # Options: --port N (default 8766), --out-dir D (runs; default ~/.cache/plan10/runs),
-#          --store D (L1 store; default ~/.cache/plan10/l1), --no-open
+#          --store D (L1 store; default ~/.cache/plan10/l1), --remote, --remote-repo P,
+#          --remote-store P, --no-open
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QEMU_DIR="$(cd "$HERE/../.." && pwd)"
 PORT=8766; ROOT=""; SSH=""; KEY=""; RROOT=""; SPORT=22; OUT=""; STORE=""; OPEN="--open"
+MODE="fetch"; RREPO=""; RSTORE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root) ROOT="$2"; shift 2;;
     --ssh) SSH="$2"; shift 2;;
     --key) KEY="$2"; shift 2;;
     --remote-root) RROOT="$2"; shift 2;;
+    --remote) MODE="remote"; shift;;
+    --remote-repo) RREPO="$2"; MODE="remote"; shift 2;;
+    --remote-store) RSTORE="$2"; MODE="remote"; shift 2;;
     --ssh-port) SPORT="$2"; shift 2;;
     --port) PORT="$2"; shift 2;;
     --out-dir) OUT="$2"; shift 2;;
@@ -37,10 +47,16 @@ if [[ -n "$SSH" ]]; then
   [[ -n "$RROOT" ]] || { echo "--ssh needs --remote-root" >&2; exit 2; }
   USER_="${SSH%%@*}"; HOST="${SSH#*@}"
   [[ "$SSH" == *@* ]] || { USER_=""; HOST="$SSH"; }
-  SRC=$(python3 - "$HOST" "$USER_" "$KEY" "$RROOT" "$SPORT" <<'EOF'
+  SRC=$(python3 - "$HOST" "$USER_" "$KEY" "$RROOT" "$SPORT" "$MODE" "$RREPO" "$RSTORE" <<'EOF'
 import json, sys
-h, u, k, r, p = sys.argv[1:6]
-print(json.dumps({"kind": "ssh", "host": h, "user": u or None, "key": k or None, "remote_root": r, "port": int(p)}))
+h, u, k, r, p, mode, repo, store = sys.argv[1:9]
+spec = {"kind": "ssh", "host": h, "user": u or None, "key": k or None, "remote_root": r,
+        "port": int(p), "mode": mode}
+if repo:
+    spec["remote_repo"] = repo
+if store:
+    spec["remote_store"] = store
+print(json.dumps(spec))
 EOF
 )
   ARGS+=(--source-json "$SRC")
