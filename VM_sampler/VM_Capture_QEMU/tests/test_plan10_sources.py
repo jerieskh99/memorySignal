@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""sources.py: local and ssh sources present one interface; the manifest is the same over both.
+
+No live ssh here: the ssh source is checked on the command lines it would run and on the
+listing format it parses. A local tree is listed and fetched for real.
+
+Run:  python3 tests/test_plan10_sources.py
+      pytest tests/test_plan10_sources.py
+"""
+from __future__ import annotations
+
+import sys
+import tempfile
+from pathlib import Path
+
+QEMU_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(QEMU_DIR))
+from plan10_analysis import corpus_manifest as cm  # noqa: E402
+from plan10_analysis.sources import Entry, LocalSource, SshSource, SourceError, make_source  # noqa: E402
+
+
+def _tree(root: Path) -> None:
+    d = root / "mem" / "mem_alpha_v2" / "ws_256_--duration_300_--seed_ab" / "rep001__run"
+    d.mkdir(parents=True)
+    for i in range(4):
+        (d / f"{i:06d}.zst").write_bytes(b"x" * (100 if i == 0 else 5))
+    (d / ".000002.zst.tmp1").write_bytes(b"p")
+    (root / "cpu" / "cpu_beta_v2" / "d_450" / "rep001__run").mkdir(parents=True)
+
+
+def test_local_listing_and_fetch():
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _tree(root)
+        src = LocalSource(root)
+        ok, msg = src.test()
+        assert ok, msg
+        lst = src.listing()
+        rels = {e.relpath for e in lst}
+        assert "mem/mem_alpha_v2/ws_256_--duration_300_--seed_ab/rep001__run/000000.zst" in rels
+        assert "mem/mem_alpha_v2/ws_256_--duration_300_--seed_ab/rep001__run" in {e.relpath for e in lst if e.is_dir}
+        p = src.fetch("mem/mem_alpha_v2/ws_256_--duration_300_--seed_ab/rep001__run")
+        assert (p / "000003.zst").exists()
+        try:
+            src.fetch("nope/nope/nope/rep001")
+            assert False
+        except SourceError:
+            pass
+
+
+def test_manifest_same_over_walk_and_listing():
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        _tree(root)
+        a = cm.scan(root)
+        b = cm.scan_listing(LocalSource(root).listing(), str(root))
+        for k in ("n_recordings", "n_with_chain", "n_workloads", "families", "partial_files"):
+            assert a[k] == b[k], k
+        assert [r["id"] for r in a["recordings"]] == [r["id"] for r in b["recordings"]]
+        assert a["recordings"][1]["n_pairs"] == 3 and a["recordings"][0]["status"] == "empty"
+
+
+def test_ssh_command_lines_and_listing_parse():
+    s = SshSource(host="srv.example", remote_root="/data/zstd_local/", user="jeries", key="~/.ssh/id_x", port=2222)
+    argv = s.ssh_argv("echo hi")
+    assert argv[0] == "ssh" and argv[-1] == "echo hi" and "jeries@srv.example" in argv
+    assert "-p" in argv and argv[argv.index("-p") + 1] == "2222"
+    assert "-i" in argv and argv[argv.index("-i") + 1].endswith("/.ssh/id_x")
+    assert "BatchMode=yes" in " ".join(argv)
+    r = s.rsync_argv("mem/wl/var/rep001__x", Path("/tmp/cache/mem/wl/var/rep001__x"))
+    assert r[0] == "rsync" and "--include=*.zst" in r and r[-2].startswith("jeries@srv.example:")
+    assert r[-2].endswith("/rep001__x/") and r[-1].endswith("/rep001__x/")
+    assert "find . -mindepth 1" in s.listing_cmd() and "%P" in s.listing_cmd()
+    lst = SshSource.parse_listing("d\t0\tmem\nd\t0\tmem/wl\nd\t0\tmem/wl/var\nd\t0\tmem/wl/var/rep001__r\n"
+                                  "f\t1000\tmem/wl/var/rep001__r/000000.zst\nf\t10\tmem/wl/var/rep001__r/000001.zst\n"
+                                  "f\t5\t.hidden\nbad line\n")
+    assert len(lst) == 6 and lst[4] == Entry("mem/wl/var/rep001__r/000000.zst", 1000, False)
+    m = cm.scan_listing(lst, "srv:/data/zstd_local", source=s.describe())
+    assert m["n_recordings"] == 1 and m["recordings"][0]["n_pairs"] == 1 and m["source"]["kind"] == "ssh"
+    assert m["source"]["key"].endswith("/.ssh/id_x")
+
+
+def test_factory():
+    assert make_source({"kind": "local", "root": "/tmp"}).kind == "local"
+    assert make_source({"kind": "ssh", "host": "h", "remote_root": "/r"}).kind == "ssh"
+    for bad in ({"kind": "ssh"}, {"kind": "local"}, {"kind": "ftp", "root": "/"}):
+        try:
+            make_source(bad)
+            assert False, bad
+        except SourceError:
+            pass
+
+
+if __name__ == "__main__":
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
+            print(f"ok  {name}")

@@ -49,7 +49,20 @@ from plan10_analysis.scheme import load_config, make_examples              # noq
 
 TEMPLATE = HERE / "analysis_console.template.html"
 OUT = HERE / "analysis_console.html"
+OUT_SERVED = HERE / "analysis_console.served.html"
 MARKER = "/*@@GENERATED_DATA@@*/"
+# The bridge client (source / run / results) lives between these markers, in HTML and in JS.
+# The static build STRIPS it: analysis_console.html carries zero network code. --served keeps it.
+SERVED_MARKERS = (("<!--@@SERVED_ONLY_START@@-->", "<!--@@SERVED_ONLY_END@@-->"), ("/*@@SERVED_ONLY_START@@*/", "/*@@SERVED_ONLY_END@@*/"))
+
+
+def strip_served(html: str) -> str:
+    for a, b in SERVED_MARKERS:
+        while a in html and b in html:
+            i = html.index(a)
+            j = html.index(b) + len(b)
+            html = html[:i] + html[j:]
+    return html
 NETWORK_CODE = re.compile(r"\b(fetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b")
 EXTERNAL_REF = re.compile(r"https?://[^\s\"'<>)]+")
 
@@ -66,10 +79,12 @@ def js_const(name: str, value) -> str:
     return f"const {name} = " + json.dumps(value, ensure_ascii=False, separators=(",", ":")) + ";"
 
 
-def build(root: Path | None, metrics_root: Path | None, out: Path, manifest_path: Path | None) -> int:
+def build(root: Path | None, metrics_root: Path | None, out: Path, manifest_path: Path | None, served: bool = False) -> int:
     template = TEMPLATE.read_text()
     if MARKER not in template:
         sys.exit(f"[build_analysis_console] marker {MARKER} not found in {TEMPLATE.name}")
+    if not served:
+        template = strip_served(template)
 
     try:
         roster = channel_roster.build_roster()
@@ -126,11 +141,11 @@ def build(root: Path | None, metrics_root: Path | None, out: Path, manifest_path
     ])
     html = template.replace(MARKER, data)
 
-    if NETWORK_CODE.search(html):
-        sys.exit("[build_analysis_console] REFUSED: output contains network code")
+    if not served and NETWORK_CODE.search(html):
+        sys.exit("[build_analysis_console] REFUSED: static output contains network code")
 
     out.write_text(html)
-    print(f"[build_analysis_console] wrote {out.name} ({len(html) // 1024} KB)")
+    print(f"[build_analysis_console] wrote {out.name} ({len(html) // 1024} KB) {'(served: bridge client kept)' if served else '(static: bridge client stripped)'}")
     print(f"  ROSTER: {roster['n_total']} columns; computed per level "
           + ", ".join(f"{l['speed']}:{l['computed']}" for l in roster["levels"]))
     print(f"  MANIFEST: {manifest['n_recordings']} recordings under {manifest['root']} "
@@ -148,9 +163,11 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=None, help="trace root (default: console.sh TRACES_LOCAL_DIR)")
     ap.add_argument("--metrics-root", type=Path, default=None, help="optional root holding substrate CSVs")
     ap.add_argument("--manifest", type=Path, default=None, help="use an existing manifest JSON instead of scanning")
-    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--served", action="store_true", help="keep the bridge client (analysis_console.served.html, for analysis_bridge.py)")
     a = ap.parse_args()
-    return build(a.root, a.metrics_root, a.out, a.manifest)
+    out = a.out or (OUT_SERVED if a.served else OUT)
+    return build(a.root, a.metrics_root, out, a.manifest, a.served)
 
 
 if __name__ == "__main__":

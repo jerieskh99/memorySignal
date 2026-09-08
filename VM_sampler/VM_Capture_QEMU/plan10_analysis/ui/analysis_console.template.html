@@ -83,7 +83,24 @@ button{font:inherit; cursor:pointer} input,select{font:inherit; color:inherit}
 .dot{display:inline-block; width:7px;height:7px; border-radius:50%; background:var(--t-field)}
 .pal-help{font-size:11px; color:var(--ink-3); padding:4px 6px 10px; line-height:1.4}
 
-.canvas{position:relative; overflow:hidden; background:var(--bg); background-image:radial-gradient(var(--grid) 1px, transparent 1px); background-size:22px 22px; cursor:grab}
+.mid{display:flex; flex-direction:column; min-height:0; min-width:0}
+.canvas{position:relative; overflow:hidden; background:var(--bg); background-image:radial-gradient(var(--grid) 1px, transparent 1px); background-size:22px 22px; cursor:grab; flex:1; min-height:0}
+.drawer{flex:none; border-top:1px solid var(--line); background:var(--panel); max-height:46%; display:flex; flex-direction:column; min-height:0}
+.drawer.collapsed .tab{display:none}
+.tabs{display:flex; align-items:center; gap:2px; padding:5px 10px; border-bottom:1px solid var(--line); background:var(--panel-2)}
+.tabs button[data-tab]{border:none; background:none; color:var(--ink-2); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600}
+.tabs button[data-tab].on{background:var(--accent); color:var(--accent-ink)}
+.tabs .tabs-sp{flex:1} .tbtn.small{width:26px;height:26px}
+.bridge-st{font-family:"IBM Plex Mono",monospace; font-size:10px; padding:2px 7px; border-radius:5px; background:var(--sunk); color:var(--ink-3)}
+.bridge-st.ok{background:var(--ok-soft); color:var(--ok)} .bridge-st.bad{background:var(--bad-soft); color:var(--bad)}
+.tab{padding:9px 12px 10px; overflow:auto; min-height:0}
+.src-ssh,.src-local{display:none} .drawer[data-kind="ssh"] .src-ssh{display:block} .drawer[data-kind="local"] .src-local{display:block}
+.runstat{font-size:11.5px; color:var(--ink-2); line-height:1.4} .runstat b{color:var(--ink)}
+.runlog{max-height:120px; margin-top:8px; font-size:10px}
+.runlist{display:flex; flex-direction:column; gap:3px; max-height:190px; overflow:auto}
+.runlist button{text-align:left; border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2); border-radius:6px; padding:4px 8px; font-size:11px; font-family:"IBM Plex Mono",monospace}
+.runlist button.on{border-color:var(--accent); background:var(--accent-soft); color:var(--accent)}
+.runlist button .st{float:right; font-size:9.5px}
 .canvas.panning{cursor:grabbing}
 .world{position:absolute; left:0; top:0; transform-origin:0 0}
 .edges{position:absolute; left:0; top:0; overflow:visible; width:1px; height:1px; pointer-events:none}
@@ -225,11 +242,44 @@ pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-
 
 <div class="app">
   <aside class="palette" id="palette"></aside>
+  <div class="mid">
   <section class="canvas" id="canvas">
     <div class="world" id="world"><svg class="edges" id="edges"></svg><div id="nodes"></div></div>
     <div class="canvas-hint"><span><b>drag</b> a module from the left</span><span><b>drag</b> output to input to pipe</span><span><b>wheel</b> zoom, <b>drag background</b> pan</span><span><b>Del</b> removes selection</span></div>
     <div class="zoomctl"><button id="zin">+</button><button id="zout">&minus;</button><button id="zfit" title="fit">&#8982;</button></div>
   </section>
+<!--@@SERVED_ONLY_START@@-->
+  <section class="drawer" id="drawer">
+    <div class="tabs"><button data-tab="source" class="on">Source</button><button data-tab="run">Run</button><button data-tab="results">Results</button><span class="tabs-sp"></span><span class="bridge-st" id="bridge-st">bridge</span><button class="tbtn small" id="drawer-toggle" title="collapse">&#8212;</button></div>
+    <div class="tab" id="tab-source">
+      <div class="row" style="align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="flex:0 0 auto"><label class="fl">kind</label><select class="f" id="src-kind"><option value="local">local path</option><option value="ssh">ssh server</option></select></div>
+        <div class="field src-local" style="flex:3"><label class="fl">trace root</label><input type="text" id="src-root" class="mono" spellcheck="false"></div>
+        <div class="field src-ssh" style="flex:2"><label class="fl">host / IP</label><input type="text" id="src-host" class="mono" spellcheck="false" placeholder="server.example.org"></div>
+        <div class="field src-ssh" style="flex:1"><label class="fl">user</label><input type="text" id="src-user" class="mono" spellcheck="false"></div>
+        <div class="field src-ssh" style="flex:0 0 80px"><label class="fl">port</label><input type="number" id="src-port" value="22"></div>
+        <div class="field src-ssh" style="flex:2"><label class="fl">key path</label><input type="text" id="src-key" class="mono" spellcheck="false" placeholder="~/.ssh/id_ed25519"></div>
+        <div class="field src-ssh" style="flex:3"><label class="fl">remote root</label><input type="text" id="src-rroot" class="mono" spellcheck="false" placeholder="/project/homes/.../zstd_local"></div>
+        <div class="field" style="flex:0 0 auto"><button class="bigbtn ghost" id="src-test">Test</button> <button class="bigbtn" id="src-scan">Scan</button></div>
+      </div>
+      <div class="subnote" id="src-msg">Recordings are read where they live; an ssh source is fetched one recording at a time into a local cache before extraction.</div>
+    </div>
+    <div class="tab" id="tab-run" hidden>
+      <div class="row" style="align-items:flex-end;flex-wrap:wrap">
+        <div class="field" style="flex:0 0 120px"><label class="fl">differ speed</label><input type="number" id="run-speed" min="0" max="4"></div>
+        <div class="field" style="flex:0 0 150px"><label class="fl">max pairs (0 = all)</label><input type="number" id="run-maxpairs" value="0" min="0"></div>
+        <div class="field" style="flex:0 0 auto"><button class="bigbtn" id="run-launch">Launch run</button> <button class="bigbtn ghost" id="run-pause">Pause</button> <button class="bigbtn ghost" id="run-stop">Stop</button></div>
+        <div class="field" style="flex:1"><div class="runstat" id="run-stat">no run launched from this page yet</div></div>
+      </div>
+      <pre class="code runlog" id="run-log"></pre>
+    </div>
+    <div class="tab" id="tab-results" hidden>
+      <div class="row"><div class="field" style="flex:0 0 260px"><label class="fl">runs</label><div class="runlist" id="runs-list"></div></div>
+      <div class="field" style="flex:1;min-width:0"><label class="fl" id="res-title">result</label><div class="tblwrap" style="max-height:170px"><table class="tbl" id="res-table"></table></div><div class="subnote" id="res-side"></div></div></div>
+    </div>
+  </section>
+<!--@@SERVED_ONLY_END@@-->
+  </div>
   <aside class="right"><div class="insp" id="insp"></div><div class="readout" id="readout"></div></aside>
 </div>
 <div id="toast"></div>
@@ -244,7 +294,9 @@ const ISSUE = {}; ISSUES.forEach(i => ISSUE[i.id] = i);
 const CH = ROSTER.channels, GROUPS = {}, DROP_AT = {}, GROUP_OF = {}, SUB_OF = {};
 CH.forEach(c => { (GROUPS[c.group] = GROUPS[c.group] || []).push(c.name); DROP_AT[c.name] = c.drop_at; GROUP_OF[c.name] = c.group; SUB_OF[c.name] = c.submodule; });
 const GROUP_LABEL = {amount:"A, magnitude", direction:"B, direction", content:"C, state of q", texture:"D, texture"};  /* UI labelling only */
-const RECS = MANIFEST.recordings, REC = {}; RECS.forEach(r => REC[r.id] = r);
+let MANIFEST_CUR = MANIFEST, RECS = [], REC = {};
+function setManifest(m) { MANIFEST_CUR = m; RECS = m.recordings; REC = {}; RECS.forEach(r => REC[r.id] = r); }
+setManifest(MANIFEST);
 const FEAT_SRC = {stats: MODULES.feature_sources.simple, deep: MODULES.feature_sources.deep};
 const N_PAGES = CONFIG.n_pages_default;
 const recSpeed = r => r.speed != null ? [r.speed, "recorded"] : [CONFIG.substrateSpeed, "assumed"];
@@ -296,8 +348,8 @@ function descOf(id, memo = {}) {
   const up = k => { const e = inEdges(id, k)[0]; return e ? descOf(e.from, memo) : null; };
   let d = null;
   switch (n.mod) {
-    case "cells": { const recs = p.sel.map(i => REC[i]).filter(Boolean); const kept = recs.filter(r => r.n_pairs >= p.min_pairs);
-      d = {type: "cells", recs: kept, dropped: recs.length - kept.length, nmin: kept.length ? Math.min(...kept.map(r => r.n_pairs)) : 0, workloads: [...new Set(kept.map(r => r.workload))]}; break; }
+    case "cells": { const recs = p.sel.map(i => REC[i]).filter(Boolean); const kept = recs.filter(r => r.n_pairs >= p.min_pairs); const mp = +p.max_pairs || null;
+      d = {type: "cells", recs: kept, dropped: recs.length - kept.length, max_pairs: mp, nmin: kept.length ? Math.min(...kept.map(r => mp ? Math.min(r.n_pairs, mp) : r.n_pairs)) : 0, workloads: [...new Set(kept.map(r => r.workload))]}; break; }
     case "channels": { const u = up("cells"); d = {type: "field", channels: p.chans.slice(), complex: false, axis: "page", recs: u ? u.recs : [], nmin: u ? u.nmin : 0, workloads: u ? u.workloads : []}; break; }
     case "single": case "vectorize": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field"}) : null; break; }
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
@@ -360,6 +412,7 @@ function nodeConstraints(n, memo) {
     case "window": {
       const u = up("in"), w = +p.w, h = +p.h;
       if (w < 1 || h < 1) I("hard", "W and H must be at least 1", "window arithmetic");
+      if (u && u.axis === "page") I("hard", "tiles at full page resolution are not implemented in the runner; put Collapse (or Block) before Window", "runner/stages.py");
       if (u && u.nmin && w > u.nmin) I("hard", `W_t=${w} exceeds the shortest connected recording (${u.nmin} pairs): zero windows`, "plan10 UX section 13.2");
       if (h > w) I("soft", "hop larger than the window skips frames", "Plan 03 G4 hop validity", "hop_gt_w");
       if (w === 8 && h === 4) I("note", "8/4 is inherited: tuned on APF alone, smallest-W tiebreak, 128 never swept", "plan05 recommendation.json");
@@ -403,7 +456,7 @@ function estimate() {
   const memo = {}; let wins = 0, blocks = 1; const wl = new Set();
   G.nodes.filter(n => n.mod === "window").forEach(n => {
     const d = descOf(n.id, memo); if (!d) return;
-    (d.recs || []).forEach(r => { wl.add(r.workload); wins += r.n_pairs < n.p.w ? 0 : Math.floor((r.n_pairs - n.p.w) / n.p.h) + 1; });
+    (d.recs || []).forEach(r => { wl.add(r.workload); const np_ = d.max_pairs ? Math.min(r.n_pairs, d.max_pairs) : r.n_pairs; wins += np_ < n.p.w ? 0 : Math.floor((np_ - n.p.w) / n.p.h) + 1; });
     if (d.axis === "blocked") blocks = Math.max(0, Math.floor((N_PAGES - d.wp) / Math.max(1, d.hp)) + 1);
   });
   return {tiles: wins * blocks, wins, blocks, nWl: wl.size};
@@ -418,7 +471,7 @@ function toWorld(sx, sy) { const r = canvas.getBoundingClientRect(); return [(sx
 function renderBuildbar() {
   const b = document.getElementById("buildbar"), un = BUILD.issues_unverified;
   b.innerHTML = `<span>built <b>${esc(BUILD.built_at)}</b>${BUILD.git_sha ? ` at <b>${esc(BUILD.git_sha)}</b>` : ""}</span>
-    <span>corpus <b>${MANIFEST.n_recordings}</b> recordings under <b>${esc(MANIFEST.root)}</b>, scanned ${esc(MANIFEST.scanned_at)} (rescan = rebuild)</span>
+    <span>corpus <b>${MANIFEST_CUR.n_recordings}</b> recordings under <b>${esc(MANIFEST_CUR.root)}</b>, scanned ${esc(MANIFEST_CUR.scanned_at)}${window.__BRIDGE__ ? "" : " (rescan = rebuild)"}</span>
     <span>channels <b>${ROSTER.n_total}</b>, ${esc(ROSTER.derivation.method)} from the differ; speed assumed <b>${CONFIG.substrateSpeed}</b> (config, unrecorded per recording)</span>
     <span>issues <b>${BUILD.issues_verified}</b> recomputed${un.length ? `, <span class="warn">${un.length} not: ${esc(un.join(", "))}</span>` : ""}</span>
     ${BUILD.external_refs.length ? `<span class="warn">external: ${esc(BUILD.external_refs.map(u => u.replace(/^https?:\/\//, "").split("/")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>` : ""}`;
@@ -450,7 +503,7 @@ const SUMMARY = {
   single: (p, d) => d ? (d.channels.length === 1 ? esc(d.channels[0]) : `${d.channels.length} channels, needs 1`) : "",
   vectorize: (p, d) => d ? `${d.channels.length} channels, kept apart` : "",
   complex: p => `phase: ${p.phase ? esc(p.phase) : "<span class=k>not chosen</span>"}`,
-  collapse: p => `unchanged = ${esc(p.unchanged)}`,
+  collapse: p => p.reduce === "changed_fraction" ? "K/N per pair (APF)" : `mean, unchanged = ${esc(p.unchanged)}`,
   block: p => `W_p ${p.wp}, H_p ${p.hp}, ${Math.max(0, Math.floor((N_PAGES - p.wp) / Math.max(1, p.hp)) + 1)} blocks`,
   window: p => `W ${p.w}, H ${p.h}, ${esc(p.edge)}, ${esc(p.taper)}`,
   stats: p => `${p.feats.length} features`, deep: p => `${p.feats.length} features${p.feats.includes("tau") ? ", tau" : ""}`,
@@ -558,7 +611,7 @@ function scheme() {
     nodes: G.nodes.map(n => ({id: n.id, module: n.mod, params: n.p, x: Math.round(n.x), y: Math.round(n.y)})),
     pipes: G.edges.map(e => ({from: [e.from, e.fp], to: [e.to, e.tp]})),
     acknowledged: [...G.acks].map(([id, a]) => ({id, at: a.at, note: a.note || ""})),
-    built_from: {manifest_root: MANIFEST.root, manifest_scanned_at: MANIFEST.scanned_at, roster_sha: ROSTER.derivation.source_sha256_16, config: CONFIG.source, console_built_at: BUILD.built_at}};
+    built_from: {manifest_root: MANIFEST_CUR.root, manifest_scanned_at: MANIFEST_CUR.scanned_at, source: MANIFEST_CUR.source || null, roster_sha: ROSTER.derivation.source_sha256_16, config: CONFIG.source, console_built_at: BUILD.built_at}};
 }
 function renderReadout(issues) {
   const host = document.getElementById("readout"), est = estimate();
@@ -644,7 +697,82 @@ window.addEventListener("resize", () => drawEdges());
 
 renderBuildbar(); renderPalette(); applyView();
 loadScheme(JSON.parse(JSON.stringify(EXAMPLES[Object.keys(EXAMPLES)[0]])));
-window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, estimate, accepts};
+window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, estimate, accepts, setManifest};
+
+/*@@SERVED_ONLY_START@@*/
+/* ===== bridge client: source, run, results. Present only in the served build. ===== */
+(function () {
+  const B = window.__BRIDGE__; if (!B) return;
+  const $ = id => document.getElementById(id);
+  const api = async (path, body) => {
+    const sep = path.includes("?") ? "&" : "?";
+    const r = await fetch(path + sep + "token=" + encodeURIComponent(B.token), {method: body ? "POST" : "GET", headers: {"Content-Type": "application/json"}, body: body ? JSON.stringify(body) : undefined});
+    const j = await r.json().catch(() => ({error: "bad response"}));
+    if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+    return j;
+  };
+  const drawer = $("drawer");
+  drawer.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { drawer.querySelectorAll("[data-tab]").forEach(x => x.classList.toggle("on", x === b)); ["source", "run", "results"].forEach(t => $("tab-" + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === "results") refreshRuns(); });
+  $("drawer-toggle").onclick = () => drawer.classList.toggle("collapsed");
+  api("/health").then(() => { $("bridge-st").textContent = "bridge ok"; $("bridge-st").className = "bridge-st ok"; }).catch(e => { $("bridge-st").textContent = "bridge: " + e.message; $("bridge-st").className = "bridge-st bad"; });
+
+  /* source */
+  const src = B.source || {kind: "local"};
+  $("src-kind").value = src.kind || "local"; drawer.dataset.kind = $("src-kind").value;
+  $("src-root").value = src.root || (MANIFEST_CUR.root || ""); $("src-host").value = src.host || ""; $("src-user").value = src.user || ""; $("src-port").value = src.port || 22; $("src-key").value = src.key || ""; $("src-rroot").value = src.remote_root || "";
+  $("src-kind").onchange = () => { drawer.dataset.kind = $("src-kind").value; };
+  const spec = () => $("src-kind").value === "local" ? {kind: "local", root: $("src-root").value.trim()}
+    : {kind: "ssh", host: $("src-host").value.trim(), user: $("src-user").value.trim() || null, port: +$("src-port").value || 22, key: $("src-key").value.trim() || null, remote_root: $("src-rroot").value.trim()};
+  $("src-test").onclick = async () => { $("src-msg").textContent = "testing..."; try { const r = await api("/source/test", {source: spec()}); $("src-msg").textContent = (r.ok ? "reachable: " : "not reachable: ") + r.message; } catch (e) { $("src-msg").textContent = "error: " + e.message; } };
+  $("src-scan").onclick = async () => { $("src-msg").textContent = "scanning..."; try { const m = await api("/scan", {source: spec()}); setManifest(m); renderBuildbar(); renderAll(); $("src-msg").textContent = `scanned ${m.n_recordings} recordings (${m.n_with_chain} with a chain, ${m.n_workloads} workloads) from ${m.root}; the Cells module now selects from these`; } catch (e) { $("src-msg").textContent = "scan refused: " + e.message; } };
+
+  /* run */
+  let current = null, timer = null;
+  $("run-speed").value = CONFIG.substrateSpeed;
+  const launch = $("launch");
+  launch.title = "launch this scheme through the bridge";
+  const syncLaunch = () => { const hard = validate().filter(c => c.sev === "hard").length, soft = validate().filter(c => c.sev === "soft" && !isAcked(c)).length; launch.disabled = hard > 0 || soft > 0; $("run-launch").disabled = launch.disabled; };
+  const _renderAll = window.__A.renderAll; window.__A.renderAll = renderAll;
+  const origRenderReadout = renderReadout;
+  const obs = new MutationObserver(syncLaunch); obs.observe($("readout"), {childList: true}); syncLaunch();
+  const doLaunch = async () => {
+    const s = scheme(); const mp = +$("run-maxpairs").value || 0; const sp = +$("run-speed").value;
+    $("run-stat").textContent = "launching...";
+    try { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined}); current = r.label; drawer.querySelector('[data-tab="run"]').click(); poll(); }
+    catch (e) { $("run-stat").innerHTML = `<b style="color:var(--bad)">refused</b>: ${esc(e.message)}`; if (/already exists/.test(e.message) && confirm(e.message + "\n\nOverwrite it?")) { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined, force: true}); current = r.label; poll(); } }
+  };
+  launch.onclick = doLaunch; $("run-launch").onclick = doLaunch;
+  $("run-stop").onclick = () => current && api("/control", {label: current, command: "stop"});
+  $("run-pause").onclick = () => { if (!current) return; const pausing = $("run-pause").textContent === "Pause"; api("/control", {label: current, command: pausing ? "pause" : "run"}); $("run-pause").textContent = pausing ? "Resume" : "Pause"; };
+  async function poll() {
+    if (!current) return;
+    try {
+      const s = await api("/status?label=" + encodeURIComponent(current) + "&lines=30");
+      const pct = s.n_pairs ? Math.round(100 * s.pair / s.n_pairs) : 0;
+      $("run-stat").innerHTML = `<b>${esc(current)}</b>: <b>${esc(s.state)}</b> ${esc(s.phase || "")} ${s.recording ? `recording ${s.recording_index}/${s.n_recordings} (${esc(String(s.recording).split("/").slice(1, 2)[0] || "")}) pair ${s.pair}/${s.n_pairs} ${pct}%` : ""} ${s.node ? "node " + esc(s.node) : ""}<br>${esc(s.message || "")}`;
+      $("run-log").textContent = (s.log_tail || []).join("\n");
+      if (["done", "failed", "refused", "stopped"].includes(s.state)) { clearTimeout(timer); timer = null; refreshRuns(); if (s.state === "done") showResult(current); return; }
+    } catch (e) { $("run-stat").textContent = "status: " + e.message; }
+    timer = setTimeout(poll, 1500);
+  }
+
+  /* results */
+  async function refreshRuns() {
+    try { const r = await api("/runs"); const host = $("runs-list"); host.innerHTML = ""; (r.runs || []).slice().reverse().forEach(run => { const b = document.createElement("button"); b.innerHTML = `${esc(run.label)}<span class="st">${esc(run.state || "")}</span>`; b.onclick = () => showResult(run.label); host.appendChild(b); }); if (!r.runs.length) host.innerHTML = '<div class="subnote">no runs yet</div>'; } catch (e) { $("runs-list").textContent = e.message; }
+  }
+  async function showResult(label) {
+    drawer.querySelector('[data-tab="results"]').click();
+    try {
+      const r = await api("/results?label=" + encodeURIComponent(label) + "&rows=40");
+      $("res-title").textContent = `${label}: ${r.n_rows_total} rows x ${r.sidecar.n_features} features`;
+      const t = $("res-table"); t.innerHTML = "<thead><tr>" + r.header.map(h => `<th>${esc(h)}</th>`).join("") + "</tr></thead><tbody>" + r.rows.map(row => "<tr>" + row.map(c => `<td>${esc(c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+      $("res-side").innerHTML = `written ${esc(r.sidecar.written_at)}; speed ${r.sidecar.speed}; max_pairs ${r.sidecar.max_pairs}; acknowledged: ${esc((r.sidecar.acknowledged || []).map(a => a.id).join(", ") || "none")}; files: ${Object.values(r.files).map(esc).join(" ")}`;
+      [...$("runs-list").children].forEach(b => b.classList.toggle("on", b.textContent.startsWith(label)));
+    } catch (e) { $("res-title").textContent = label + ": " + e.message; $("res-table").innerHTML = ""; $("res-side").textContent = ""; }
+  }
+  refreshRuns();
+})();
+/*@@SERVED_ONLY_END@@*/
 </script>
 </body>
 </html>

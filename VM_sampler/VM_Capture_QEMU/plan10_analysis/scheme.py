@@ -159,13 +159,15 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
     if mod == "cells":
         recs = [ctx.rec_by_id[r] for r in p.get("sel", []) if r in ctx.rec_by_id]
         kept = [r for r in recs if r["n_pairs"] >= int(p.get("min_pairs", 0))]
+        mp = int(p.get("max_pairs") or 0) or None
         d = {"type": "cells", "recs": kept, "dropped_short": len(recs) - len(kept),
-             "nmin": min((r["n_pairs"] for r in kept), default=0),
-             "workloads": sorted({r["workload"] for r in kept})}
+             "nmin": min((min(r["n_pairs"], mp) if mp else r["n_pairs"] for r in kept), default=0),
+             "max_pairs": mp, "workloads": sorted({r["workload"] for r in kept})}
     elif mod == "channels":
         u = up("cells")
         d = {"type": "field", "channels": list(p.get("chans", [])), "complex": False, "axis": "page",
-             "recs": u["recs"] if u else [], "nmin": u["nmin"] if u else 0, "workloads": u["workloads"] if u else []}
+             "recs": u["recs"] if u else [], "nmin": u["nmin"] if u else 0, "max_pairs": u.get("max_pairs") if u else None,
+             "workloads": u["workloads"] if u else []}
     elif mod in ("single", "vectorize"):
         u = up("in")
         d = dict(u, type="field") if u else None
@@ -331,6 +333,8 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         w, h = int(p["w"]), int(p["h"])
         if w < 1 or h < 1:
             out.append(_issue(nid, "hard", "W and H must be at least 1", "window arithmetic"))
+        if u and u.get("axis") == "page":
+            out.append(_issue(nid, "hard", "tiles at full page resolution are not implemented in the runner; put Collapse (or Block) before Window", "runner/stages.py"))
         if u and u.get("nmin") and w > u["nmin"]:
             out.append(_issue(nid, "hard", f"W_t={w} exceeds the shortest connected recording ({u['nmin']} pairs): zero windows", "plan10 UX section 13.2"))
         if h > w:
@@ -464,9 +468,11 @@ def estimate(scheme: dict, ctx: Context) -> dict:
             continue
         p = g.params(nid)
         w, h = int(p["w"]), int(p["h"])
+        mp = d.get("max_pairs")
         for r in d.get("recs", []):
             workloads.add(r["workload"])
-            windows += 0 if r["n_pairs"] < w else (r["n_pairs"] - w) // h + 1
+            n = min(r["n_pairs"], mp) if mp else r["n_pairs"]
+            windows += 0 if n < w else (n - w) // h + 1
         if d.get("axis") == "blocked":
             n_pages = ctx.config["n_pages_default"]
             blocks = max(0, (n_pages - d["wp"]) // max(1, d["hp"]) + 1)
@@ -493,28 +499,32 @@ def make_examples(manifest: dict) -> dict:
 
     b1 = {"schema": SCHEMA, "label": "b1_apf_floor", "acknowledged": [],
           "nodes": [node("n1", "cells", 20, 120, sel=sel, min_pairs=50), node("n2", "channels", 290, 120, chans=["hamming"]),
-                    node("n3", "collapse", 560, 120), node("n4", "window", 830, 120, w=8, h=4),
+                    node("n3", "collapse", 560, 120, reduce="changed_fraction"), node("n4", "window", 830, 120, w=8, h=4),
                     node("n5", "stats", 1100, 120), node("n6", "write", 1370, 120)],
           "pipes": [pipe("n1", "cells", "n2", "cells"), pipe("n2", "field", "n3", "in"), pipe("n3", "out", "n4", "in"),
                     pipe("n4", "out", "n5", "in"), pipe("n5", "out", "n6", "in")]}
+    # Both complex examples collapse the page axis (mean phasor per pair) before windowing:
+    # tiles at full page resolution are not implemented and nothing in the record used them.
     cx = {"schema": SCHEMA, "label": "complex_pi_spectral", "acknowledged": [],
           "nodes": [node("n1", "cells", 20, 200, sel=sel, min_pairs=50), node("n2", "channels", 290, 90, chans=["hamming"]),
                     node("n3", "channels", 290, 320, chans=["cosine"]), node("n4", "complex", 560, 200, phase="pi"),
-                    node("n5", "window", 830, 200, w=32, h=16, taper="hann"), node("n6", "fft", 1100, 90),
-                    node("n7", "cepstrum", 1100, 320), node("n8", "concat", 1370, 200), node("n9", "write", 1640, 200)],
+                    node("n10", "collapse", 830, 200), node("n5", "window", 1100, 200, w=32, h=16, taper="hann"),
+                    node("n6", "fft", 1370, 90), node("n7", "cepstrum", 1370, 320), node("n8", "concat", 1640, 200),
+                    node("n9", "write", 1910, 200)],
           "pipes": [pipe("n1", "cells", "n2", "cells"), pipe("n1", "cells", "n3", "cells"), pipe("n2", "field", "n4", "mag"),
-                    pipe("n3", "field", "n4", "dir"), pipe("n4", "out", "n5", "in"), pipe("n5", "out", "n6", "in"),
-                    pipe("n5", "out", "n7", "in"), pipe("n6", "out", "n8", "in"), pipe("n7", "out", "n8", "in"),
-                    pipe("n8", "out", "n9", "in")]}
+                    pipe("n3", "field", "n4", "dir"), pipe("n4", "out", "n10", "in"), pipe("n10", "out", "n5", "in"),
+                    pipe("n5", "out", "n6", "in"), pipe("n5", "out", "n7", "in"), pipe("n6", "out", "n8", "in"),
+                    pipe("n7", "out", "n8", "in"), pipe("n8", "out", "n9", "in")]}
     plv = {"schema": SCHEMA, "label": "complex_plv_baseline", "acknowledged": [],
            # min_pairs 130: a W=128 window needs it, and the migrated corpus holds a 70-pair recording
            "nodes": [node("n1", "cells", 20, 200, sel=sel, min_pairs=130), node("n2", "channels", 290, 90, chans=["hamming"]),
                      node("n3", "channels", 290, 320, chans=["cosine"]), node("n4", "complex", 560, 200, phase="arccos"),
-                     node("n5", "window", 830, 200, w=128, h=64, taper="hann"), node("n6", "baseline", 1100, 360),
-                     node("n7", "plv", 1100, 120), node("n8", "write", 1370, 120)],
+                     node("n10", "collapse", 830, 200), node("n5", "window", 1100, 200, w=128, h=64, taper="hann"),
+                     node("n6", "baseline", 1370, 360), node("n7", "plv", 1370, 120), node("n8", "write", 1640, 120)],
            "pipes": [pipe("n1", "cells", "n2", "cells"), pipe("n1", "cells", "n3", "cells"), pipe("n2", "field", "n4", "mag"),
-                     pipe("n3", "field", "n4", "dir"), pipe("n4", "out", "n5", "in"), pipe("n5", "out", "n6", "in"),
-                     pipe("n5", "out", "n7", "in"), pipe("n6", "out", "n7", "ref"), pipe("n7", "out", "n8", "in")]}
+                     pipe("n3", "field", "n4", "dir"), pipe("n4", "out", "n10", "in"), pipe("n10", "out", "n5", "in"),
+                     pipe("n5", "out", "n6", "in"), pipe("n5", "out", "n7", "in"), pipe("n6", "out", "n7", "ref"),
+                     pipe("n7", "out", "n8", "in")]}
     return {"b1": b1, "complex": cx, "plv": plv}
 
 
