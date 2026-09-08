@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dependency Graph</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --panel-2:#f5f7fa; --sunk:#e6eaf0;
+  --ink:#151b24; --ink-2:#48545f; --ink-3:#78838f; --line:#dbe1e9; --line-2:#b9c3cf;
+  --accent:#0f8ba3; --accent-ink:#ffffff; --accent-soft:#d3edf2;
+  --ok:#1c8a4e; --ok-soft:#d5efdf; --warn:#a86a08; --warn-soft:#f8e9c9; --bad:#c23b3b; --bad-soft:#f6d9d9;
+  --find:#f59e0b; --find-ink:#7c2d12; --find-text:#1a1206;
+  --scc:#7c3aed; --scc-soft:rgba(124,58,237,.10);
+  --band1:rgba(20,27,36,.045);
+  --e-imports:#2f6fdb; --e-invokes:#3a3f4a; --e-writes:#d9480f; --e-reads:#1c8a4e; --e-viol:#d6249a; --e-inv:#e11d1d; --e-unres:#e53935;
+  --shadow:0 1px 2px rgba(20,27,36,.06),0 8px 24px -12px rgba(20,27,36,.18);
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1017; --panel:#141b25; --panel-2:#101720; --sunk:#1a2230;
+    --ink:#e8edf3; --ink-2:#9aa7b4; --ink-3:#69757f; --line:#232e3b; --line-2:#3a4756;
+    --accent:#38c6dc; --accent-ink:#04121a; --accent-soft:#123039;
+    --ok:#4ade80; --ok-soft:#122a1c; --warn:#fbbf24; --warn-soft:#2c2411; --bad:#f87171; --bad-soft:#2e1618;
+    --find:#f59e0b; --find-ink:#fde68a; --find-text:#1a1206;
+    --scc:#a78bfa; --scc-soft:rgba(167,139,250,.14);
+    --band1:rgba(232,237,243,.05);
+    --e-imports:#6ea0ff; --e-invokes:#d9dee6; --e-writes:#fb923c; --e-reads:#4ade80; --e-viol:#f472b6; --e-inv:#ff5c5c; --e-unres:#ff6b6b;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -14px rgba(0,0,0,.6);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.45 var(--sans)}
+a{color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:12px}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px 8px;box-shadow:var(--shadow)}
+header h1{margin:0;font-size:17px;font-weight:600;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+header h1 .sub{font-weight:400;color:var(--ink-3);font-size:13px}
+#chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+.chip{background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px;color:var(--ink-2)}
+.chip b{color:var(--ink)}
+.chip.pass{border-color:var(--ok);color:var(--ok)}
+.chip.fail{border-color:var(--bad);color:var(--bad)}
+.chip.find{border-color:var(--find);background:var(--warn-soft);color:var(--find-ink)}
+.chip.bad{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
+.controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+fieldset{border:1px solid var(--line);border-radius:8px;padding:4px 10px 6px;margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+legend{font-size:11px;color:var(--ink-3);padding:0 4px;text-transform:uppercase;letter-spacing:.04em}
+label.opt{display:inline-flex;gap:4px;align-items:center;cursor:pointer;font-size:12px;white-space:nowrap}
+.sw{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;border-radius:2px}
+.sw.viol{border-top-style:dashed}
+button{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:3px 9px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+input[type=search]{font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--panel);color:var(--ink);min-width:260px}
+#searchInfo{font-size:11px;color:var(--ink-3);margin-left:6px}
+#stage{display:grid;grid-template-columns:1fr 400px;height:70vh;min-height:480px;border-bottom:1px solid var(--line)}
+#canvasWrap{position:relative;overflow:hidden;background:var(--bg)}
+#svg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
+#svg.dragging{cursor:grabbing}
+#legendFloat{position:absolute;right:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px 7px;font-size:10.5px;box-shadow:var(--shadow);width:250px;line-height:1.35;opacity:.96}
+#legendFloat h4{margin:0 0 3px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);display:flex;justify-content:space-between;align-items:center}
+#legendFloat h4 button{font-size:10px;padding:0 6px;line-height:15px}
+#legendFloat .row{display:flex;gap:5px;align-items:center;margin:1px 0}
+#legendFloat.collapsed .body{display:none}
+#legendFloat .body h4{margin-top:5px}
+.swatch{display:inline-block;width:14px;height:10px;border:1px solid var(--line-2);border-radius:2px;flex:none}
+.swatch.root{background:var(--accent);border-color:var(--accent)}
+.swatch.find{background:var(--find);border:2px solid var(--find-ink)}
+.swatch.live{background:var(--ok-soft);border-color:var(--ok)}
+.swatch.unreach{background:repeating-linear-gradient(45deg,transparent 0 2px,var(--ink-3) 2px 3px);border-style:dashed}
+.swatch.dead{background:repeating-linear-gradient(45deg,transparent 0 2px,var(--bad) 2px 3px);border-color:var(--bad)}
+.swatch.reach{background:var(--panel)}
+.swatch.named{background:var(--sunk);border-style:dotted}
+.swatch.scc{background:var(--scc-soft);border:1.5px dashed var(--scc)}
+.swatch.band{background:var(--band1)}
+.badgeDemo{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--bad);color:#fff;font-size:9px;font-weight:700;text-align:center;line-height:12px}
+#panel{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:12px 14px;font-size:12px}
+#panel h2{font-size:13px;margin:0 0 6px;word-break:break-all}
+#panel h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin:14px 0 6px}
+#panel .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px}
+#panel .kv div:nth-child(odd){color:var(--ink-3)}
+.pill{display:inline-block;padding:0 6px;border-radius:999px;border:1px solid var(--line-2);font-size:10.5px;font-family:var(--mono);vertical-align:middle;line-height:16px}
+.pill.t-imports{border-color:var(--e-imports);color:var(--e-imports)}
+.pill.t-invokes{border-color:var(--e-invokes);color:var(--e-invokes)}
+.pill.t-writes{border-color:var(--e-writes);color:var(--e-writes)}
+.pill.t-reads{border-color:var(--e-reads);color:var(--e-reads)}
+.pill.t-viol{border-color:var(--e-viol);color:var(--e-viol);border-style:dashed}
+.pill.b-literal{color:var(--ink-2)}
+.pill.b-interpolated{color:var(--warn);border-color:var(--warn)}
+.pill.b-unresolved{color:#fff;background:var(--e-unres);border-color:var(--e-unres);font-weight:700}
+.pill.c-unconsumed-artifact{background:var(--find);color:var(--find-text);border-color:var(--find-ink);font-weight:600}
+.pill.c-root{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.pill.c-orphaned-but-live{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.pill.c-unreachable{border-style:dashed;color:var(--ink-3)}
+.pill.c-named-but-unlinked{border-style:dotted;color:var(--ink-3)}
+.pill.c-dead{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.pill.flag{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.edgeRow{border-top:1px solid var(--line);padding:6px 0}
+.edgeRow .head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.edgeRow .ev{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin:3px 0 0 2px;white-space:pre-wrap;word-break:break-all}
+.edgeRow .ev .loc{color:var(--accent)}
+.edgeRow .meta{font-size:11px;color:var(--ink-3);margin-top:2px}
+a.goto{color:var(--accent);text-decoration:none;word-break:break-all;cursor:pointer}
+a.goto:hover{text-decoration:underline}
+.warnbox{background:var(--bad-soft);border:1px solid var(--bad);border-radius:6px;padding:6px 8px;margin:6px 0;color:var(--ink)}
+.findbox{background:var(--warn-soft);border:1px solid var(--find);border-radius:6px;padding:6px 8px;margin:6px 0}
+main#below{padding:18px 20px 60px;max-width:1500px}
+main h2{font-size:16px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+main h3{font-size:13px;margin:16px 0 6px;color:var(--ink-2)}
+main p{max-width:1000px}
+table{border-collapse:collapse;font-size:12px;width:100%;margin:6px 0 10px}
+th,td{border:1px solid var(--line);padding:3px 7px;vertical-align:top;text-align:left}
+th{background:var(--panel-2);font-weight:600;position:sticky;top:110px}
+td.mono,th.mono{font-family:var(--mono);font-size:11px;word-break:break-all}
+.tablewrap{overflow-x:auto;max-width:100%}
+.note{color:var(--ink-3);font-size:12px}
+ul.tight{margin:4px 0 8px;padding-left:20px}
+ul.tight li{margin:2px 0}
+/* ---- SVG ---- */
+#svg text{font-family:var(--mono);fill:var(--ink)}
+.colhead text{fill:var(--ink-2);font-weight:600}
+.colhead text.sub{fill:var(--ink-3);font-weight:400;font-size:10px}
+.colhead .guide{stroke:var(--line);stroke-width:1}
+.band1 rect.bg{fill:var(--band1)}
+.band1 line{stroke:var(--ink-3);stroke-width:1.5;stroke-dasharray:10 6}
+.band1 text{fill:var(--ink-2);font-weight:600;font-size:13px}
+.band1 text.sub{fill:var(--ink-3);font-weight:400;font-size:11px}
+.sccbox rect{fill:var(--scc-soft);stroke:var(--scc);stroke-width:2;stroke-dasharray:7 4}
+.sccbox text{fill:var(--scc);font-size:10.5px;font-weight:700}
+.node{cursor:pointer}
+.node rect.box{fill:var(--panel);stroke:var(--line-2);stroke-width:1}
+.node text{font-size:11px;pointer-events:none}
+.node text.tag{fill:var(--ink-3);font-size:9px;letter-spacing:.03em}
+.node.dense text{font-size:9px}
+.node.dense text.tag{font-size:7.5px}
+.node.r1 text{font-size:9.5px;fill:var(--ink-2)}
+.node.r1 text.tag{font-size:7.5px}
+.node.r1.k-doc text{font-size:8.5px;fill:var(--ink-3)}
+.node.c-root rect.box{fill:var(--accent);stroke:var(--accent);stroke-width:3}
+.node.c-root text{fill:var(--accent-ink);font-weight:700;font-size:12px}
+.node.c-root text.tag{fill:var(--accent-ink)}
+.node.c-unconsumed-artifact rect.box{fill:var(--find);stroke:var(--find-ink);stroke-width:2.2}
+.node.c-unconsumed-artifact text{fill:var(--find-text);font-weight:700}
+.node.c-unconsumed-artifact text.tag{fill:var(--find-ink)}
+.node.c-orphaned-but-live rect.box{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.2}
+.node.c-unreachable rect.box{fill:url(#hatchGray);stroke:var(--ink-3);stroke-dasharray:3 2}
+.node.c-dead rect.box{fill:url(#hatchRed);stroke:var(--bad);stroke-width:1.5}
+.node.c-named-but-unlinked rect.box{fill:var(--sunk);stroke:var(--line-2);stroke-dasharray:1.5 2.5}
+.node.c-named-but-unlinked text{fill:var(--ink-3)}
+.node.c-reachable rect.box{fill:var(--panel);stroke:var(--line-2)}
+.node rect.incRing{fill:none;stroke:var(--bad);stroke-width:1.2;stroke-dasharray:3 2}
+.node .badge circle{fill:var(--bad);stroke:var(--panel);stroke-width:1}
+.node .badge text{fill:#fff;font-size:9px;font-weight:700;text-anchor:middle}
+.node:hover rect.box{stroke:var(--accent);stroke-width:2.2}
+.node.match rect.box{stroke:var(--accent);stroke-width:2.5}
+.node.selected rect.box{stroke:var(--ink);stroke-width:3}
+.edge path.main{fill:none;stroke-width:1.3;stroke-opacity:.55}
+.edge.t-imports path.main{stroke:var(--e-imports)}
+.edge.t-invokes path.main{stroke:var(--e-invokes);stroke-width:1.7}
+.edge.t-writes path.main{stroke:var(--e-writes);stroke-width:1.6}
+.edge.t-reads path.main{stroke:var(--e-reads);stroke-width:1.6}
+.edge.alt path.main{stroke-opacity:.35;stroke-width:1.1}
+.edge.test path.main{stroke-opacity:.3;stroke-width:1}
+.edge.long path.main{stroke-opacity:.22}
+.edge.inv path.main{stroke:var(--e-inv) !important;stroke-width:2.5}
+.edge path.halo{fill:none;stroke:var(--e-unres);stroke-width:7;stroke-opacity:.28}
+.edge text.q{fill:var(--e-unres);font-size:14px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:3px}
+.viol path{fill:none;stroke:var(--e-viol);stroke-width:1.8;stroke-dasharray:9 5;stroke-opacity:.9;cursor:pointer}
+.viol text{fill:var(--e-viol);font-size:10px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:3px}
+.mk-imports{fill:var(--e-imports)} .mk-invokes{fill:var(--e-invokes)} .mk-writes{fill:var(--e-writes)} .mk-reads{fill:var(--e-reads)}
+.mk-viol{fill:none;stroke:var(--e-viol);stroke-width:1.5} .mk-inv{fill:var(--e-inv)}
+#hatchGray line{stroke:var(--ink-3);stroke-width:1} #hatchRed line{stroke:var(--bad);stroke-width:1}
+/* selection dimming */
+#svg.sel .edge:not(.hi){opacity:.05}
+#svg.sel .viol:not(.hi){opacity:.12}
+#svg.sel .node:not(.hi):not(.selected){opacity:.22}
+#svg.sel .edge.hi path.main{stroke-opacity:1;stroke-width:2.6}
+#svg.sel .edge.hi.t-invokes path.main{stroke-width:3}
+/* edge-type filter */
+#svg[data-f="imports"] .edge:not(.t-imports),#svg[data-f="invokes"] .edge:not(.t-invokes),
+#svg[data-f="writes"] .edge:not(.t-writes),#svg[data-f="reads"] .edge:not(.t-reads),
+#svg[data-f="violations"] .edge{display:none}
+#svg[data-f="imports"] .viol,#svg[data-f="invokes"] .viol,#svg[data-f="writes"] .viol,#svg[data-f="reads"] .viol{display:none}
+#svg[data-f="unresolved"] .edge:not(.b-unresolved){display:none}
+#svg[data-f="unresolved"] .viol{display:none}
+/* toggles */
+#svg.hide-r1 .node.r1,#svg.hide-r1 .edge.r1,#svg.hide-r1 .band1{display:none}
+#svg.hide-doc .node.k-doc,#svg.hide-doc .edge.doc{display:none}
+#svg.hide-test .edge.test{display:none}
+@media (max-width:1000px){#stage{grid-template-columns:1fr}#panel{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dependency graph <span class="sub">file-level, read-only; left to right by layer; artifacts are nodes</span></h1>
+  <div id="chips"></div>
+  <div class="controls">
+    <fieldset id="edgeFilter"><legend>edges</legend>
+      <label class="opt"><input type="radio" name="ef" value="all" checked> all</label>
+      <label class="opt"><input type="radio" name="ef" value="imports"> <span class="sw" style="border-color:var(--e-imports)"></span> imports</label>
+      <label class="opt"><input type="radio" name="ef" value="invokes"> <span class="sw" style="border-color:var(--e-invokes)"></span> invokes</label>
+      <label class="opt"><input type="radio" name="ef" value="writes"> <span class="sw" style="border-color:var(--e-writes)"></span> writes</label>
+      <label class="opt"><input type="radio" name="ef" value="reads"> <span class="sw" style="border-color:var(--e-reads)"></span> reads</label>
+      <label class="opt"><input type="radio" name="ef" value="violations"> <span class="sw viol" style="border-color:var(--e-viol)"></span> violations only</label>
+      <label class="opt"><input type="radio" name="ef" value="unresolved"> <span class="sw" style="border-color:var(--e-unres)"></span> unresolved only</label>
+    </fieldset>
+    <fieldset id="toggles"><legend>show</legend>
+      <label class="opt"><input type="checkbox" id="tgR1" checked> rank-1 band (secondary roots)</label>
+      <label class="opt"><input type="checkbox" id="tgDoc" checked> doc nodes</label>
+      <label class="opt"><input type="checkbox" id="tgTest" checked> test-role edges</label>
+    </fieldset>
+    <div class="search"><input type="search" id="search" placeholder="find node by path (Enter: next match)"><span id="searchInfo"></span></div>
+    <div class="zoom">
+      <button id="btnSpine" title="fit the rank-0 band (the two roots and everything they reach)">Fit spine</button>
+      <button id="btnAll" title="fit the whole canvas">Fit all</button>
+      <button id="btnMinus">-</button><button id="btnPlus">+</button>
+      <button id="btnClear" title="clear selection">Clear</button>
+    </div>
+  </div>
+</header>
+
+<div id="stage">
+  <div id="canvasWrap">
+    <svg id="svg" data-f="all" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="hatchGray" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6"/></pattern>
+        <pattern id="hatchRed" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6"/></pattern>
+        <marker id="m-imports" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-imports" d="M0,1 L9,5 L0,9 z"/></marker>
+        <marker id="m-invokes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-invokes" d="M0,1 L9,5 L0,9 z"/></marker>
+        <marker id="m-writes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-writes" d="M0,1 L9,5 L0,9 z"/></marker>
+        <marker id="m-reads" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-reads" d="M0,1 L9,5 L0,9 z"/></marker>
+        <marker id="m-viol" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path class="mk-viol" d="M0.5,1 L9,5 L0.5,9 z"/></marker>
+        <marker id="m-inv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path class="mk-inv" d="M0,1 L9,5 L0,9 z"/></marker>
+      </defs>
+      <g id="view">
+        <g id="gBands"></g>
+        <g id="gCols"></g>
+        <g id="gScc"></g>
+        <g id="gEdges"></g>
+        <g id="gViol"></g>
+        <g id="gNodes"></g>
+      </g>
+    </svg>
+    <div id="legendFloat">
+      <h4>legend <button id="legendToggle" type="button">hide</button></h4>
+      <div class="body">
+      <h4>node class</h4>
+      <div class="row"><span class="swatch root"></span> root (the two declared roots, layer 0)</div>
+      <div class="row"><span class="swatch find"></span> <b>unconsumed-artifact</b>: written, never read (a finding)</div>
+      <div class="row"><span class="swatch live"></span> orphaned-but-live: in-degree 0, has an entry marker</div>
+      <div class="row"><span class="swatch unreach"></span> unreachable: in-degree 0, no marker, never named</div>
+      <div class="row"><span class="swatch dead"></span> dead: never asserted while unresolved edges exist</div>
+      <div class="row"><span class="swatch reach"></span> reachable (in-degree &gt; 0)</div>
+      <div class="row"><span class="swatch named"></span> named-but-unlinked: in-degree 0, named as text elsewhere</div>
+      <h4 style="margin-top:6px">edges</h4>
+      <div class="row"><span class="sw" style="border-color:var(--e-imports)"></span> imports <span class="sw" style="border-color:var(--e-invokes)"></span> invokes <span class="sw" style="border-color:var(--e-writes)"></span> writes <span class="sw" style="border-color:var(--e-reads)"></span> reads</div>
+      <div class="row"><span class="sw viol" style="border-color:var(--e-viol)"></span> expected edge that does NOT exist (violation)</div>
+      <div class="row"><span class="sw" style="border-color:var(--e-unres);border-top-width:6px;opacity:.5"></span> binding=unresolved (red halo and ?)</div>
+      <h4 style="margin-top:6px">flags and groups</h4>
+      <div class="row"><span class="badgeDemo">?</span> edges-incomplete node: no edge reads as UNKNOWN</div>
+      <div class="row"><span class="swatch scc"></span> SCC (cycle), one banded group</div>
+      <div class="row"><span class="swatch band"></span> rank-1 band: secondary roots, below the divider</div>
+      <div class="row"><span class="mono">ent mod scr cfg tpl gen art doc</span> = kind tag inside a node</div>
+      </div>
+    </div>
+  </div>
+  <aside id="panel"><div id="panelBody"></div></aside>
+</div>
+
+<main id="below"></main>
+
+<script>
+/*@@GENERATED_DATA@@*/
+(function(){
+"use strict";
+const G = DATA.graph, LY = DATA.layout, GEO = LY.geometry, R = DATA.render;
+const N = new Map(G.nodes.map(n => [n.path, n]));
+const P = LY.nodes;
+const E = G.edges;
+const outE = new Map(), inE = new Map();
+E.forEach((e, i) => { e._i = i; if (!outE.has(e.src)) outE.set(e.src, []); outE.get(e.src).push(e); if (!inE.has(e.dst)) inE.set(e.dst, []); inE.get(e.dst).push(e); });
+const sccOf = new Map(); (G.cycles || []).forEach(c => c.members.forEach(m => sccOf.set(m, c.scc_id)));
+const violByNode = new Map(); G.violations.forEach((v, i) => { v._i = i; if (v.node) { if (!violByNode.has(v.node)) violByNode.set(v.node, []); violByNode.get(v.node).push(v); } });
+const AUTH = G.meta.authority;
+const KTAG = {entry: "ent", module: "mod", script: "scr", config: "cfg", template: "tpl", generated: "gen", artifact: "art", doc: "doc"};
+const svgNS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs, parent) { const e = document.createElementNS(svgNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function short(p) { return p.replace(/^VM_sampler\/VM_Capture_QEMU\//, "").replace(/^VM_sampler\/VM_Capture\//, "VM_Capture/"); }
+const AMBIG = new Set(["main.rs", "mod.rs", "lib.rs", "__init__.py", "README.md", "Cargo.toml", "requirements.txt", ".gitignore", "Makefile"]);
+function label(p) {
+  if (p.startsWith("artifact:")) return p.slice(9);
+  const parts = p.split("/"); const b = parts[parts.length - 1];
+  if (AMBIG.has(b) && parts.length > 1) return parts[parts.length - 2] + "/" + b;
+  return b;
+}
+function trunc(s, n) { if (s.length <= n) return s; const k = Math.max(4, Math.floor((n - 3) / 2)); return s.slice(0, n - 3 - k) + "..." + s.slice(s.length - k); }
+
+// ------------------------------------------------------------------ header chips
+(function chips() {
+  const S = G.summary, A = G.acceptance;
+  const c = document.getElementById("chips");
+  const items = [
+    `<span class="chip"><b>${S.nodes}</b> nodes</span>`,
+    `<span class="chip"><b>${S.edges}</b> edges: ${Object.entries(S.edges_by_type).map(([k, v]) => k + " " + v).join(", ")}</span>`,
+    `<span class="chip ${A.A.pass ? "pass" : "fail"}">acceptance A ${A.A.pass ? "PASS" : "FAIL"}: hc_field.csv.zst unconsumed</span>`,
+    `<span class="chip ${A.B.pass ? "pass" : "fail"}">acceptance B ${A.B.pass ? "PASS" : "FAIL"}: b1_features.py never reads the manifest</span>`,
+    `<span class="chip find"><b>${S.by_class["unconsumed-artifact"] || 0}</b> unconsumed artifacts</span>`,
+    `<span class="chip bad"><b>${S.unresolved_edges}</b> unresolved edges, <b>${S.nodes_edges_incomplete}</b> edges-incomplete nodes, dead asserted: 0</span>`,
+    `<span class="chip"><b>${(G.roots.secondary || []).length}</b> secondary roots (claims of orphanhood)</span>`,
+    `<span class="chip"><b>${(G.cycles || []).length}</b> cycle${(G.cycles || []).length === 1 ? "" : "s"}</span>`,
+    `<span class="chip">${LY.inversions.length === 0 ? "every edge points left to right outside SCCs" : LY.inversions.length + " edge inversions (red)"}</span>`,
+  ];
+  c.innerHTML = items.join("");
+})();
+
+// ------------------------------------------------------------------ SVG build
+const svg = document.getElementById("svg"), view = document.getElementById("view");
+const gBands = document.getElementById("gBands"), gCols = document.getElementById("gCols"), gScc = document.getElementById("gScc"),
+      gEdges = document.getElementById("gEdges"), gViol = document.getElementById("gViol"), gNodes = document.getElementById("gNodes");
+
+// rank-1 band
+(function bands() {
+  const g = el("g", {class: "band1"}, gBands);
+  el("rect", {class: "bg", x: 0, y: GEO.divider_y, width: GEO.total_w + 200, height: GEO.total_h - GEO.divider_y}, g);
+  el("line", {x1: 0, y1: GEO.divider_y, x2: GEO.total_w + 200, y2: GEO.divider_y}, g);
+  const t = el("text", {x: GEO.x0, y: GEO.divider_y + 28}, g);
+  t.textContent = "RANK 1: secondary roots (in-degree 0, not reachable from either true root) and the subtrees only they dominate";
+  const t2 = el("text", {class: "sub", x: GEO.x0, y: GEO.divider_y + 48}, g);
+  t2.textContent = "A secondary root is a CLAIM OF ORPHANHOOD to be adjudicated, never a promotion. Ordered by dominated-subtree size in the table below the graph. Isolated files and docs sit at the bottom of each column.";
+  const t3 = el("text", {class: "sub", x: GEO.x0, y: GEO.divider_y + 64}, g);
+  t3.textContent = "Above the divider: rank 0, everything reachable from console.sh or analysis.sh.";
+})();
+
+// column headers
+LY.columns.forEach(c => {
+  const g = el("g", {class: "colhead"}, gCols);
+  el("line", {class: "guide", x1: c.x - 14, y1: 20, x2: c.x - 14, y2: GEO.total_h}, g);
+  const t = el("text", {x: c.x, y: 40, "font-size": "16"}, g); t.textContent = "L" + c.layer + (c.layer === 0 ? "  true roots" : "");
+  const s = el("text", {class: "sub", x: c.x, y: 58}, g); s.textContent = `${c.n0} rank-0 node${c.n0 === 1 ? "" : "s"}${c.n1 ? ", " + c.n1 + " rank-1 below" : ""}${c.dense ? " (dense column)" : ""}`;
+  const s2 = el("text", {class: "sub", x: c.x, y: 72}, g); s2.textContent = c.layer === 0 ? "layer = longest path from a root" : "";
+});
+
+// SCC boxes
+LY.scc_boxes.forEach(b => {
+  const g = el("g", {class: "sccbox"}, gScc);
+  el("rect", {x: b.x, y: b.y, width: b.w, height: b.h, rx: 6}, g);
+  const t = el("text", {x: b.x + 6, y: b.y + 12}, g); t.textContent = `cycle: SCC ${b.scc_id} (${b.members.length} members, banded; edges inside may point either way)`;
+});
+
+// edges
+function edgePath(a, b) {
+  const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x, y2 = b.y + b.h / 2;
+  if (a.layer === b.layer) { // inside an SCC: arc on the right side
+    const bulge = 46 + Math.abs(y2 - y1) * 0.15;
+    return {d: `M${x1},${y1} C${x1 + bulge},${y1} ${x1 + bulge},${y2} ${x1},${y2}`, mx: x1 + bulge * 0.75, my: (y1 + y2) / 2};
+  }
+  const dx = Math.max(40, (x2 - x1) * 0.5);
+  return {d: `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`, mx: (x1 + x2) / 2, my: (y1 + y2) / 2};
+}
+E.forEach(e => {
+  const a = P[e.src], b = P[e.dst]; if (!a || !b) return;
+  const na = N.get(e.src), nb = N.get(e.dst);
+  const inv = b.layer <= a.layer && !(sccOf.has(e.src) && sccOf.get(e.src) === sccOf.get(e.dst));
+  const cls = ["edge", "t-" + e.type, "b-" + e.binding];
+  if (e.alternative) cls.push("alt"); if (e.role === "test") cls.push("test"); if (inv) cls.push("inv");
+  if (na.rank === 1 || nb.rank === 1) cls.push("r1"); if (na.kind === "doc" || nb.kind === "doc") cls.push("doc");
+  if (b.layer - a.layer >= 4) cls.push("long");
+  const g = el("g", {class: cls.join(" "), "data-i": e._i}, gEdges);
+  const geo = edgePath(a, b);
+  if (e.binding === "unresolved") el("path", {class: "halo", d: geo.d}, g);
+  el("path", {class: "main", d: geo.d, "marker-end": inv ? "url(#m-inv)" : `url(#m-${e.type})`}, g);
+  if (e.binding === "unresolved") { const q = el("text", {class: "q", x: geo.mx, y: geo.my + 5}, g); q.textContent = "?"; }
+  g.addEventListener("click", ev => { ev.stopPropagation(); selectEdge(e); });
+});
+
+// violations (dashed edges that SHOULD exist)
+G.violations.forEach(v => {
+  if (!v.expected_edge) return;
+  const a = P[v.expected_edge.src], b = P[v.expected_edge.dst]; if (!a || !b) return;
+  const g = el("g", {class: "viol", "data-v": v._i}, gViol);
+  const geo = edgePath(a, b);
+  el("path", {d: geo.d, "marker-end": "url(#m-viol)"}, g);
+  const t = el("text", {x: geo.mx, y: geo.my - 4}, g); t.textContent = "expected " + v.expected_edge.type + ", missing";
+  g.addEventListener("click", ev => { ev.stopPropagation(); selectViolation(v); });
+});
+
+// nodes
+G.nodes.forEach(n => {
+  const p = P[n.path]; if (!p) return;
+  const cls = ["node", "k-" + n.kind, "c-" + n.class, "r" + n.rank];
+  if (p.dense) cls.push("dense"); if (n.edges_incomplete) cls.push("inc"); if (n.cycle) cls.push("cycle");
+  const g = el("g", {class: cls.join(" "), "data-p": n.path, transform: `translate(${p.x},${p.y})`}, gNodes);
+  const dataKind = n.kind === "artifact" || n.kind === "generated" || n.kind === "config" || n.kind === "template";
+  el("rect", {class: "box", width: p.w, height: p.h, rx: dataKind ? Math.min(9, p.h / 2) : 3}, g);
+  if (n.edges_incomplete) el("rect", {class: "incRing", x: -3, y: -3, width: p.w + 6, height: p.h + 6, rx: 5}, g);
+  const fs = n.class === "root" ? 12 : (p.dense ? 9 : (n.rank === 1 ? (n.kind === "doc" ? 8.5 : 9.5) : 11));
+  const tagW = fs >= 11 ? 30 : 24;
+  const tag = el("text", {class: "tag", x: 6, y: p.h / 2 + (fs >= 11 ? 3 : 2.5)}, g); tag.textContent = KTAG[n.kind] || n.kind.slice(0, 3);
+  const maxChars = Math.floor((p.w - tagW - 10) / (fs * 0.62));
+  const t = el("text", {class: "label", x: tagW + 4, y: p.h / 2 + (fs >= 11 ? 4 : 3)}, g); t.textContent = trunc(label(n.path), maxChars);
+  if (n.edges_incomplete) { const bg = el("g", {class: "badge", transform: `translate(${p.w - 2},2)`}, g); el("circle", {r: 6.5}, bg); const q = el("text", {y: 3.2}, bg); q.textContent = "?"; }
+  const title = el("title", {}, g);
+  title.textContent = `${n.path}\n${n.kind} | ${n.class} | layer ${n.layer} rank ${n.rank} | in ${n.in_degree} (writes ${n.write_in_degree}, reads ${n.read_in_degree})` + (n.edges_incomplete ? "\nEDGES INCOMPLETE: no edge reads as unknown" : "") + (n.desc ? "\n" + n.desc : "");
+  g.addEventListener("click", ev => { ev.stopPropagation(); selectNode(n.path); });
+});
+
+// ------------------------------------------------------------------ pan / zoom
+let tx = 0, ty = 0, k = 1;
+function apply() { view.setAttribute("transform", `translate(${tx},${ty}) scale(${k})`); }
+function size() { const r = svg.getBoundingClientRect(); return {w: r.width, h: r.height}; }
+function fitBox(x0, y0, x1, y1, pad) {
+  const s = size(); pad = pad || 20;
+  const kk = Math.min((s.w - 2 * pad) / (x1 - x0), (s.h - 2 * pad) / (y1 - y0));
+  k = Math.max(0.03, Math.min(4, kk));
+  tx = (s.w - (x1 - x0) * k) / 2 - x0 * k; ty = pad - y0 * k; apply();
+}
+function fitAll() { fitBox(0, 0, GEO.total_w + 40, GEO.total_h, 20); }
+function fitSpine() { fitBox(0, 0, GEO.total_w + 40, GEO.divider_y + 80, 16); }
+function zoomAt(f, cx, cy) { const k2 = Math.max(0.03, Math.min(6, k * f)); tx = cx - (cx - tx) * (k2 / k); ty = cy - (cy - ty) * (k2 / k); k = k2; apply(); }
+svg.addEventListener("wheel", ev => { ev.preventDefault(); const r = svg.getBoundingClientRect(); zoomAt(Math.exp(-ev.deltaY * 0.0014), ev.clientX - r.left, ev.clientY - r.top); }, {passive: false});
+let drag = null;
+svg.addEventListener("mousedown", ev => { if (ev.button !== 0) return; drag = {x: ev.clientX, y: ev.clientY, tx, ty, moved: false}; svg.classList.add("dragging"); });
+window.addEventListener("mousemove", ev => { if (!drag) return; const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true; tx = drag.tx + dx; ty = drag.ty + dy; apply(); });
+window.addEventListener("mouseup", () => { if (drag && !drag.moved) {/* click on background handled below */} drag = null; svg.classList.remove("dragging"); });
+svg.addEventListener("click", ev => { if (ev.target === svg || ev.target.closest("#gBands") || ev.target.closest("#gCols")) clearSelection(); });
+document.getElementById("btnAll").onclick = fitAll;
+document.getElementById("btnSpine").onclick = fitSpine;
+document.getElementById("btnPlus").onclick = () => { const s = size(); zoomAt(1.3, s.w / 2, s.h / 2); };
+document.getElementById("btnMinus").onclick = () => { const s = size(); zoomAt(1 / 1.3, s.w / 2, s.h / 2); };
+document.getElementById("btnClear").onclick = clearSelection;
+function centerOn(path, minK) {
+  const p = P[path]; if (!p) return; const s = size();
+  if (k < (minK || 0.9)) k = minK || 0.9;
+  tx = s.w / 2 - (p.x + p.w / 2) * k; ty = s.h / 2 - (p.y + p.h / 2) * k; apply();
+}
+
+// ------------------------------------------------------------------ filters / toggles
+document.querySelectorAll('input[name="ef"]').forEach(r => r.addEventListener("change", () => { svg.dataset.f = r.value; }));
+document.getElementById("tgR1").addEventListener("change", ev => svg.classList.toggle("hide-r1", !ev.target.checked));
+document.getElementById("tgDoc").addEventListener("change", ev => svg.classList.toggle("hide-doc", !ev.target.checked));
+document.getElementById("tgTest").addEventListener("change", ev => svg.classList.toggle("hide-test", !ev.target.checked));
+
+// ------------------------------------------------------------------ search
+const searchBox = document.getElementById("search"), searchInfo = document.getElementById("searchInfo");
+let matches = [], matchIdx = -1;
+function runSearch() {
+  const q = searchBox.value.trim().toLowerCase();
+  document.querySelectorAll(".node.match").forEach(n => n.classList.remove("match"));
+  matches = []; matchIdx = -1;
+  if (!q) { searchInfo.textContent = ""; return; }
+  G.nodes.forEach(n => { if (n.path.toLowerCase().includes(q)) matches.push(n.path); });
+  matches.forEach(p => { const g = gNodes.querySelector(`[data-p="${cssEsc(p)}"]`); if (g) g.classList.add("match"); });
+  searchInfo.textContent = matches.length ? `${matches.length} match${matches.length === 1 ? "" : "es"}; Enter cycles` : "no match";
+}
+function cssEsc(s) { return s.replace(/["\\]/g, "\\$&"); }
+searchBox.addEventListener("input", runSearch);
+searchBox.addEventListener("keydown", ev => { if (ev.key === "Enter" && matches.length) { matchIdx = (matchIdx + 1) % matches.length; selectNode(matches[matchIdx]); centerOn(matches[matchIdx], 1.1); searchInfo.textContent = `${matchIdx + 1}/${matches.length}`; } });
+
+// ------------------------------------------------------------------ selection + panel
+const panel = document.getElementById("panelBody");
+function clearSelection() {
+  svg.classList.remove("sel");
+  document.querySelectorAll(".hi,.selected").forEach(x => { x.classList.remove("hi"); x.classList.remove("selected"); });
+  panel.innerHTML = defaultPanel();
+}
+function highlightNeighborhood(path) {
+  svg.classList.add("sel");
+  document.querySelectorAll(".hi,.selected").forEach(x => { x.classList.remove("hi"); x.classList.remove("selected"); });
+  const me = gNodes.querySelector(`[data-p="${cssEsc(path)}"]`); if (me) { me.classList.add("selected"); me.classList.add("hi"); }
+  const touch = new Set([path]);
+  (outE.get(path) || []).forEach(e => { touch.add(e.dst); const g = gEdges.querySelector(`[data-i="${e._i}"]`); if (g) g.classList.add("hi"); });
+  (inE.get(path) || []).forEach(e => { touch.add(e.src); const g = gEdges.querySelector(`[data-i="${e._i}"]`); if (g) g.classList.add("hi"); });
+  G.violations.forEach(v => { if (v.expected_edge && (v.expected_edge.src === path || v.expected_edge.dst === path)) { touch.add(v.expected_edge.src); touch.add(v.expected_edge.dst); const g = gViol.querySelector(`[data-v="${v._i}"]`); if (g) g.classList.add("hi"); } });
+  touch.forEach(p => { const g = gNodes.querySelector(`[data-p="${cssEsc(p)}"]`); if (g) g.classList.add("hi"); });
+}
+function goto(p) { return `<a class="goto" data-goto="${esc(p)}">${esc(short(p))}</a>`; }
+function pill(cls, txt) { return `<span class="pill ${cls}">${esc(txt)}</span>`; }
+function evLine(ev) { return `<div class="ev"><span class="loc">${esc(short(ev.file))}:${ev.line}</span>  ${esc(ev.text)}</div>`; }
+function edgeRow(e, dir) {
+  const other = dir === "out" ? e.dst : e.src;
+  const extras = [];
+  if (e.via) extras.push("via: " + esc(e.via)); if (e.note) extras.push("note: " + esc(e.note));
+  if (e.alternative) extras.push("alternative (runtime-selected; not both required)"); if (e.class_valued) extras.push("class-valued (glob or name-pattern; instance decided at runtime)");
+  if (e.remote) extras.push("remote: " + esc(e.remote)); if (e.role) extras.push("role: " + esc(e.role)); if (e.binary) extras.push("binary: " + esc(e.binary));
+  return `<div class="edgeRow"><div class="head">${pill("t-" + e.type, e.type)} ${pill("b-" + e.binding, e.binding)} <span>${dir === "out" ? "to" : "from"}</span> ${goto(other)}</div>` +
+    evLine(e.evidence) + (e.also_evidence || []).map(evLine).join("") + (extras.length ? `<div class="meta">${extras.join(" | ")}</div>` : "") + `</div>`;
+}
+function selectNode(path) {
+  const n = N.get(path); if (!n) return;
+  highlightNeighborhood(path);
+  const p = P[path];
+  let h = `<h2>${esc(path)}</h2>`;
+  h += `<div>${pill("c-" + n.class, n.class)} ${pill("", n.kind)} ${n.edges_incomplete ? pill("flag", "edges incomplete") : ""} ${n.cycle ? pill("", "cycle scc " + n.scc_id) : ""} ${n.entry_marker ? pill("", "entry: " + n.entry_marker) : ""}</div>`;
+  h += `<div class="kv" style="margin-top:8px"><div>layer</div><div>${n.layer} (rank ${n.rank}${n.rank === 1 ? ", below the divider" : ""})</div>` +
+       `<div>in-degree</div><div>${n.in_degree} total; writes ${n.write_in_degree}; reads ${n.read_in_degree} (${n.read_in_degree_nontest} outside tests)</div>` +
+       `<div>out-degree</div><div>${(outE.get(path) || []).length}</div>` +
+       (n.instances ? `<div>instances</div><div>${n.instances} files collapsed into this class node</div>` : "") +
+       (n.desc ? `<div>what</div><div>${esc(n.desc)}</div>` : "") + (n.named_in ? `<div>named in</div><div>${goto(n.named_in)}</div>` : "") +
+       (n.binary_instance_excluded ? `<div>note</div><div>binary instance excluded from scanning; node kept as the declared output</div>` : "") + `</div>`;
+  if (n.class === "unconsumed-artifact") h += `<div class="findbox"><b>Finding, not a warning:</b> this artifact is written (${n.write_in_degree} writer${n.write_in_degree === 1 ? "" : "s"}) and read by nothing outside tests. Unconsumed is not dead: the writer is live.</div>`;
+  if (n.edges_incomplete) h += `<div class="warnbox"><b>Edges incomplete.</b> For this node, "no edge to B" reads as UNKNOWN, never as NO.<ul class="tight">${(n.incomplete_reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>`;
+  if (n.class === "unreachable") h += `<div class="warnbox">Unreachable, not dead: ${G.summary.unresolved_edges} unresolved edges remain in the graph, so no node is asserted dead.</div>`;
+  const vs = violByNode.get(path) || [];
+  const asAuth = path === AUTH ? G.violations.filter(v => v.expected_edge) : [];
+  if (vs.length || asAuth.length) {
+    h += `<h3>expected-edge violations</h3>`;
+    vs.forEach(v => { h += v.expected_edge ? `<div class="edgeRow"><div class="head">${pill("t-viol", "missing " + v.expected_edge.type)} to ${goto(v.expected_edge.dst)}</div><div class="meta">emits ${esc((v.facts_emitted || []).join(", "))}; ${esc(v.observed)}</div><div class="meta">derives from: ${esc(v.derives_from)}</div>${v.fact_literal_lines && v.fact_literal_lines.length ? `<div class="meta">fact literals at lines ${v.fact_literal_lines.join(", ")}</div>` : ""}</div>` : `<div class="edgeRow"><div class="meta">${esc(v.observed)}</div><div class="meta">${esc(v.expected || "")} ${esc(v.note || "")}</div></div>`; });
+    asAuth.forEach(v => { h += `<div class="edgeRow"><div class="head">${pill("t-viol", "missing " + v.expected_edge.type)} from ${goto(v.node)}</div><div class="meta">${esc(v.derives_from)}</div></div>`; });
+  }
+  const outs = (outE.get(path) || []).slice().sort((a, b) => a.type.localeCompare(b.type) || a.dst.localeCompare(b.dst));
+  const ins = (inE.get(path) || []).slice().sort((a, b) => a.type.localeCompare(b.type) || a.src.localeCompare(b.src));
+  h += `<h3>outgoing edges (${outs.length}): this node relies on</h3>` + (outs.length ? outs.map(e => edgeRow(e, "out")).join("") : `<div class="note">none</div>`);
+  h += `<h3>incoming edges (${ins.length}): relied on by</h3>` + (ins.length ? ins.map(e => edgeRow(e, "in")).join("") : `<div class="note">none (in-degree 0)</div>`);
+  panel.innerHTML = h; panel.scrollTop = 0;
+}
+function selectEdge(e) {
+  highlightNeighborhood(e.src);
+  const g = gEdges.querySelector(`[data-i="${e._i}"]`);
+  document.querySelectorAll(".edge.hi").forEach(x => { if (x !== g) x.classList.remove("hi"); });
+  document.querySelectorAll(".node.hi").forEach(x => { const p = x.getAttribute("data-p"); if (p !== e.src && p !== e.dst) x.classList.remove("hi"); });
+  panel.innerHTML = `<h2>edge</h2><div>${goto(e.src)} <b>${esc(e.type)}</b> ${goto(e.dst)}</div>` + edgeRow(e, "out") + `<div class="note" style="margin-top:8px">Click either endpoint to see all of its edges.</div>`;
+}
+function selectViolation(v) {
+  highlightNeighborhood(v.expected_edge.src);
+  panel.innerHTML = `<h2>expected edge, missing</h2><div class="findbox">${goto(v.expected_edge.src)} should <b>${esc(v.expected_edge.type)}</b> ${goto(v.expected_edge.dst)} but no such edge exists.</div>` +
+    `<div class="kv"><div>emits</div><div>${esc((v.facts_emitted || []).join(", "))}</div><div>observed</div><div>${esc(v.observed)}</div><div>derives from</div><div>${esc(v.derives_from)}</div>` +
+    (v.fact_literal_lines && v.fact_literal_lines.length ? `<div>fact literals</div><div>lines ${v.fact_literal_lines.join(", ")} of ${esc(short(v.node))}</div>` : "") + `</div>`;
+}
+panel.addEventListener("click", ev => { const a = ev.target.closest("[data-goto]"); if (a) { ev.preventDefault(); const p = a.getAttribute("data-goto"); selectNode(p); centerOn(p, 1.0); } });
+document.getElementById("below").addEventListener("click", ev => { const a = ev.target.closest("[data-goto]"); if (a) { ev.preventDefault(); const p = a.getAttribute("data-goto"); selectNode(p); centerOn(p, 1.0); window.scrollTo({top: 0}); } });
+function defaultPanel() {
+  const A = G.acceptance;
+  return `<h2>Click a node</h2><p class="note">A node's panel lists every edge with its evidence citation (file:line and the matched text), the binding, and any via/note the extractor recorded. Click an edge or a dashed violation directly on the canvas to inspect it.</p>` +
+    `<h3>reading the layout</h3><ul class="tight"><li>x = layer (longest path from the dominating root). The two true roots are alone at L0.</li><li>Rank-0 nodes are above the divider; rank-1 (secondary roots and what only they dominate) below it.</li><li>Amber nodes are unconsumed artifacts: written, never read. A finding.</li><li>Dashed magenta edges are expected edges that do not exist (violations of the manifest-authority rule).</li><li>A red ring and ? badge mark a node whose edges are incomplete: absence of an edge there is unknown, not no.</li></ul>` +
+    `<h3>acceptance</h3><div>A: ${A.A.pass ? "PASS" : "FAIL"}. ${goto("VM_sampler/VM_Capture_QEMU/plan08_b1/b1_extract_hamming.py")} writes ${goto("artifact:hc_field.csv.zst")}; read in-degree ${A.A.hc_field_read_in_degree_all}; class ${esc(A.A.hc_field_class)}.</div>` +
+    `<div style="margin-top:4px">B: ${A.B.pass ? "PASS" : "FAIL"}. ${goto("VM_sampler/VM_Capture_QEMU/plan08_b1/b1_features.py")} emits workload, family, rep and has no reads edge to ${goto(AUTH)}.</div>` +
+    `<h3>start here</h3><div>${goto(G.roots.true[0])}</div><div>${goto(G.roots.true[1])}</div><div>${goto(AUTH)}</div><div>${goto("artifact:hc_field.csv.zst")}</div>`;
+}
+
+// ------------------------------------------------------------------ below-the-graph sections (printed, not tooltips)
+(function below() {
+  const B = G.blind_spots, S = G.summary, A = G.acceptance, M = G.meta;
+  const out = [];
+  const table = (cols, rows, mono) => `<div class="tablewrap"><table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${(mono && mono[i]) ? "mono" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  out.push(`<h2>What this page is</h2><p>A read-only, file-level dependency graph of the repository. Every edge cites file:line plus the matched text, and carries a binding: <code>literal</code>, <code>interpolated</code> (env default, constant folding, glob, f-string) or <code>unresolved</code>. Artifacts are nodes, so an unconsumed path is visible where the coupling lives instead of being collapsed into a script-to-script arrow. Generated ${esc(R.generated_at)} from <code>${esc(R.source_json)}</code> (${R.source_bytes} bytes) by <code>${esc(R.renderer)}</code>; the JSON itself was produced by <code>${esc(M.generated_by)}</code>.</p>`);
+  out.push(`<h2>Acceptance</h2><ul class="tight"><li><b>A ${A.A.pass ? "PASS" : "FAIL"}</b>: ${goto("VM_sampler/VM_Capture_QEMU/plan08_b1/b1_extract_hamming.py")} writes ${goto("artifact:hc_field.csv.zst")} (evidence ${esc(short(A.A.writes_edge[0].evidence.file))}:${A.A.writes_edge[0].evidence.line}); read in-degree ${A.A.hc_field_read_in_degree_all} with tests, ${A.A.hc_field_read_in_degree_nontest} without; class ${esc(A.A.hc_field_class)}.</li><li><b>B ${A.B.pass ? "PASS" : "FAIL"}</b>: ${goto("VM_sampler/VM_Capture_QEMU/plan08_b1/b1_features.py")} emits ${esc(((A.B.violation[0] || {}).facts_emitted || []).join(", "))} and has no reads edge to ${goto(AUTH)}; it is listed in the violations below.</li><li>Extractor import-only: ${A.extractor_is_import_only ? "YES (run void)" : "no"}.</li></ul>`);
+  out.push(`<h2>Counts</h2>` + table(["dimension", "values"], [
+    ["nodes by class", esc(JSON.stringify(S.by_class))], ["nodes by kind", esc(JSON.stringify(S.by_kind))],
+    ["edges by type", esc(JSON.stringify(S.edges_by_type))], ["edges by binding", esc(JSON.stringify(S.edges_by_binding))],
+    ["cycles", String(S.cycles)], ["nodes with incomplete edges", String(S.nodes_edges_incomplete)], ["unresolved edges", String(S.unresolved_edges) + " (so no node is asserted dead)"],
+    ["layout", `${LY.counts.rank0} rank-0 nodes above the divider, ${LY.counts.rank1} rank-1 below; ${LY.counts.isolated} nodes have no edges at all; canvas ${GEO.total_w} x ${Math.round(GEO.total_h)} px`],
+  ]));
+  // violations
+  out.push(`<h2>Expected-edge violations (drawn as dashed edges that should exist but do not)</h2><p>Authority: <code>${esc(short(AUTH))}</code> for step_index, family, workload, rep, scale, command. A node that emits any of those facts must read the authority. Observed against expected:</p>`);
+  const vrows = G.violations.map(v => v.expected_edge ? [goto(v.node), esc((v.facts_emitted || []).join(", ")), esc(v.expected_edge.type + " -> " + short(v.expected_edge.dst)), esc(v.observed), esc(v.derives_from) + (v.fact_literal_lines && v.fact_literal_lines.length ? ` (fact literals at lines ${v.fact_literal_lines.join(", ")})` : "")] : [goto(v.node), "(authority)", esc(v.expected || ""), esc(v.observed), esc(v.note || "")]);
+  out.push(table(["node", "facts emitted", "expected edge", "observed", "derives the facts from"], vrows));
+  // unconsumed artifacts
+  const unc = G.nodes.filter(n => n.class === "unconsumed-artifact").sort((a, b) => a.path.localeCompare(b.path));
+  out.push(`<h2>Unconsumed artifacts (${unc.length}): written, read in-degree 0 outside tests</h2><p>These are findings, not warnings, and not dead: each has a live writer. They are the amber nodes.</p>`);
+  out.push(table(["artifact", "layer", "writers", "readers (tests only, if any)", "what"], unc.map(n => [goto(n.path), String(n.layer), (inE.get(n.path) || []).filter(e => e.type === "writes").map(e => goto(e.src)).join("<br>"), (inE.get(n.path) || []).filter(e => e.type === "reads").map(e => goto(e.src) + (e.role === "test" ? " (test)" : "")).join("<br>") || "<span class=note>none</span>", esc(n.desc || "")])));
+  // blind spots
+  out.push(`<h2>Blind spots (declared; a graph whose incompleteness is hidden would license deletions a complete one forbids)</h2>`);
+  out.push(`<h3>Construction</h3><ul class="tight">${B.construction.map(c => `<li>${esc(c)}</li>`).join("")}</ul>`);
+  out.push(`<h3>The seven declared blind spots</h3>` + table(["#", "topic", "how it was resolved, and what remains unknown"], B.declared.map(b => [String(b.id), esc(b.topic), esc(b.resolution)])));
+  out.push(`<h3>Reference forms resolved, per language</h3>` + table(["language", "forms"], Object.entries(B.resolved_forms_by_language).map(([k, v]) => [esc(k), `<ul class="tight">${v.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`])));
+  out.push(`<p class="note">${esc(B.test_role_edges)}</p>`);
+  const SITE_DESC = {
+    unclassified_mentions: "an artifact name on a code line with no read/write verb: the node is marked edges-incomplete",
+    metadata_only_touches: "exists/is_file/glob/find/ls/rm/du on an artifact: not consumption, not drawn",
+    argv_pass_through: "a path handed to a child process on its argv: the child's own edge carries the read or write",
+    unresolved_invocations: "an invocation whose target could not be resolved to a file",
+    unresolved_reads: "a read whose target is outside the repository",
+    skipped_over_100kb: "files not scanned because they exceed 100 KB (generated reports and large docs); their edges are unknown",
+    remote_execution_sites: "ssh sites: the remote half is not on this machine",
+    browser_to_bridge_http: "fetch() call sites in the console templates: HTTP coupling to bridge routes, declared missing rather than absent",
+    composition_sites: "a launch line composed but not executed here",
+    comment_only_mentions: "a script or artifact named only in a comment",
+    stale_curated_evidence: "curated evidence text that no longer exists in the file (edge downgraded to unresolved)",
+    edge_to_unknown_node: "edges whose endpoint is not a node (dropped)",
+    external_resources: "external URLs referenced by templates",
+  };
+  const siteKeys = Object.keys(B.sites).sort();
+  out.push(`<h3>Sites (${siteKeys.map(k => k + " " + B.sites[k].length).join(", ")})</h3>`);
+  siteKeys.forEach(kk => {
+    const rows = B.sites[kk]; if (!rows.length) return;
+    const cols = Array.from(rows.reduce((s, r) => { Object.keys(r).forEach(c => s.add(c)); return s; }, new Set()));
+    out.push(`<h3 id="site-${esc(kk)}">${esc(kk)} (${rows.length}) <span class="note">${esc(SITE_DESC[kk] || "")}</span></h3>` + table(cols, rows.map(r => cols.map(c => (c === "file" || c === "src" || c === "dst") && typeof r[c] === "string" && (N.has(r[c])) ? goto(r[c]) : esc(typeof r[c] === "object" ? JSON.stringify(r[c]) : (r[c] == null ? "" : r[c])))), cols.map(c => c === "text" || c === "line" || c === "needle" || c === "token")));
+  });
+  // incomplete nodes
+  const inc = G.nodes.filter(n => n.edges_incomplete).sort((a, b) => a.path.localeCompare(b.path));
+  out.push(`<h2>Nodes with incomplete edges (${inc.length})</h2><p>For these nodes the absence of an edge is unknown, never no. Reasons are the extractor's own.</p>` + table(["node", "class", "layer", "reasons"], inc.map(n => [goto(n.path), esc(n.class), String(n.layer), `<ul class="tight">${(n.incomplete_reasons || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul>`])));
+  // unresolved edges
+  const unres = E.filter(e => e.binding === "unresolved");
+  out.push(`<h2>Unresolved edges (${unres.length})</h2><p>Drawn with a red halo and a question mark. While any of these remain, no node may be called dead.</p>` + table(["from", "type", "to", "evidence", "note"], unres.map(e => [goto(e.src), esc(e.type) + (e.alternative ? " (alternative)" : ""), goto(e.dst), esc(short(e.evidence.file) + ":" + e.evidence.line + "  " + e.evidence.text), esc(e.note || e.via || "")]), [false, false, false, true, false]));
+  // layout inversions
+  if (LY.inversions.length) out.push(`<h2>Edges that do not point left to right (${LY.inversions.length})</h2>` + table(["from", "to", "type"], LY.inversions.map(i => [goto(i.src), goto(i.dst), esc(i.type)])));
+  // cycles
+  out.push(`<h2>Cycles and back-edges</h2>` + ((G.cycles || []).length ? table(["scc", "members (contracted into one banded layer)"], G.cycles.map(c => [String(c.scc_id), c.members.map(goto).join("<br>")])) : "<p>none</p>") + `<p class="note">Back-edges into a true root: ${G.back_edges_into_roots.length ? G.back_edges_into_roots.map(e => goto(e.src) + " -> " + goto(e.dst)).join("; ") : "none"}.</p>`);
+  // secondary roots
+  const sec = G.roots.secondary || [];
+  out.push(`<h2>Secondary roots (${sec.length}): claims of orphanhood to adjudicate</h2><p>In-degree 0 and not reachable from either true root. Ordered by the size of the subtree only they dominate, then by path. Rank 1, layer 1; their subtrees start at layer 2. Most are pytest files (pytest discovers them; no file invokes them), report generators, and docs.</p>` + table(["dominated subtree", "path", "class", "kind", "entry marker"], sec.map(s => { const n = N.get(s.path) || {}; return [String(s.dominated_subtree_size), goto(s.path), esc(n.class || ""), esc(n.kind || ""), esc(n.entry_marker || "")]; })));
+  // meta
+  out.push(`<h2>Method notes</h2><ul class="tight"><li>${esc(M.class_vocabulary_note)}</li><li>${esc(M.layer_note)}</li><li>Excluded from the corpus: ${esc(M.excluded.join("; "))}.</li><li>Collapsed run-instance trees: ${Object.entries(M.collapsed_instance_trees).map(([k, v]) => `${esc(k)} (${v} files)`).join("; ")}.</li><li>Renderer geometry: layer index times ${GEO.col_w}px is the x coordinate; node width ${GEO.node_w}px; barycenter ordering inside each column keeps SCC members contiguous and pins files with no edges at the bottom of the rank-1 band.</li></ul>`);
+  document.getElementById("below").innerHTML = out.join("\n");
+})();
+
+panel.innerHTML = defaultPanel();
+let lastFit = fitSpine, userMoved = false;
+function sizeStage() {
+  const hdr = document.querySelector("header").offsetHeight;
+  document.getElementById("stage").style.height = Math.max(480, window.innerHeight - hdr - 2) + "px";
+}
+svg.addEventListener("wheel", () => { userMoved = true; });
+svg.addEventListener("mousedown", () => { userMoved = true; });
+document.getElementById("btnAll").addEventListener("click", () => { lastFit = fitAll; userMoved = false; });
+document.getElementById("btnSpine").addEventListener("click", () => { lastFit = fitSpine; userMoved = false; });
+document.getElementById("legendToggle").addEventListener("click", ev => { const lf = document.getElementById("legendFloat"); lf.classList.toggle("collapsed"); ev.target.textContent = lf.classList.contains("collapsed") ? "show" : "hide"; });
+sizeStage(); fitSpine();
+if (size().w < 900) { document.getElementById("legendFloat").classList.add("collapsed"); document.getElementById("legendToggle").textContent = "show"; }
+window.addEventListener("resize", () => { sizeStage(); if (!userMoved) lastFit(); });
+})();
+</script>
+</body>
+</html>
