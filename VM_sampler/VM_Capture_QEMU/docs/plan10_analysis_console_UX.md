@@ -282,6 +282,45 @@ engine does not.
 
 ---
 
+### 8.1 Amendment, 2026-09-08: the canvas stands; both premises above were false
+
+The recommendation above is kept as written. It rested on two premises, and the mockup built
+after it (`plan10_analysis/ui/analysis_canvas.mockup.html`) contradicts both. JK decided the
+canvas stands; this note records why the spine lost, not merely that it did.
+
+**Premise 1, "the topology is fixed, branching only at the lens stage": false.** The mockup's
+own worked examples branch before the lens stage. The complex example has one Cells module
+feeding two Channels modules, whose outputs meet in a Complex module (a fan-in at the compose
+stage); the PLV example forks the windowed signal into both a Baseline and a PLV module and
+joins them again through the reference port; Concat is a fan-in at the output stage. None of
+those graphs is a spine with lens branches. `[traced: analysis_canvas.mockup.html loadExample]`
+
+**Premise 2, "a drag-and-drop graph engine cannot fit the one-vanilla-file constraint": false.**
+The mockup is one hand-edited file, no framework, no bundler, no dependency beyond the same font
+stylesheet the capture console loads, and it implements typed ports, pipe dragging with
+compatibility highlighting, pan, zoom, selection and deletion in under a thousand lines.
+`[traced: the file itself; the built console, analysis_console.template.html, keeps the same shape]`
+
+**What the canvas costs that the spine would not have.** Stated so the choice is a trade, not a win.
+
+- A well-typed graph can be scientifically meaningless. Typed ports refuse a features signal
+  entering a cells port; they say nothing about a state channel fused with a change channel, a
+  window longer than the shortest recording, or a spectrum on two samples. On a spine those were
+  three controls with three rules; on a canvas the constraint layer has to be complete over every
+  graph the ports admit, and it is now the only thing standing between the author and nonsense.
+  Section 13 and `plan10_analysis/scheme.py` carry that weight.
+- The scheme is a graph, not a record. A runner has to topologically sort it and propagate what
+  flows through each pipe; the spine's runner would have read five fields.
+- Layout is the author's burden, and a graph is harder to read at a glance than a numbered
+  spine. The examples ship laid out; a hand-built scheme does not.
+- Two implementations of the rules exist, one in the page and one in Python, and they can drift.
+  The Python one is the contract; the tests in `tests/test_plan10_scheme.py` pin it, and the page
+  mirrors it by hand.
+
+What the canvas buys, for the record: fan-in and fan-out that the pipeline actually needs (one
+corpus feeding several channel selections; several lenses into one output), a scheme that shows
+its own shape, and a surface that can grow new module kinds without a new panel each time.
+
 ## 9 · What the console must refuse
 
 Superseded in detail by §13, which types each of these as hard or soft and gives its source. Kept
@@ -577,7 +616,28 @@ acknowledgment that lands in the sidecar (§13).
 
 ---
 
-## 11 · Build order, unchanged in shape
+### 14.1 Added 2026-09-08, from building the console against the real corpus
+
+5. **A recording with no substrate CSV.** The migrated tree on this machine holds raw zstd patch
+   chains only (`~/thesis_traces/zstd_local`, 62 recordings, 57 with a chain, none with a
+   substrate CSV). Channels reads substrate CSVs. The built console types this as **soft**
+   (`no_substrate`): the scheme can be composed and saved with the acknowledgment recorded, on
+   the reading that extracting from a chain is a runner capability (re-run the differ) rather
+   than a malformed scheme. Section 13 does not type it. Confirm soft, or make it hard.
+6. **Capture speed per recording is unrecorded.** Not in the chain tree, not in
+   `runs/<label>.json` (which records `capture_metric` and `retention` but not
+   `substrateSpeed` or `intervalMsec`). The console assumes `config_qemu_upc.json`
+   `substrateSpeed` for every recording and says so on the control. Whether capture should start
+   writing a per-recording metadata file is a capture-side decision.
+7. **Page count.** Still open (item 2). The manifest carries `n_pages: null` per recording with a
+   source note (derivable as dump size over page size once the base dump is reconstructed), and
+   the validator uses the config-derived default only where a recording's own value is null.
+8. **The font stylesheet.** Both consoles load IBM Plex from `fonts.googleapis.com`. The capture
+   build's "zero network code" is true of code and not of resources; the analysis build reports
+   the external references in its summary and in the page's build bar rather than stripping them.
+   Bundling the fonts or accepting the system fallback is a decision for both consoles at once.
+
+## 15 · Build order, unchanged in shape
 
 1. Corpus scan + channel roster — panel 01's data, and the manifest B1 called blocking.
 2. The scheme object and its validation rules (§9) — headless, testable.
