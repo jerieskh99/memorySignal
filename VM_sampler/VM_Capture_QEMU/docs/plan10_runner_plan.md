@@ -94,3 +94,25 @@ window). Complex: `fft` band energies and `cepstrum` peak/snr over complex tiles
 PLV: baseline fitted on one recording's tiles, PLV category counts per tile for the rest.
 Each output is a `.npz` with `X`, `feature_names`, `tile_keys`, and a csv twin, plus
 `<label>.sidecar.json`.
+
+## 5 · Findings while building (2026-09-08)
+
+- **The differ mis-indexes pages on dumps that are not a multiple of 4 MiB.** `main.rs` splits
+  each file into 16 segments and reads 256 KB chunks from each segment's start, so when
+  `file_size / 16 < 256 KB` the segments overlap and the running `page_index` counter is wrong
+  (a 256 KB pair reported one change three times, at pages 10, 70 and 126). A 1 GiB guest dump
+  is unaffected. `runner/differ.py` refuses any other size that is not a multiple of 4 MiB and
+  the synthetic fixture uses 4 MiB dumps. `[traced: main.rs THREAD_COUNT, CHUNK_SIZE; probed at
+  64, 256, 1024, 4096 pages]`
+- **numpy appends `.npz` to any save name without it**, so an atomic write must name its temp
+  file `*.tmp.npz`, not `*.npz.tmp`.
+- **The B1 example needed a reduction the graph did not have.** Collapse averaged channel
+  values; APF is `K/N`. Collapse gained `reduce = changed_fraction`, and the test asserts the
+  fixture's APF (7 changed pages per pair over 1024) comes out exactly.
+- **Two examples piped a complex field straight into Window.** That is a tile at full page
+  resolution, which nothing in the record ever computed. The examples now collapse to the mean
+  phasor per pair first, and Window refuses a page-resolution input in both engines.
+- **The "no runner implements yet" wording became false the moment the runner existed**; the
+  warning now states the cost instead. The severity stays soft (UX section 14.1 item 5).
+- **Bounded real run** (B1, three recordings from mem / cpu / io, `max_pairs` 40, speed 2):
+  see the status recorded in the report for this session.

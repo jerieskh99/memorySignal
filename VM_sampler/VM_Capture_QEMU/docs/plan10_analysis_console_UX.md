@@ -620,10 +620,12 @@ acknowledgment that lands in the sidecar (§13).
 
 5. **A recording with no substrate CSV.** The migrated tree on this machine holds raw zstd patch
    chains only (`~/thesis_traces/zstd_local`, 62 recordings, 57 with a chain, none with a
-   substrate CSV). Channels reads substrate CSVs. The built console types this as **soft**
-   (`no_substrate`): the scheme can be composed and saved with the acknowledgment recorded, on
-   the reading that extracting from a chain is a runner capability (re-run the differ) rather
-   than a malformed scheme. Section 13 does not type it. Confirm soft, or make it hard.
+   substrate CSV). Channels reads substrate CSVs. The console types this as **soft**
+   (`no_substrate`): since 2026-09-08 the runner (`plan10_analysis/runner/extract.py`)
+   reconstructs each chain and re-runs the differ at the run's speed, so the scheme is
+   executable; the warning stays because that extraction is the dominant cost (about 2 s per
+   pair at speed 2 on a 1 GiB dump, plus reconstruction) and the author should knowingly accept
+   it. Section 13 does not type it. Confirm soft, or make it a note now that it runs.
 6. **Capture speed per recording is unrecorded.** Not in the chain tree, not in
    `runs/<label>.json` (which records `capture_metric` and `retention` but not
    `substrateSpeed` or `intervalMsec`). The console assumes `config_qemu_upc.json`

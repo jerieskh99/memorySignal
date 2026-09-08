@@ -394,7 +394,7 @@ function nodeConstraints(n, memo) {
         const dn = Object.keys(dead).sort();
         if (dn.length) { const lv = [...new Set(Object.values(dead).flatMap(s => [...s]))].sort(); I("hard", `${dn.join(", ")} emit zero at substrateSpeed ${lv.join(",")} (${assumed ? "speed assumed from config, unrecorded per recording" : "recorded speed"})`, "channel_roster.py drop_at; config_qemu_upc.json substrateSpeed"); }
         const noCsv = recs.filter(r => !r.has.substrate_csv);
-        if (noCsv.length) I("soft", `${noCsv.length} of ${recs.length} selected recording(s) carry a raw chain only, no substrate CSV; extracting channels from a chain means re-running the differ, which no runner implements yet`, "corpus_manifest.py has.substrate_csv (severity not typed in UX section 13; see report)", "no_substrate");
+        if (noCsv.length) I("soft", `${noCsv.length} of ${recs.length} selected recording(s) carry a raw chain only, no substrate CSV; the runner will reconstruct each chain and re-run the differ at the run's speed (about 2 s per pair at speed 2 on a 1 GiB dump, plus reconstruction)`, "corpus_manifest.py has.substrate_csv; runner/extract.py (severity: plan10 UX section 14.1 item 5)", "no_substrate");
       }
       break; }
     case "single": { const u = up("in"); if (u && u.channels.length !== 1) I("hard", `Single needs exactly one channel upstream; got ${u.channels.length}`, "the mode is defined by it"); break; }

@@ -286,8 +286,9 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
             if no_csv:
                 out.append(_issue(nid, "soft",
                                   f"{len(no_csv)} of {len(recs)} selected recording(s) carry a raw chain only, no substrate CSV; "
-                                  f"extracting channels from a chain means re-running the differ, which no runner implements yet",
-                                  "corpus_manifest.py has.substrate_csv (severity: not typed in UX section 13; see report)",
+                                  f"the runner will reconstruct each chain and re-run the differ at the run's speed "
+                                  f"(about 2 s per pair at speed 2 on a 1 GiB dump, plus reconstruction)",
+                                  "corpus_manifest.py has.substrate_csv; runner/extract.py (severity: plan10 UX section 14.1 item 5)",
                                   id="no_substrate"))
 
     elif mod == "single":
