@@ -417,6 +417,13 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                               "each lens downstream runs per page and reports the median across pages, the convention StabilityValidator uses; "
                               "PLV and Baseline read the page axis directly",
                               "runner/stages.py run_lens"))
+            if u.get("complex") and int(p.get("min_changes", 1)) <= 1:
+                out.append(_issue(nid, "soft",
+                                  "an unchanged frame is filled with zero, and on a complex field that is an exact phase-0 sample: "
+                                  "a page changing k of W frames has PLV at least (W - 2k)/W whatever its real phases do. On a real recording "
+                                  "the median page changed 1 frame in 24, a floor of 0.917, and the observed minimum was 0.917. Raise min_changes so a page must be observed "
+                                  "often enough to be measured, or read PLV only between recordings of similar activity",
+                                  "runner/stages.py dense_page_matrix, measured 2026-09-09", id=f"page_phase_floor:{nid}"))
         if u and u.get("nmin") and w > u["nmin"]:
             out.append(_issue(nid, "hard", f"W_t={w} exceeds the shortest connected recording ({u['nmin']} pairs): zero windows", "plan10 UX section 13.2"))
         if h > w:

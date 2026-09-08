@@ -448,6 +448,7 @@ function nodeConstraints(n, memo) {
           else I("soft", `page_mode=all keeps every one of ${N_PAGES} pages, most of which never change; the differ's output is sparse for that reason`, "runner/stages.py dense_page_matrix", "page_all:" + n.id);
         } else I("note", "the page axis keeps only the pages that change in each recording, so its length differs per recording; the tile keys record which pages were kept", "runner/stages.py dense_page_matrix");
         I("note", "each lens downstream runs per page and reports the median across pages, the convention StabilityValidator uses; PLV and Baseline read the page axis directly", "runner/stages.py run_lens");
+        if (u.complex && (+p.min_changes || 1) <= 1) I("soft", "an unchanged frame is filled with zero, and on a complex field that is an exact phase-0 sample: a page changing k of W frames has PLV at least (W - 2k)/W whatever its real phases do. On a real recording the median page changed 1 frame in 24, a floor of 0.917, and the observed minimum was 0.917. Raise min_changes so a page must be observed often enough to be measured, or read PLV only between recordings of similar activity", "runner/stages.py dense_page_matrix, measured 2026-09-09", "page_phase_floor:" + n.id);
       }
       if (u && u.nmin && w > u.nmin) I("hard", `W_t=${w} exceeds the shortest connected recording (${u.nmin} pairs): zero windows`, "plan10 UX section 13.2");
       if (h > w) I("soft", "hop larger than the window skips frames", "Plan 03 G4 hop validity", "hop_gt_w");

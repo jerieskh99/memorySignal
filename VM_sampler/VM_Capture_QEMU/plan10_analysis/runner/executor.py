@@ -335,7 +335,8 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
         s = up("in")
         if isinstance(s, dict) and "page_index" in s:
             return stages.window(s, int(p["w"]), int(p["h"]), p.get("edge", "drop"), p.get("taper", "rectangular"),
-                                 p.get("page_mode", "active"), int(p.get("max_mb", 256)) * 1024 * 1024)
+                                 p.get("page_mode", "active"), int(p.get("max_mb", 256)) * 1024 * 1024,
+                                 int(p.get("min_changes", 1)))
         if isinstance(s, list):
             tl = [stages.window(x, int(p["w"]), int(p["h"]), p.get("edge", "drop"), p.get("taper", "rectangular")) for x in s]
             return {"X": np.concatenate([t["X"] for t in tl]), "keys": [k for t in tl for k in t["keys"]], "w": tl[0]["w"], "h": tl[0]["h"],

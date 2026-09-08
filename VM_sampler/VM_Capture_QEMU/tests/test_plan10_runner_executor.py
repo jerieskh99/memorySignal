@@ -198,6 +198,28 @@ def test_full_page_resolution_tiles():
                           "block": None, "n_pages": 1}, 4, 4)
     assert stages.run_lens(flat, lambda x: stages.stats(x, ["mean"]))["names"] == ["mean"]
 
+    # min_changes keeps only pages observed often enough to be measured. On a complex field
+    # an unchanged frame is an exact phase-0 sample, so a page changing k of W frames has
+    # PLV >= (W-k)/W whatever its phases do; this is the control for that floor.
+    assert stages.dense_page_matrix(f, "active", min_changes=1)[1].tolist() == [2, 5, 7]
+    assert stages.dense_page_matrix(f, "active", min_changes=2)[1].tolist() == [2, 7]   # page 5 changes once
+    assert stages.dense_page_matrix(f, "active", min_changes=4)[1].tolist() == [2, 7]
+    try:
+        stages.dense_page_matrix(f, "active", min_changes=99)
+        assert False
+    except ValueError as e:
+        assert "no page changes at least" in str(e)
+    # the floor itself: T-k zeros are exact phase-0 samples, so the worst a page changing k
+    # of T frames can score is (T - 2k)/T, with every changed sample antipodal to them
+    T_, k_ = 24, 1
+    worst = np.zeros(T_, np.complex64)
+    worst[3] = 0.05 * np.exp(1j * np.pi)
+    assert abs(np.abs(np.exp(1j * np.angle(worst)).mean()) - (T_ - 2 * k_) / T_) < 1e-6
+    for phase in (0.3, 1.4, 2.9):
+        v = np.zeros(T_, np.complex64)
+        v[3] = 0.05 * np.exp(1j * phase)
+        assert np.abs(np.exp(1j * np.angle(v)).mean()) >= (T_ - 2 * k_) / T_ - 1e-6
+
     # guards: budget, channel count, unknown mode
     for kw, word in (({"page_mode": "all", "max_bytes": 10}, "budget"), ({"page_mode": "nope"}, "unknown page mode")):
         try:

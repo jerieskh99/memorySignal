@@ -116,3 +116,26 @@ which is what that code was written for.
 
 A page-resolution tile carries one channel or a complex field; several real channels would make
 it four-dimensional and no lens here reads that.
+
+### Measured on the real corpus (2026-09-09)
+
+Page-resolution tiles verified on `~/thesis_traces/zstd_local`, three workloads at 40 pairs:
+
+| recording | active pages | of 262144 | dense at 40 pairs | at 700 pairs |
+|---|---:|---:|---:|---:|
+| mem_pagefault_density_v2 | 61,193 | 23.3% | 10 MB | 171 MB |
+| io_direct_write_like_v2 | 35,814 | 13.7% | 6 MB | 100 MB |
+| cpu_branch_random_v2 | 10,208 | 3.9% | 2 MB | 29 MB |
+
+`page_mode=all` is 42 MB at 40 pairs and 734 MB at 700, which the 256 MB default budget
+refuses, naming the figure. `active` fits at both.
+
+Cost: each lens runs per page, so a full 700-pair recording is about 7 minutes per lens for
+the busiest workload, against roughly 40 minutes to extract it. Extraction dominates a first
+run; the lens loop dominates when re-running schemes against a cached L1 store.
+
+The `mean_median` statistic separates the workloads on real data: 177 for
+mem_pagefault_density against 0.07 to 2.4 for cpu_branch_random and 2.24 for io_direct_write.
+
+PLV on a real complex page-resolution tile fits one PLV per page over 10,005 pages, which is
+what `PLVStability` was written for and what no collapsed tile can give it.

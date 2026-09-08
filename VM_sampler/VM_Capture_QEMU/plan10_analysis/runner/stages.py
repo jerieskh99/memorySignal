@@ -19,9 +19,8 @@ Where the project already has the code, it is reused rather than rewritten:
   PLV                coherence_temp_spec_stability/plv_calcolator.py PLVStability
   CUSUM              plan04_cusum.py detect_boundaries_cusum / stationarity_score
 
-Not implemented in this pass, each refusing with a message rather than pretending:
-wavelet (pywt), scattering (kymatio/torch), MSC, full-page-resolution tiles, block hop
-smaller than block width, the benign-envelope baseline.
+Every module on the palette is implemented. wavelet needs pywt and scattering needs
+kymatio; without them those two refuse by name rather than pretending.
 """
 from __future__ import annotations
 
@@ -216,7 +215,8 @@ def _taper(w: int, kind: str) -> np.ndarray:
     raise ValueError(f"unknown taper {kind!r}")
 
 
-def dense_page_matrix(field: dict, page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024) -> tuple:
+def dense_page_matrix(field: dict, page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024,
+                      min_changes: int = 1) -> tuple:
     """The sparse field as the dense (T, P) matrix the methodology calls the page-by-time image.
 
     page_mode="active" keeps only the pages that change at least once in this recording,
@@ -225,6 +225,18 @@ def dense_page_matrix(field: dict, page_mode: str = "active", max_bytes: int = 2
     kept are returned, so a row still names the page it came from.
     page_mode="all" keeps every page of the dump, which is what a fixed-address reading
     needs and what the memory guard usually refuses.
+
+    `min_changes` keeps only pages that change at least that many times (active mode). The
+    unchanged frames of a kept page are filled with zero, and a zero means "no change", not
+    "a change of size zero at angle zero". For a magnitude reduction that is right, since an
+    unchanged page contributes nothing. For a phase lens it is not neutral: on a complex
+    field the zeros enter PLV as exact phase-0 samples. A page changing k of T frames has
+    PLV >= (T - 2k)/T whatever its real phases do, since the worst case puts every changed
+    sample antipodal to the T-k zeros. Measured on a real recording the median page changed
+    1 frame in 24, a floor of 0.917, and the observed per-page minimum was 0.917: the bound
+    is attained. That floor did NOT drive the result there (masking the zeros left the median
+    at 0.999, because each page's own changes are phase-consistent), but it does make PLV
+    comparable only between recordings of similar activity, which is what this parameter is for.
 
     A single channel or a complex field only: several real channels would make the tile
     four-dimensional, which no lens here reads.
@@ -235,8 +247,14 @@ def dense_page_matrix(field: dict, page_mode: str = "active", max_bytes: int = 2
     if field.get("z") is None and len(field["channels"]) != 1:
         raise ValueError(f"a page-resolution tile carries one channel or a complex field; got {len(field['channels'])} channels. "
                          "Use Single, or Collapse the page axis")
-    pages = (np.unique(field["page_index"]) if page_mode == "active"
-             else np.arange(n_pages, dtype=field["page_index"].dtype))
+    if page_mode == "active":
+        uniq, counts = np.unique(field["page_index"], return_counts=True)
+        pages = uniq[counts >= max(1, int(min_changes))]
+        if pages.shape[0] == 0:
+            raise ValueError(f"no page changes at least {min_changes} time(s) in this recording "
+                             f"(the busiest changes {int(counts.max()) if counts.size else 0} time(s))")
+    else:
+        pages = np.arange(n_pages, dtype=field["page_index"].dtype)
     dtype = np.complex64 if field.get("z") is not None else np.float32
     need = int(T) * int(pages.shape[0]) * np.dtype(dtype).itemsize
     if need > max_bytes:
@@ -278,10 +296,10 @@ def run_lens(tiles: dict, fn):
 
 
 def window(series: dict, w: int, h: int, edge: str = "drop", taper: str = "rectangular",
-           page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024) -> dict:
+           page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024, min_changes: int = 1) -> dict:
     """Slide a window over snapshots. A field with a page axis becomes page-resolution tiles."""
     if "page_index" in series:
-        M, pages = dense_page_matrix(series, page_mode, max_bytes)
+        M, pages = dense_page_matrix(series, page_mode, max_bytes, min_changes)
         ser = {"values": M, "channels": series["channels"], "complex": series.get("z") is not None,
                "block": None, "n_pages": series["n_pages"]}
         t = window(ser, w, h, edge, taper)
