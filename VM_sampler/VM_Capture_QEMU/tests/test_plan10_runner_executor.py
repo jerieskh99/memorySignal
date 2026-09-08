@@ -169,6 +169,68 @@ def test_blocked_tile_count_matches_the_estimate():
             assert len(set(z["tile_keys"]["block"].tolist())) == stages.n_blocks(synth.N_PAGES, wp, hp)
 
 
+def test_full_page_resolution_tiles():
+    """The page-by-time image: dense materialisation, its guards, and the median reduction."""
+    seq = np.array([1, 1, 2, 2, 3, 3, 3, 4, 4], np.int32)
+    pages = np.array([2, 7, 2, 7, 2, 5, 7, 2, 7], np.int32)
+    vals = np.array([10, 70, 11, 71, 12, 50, 72, 13, 73], np.float32)
+    f = {"seq": seq, "page_index": pages, "cols": {"hamming": vals}, "z": None,
+         "channels": ["hamming"], "n_pairs": 4, "n_pages": 10, "block": None}
+
+    M, kept = stages.dense_page_matrix(f, "active")
+    assert kept.tolist() == [2, 5, 7] and M.shape == (4, 3)
+    assert M[0].tolist() == [10, 0, 70] and M[2].tolist() == [12, 50, 72]
+    Ma, ka = stages.dense_page_matrix(f, "all")
+    assert Ma.shape == (4, 10) and ka.tolist() == list(range(10))
+    assert Ma[:, 2].tolist() == [10, 11, 12, 13] and not Ma[:, 0].any()
+    assert np.array_equal(Ma[:, kept], M)          # active is exactly the changing columns of all
+
+    t = stages.window(f, 2, 1)
+    assert t["page_axis"] and t["X"].shape == (3, 2, 3) and t["pages"].tolist() == [2, 5, 7]
+    assert np.array_equal(t["X"][0], M[0:2])
+    # every lens runs per page and reports the median across pages
+    r = stages.run_lens(t, lambda x: stages.stats(x, ["mean", "max"]))
+    assert r["names"] == ["mean_median", "max_median"] and r["rows"].shape == (3, 2)
+    assert np.isclose(r["rows"][0, 0], np.median(t["X"][0].mean(axis=0)))
+    assert np.isclose(r["rows"][0, 1], np.median(t["X"][0].max(axis=0)))
+    # a collapsed tile is untouched by the wrapper
+    flat = stages.window({"values": np.arange(8, dtype=np.float32), "channels": ["h"], "complex": False,
+                          "block": None, "n_pages": 1}, 4, 4)
+    assert stages.run_lens(flat, lambda x: stages.stats(x, ["mean"]))["names"] == ["mean"]
+
+    # guards: budget, channel count, unknown mode
+    for kw, word in (({"page_mode": "all", "max_bytes": 10}, "budget"), ({"page_mode": "nope"}, "unknown page mode")):
+        try:
+            stages.dense_page_matrix(f, **kw)
+            assert False, kw
+        except ValueError as e:
+            assert word in str(e)
+    try:
+        stages.dense_page_matrix(dict(f, channels=["hamming", "l1"], cols={"hamming": vals, "l1": vals}), "active")
+        assert False
+    except ValueError as e:
+        assert "one channel or a complex field" in str(e)
+
+    # a complex field keeps its phase, and PLV reads the page axis directly
+    rng = np.random.default_rng(0)
+    T, P = 64, 40
+    ang = np.zeros((T, P))
+    ang[:, :P // 2] = np.linspace(0, 2 * np.pi, T)[:, None]
+    ang[:, P // 2:] = rng.uniform(0, 2 * np.pi, (T, P // 2))
+    fz = {"seq": np.repeat(np.arange(1, T + 1), P).astype(np.int32),
+          "page_index": np.tile(np.arange(P), T).astype(np.int32), "cols": None,
+          "z": (0.05 * np.exp(1j * ang)).astype(np.complex64).reshape(-1),
+          "channels": ["hamming", "cosine"], "n_pairs": T, "n_pages": P, "block": None}
+    tz = stages.window(fz, 32, 16)
+    assert tz["complex"] and tz["X"].shape == (3, 32, P) and tz["X"].dtype == np.complex64
+    ref = stages.baseline(tz, "cell", "rec0")
+    assert len(ref["baseline_plv"]) == P                      # one PLV per page, not one per tile
+    assert ref["baseline_plv"][:P // 2].mean() > ref["baseline_plv"][P // 2:].mean()
+    out = stages.plv(tz, ref, 0.2, 0.7)
+    got = dict(zip(out["names"], out["rows"][0]))
+    assert got["plv_num_very_weak_stability"] + got["plv_num_moderate_stability"] == P
+
+
 def test_lenses_find_a_known_period():
     """A period-8 series at W=32: the spectral peak is bin 4 and the quefrency peak is 8.
 

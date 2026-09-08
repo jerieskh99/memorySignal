@@ -204,7 +204,8 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
                  n_blocks=(0 if npg < wp_ else (npg - wp_) // hp_ + 1)) if u else None
     elif mod == "window":
         u = up("in")
-        d = dict(u, type="tiles", w=int(p["w"]), h=int(p["h"]), taper=p["taper"], edge=p["edge"]) if u else None
+        d = dict(u, type="tiles", w=int(p["w"]), h=int(p["h"]), taper=p["taper"], edge=p["edge"],
+                 page_axis=(u.get("axis") == "page")) if u else None
     elif mod == "baseline":
         u = up("in")
         d = {"type": "reference", "mode": p.get("mode"), "fitted": u is not None,
@@ -385,7 +386,37 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         if w < 1 or h < 1:
             out.append(_issue(nid, "hard", "W and H must be at least 1", "window arithmetic"))
         if u and u.get("axis") == "page":
-            out.append(_issue(nid, "hard", "tiles at full page resolution are not implemented in the runner; put Collapse (or Block) before Window", "runner/stages.py"))
+            # a page-resolution tile: dense (W x pages) per tile, and every lens then runs
+            # per page and reports the median across them
+            n_ch = len(u.get("channels", []))
+            if not u.get("complex") and n_ch != 1:
+                out.append(_issue(nid, "hard",
+                                  f"a page-resolution tile carries one channel or a complex field; this one has {n_ch}. "
+                                  "Add Single, or Collapse the page axis",
+                                  "runner/stages.py dense_page_matrix"))
+            n_pages = ctx.config["n_pages_default"]
+            budget = int(p.get("max_mb", 256)) * 1024 * 1024
+            itemsize = 8 if u.get("complex") else 4
+            if p.get("page_mode", "active") == "all":
+                need = (u.get("nmin") or 0) * n_pages * itemsize
+                if need > budget:
+                    out.append(_issue(nid, "hard",
+                                      f"page_mode=all over {n_pages} pages needs about {need / 1e6:.0f} MB per recording, over the {int(p.get('max_mb', 256))} MB budget; "
+                                      "use page_mode=active, raise the budget, or Block the address axis",
+                                      "runner/stages.py dense_page_matrix"))
+                else:
+                    out.append(_issue(nid, "soft",
+                                      f"page_mode=all keeps every one of {n_pages} pages, most of which never change; the differ's output is sparse for that reason",
+                                      "runner/stages.py dense_page_matrix", id=f"page_all:{nid}"))
+            else:
+                out.append(_issue(nid, "note",
+                                  "the page axis keeps only the pages that change in each recording, so its length differs per recording; "
+                                  "the tile keys record which pages were kept",
+                                  "runner/stages.py dense_page_matrix"))
+            out.append(_issue(nid, "note",
+                              "each lens downstream runs per page and reports the median across pages, the convention StabilityValidator uses; "
+                              "PLV and Baseline read the page axis directly",
+                              "runner/stages.py run_lens"))
         if u and u.get("nmin") and w > u["nmin"]:
             out.append(_issue(nid, "hard", f"W_t={w} exceeds the shortest connected recording ({u['nmin']} pairs): zero windows", "plan10 UX section 13.2"))
         if h > w:

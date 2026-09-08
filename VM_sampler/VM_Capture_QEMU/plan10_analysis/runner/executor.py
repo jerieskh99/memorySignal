@@ -334,29 +334,31 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "window":
         s = up("in")
         if isinstance(s, dict) and "page_index" in s:
-            raise stages.NotImplementedStage("tiles at full page resolution are not implemented; add Collapse or Block before Window")
+            return stages.window(s, int(p["w"]), int(p["h"]), p.get("edge", "drop"), p.get("taper", "rectangular"),
+                                 p.get("page_mode", "active"), int(p.get("max_mb", 256)) * 1024 * 1024)
         if isinstance(s, list):
             tl = [stages.window(x, int(p["w"]), int(p["h"]), p.get("edge", "drop"), p.get("taper", "rectangular")) for x in s]
             return {"X": np.concatenate([t["X"] for t in tl]), "keys": [k for t in tl for k in t["keys"]], "w": tl[0]["w"], "h": tl[0]["h"],
                     "taper": tl[0]["taper"], "channels": tl[0]["channels"], "complex": tl[0]["complex"],
                     "series_mean": float(np.mean([t["series_mean"] for t in tl])), "series_std": float(np.mean([t["series_std"] for t in tl]))}
         return stages.window(s, int(p["w"]), int(p["h"]), p.get("edge", "drop"), p.get("taper", "rectangular"))
+    # a page-resolution tile runs each lens per page and takes the median across pages
     if mod == "stats":
-        return stages.stats(up("in"), list(p["feats"]))
+        return stages.run_lens(up("in"), lambda t: stages.stats(t, list(p["feats"])))
     if mod == "deep":
-        return stages.deep(up("in"), list(p["feats"]))
+        return stages.run_lens(up("in"), lambda t: stages.deep(t, list(p["feats"])))
     if mod == "fft":
-        return stages.fft(up("in"), p.get("out", "bands"), detrend=p.get("detrend", "mean"))
+        return stages.run_lens(up("in"), lambda t: stages.fft(t, p.get("out", "bands"), detrend=p.get("detrend", "mean")))
     if mod == "cepstrum":
-        return stages.cepstrum(up("in"))
+        return stages.run_lens(up("in"), stages.cepstrum)
     if mod == "cusum":
-        return stages.cusum(up("in"), float(p["k"]), float(p["h"]))
+        return stages.run_lens(up("in"), lambda t: stages.cusum(t, float(p["k"]), float(p["h"])))
     if mod == "wavelet":
-        return stages.wavelet(up("in"), p.get("fam", ""), int(p["levels"]), p.get("mode", "periodization"))
+        return stages.run_lens(up("in"), lambda t: stages.wavelet(t, p.get("fam", ""), int(p["levels"]), p.get("mode", "periodization")))
     if mod == "scattering":
-        return stages.scattering(up("in"), int(p["J"]), int(p["Q"]))
+        return stages.run_lens(up("in"), lambda t: stages.scattering(t, int(p["J"]), int(p["Q"])))
     if mod == "msc":
-        return stages.msc(up("in"), int(p["iw"]), int(p["ih"]), p.get("method", "welch"), p.get("detrend", "mean"))
+        return stages.run_lens(up("in"), lambda t: stages.msc(t, int(p["iw"]), int(p["ih"]), p.get("method", "welch"), p.get("detrend", "mean")))
     if mod == "concat":
         return stages.concat([memo[s] for s in multi_ins])
     raise ValueError(f"module {mod} cannot be evaluated per recording")

@@ -61,8 +61,7 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-Tiles at full page resolution (put Collapse or Block before Window) and remote execution
-(SSH fetches to a local cache; the runner is local). Each refuses
+Remote execution (SSH fetches to a local cache; the runner is local). It refuses
 with a message in the run log and, where the console can see it, as a hard constraint.
 
 Blocks along the address axis take any width and hop: equal to tile, smaller to overlap
@@ -97,3 +96,23 @@ Choosing no benign set fits the envelope over every recording reaching the node,
 included; that is warned about, since a normal region defined partly by what it should flag is
 not one. As `normal_profile.py` says of itself, "normal" here means the chosen recordings, not
 production traffic.
+
+## The page axis
+
+Window takes either a series (after Collapse or Block) or a field that still carries the page
+axis. The second gives **page-resolution tiles**: the page-by-time image the methodology
+describes, materialised dense as (frames x pages) per tile.
+
+`page_mode=active` keeps only the pages that change in that recording, which is what the
+differ's sparse output is for: on the synthetic fixture that is 47 columns against 1024 for
+the same 77 non-zero cells. `page_mode=all` keeps every page, and a memory budget refuses the
+combination before it runs, naming the size it would need.
+
+Downstream, every lens runs per page and reports the median across pages, named `<feature>_median`
+-- the convention `StabilityValidator` already uses for `msc_peak_snr_db_median` and
+`cepstral_peak_idx_median`. PLV and Baseline are not wrapped: `PLVStability` takes `[T, N]` and
+aggregates the page axis itself, so on a complex page-resolution tile it fits one PLV per page,
+which is what that code was written for.
+
+A page-resolution tile carries one channel or a complex field; several real channels would make
+it four-dimensional and no lens here reads that.

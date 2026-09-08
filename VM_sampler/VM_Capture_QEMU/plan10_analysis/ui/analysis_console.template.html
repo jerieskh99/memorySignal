@@ -368,7 +368,7 @@ function descOf(id, memo = {}) {
     case "block": { const u = up("in"); const wp_ = +p.wp, hp_ = +p.hp;
       d = u ? Object.assign({}, u, {type: "field", axis: "blocked", wp: wp_, hp: hp_,
         n_blocks: (N_PAGES < wp_ || wp_ < 1 || hp_ < 1) ? 0 : Math.floor((N_PAGES - wp_) / hp_) + 1}) : null; break; }
-    case "window": { const u = up("in"); d = u ? Object.assign({}, u, {type: "tiles", w: +p.w, h: +p.h, taper: p.taper, edge: p.edge}) : null; break; }
+    case "window": { const u = up("in"); d = u ? Object.assign({}, u, {type: "tiles", w: +p.w, h: +p.h, taper: p.taper, edge: p.edge, page_axis: u.axis === "page"}) : null; break; }
     case "baseline": { const u = up("in"); d = {type: "reference", mode: p.mode, fitted: !!u, kind: p.mode === "benign" ? "envelope" : "plv",
       src: u ? u.type : null, complex: u ? !!u.complex : false, names: u ? u.names : null}; break; }
     case "deviation": { const u = up("in"); d = {type: "features", names: ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"], up: u, w: u ? u.w : null}; break; }
@@ -439,7 +439,16 @@ function nodeConstraints(n, memo) {
     case "window": {
       const u = up("in"), w = +p.w, h = +p.h;
       if (w < 1 || h < 1) I("hard", "W and H must be at least 1", "window arithmetic");
-      if (u && u.axis === "page") I("hard", "tiles at full page resolution are not implemented in the runner; put Collapse (or Block) before Window", "runner/stages.py");
+      if (u && u.axis === "page") {
+        const nCh = (u.channels || []).length, budget = (+p.max_mb || 256) * 1024 * 1024, item = u.complex ? 8 : 4;
+        if (!u.complex && nCh !== 1) I("hard", `a page-resolution tile carries one channel or a complex field; this one has ${nCh}. Add Single, or Collapse the page axis`, "runner/stages.py dense_page_matrix");
+        if ((p.page_mode || "active") === "all") {
+          const need = (u.nmin || 0) * N_PAGES * item;
+          if (need > budget) I("hard", `page_mode=all over ${N_PAGES} pages needs about ${(need / 1e6).toFixed(0)} MB per recording, over the ${+p.max_mb || 256} MB budget; use page_mode=active, raise the budget, or Block the address axis`, "runner/stages.py dense_page_matrix");
+          else I("soft", `page_mode=all keeps every one of ${N_PAGES} pages, most of which never change; the differ's output is sparse for that reason`, "runner/stages.py dense_page_matrix", "page_all:" + n.id);
+        } else I("note", "the page axis keeps only the pages that change in each recording, so its length differs per recording; the tile keys record which pages were kept", "runner/stages.py dense_page_matrix");
+        I("note", "each lens downstream runs per page and reports the median across pages, the convention StabilityValidator uses; PLV and Baseline read the page axis directly", "runner/stages.py run_lens");
+      }
       if (u && u.nmin && w > u.nmin) I("hard", `W_t=${w} exceeds the shortest connected recording (${u.nmin} pairs): zero windows`, "plan10 UX section 13.2");
       if (h > w) I("soft", "hop larger than the window skips frames", "Plan 03 G4 hop validity", "hop_gt_w");
       if (w === 8 && h === 4) I("note", "8/4 is inherited: tuned on APF alone, smallest-W tiebreak, 128 never swept", "plan05 recommendation.json");

@@ -216,7 +216,82 @@ def _taper(w: int, kind: str) -> np.ndarray:
     raise ValueError(f"unknown taper {kind!r}")
 
 
-def window(series: dict, w: int, h: int, edge: str = "drop", taper: str = "rectangular") -> dict:
+def dense_page_matrix(field: dict, page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024) -> tuple:
+    """The sparse field as the dense (T, P) matrix the methodology calls the page-by-time image.
+
+    page_mode="active" keeps only the pages that change at least once in this recording,
+    which is the whole point of the differ's sparse output: at a few percent activity the
+    dense form over every page is mostly zeros and tens of times larger. The page indices
+    kept are returned, so a row still names the page it came from.
+    page_mode="all" keeps every page of the dump, which is what a fixed-address reading
+    needs and what the memory guard usually refuses.
+
+    A single channel or a complex field only: several real channels would make the tile
+    four-dimensional, which no lens here reads.
+    """
+    if page_mode not in ("active", "all"):
+        raise ValueError(f"unknown page mode {page_mode!r}")
+    T, n_pages = field["n_pairs"], field["n_pages"]
+    if field.get("z") is None and len(field["channels"]) != 1:
+        raise ValueError(f"a page-resolution tile carries one channel or a complex field; got {len(field['channels'])} channels. "
+                         "Use Single, or Collapse the page axis")
+    pages = (np.unique(field["page_index"]) if page_mode == "active"
+             else np.arange(n_pages, dtype=field["page_index"].dtype))
+    dtype = np.complex64 if field.get("z") is not None else np.float32
+    need = int(T) * int(pages.shape[0]) * np.dtype(dtype).itemsize
+    if need > max_bytes:
+        raise ValueError(
+            f"a dense {T} x {pages.shape[0]} page matrix needs {need / 1e6:.0f} MB, over the {max_bytes / 1e6:.0f} MB budget. "
+            f"Use page_mode=active ({np.unique(field['page_index']).shape[0]} pages change here, of {n_pages}), "
+            "raise the budget, or Block/Collapse the page axis")
+    col = np.searchsorted(pages, field["page_index"])
+    keep = (col < pages.shape[0]) & (pages[np.minimum(col, pages.shape[0] - 1)] == field["page_index"])
+    M = np.zeros((T, pages.shape[0]), dtype=dtype)
+    vals = field["z"] if field.get("z") is not None else field["cols"][field["channels"][0]]
+    M[field["seq"][keep] - 1, col[keep]] = vals[keep]
+    return M, pages
+
+
+def run_lens(tiles: dict, fn):
+    """Apply a lens, reducing a page axis by the median across pages.
+
+    A page-resolution tile is (n_tiles, W, P). Every lens here is written for one series per
+    tile, so it runs per page and the results are reduced by the median across pages: the
+    convention StabilityValidator already uses, which reports msc_peak_snr_db_median and
+    cepstral_peak_idx_median beside their per-page arrays. PLV and Baseline are not routed
+    through here, because their code takes [T, N] and aggregates the page axis itself.
+    """
+    if not tiles.get("page_axis"):
+        return fn(tiles)
+    X = tiles["X"]
+    outs = []
+    for j in range(X.shape[2]):
+        sub = dict(tiles)
+        sub["X"] = X[:, :, j]
+        sub["page_axis"] = False
+        sub["channels"] = ["page"]
+        outs.append(fn(sub))
+    if not outs:
+        return {"names": [], "rows": np.zeros((X.shape[0], 0), np.float32), "keys": tiles["keys"]}
+    rows = np.median(np.stack([o["rows"] for o in outs], axis=2), axis=2)
+    return {"names": [n + "_median" for n in outs[0]["names"]], "rows": rows.astype(np.float32), "keys": tiles["keys"]}
+
+
+def window(series: dict, w: int, h: int, edge: str = "drop", taper: str = "rectangular",
+           page_mode: str = "active", max_bytes: int = 256 * 1024 * 1024) -> dict:
+    """Slide a window over snapshots. A field with a page axis becomes page-resolution tiles."""
+    if "page_index" in series:
+        M, pages = dense_page_matrix(series, page_mode, max_bytes)
+        ser = {"values": M, "channels": series["channels"], "complex": series.get("z") is not None,
+               "block": None, "n_pages": series["n_pages"]}
+        t = window(ser, w, h, edge, taper)
+        need = t["X"].size * t["X"].dtype.itemsize
+        if need > max_bytes:
+            raise ValueError(f"the tiles need {need / 1e6:.0f} MB, over the {max_bytes / 1e6:.0f} MB budget; "
+                             "widen the hop, narrow the window, or reduce the page axis")
+        t["page_axis"] = True
+        t["pages"] = pages
+        return t
     v = series["values"]
     T = v.shape[0]
     if w < 1 or h < 1:
@@ -235,7 +310,8 @@ def window(series: dict, w: int, h: int, edge: str = "drop", taper: str = "recta
     keys = [(series.get("block"), i, s + 1) for i, s in enumerate(starts)]
     real = np.abs(series["values"]) if series["complex"] else series["values"]
     return {"X": X, "keys": keys, "w": w, "h": h, "taper": taper, "channels": series["channels"], "complex": series["complex"],
-            "series_mean": float(np.mean(real)) if T else 0.0, "series_std": float(np.std(real)) if T else 0.0}
+            "series_mean": float(np.mean(real)) if T else 0.0, "series_std": float(np.std(real)) if T else 0.0,
+            "page_axis": False, "pages": None}
 
 
 # ---------------------------------------------------------------------------
