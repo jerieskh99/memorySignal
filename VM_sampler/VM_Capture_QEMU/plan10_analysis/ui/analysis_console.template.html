@@ -442,9 +442,13 @@ function nodeConstraints(n, memo) {
         else if (p.levels < 1 || p.levels > lim) I("hard", `${esc(p.fam)} on a ${u.w}-sample window allows 1 to ${lim} level(s); got ${p.levels}. The limit is the filter length, not log2(W)`, "pywt.dwt_max_level"); }
       break; }
     case "msc": {
-      const u = up("in");
-      if (u && u.channels && u.channels.length < 2) I("hard", "MSC is pairwise: needs two or more channels upstream", "magnitude_squared_coherence.py");
-      if (u && u.w && u.w < p.iw) I("soft", `MSC re-windows internally at ${p.iw}/${p.ih}; upstream tiles are W=${u.w}, so it cannot form a single sub-window and the value is degenerate`, "magnitude_squared_coherence.py generate_window_slices; stability_validator defaults 128/64", "msc_iw:" + n.id, {label: `internal window = ${u.w}`, run: () => { p.iw = u.w; p.ih = Math.max(1, Math.floor(u.w / 2)); }});
+      /* self-coherence between adjacent internal windows, not a channel pair: one channel
+         is enough, and the binding requirement is that the tile holds two of them. */
+      const u = up("in"), iw = +p.iw, ih = +p.ih, meth = p.method || "welch";
+      const need = iw + (meth === "welch" ? 2 : 1) * ih;
+      if (iw < 2 || ih < 1) I("hard", "the internal window must be at least 2 samples and the step at least 1", "runner/stages.py");
+      else if (u && u.w && u.w < need) I("hard", `MSC (${esc(meth)}) at ${iw}/${ih} needs a tile of at least ${need} samples; upstream tiles are W=${u.w}`, "runner/stages.py msc_min_window", null, {label: `internal ${Math.max(2, Math.floor(u.w / 2))}/${Math.max(1, Math.floor(u.w / 4))}`, run: () => { p.iw = Math.max(2, Math.floor(u.w / 2)); p.ih = Math.max(1, Math.floor(u.w / 4)); }});
+      if (meth === "legacy_adjacent") I("soft", "the legacy MSC is identically 1 wherever both windows hold power: it measures spectral occupancy, not coherence", "known_issues.py msc_single_segment", "msc_legacy");
       break; }
     case "plv": {
       const u = up("in"); if (u && !u.complex) I("hard", "PLV reads the phase of a complex signal; upstream tiles are real. Put a Complex module before the window", "plv_calcolator.py _getPhaseOfComplexSignal");

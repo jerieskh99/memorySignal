@@ -61,7 +61,7 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-MSC, tiles at full page
+Tiles at full page
 resolution (put Collapse or Block before Window), overlapping blocks, the benign-envelope
 baseline, remote execution (SSH fetches to a local cache; the runner is local). Each refuses
 with a message in the run log and, where the console can see it, as a hard constraint.

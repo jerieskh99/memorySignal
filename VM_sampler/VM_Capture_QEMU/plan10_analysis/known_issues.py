@@ -133,6 +133,23 @@ def v_gate2() -> dict:
     return {"frac_min": min(fracs), "frac_max": max(fracs), "n": len(fracs)}
 
 
+def v_msc_single_segment() -> dict:
+    """Run the project's own MSC on two independent random windows; coherence must not be 1."""
+    import numpy as np
+    sys.path.insert(0, str(REPO))
+    from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence
+    rng = np.random.default_rng(0)
+    op = MagnitudeSquaredCoherence(window_size=64, window_step=32)
+    c = op.compute_pair_msc(rng.standard_normal((64, 1)), rng.standard_normal((64, 1)))[:, 0]
+    t = np.arange(192)
+    sine = (0.05 + 0.02 * np.sin(2 * np.pi * t / 16)).reshape(-1, 1)
+    noise = (0.05 + 0.02 * rng.standard_normal(192)).reshape(-1, 1)
+    occ = lambda v: float((np.abs(np.fft.rfft(v[:64], axis=0)) ** 2 > (np.abs(np.fft.rfft(v[:64], axis=0)) ** 2).max() * 1e-9).mean())
+    return {"independent_min": round(float(c.min()), 10), "independent_mean": round(float(c.mean()), 10),
+            "sine_mean": round(float(op.compute_msc(sine)[:, 0].mean()), 4), "sine_occupancy": round(occ(sine), 4),
+            "noise_mean": round(float(op.compute_msc(noise)[:, 0].mean()), 4), "noise_occupancy": round(occ(noise), 4)}
+
+
 def v_needs_env() -> dict:
     req = [l.strip() for l in (QEMU_DIR / "plan08_b1" / "requirements.txt").read_text().splitlines()
            if l.strip() and not l.startswith("#")]
@@ -215,6 +232,18 @@ ISSUES = [
                 "as thousands of fragments.",
          artifacts=["docs/dwarf_pilot_design/GATE2_RESULT.md"],
          record="Dwarf pilot Gate 2, 2026-09-06", verify=v_gate2),
+    dict(id="msc_single_segment", applies=["module:msc", "feature:msc_peak_snr_db"], sev="do_not_use",
+         head="The legacy MSC is identically 1: it is occupancy, not coherence",
+         detail="magnitude_squared_coherence.py takes the ratio per window pair and averages the ratios. "
+                "For a single FFT pair |X conj(Y)|^2 and |X|^2 |Y|^2 are the same quantity, so the result is 1 "
+                "wherever both windows hold power: two INDEPENDENT random windows score {independent_mean} in every "
+                "bin (min {independent_min}). Its msc_mean therefore equals the fraction of bins holding power "
+                "exactly: {sine_mean} for a sine whose occupancy is {sine_occupancy}, {noise_mean} for white noise "
+                "whose occupancy is {noise_occupancy}. Use method=welch, which averages the spectra before the "
+                "ratio; the legacy path is kept only to reproduce earlier numbers.",
+         artifacts=["coherence_temp_spec_stability/magnitude_squared_coherence.py"],
+         record="found 2026-09-09 while implementing the MSC lens; affects StabilityValidator.compute_msc_features",
+         verify=v_msc_single_segment),
     dict(id="needs_env", applies=["module:scattering", "module:wavelet"], sev="note",
          head="Needs packages outside the pinned analysis env",
          detail="The existing implementation imports {imports}; the analysis env pins {pinned}. "

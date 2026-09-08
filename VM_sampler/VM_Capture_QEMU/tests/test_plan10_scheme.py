@@ -150,14 +150,21 @@ def test_soft_rules_and_acknowledgment():
     iss = _break(ctx, "complex", lambda s: node(s, "n3")["params"].update(chans=["ent_q"]))
     assert "direction_not_direction" in _ids(iss, "soft")
 
-    # MSC on W=8 with one channel: hard (pairwise) and soft (internal window)
-    def msc(s):
-        s["nodes"].append({"id": "n9", "module": "msc", "params": {}, "x": 0, "y": 0})
+    # MSC needs a tile long enough to hold its internal windows, and ONE channel is enough:
+    # it is self-coherence between adjacent windows, not a channel pair (an earlier rule here
+    # demanded two channels and was wrong).
+    def msc(s, **params):
+        s["nodes"].append({"id": "n9", "module": "msc", "params": params, "x": 0, "y": 0})
         s["pipes"].append({"from": ["n4", "out"], "to": ["n9", "in"]})
-    iss = _break(ctx, "b1", msc)
-    mine = [i for i in iss if i["node"] == "n9"]
-    assert any(i["sev"] == "hard" and "pairwise" in i["msg"] for i in mine)
-    assert any(i["sev"] == "soft" and i["id"].startswith("msc_iw") for i in mine)
+    mine = lambda iss: [i for i in iss if i["node"] == "n9"]
+    # the b1 example windows at 8 frames; the shipped 128/64 needs 256
+    hard = [i for i in mine(_break(ctx, "b1", msc)) if i["sev"] == "hard"]
+    assert hard and "at least 256 samples" in hard[0]["msg"], hard
+    assert not any("pairwise" in i["msg"] for i in mine(_break(ctx, "b1", msc)))
+    # internal windows that fit the tile: no issue at all, on a single channel
+    assert mine(_break(ctx, "b1", lambda s: msc(s, iw=4, ih=2))) == []
+    # a nonsense internal window is refused
+    assert any(i["sev"] == "hard" for i in mine(_break(ctx, "b1", lambda s: msc(s, iw=1, ih=0))))
 
     # a flagged feature: soft, and blocks until acknowledged
     s = copy.deepcopy(S.make_examples(ctx.manifest)["b1"])

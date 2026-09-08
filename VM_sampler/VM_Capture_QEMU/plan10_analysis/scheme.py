@@ -388,12 +388,22 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                                   "pywt.dwt_max_level"))
 
     elif mod == "msc":
+        # MSC here is self-coherence between adjacent internal windows, not a channel pair:
+        # one channel is enough, and the binding requirement is tile length.
         u = up("in")
-        if u and len(u.get("channels", [])) < 2:
-            out.append(_issue(nid, "hard", "MSC is pairwise: needs two or more channels upstream", "magnitude_squared_coherence.py"))
-        if u and u.get("w") and u["w"] < int(p["iw"]):
-            out.append(_issue(nid, "soft", f"MSC re-windows internally at {p['iw']}/{p['ih']}; upstream tiles are W={u['w']}, so it cannot form a single sub-window and the value is degenerate",
-                              "magnitude_squared_coherence.py generate_window_slices; stability_validator defaults 128/64", id=f"msc_iw:{nid}", fix=f"internal window = {u['w']}"))
+        iw, ih, meth = int(p["iw"]), int(p["ih"]), p.get("method", "welch")
+        # welch averages over segment PAIRS, so it needs three segments; with one pair the
+        # ratio is identically 1 whatever the data. The legacy path needs two segments.
+        need = iw + (2 if meth == "welch" else 1) * ih
+        if iw < 2 or ih < 1:
+            out.append(_issue(nid, "hard", "the internal window must be at least 2 samples and the step at least 1", "runner/stages.py"))
+        elif u and u.get("w") and u["w"] < need:
+            out.append(_issue(nid, "hard",
+                              f"MSC ({meth}) at {iw}/{ih} needs a tile of at least {need} samples; upstream tiles are W={u['w']}",
+                              "runner/stages.py msc_min_window"))
+        if meth == "legacy_adjacent":
+            out.append(_issue(nid, "soft", "the legacy MSC is identically 1 wherever both windows hold power: it measures spectral occupancy, not coherence",
+                              "known_issues.py msc_single_segment", id="msc_legacy"))
 
     elif mod == "plv":
         u = up("in")

@@ -234,13 +234,65 @@ def test_scattering_when_kymatio_is_present():
     assert grid["available"] and grid["max_J"]["64"]["4"] == J and grid["max_J"]["16"]["4"] == 0
 
 
+def test_msc_welch_against_the_degenerate_legacy():
+    """Coherence must be 1 for a repeating spectrum and near 1/n_pairs for independent segments."""
+    W, iw, ih = 512, 64, 64
+    t = np.arange(W)
+    rng = np.random.default_rng(0)
+    mk = lambda x: {"X": np.asarray(x, np.float32).reshape(1, W), "keys": [(None, 0, 1)], "w": W, "h": W,
+                    "taper": "rectangular", "channels": ["h"], "complex": False, "series_mean": 0.0, "series_std": 1.0}
+    sine = 0.05 + 0.02 * np.sin(2 * np.pi * t / 16)
+    chirp = 0.05 + 0.02 * np.sin(2 * np.pi * t ** 2 / (10 * W))
+    noise = 0.05 + 0.02 * rng.standard_normal(W)
+    g = lambda r, k: float(r["rows"][0][r["names"].index(k)])
+
+    r_sine, r_chirp, r_noise = (stages.msc(mk(v), iw, ih) for v in (sine, chirp, noise))
+    assert r_sine["names"] == ["msc_peak_snr_db", "msc_mean", "msc_max", "msc_weighted"]
+    # a spectrum that repeats exactly is fully coherent; a drifting one and noise are not
+    assert g(r_sine, "msc_weighted") > 0.99
+    assert g(r_chirp, "msc_weighted") < 0.4 and g(r_noise, "msc_weighted") < 0.4
+    # independent segments sit near 1/n_pairs, the bias of the estimator at 7 pairs
+    assert 0.05 < g(r_noise, "msc_weighted") < 0.35, g(r_noise, "msc_weighted")
+    for r in (r_sine, r_chirp, r_noise):
+        for k in ("msc_mean", "msc_max", "msc_weighted"):
+            assert 0.0 <= g(r, k) <= 1.0 + 1e-9, (k, g(r, k))
+    # without detrending, DC owns the coherence and nothing separates
+    assert min(g(stages.msc(mk(v), iw, ih, detrend="none"), "msc_weighted") for v in (sine, chirp, noise)) > 0.9
+
+    # the legacy path is identically 1 wherever power exists: two INDEPENDENT windows score 1
+    from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence
+    op = MagnitudeSquaredCoherence(window_size=64, window_step=32)
+    c = op.compute_pair_msc(rng.standard_normal((64, 1)), rng.standard_normal((64, 1)))[:, 0]
+    assert c.min() > 0.999, c.min()
+    # and its msc_mean equals the fraction of bins holding power, which is occupancy
+    legacy = stages.msc(mk(sine), iw, ih, method="legacy_adjacent")
+    P = np.abs(np.fft.rfft(sine[:iw])) ** 2
+    assert abs(g(legacy, "msc_mean") - float((P > P.max() * 1e-9).mean())) < 0.01
+
+    # one channel is enough (it is not a channel pair), and several are independent
+    two = np.stack([sine, noise], axis=1)
+    tiles2 = mk(sine)
+    tiles2["X"] = two.astype(np.float32).reshape(1, W, 2)
+    tiles2["channels"] = ["hamming", "cosine"]
+    r2 = stages.msc(tiles2, iw, ih)
+    assert r2["names"][0].endswith(":hamming") and r2["names"][4].endswith(":cosine")
+    assert np.allclose(r2["rows"][0][:4], r_sine["rows"][0], rtol=1e-5)
+    assert np.allclose(r2["rows"][0][4:], r_noise["rows"][0], rtol=1e-5)
+
+    # length rule differs per method: welch needs three segments, legacy two
+    assert stages.msc_min_window(128, 64, "welch") == 256 and stages.msc_min_window(128, 64, "legacy_adjacent") == 192
+    short = mk(sine)
+    short["w"], short["X"] = 127, short["X"][:, :127]
+    for meth in ("welch", "legacy_adjacent"):
+        try:
+            stages.msc(short, iw, ih, method=meth)
+            assert False, meth
+        except ValueError as e:
+            assert "at least" in str(e)
+
+
 def test_unimplemented_modules_refuse_by_name():
     tiles = stages.window({"values": np.arange(32, dtype=np.float32), "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, 16, 8)
-    try:
-        stages.msc(tiles, 8, 4)
-        assert False
-    except stages.NotImplementedStage as e:
-        assert "not implemented" in str(e)
     try:
         import kymatio  # noqa: F401
     except ImportError:

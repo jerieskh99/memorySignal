@@ -342,7 +342,7 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "scattering":
         return stages.scattering(up("in"), int(p["J"]), int(p["Q"]))
     if mod == "msc":
-        return stages.msc(up("in"), int(p["iw"]), int(p["ih"]))
+        return stages.msc(up("in"), int(p["iw"]), int(p["ih"]), p.get("method", "welch"), p.get("detrend", "mean"))
     if mod == "concat":
         return stages.concat([memo[s] for s in multi_ins])
     raise ValueError(f"module {mod} cannot be evaluated per recording")

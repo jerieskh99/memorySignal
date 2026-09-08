@@ -492,8 +492,99 @@ def scattering(tiles: dict, J: int, Q: int) -> dict:
     return {"names": names, "rows": np.concatenate(cols, axis=1) if cols else np.zeros((0, 0), np.float32), "keys": tiles["keys"]}
 
 
-def msc(tiles: dict, iw: int, ih: int) -> dict:
-    raise NotImplementedStage("MSC is not implemented in this pass")
+def msc_min_window(iw: int, ih: int, method: str = "welch") -> int:
+    """Shortest tile each method needs.
+
+    welch  three segments, so two pairs to average over: iw + 2*ih. With one pair the ratio
+           is identically 1 whatever the data (see `msc`), so two is the real minimum.
+    legacy two segments: iw + ih.
+    """
+    return int(iw) + (2 if method == "welch" else 1) * int(ih)
+
+
+def msc(tiles: dict, iw: int, ih: int, method: str = "welch", detrend: str = "mean") -> dict:
+    """Magnitude-squared coherence between adjacent internal windows of the same signal.
+
+    What it measures: how much a signal's spectrum repeats itself over time. It is NOT
+    coherence between two channels, and an earlier constraint in this project said it was
+    and demanded two of them; one channel is enough and several are computed independently.
+
+    Two methods, because the project's own implementation is degenerate.
+
+    `method="welch"` (the default) accumulates the cross-spectrum and both auto-spectra
+    over every adjacent segment pair and takes the ratio ONCE, at the end:
+    |<Pxy>|^2 / (<Pxx><Pyy>). This is the definition; the averaging is what makes the
+    quantity mean anything.
+
+    `method="legacy_adjacent"` reproduces coherence_temp_spec_stability/
+    magnitude_squared_coherence.py, which takes the ratio per pair and averages the
+    ratios. That is identically 1 wherever both windows hold power, because for a single
+    FFT pair |X conj(Y)|^2 and |X|^2 |Y|^2 are the same quantity: measured, two INDEPENDENT
+    random windows score 1.0000000000 in every bin, and its `msc_mean` equals the fraction
+    of bins holding power exactly (0.0606 for a sine, 1.0000 for white noise). It is a
+    spectral-occupancy measure, not a coherence. Kept because earlier numbers were produced
+    with it; flagged in the known-issue registry as `msc_single_segment`.
+
+    `detrend="mean"` removes each segment's mean before its FFT, for the same reason the
+    FFT lens does: these trajectories carry a large offset, DC then holds nearly all the
+    power, and DC is trivially coherent between any two windows. Measured at W=512,
+    iw=ih=64, power-weighted coherence without detrending was 1.00 / 0.97 / 0.93 for a
+    stationary sine, a chirp and white noise, which says nothing; with it, 1.00 / 0.18 /
+    0.17, against the 1/7 = 0.14 that independent segments should give at seven pairs.
+
+    Four features per channel. `msc_weighted` is the one to read: coherence averaged over
+    bins weighted by their power, which answers "does the energy repeat". `msc_mean` is the
+    unweighted average over all bins, so it is dragged down by the empty ones and behaves
+    partly as occupancy (0.03 for a sine whose weighted coherence is 1.00); it is kept
+    because the legacy path reports it.
+    """
+    w = int(tiles["w"])
+    if method not in ("welch", "legacy_adjacent"):
+        raise ValueError(f"unknown MSC method {method!r}")
+    need = msc_min_window(iw, ih, method)
+    if w < need:
+        raise ValueError(
+            f"MSC ({method}) at {iw}/{ih} needs a tile of at least {need} samples; this one is {w}. "
+            "Lower the internal window, or widen the Window module")
+    X = tiles["X"]
+    chans = tiles["channels"] if X.ndim == 3 else [None]
+    eps = 1e-10
+
+    if detrend not in ("mean", "none"):
+        raise ValueError(f"unknown detrend {detrend!r}")
+
+    def spectra(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(coherence (F, n_channels), power (F, n_channels)) for one tile."""
+        starts = list(range(0, arr.shape[0] - int(iw) + 1, int(ih)))
+        pxy = pxx = pyy = 0.0
+        for a, b in zip(starts, starts[1:]):
+            xa, xb = arr[a:a + int(iw)], arr[b:b + int(iw)]
+            if detrend == "mean":
+                xa, xb = xa - xa.mean(axis=0, keepdims=True), xb - xb.mean(axis=0, keepdims=True)
+            Xf, Yf = np.fft.rfft(xa, axis=0), np.fft.rfft(xb, axis=0)
+            pxy = pxy + Xf * np.conj(Yf)
+            pxx = pxx + np.abs(Xf) ** 2
+            pyy = pyy + np.abs(Yf) ** 2
+        if method == "legacy_adjacent":
+            from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence
+            return MagnitudeSquaredCoherence(window_size=int(iw), window_step=int(ih)).compute_msc(arr), pxx
+        return np.abs(pxy) ** 2 / (pxx * pyy + eps), pxx
+
+    rows = []
+    for t in range(X.shape[0]):
+        arr = _real(X[t]).astype(np.float64)
+        arr = arr.reshape(-1, 1) if arr.ndim == 1 else arr
+        spec, power = spectra(arr)
+        peak, noise = spec.max(axis=0), spec.mean(axis=0)
+        snr = 10.0 * np.log10((peak + eps) / (noise + eps))
+        weighted = (spec * power).sum(axis=0) / (power.sum(axis=0) + eps)
+        rows.append([v for j in range(arr.shape[1])
+                     for v in (float(snr[j]), float(noise[j]), float(peak[j]), float(weighted[j]))])
+    names = [f"{k}{'' if c is None else ':' + c}" for c in chans
+             for k in ("msc_peak_snr_db", "msc_mean", "msc_max", "msc_weighted")]
+    return {"names": names,
+            "rows": np.asarray(rows, dtype=np.float32).reshape(X.shape[0], len(names)),
+            "keys": tiles["keys"]}
 
 
 # ---------------------------------------------------------------------------
