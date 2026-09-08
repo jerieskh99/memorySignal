@@ -38,6 +38,18 @@ if str(QEMU_DIR) not in sys.path:
 from plan10_analysis import channel_roster, corpus_manifest  # noqa: E402
 from plan10_analysis.modules import build_modules  # noqa: E402
 
+
+def stages_wavelet_max_level(fam: str, w: int) -> int:
+    """runner.stages.wavelet_max_level, imported lazily: scheme.py must stay numpy-free."""
+    try:
+        import pywt  # type: ignore
+    except ImportError:
+        return -1
+    try:
+        return int(pywt.dwt_max_level(w, pywt.Wavelet(fam)))
+    except (ValueError, KeyError):
+        return 0
+
 SCHEMA = "plan10.scheme.v1"
 CONFIG_PATH = QEMU_DIR / "config_qemu_upc.json"
 
@@ -354,9 +366,15 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         if u and u.get("w") and u["w"] < 4:
             out.append(_issue(nid, "hard", f"upstream window W={u['w']} is too short for a spectrum", "plan10 UX section 13.2"))
         if mod == "wavelet" and u and u.get("w"):
-            levels = int(p["levels"])
-            if levels > (u["w"].bit_length() - 1):
-                out.append(_issue(nid, "soft", f"{levels} levels need W of at least {2 ** levels}; upstream W={u['w']}", "pywt.dwt_max_level", id=f"wav_levels:{nid}"))
+            levels, fam = int(p["levels"]), p.get("fam", "")
+            lim = stages_wavelet_max_level(fam, int(u["w"]))
+            if lim == -1:
+                out.append(_issue(nid, "hard", "wavelet needs pywt in the analysis environment (pip install PyWavelets)", "runner/stages.py"))
+            elif levels < 1 or levels > lim:
+                out.append(_issue(nid, "hard",
+                                  f"{fam} on a {u['w']}-sample window allows 1 to {lim} level(s); got {levels}. "
+                                  "The limit is the filter length, not log2(W)",
+                                  "pywt.dwt_max_level"))
 
     elif mod == "msc":
         u = up("in")

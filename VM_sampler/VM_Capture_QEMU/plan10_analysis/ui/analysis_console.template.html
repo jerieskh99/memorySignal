@@ -311,6 +311,14 @@ function flag(id) {
   return `<span class="flag ${i.sev}${i.verified ? "" : " unverified"}" tabindex="0">${i.sev.replace(/_/g, " ")}${i.verified ? "" : " ?"}<span class="hovercard"><span class="hc-h">${esc(i.head)}</span><span class="hc-d">${esc(i.detail)}</span>${v}<span class="hc-s">${esc(i.record)}${i.artifacts.length ? " / " + esc(i.artifacts.join(", ")) : ""}</span></span></span>`;
 }
 const FEAT_FLAG = {}; Object.values(FEAT_SRC).flat().forEach(f => { if (f.flag) FEAT_FLAG[f.name] = f.flag; });
+/* wavelet level ceiling: injected per family as filter length, since pywt is not in the page.
+   pywt.dwt_max_level(w, filter_len) = floor(log2(w / (filter_len - 1))). */
+const WAVELET_FILTER_LEN = MODULES.feature_sources.wavelet.filter_len || {}, WAVELET_MAX_LEVEL = {};
+function maxLevelFor(fam, w) {
+  const fl = WAVELET_FILTER_LEN[fam];
+  if (!fl || !w) return 0;
+  return Math.max(0, Math.floor(Math.log2(w / (fl - 1))));
+}
 
 /* ===== graph state ===== */
 const G = {nodes: [], edges: [], sel: null, selEdge: null, acks: new Map(), nextId: 1};
@@ -422,7 +430,9 @@ function nodeConstraints(n, memo) {
       break; }
     case "fft": case "cepstrum": case "wavelet": case "scattering": {
       const u = up("in"); if (u && u.w && u.w < 4) I("hard", `upstream window W=${u.w} is too short for a spectrum`, "plan10 UX section 13.2");
-      if (n.mod === "wavelet" && u && u.w && p.levels > Math.floor(Math.log2(u.w))) I("soft", `${p.levels} levels need W of at least ${2 ** p.levels}; upstream W=${u.w}`, "pywt.dwt_max_level", "wav_levels:" + n.id);
+      if (n.mod === "wavelet" && u && u.w) { const lim = WAVELET_MAX_LEVEL[p.fam] ? (WAVELET_MAX_LEVEL[p.fam][u.w] != null ? WAVELET_MAX_LEVEL[p.fam][u.w] : maxLevelFor(p.fam, u.w)) : maxLevelFor(p.fam, u.w);
+        if (lim < 1) I("hard", `${esc(p.fam)} cannot be used on a ${u.w}-sample window: its filter is too long for even one level`, "pywt.dwt_max_level");
+        else if (p.levels < 1 || p.levels > lim) I("hard", `${esc(p.fam)} on a ${u.w}-sample window allows 1 to ${lim} level(s); got ${p.levels}. The limit is the filter length, not log2(W)`, "pywt.dwt_max_level"); }
       break; }
     case "msc": {
       const u = up("in");

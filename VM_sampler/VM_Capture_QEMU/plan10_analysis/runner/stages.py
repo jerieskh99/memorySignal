@@ -357,17 +357,47 @@ def cusum(tiles: dict, k: float = 2.0, h: float = 4.0) -> dict:
     return {"names": names, "rows": np.concatenate(cols, axis=1), "keys": tiles["keys"]}
 
 
-def wavelet(tiles: dict, fam: str, levels: int) -> dict:
+def wavelet_max_level(fam: str, w: int) -> int:
+    """Levels this family can take on a window of w samples, or -1 if pywt is absent.
+
+    The limit is filter-length aware, not log2(w): at w=32, haar allows 5 levels, db4 two,
+    sym5 one and coif3 none, because each level halves the signal and the filter needs room.
+    """
+    try:
+        import pywt  # type: ignore
+    except ImportError:
+        return -1
+    return int(pywt.dwt_max_level(w, pywt.Wavelet(fam)))
+
+
+def wavelet(tiles: dict, fam: str, levels: int, mode: str = "periodization") -> dict:
+    """Per-level coefficient energy, one feature per level plus the approximation.
+
+    `mode="periodization"` (the default) is the only extension that keeps the transform
+    energy-preserving: on a 32-sample tile db4 then emits exactly 32 coefficients whose
+    energy equals the signal's, where the pywt default ("symmetric") emits 45 and inflates
+    the energy by padding. The mode is recorded in the scheme like any other choice.
+
+    Refuses a level count the family cannot take at this window size, naming the limit,
+    rather than letting pywt warn that every coefficient is a boundary effect.
+    """
     try:
         import pywt  # type: ignore
     except ImportError as e:
         raise NotImplementedStage("wavelet needs pywt in the analysis environment") from e
+    if fam not in pywt.wavelist(kind="discrete"):
+        raise NotImplementedStage(
+            f"{fam!r} is not a discrete wavelet; wavedec needs one of pywt.wavelist(kind='discrete'). "
+            "Continuous families (morl, mexh, gaus*, cmor, ...) would need a CWT lens, which is not built")
+    lim = wavelet_max_level(fam, tiles["w"])
+    if levels < 1 or levels > lim:
+        raise ValueError(f"{fam} on a {tiles['w']}-sample window allows 1 to {lim} level(s); got {levels}")
     names, cols = [], []
     for suffix, X in _per_channel(tiles):
         R = _real(X)
         rows = []
         for t in range(R.shape[0]):
-            coeffs = pywt.wavedec(R[t], fam, level=levels)
+            coeffs = pywt.wavedec(R[t], fam, level=levels, mode=mode)
             rows.append([float(np.sum(np.square(c))) for c in coeffs])
         names += [f"wav_l{i}_energy{suffix}" for i in range(levels + 1)]
         cols.append(np.asarray(rows, dtype=np.float32))

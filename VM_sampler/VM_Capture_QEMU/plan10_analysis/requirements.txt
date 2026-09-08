@@ -1,0 +1,13 @@
+# plan10 analysis console + runner.
+# Setup (no root needed):
+#   python3 -m venv ~/p10venv && source ~/p10venv/bin/activate
+#   pip install -r VM_sampler/VM_Capture_QEMU/plan10_analysis/requirements.txt
+#
+# The console's data layer (channel_roster, corpus_manifest, known_issues, modules,
+# scheme, sources, the bridge) is pure stdlib and needs none of this. The runner
+# needs numpy; the wavelet lens needs PyWavelets. Also required, outside pip:
+# the `zstd` CLI, and the differ binary (cargo build --release in
+# VM_sampler/VM_Capture/live_delta_calc_modular, or set PLAN10_DIFFER).
+numpy>=1.24,<3
+PyWavelets>=1.4          # wavelet lens; without it the module refuses by name
+# scattering (kymatio + torch) and MSC are not implemented; see runner/stages.py

@@ -141,6 +141,53 @@ def test_deep_and_plv_discriminate():
     assert g(lo, "plv_num_very_weak_stability") > g(hi, "plv_num_very_weak_stability")
 
 
+def test_wavelet_when_pywt_is_present():
+    """Energy per level, Parseval-exact, with a level ceiling set by the filter and not by log2(W)."""
+    try:
+        import pywt  # noqa: F401
+    except ImportError:
+        print("skip: pywt not installed")
+        return
+    rng = np.random.default_rng(2)
+    T, W = 128, 32
+    mk = lambda x: stages.window({"values": x, "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, W, 16)
+    flat = (0.05 + 0.002 * rng.standard_normal(T)).astype(np.float32)
+    burst = flat.copy()
+    burst[40:48] += 0.05
+    out = stages.wavelet(mk(burst), "db4", 2)
+    assert out["names"] == ["wav_l0_energy", "wav_l1_energy", "wav_l2_energy"]
+    assert out["rows"].shape == (7, 3) and not np.isnan(out["rows"]).any()
+    # the burst lands in the tiles that contain it, and nowhere else
+    e_flat, e_burst = stages.wavelet(mk(flat), "db4", 2)["rows"].sum(axis=1), out["rows"].sum(axis=1)
+    hit = e_burst > e_flat * 1.2
+    assert hit.sum() >= 1 and not hit[0] and not hit[-1], (e_flat, e_burst)
+    # periodization is energy-preserving: coefficient energy equals the tile's
+    tiles = mk(burst)
+    for t in range(tiles["X"].shape[0]):
+        assert np.isclose(stages.wavelet({**tiles, "X": tiles["X"][t:t + 1], "keys": tiles["keys"][t:t + 1]}, "db4", 2)["rows"].sum(),
+                          float(np.square(tiles["X"][t].astype(np.float64)).sum()), rtol=1e-5)
+    # the ceiling is the filter length: at W=32 haar takes 5, db4 two, sym5 one, coif3 none
+    assert [stages.wavelet_max_level(f, 32) for f in ("haar", "db4", "sym5", "coif3")] == [5, 2, 1, 0]
+    for fam, lv in (("db4", 3), ("coif3", 1), ("db4", 0)):
+        try:
+            stages.wavelet(mk(burst), fam, lv)
+            assert False, (fam, lv)
+        except ValueError as e:
+            assert "level" in str(e)
+    # a continuous family is refused by name rather than raising out of pywt
+    try:
+        stages.wavelet(mk(burst), "morl", 1)
+        assert False
+    except stages.NotImplementedStage as e:
+        assert "discrete" in str(e)
+    # the console offers only families wavedec accepts
+    from plan10_analysis.modules import build_modules
+    wav = build_modules()["feature_sources"]["wavelet"]
+    assert "morl" not in wav["families"] and "db4" in wav["families"]
+    assert "morl" in wav["excluded_continuous"]
+    assert wav["filter_len"]["db4"] == 8 and wav["filter_len"]["haar"] == 2
+
+
 def test_unimplemented_modules_refuse_by_name():
     tiles = stages.window({"values": np.arange(32, dtype=np.float32), "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, 16, 8)
     for fn, args, word in ((stages.scattering, (2, 4), "kymatio"), (stages.msc, (8, 4), "not implemented")):

@@ -93,11 +93,17 @@ def deep_features() -> list[dict]:
 
 
 def wavelet_families() -> dict:
+    """Discrete families only: wavedec cannot take a continuous one (morl, mexh, gaus*, ...)."""
     try:
         import pywt  # type: ignore
-        return {"families": list(pywt.wavelist()), "source": f"pywt {pywt.__version__} wavelist()"}
+        disc = list(pywt.wavelist(kind="discrete"))
+        return {"families": disc, "source": f"pywt {pywt.__version__} wavelist(kind='discrete')",
+                "excluded_continuous": sorted(set(pywt.wavelist()) - set(disc)),
+                # the page has no pywt: it derives the level ceiling from the filter length
+                "filter_len": {f: int(pywt.Wavelet(f).dec_len) for f in disc}}
     except ImportError:
-        return {"families": [], "source": "pywt not importable in the build environment; family is free text"}
+        return {"families": [], "source": "pywt not importable in the build environment; family is free text",
+                "excluded_continuous": [], "filter_len": {}}
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +188,10 @@ def build_modules() -> dict:
             impl="coherence_temp_spec_stability/cepstrum_stability.py CepstrumStability"),
         mod("wavelet", "lens", "Wavelet", "w", "pywt DWT / CWT", spectral=True,
             inputs=[inp("in", ["tiles"])], outputs=[outp("out", "features")],
-            params=[sel("fam", "family (" + wav["source"] + ")", wav_opts, wav_opts[0][0] if wav_opts else ""),
-                    num("levels", "levels", 3)],
-            flags=["needs_env"], impl="VMsig_featureExctraction/wavelet_analysis_features.py"),
+            params=[sel("fam", "family (" + wav["source"] + ")", wav_opts, "db4" if any(o[0] == "db4" for o in wav_opts) else (wav_opts[0][0] if wav_opts else "")),
+                    num("levels", "levels (the family and window set the ceiling)", 2),
+                    sel("mode", "extension mode", [["periodization", "periodization: energy-preserving"], ["symmetric", "symmetric: pywt default, pads"]], "periodization")],
+            flags=[] if wav["families"] else ["needs_env"], impl="pywt.wavedec"),
         mod("scattering", "lens", "Scattering", "S", "kymatio 1D / 2D", spectral=True,
             inputs=[inp("in", ["tiles"])], outputs=[outp("out", "features")],
             params=[num("J", "J", 3), num("Q", "Q", 8)], flags=["needs_env"],

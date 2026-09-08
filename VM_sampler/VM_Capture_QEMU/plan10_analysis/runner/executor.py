@@ -338,7 +338,7 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "cusum":
         return stages.cusum(up("in"), float(p["k"]), float(p["h"]))
     if mod == "wavelet":
-        return stages.wavelet(up("in"), p.get("fam", ""), int(p["levels"]))
+        return stages.wavelet(up("in"), p.get("fam", ""), int(p["levels"]), p.get("mode", "periodization"))
     if mod == "scattering":
         return stages.scattering(up("in"), int(p["J"]), int(p["Q"]))
     if mod == "msc":
