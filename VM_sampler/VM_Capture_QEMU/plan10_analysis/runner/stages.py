@@ -290,11 +290,26 @@ def deep(tiles: dict, feats: list[str]) -> dict:
     return {"names": names, "rows": np.concatenate(cols, axis=1) if cols else np.zeros((0, 0), np.float32), "keys": tiles["keys"]}
 
 
-def fft(tiles: dict, out: str = "bands", n_bands: int = 4) -> dict:
+def fft(tiles: dict, out: str = "bands", n_bands: int = 4, detrend: str = "mean") -> dict:
+    """Power spectrum of each tile.
+
+    `detrend="mean"` (the default) subtracts each tile's own mean before the transform.
+    Without it the DC term dominates: a taper spreads DC into the low bins, so the peak
+    lands on bin 1 whatever the signal does. Measured on a period-8 series at W=32: the
+    true peak is bin 4, and the untreated path reports bin 1 under a Hann taper (bin 4
+    under a rectangular one). The tile's mean is not lost, it is what `stats.mean` reports;
+    these features describe the fluctuation around it. `detrend="none"` keeps the old
+    behaviour and is recorded in the scheme like any other choice.
+    """
     tp = _taper(tiles["w"], tiles["taper"])
     names, cols = [], []
     for suffix, X in _per_channel(tiles):
-        Y = np.fft.rfft(_real(X) * tp, axis=1)
+        R = _real(X).astype(np.float64)
+        if detrend == "mean":
+            R = R - R.mean(axis=1, keepdims=True)
+        elif detrend != "none":
+            raise ValueError(f"unknown detrend {detrend!r}")
+        Y = np.fft.rfft(R * tp, axis=1)
         P = np.abs(Y) ** 2
         if out == "spectrum":
             names += [f"fft_bin{i}{suffix}" for i in range(P.shape[1])]
@@ -314,10 +329,18 @@ def fft(tiles: dict, out: str = "bands", n_bands: int = 4) -> dict:
 
 
 def cepstrum(tiles: dict) -> dict:
-    tp = _taper(tiles["w"], tiles["taper"])
+    """Quefrency peak and its SNR, on the RAW tile.
+
+    The window's taper is deliberately not applied here. The cepstrum takes the log of the
+    magnitude spectrum, so a taper's own envelope enters the log and dominates the
+    quefrency: measured on a period-8 series at W=32, the tapered path peaks at quefrency
+    31 while the raw path peaks at 8, the true period. plan03_metric_kernel feeds its
+    cepstrum the raw trajectory for the same reason. The mean is left in for the same
+    reason (removing it moved the peak to 12).
+    """
     names, cols = [], []
     for suffix, X in _per_channel(tiles):
-        R = _real(X) * tp
+        R = _real(X)
         rows = [list(_ceps_peak(R[t])) for t in range(R.shape[0])]
         names += ["cepstral_peak_idx" + suffix, "ceps_peak_snr_db" + suffix]
         cols.append(np.asarray(rows, dtype=np.float32).reshape(R.shape[0], 2))

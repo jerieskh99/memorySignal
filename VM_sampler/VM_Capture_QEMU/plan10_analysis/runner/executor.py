@@ -332,7 +332,7 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "deep":
         return stages.deep(up("in"), list(p["feats"]))
     if mod == "fft":
-        return stages.fft(up("in"), p.get("out", "bands"))
+        return stages.fft(up("in"), p.get("out", "bands"), detrend=p.get("detrend", "mean"))
     if mod == "cepstrum":
         return stages.cepstrum(up("in"))
     if mod == "cusum":

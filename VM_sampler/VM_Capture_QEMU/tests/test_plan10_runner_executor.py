@@ -83,6 +83,82 @@ def test_stages_on_known_inputs():
     assert np.isclose(np.angle(z2["z"][1]), 0.0, atol=1e-6)   # the collision: distance 1 lands on angle 0
 
 
+def test_lenses_find_a_known_period():
+    """A period-8 series at W=32: the spectral peak is bin 4 and the quefrency peak is 8.
+
+    Both were wrong before: the FFT's peak sat on bin 1 (a taper leaks DC into the low bins
+    unless the mean is removed) and the cepstrum's sat on 31 (the taper's envelope enters
+    the log). These are the regressions that pin the fixes.
+    """
+    rng = np.random.default_rng(0)
+    T, W = 128, 32
+    v = (0.05 + 0.02 * np.sin(2 * np.pi * np.arange(T) / 8) + 0.002 * rng.standard_normal(T)).astype(np.float32)
+    for taper in ("rectangular", "hann"):
+        tiles = stages.window({"values": v, "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, W, 16, taper=taper)
+        peak = stages.fft(tiles, "peak")
+        assert peak["names"][0] == "fft_peak_bin"
+        assert set(peak["rows"][:, 0].astype(int)) == {4}, (taper, peak["rows"][:, 0])
+        assert set(stages.fft(tiles, "peak", detrend="none")["rows"][:, 0].astype(int)) == ({4} if taper == "rectangular" else {1})
+        ceps = stages.cepstrum(tiles)
+        assert ceps["names"] == ["cepstral_peak_idx", "ceps_peak_snr_db"]
+        # the per-tile estimate wobbles on a noisy 32-sample window; the mode is the period
+        peaks = ceps["rows"][:, 0].astype(int)
+        assert np.bincount(peaks).argmax() == 8, (taper, peaks)
+        assert np.all(ceps["rows"][:, 1] > 0)
+        # the old path applied the window's taper; under Hann that moved the peak off 8
+        tapered = np.array([stages._ceps_peak(t * stages._taper(W, taper))[0] for t in tiles["X"]], dtype=int)
+        if taper == "hann":
+            assert np.bincount(tapered).argmax() != 8, tapered
+    # a flat series has no period to find: its cepstral SNR is lower than the periodic one's
+    flat = (0.05 + 0.002 * rng.standard_normal(T)).astype(np.float32)
+    tf = stages.window({"values": flat, "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, W, 16)
+    tp = stages.window({"values": v, "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, W, 16)
+    assert stages.cepstrum(tp)["rows"][:, 1].mean() > stages.cepstrum(tf)["rows"][:, 1].mean()
+
+
+def test_deep_and_plv_discriminate():
+    """deep and PLV must separate signals that differ; a lens returning a constant is not working."""
+    rng = np.random.default_rng(1)
+    T, W = 128, 32
+    mk = lambda x, c=False: stages.window({"values": x, "channels": ["h"], "complex": c, "block": None, "n_pages": 1}, W, 16)
+    periodic = (0.05 + 0.02 * np.sin(2 * np.pi * np.arange(T) / 8) + 0.002 * rng.standard_normal(T)).astype(np.float32)
+    ramp = np.linspace(0.01, 0.10, T).astype(np.float32)
+    feats = ["tau", "skew", "kurtosis", "entropy", "stat_pass_frac"]
+    dp, dr = stages.deep(mk(periodic), feats), stages.deep(mk(ramp), feats)
+    col = lambda blk, n: blk["rows"][:, blk["names"].index(n)]
+    assert col(dr, "tau").mean() > col(dp, "tau").mean()          # a ramp decorrelates slowly
+    assert col(dp, "stat_pass_frac").mean() > col(dr, "stat_pass_frac").mean()   # a ramp is not stationary
+    assert abs(col(dp, "kurtosis").mean() + 1.4) < 0.3            # a sinusoid's excess kurtosis is about -1.5
+    assert np.isclose(col(dr, "entropy").mean(), 4.0, atol=0.01)  # a ramp is uniform over 16 bins: log2(16)
+    # PLV: a coherent phasor scores high against its own baseline, a random-phase one does not
+    z0 = (0.05 * np.exp(1j * np.linspace(0, 2 * np.pi, T))).astype(np.complex64)
+    z1 = (0.05 * np.exp(1j * rng.uniform(0, 2 * np.pi, T))).astype(np.complex64)
+    ref = stages.baseline(mk(z0, True), "cell", "rec0")
+    hi = stages.plv(mk(z0, True), ref, 0.2, 0.7)
+    lo = stages.plv(mk(z1, True), ref, 0.2, 0.7)
+    g = lambda blk, n: blk["rows"][:, blk["names"].index(n)].sum()
+    assert g(hi, "plv_num_high_stability") > g(lo, "plv_num_high_stability")
+    assert g(lo, "plv_num_very_weak_stability") > g(hi, "plv_num_very_weak_stability")
+
+
+def test_unimplemented_modules_refuse_by_name():
+    tiles = stages.window({"values": np.arange(32, dtype=np.float32), "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, 16, 8)
+    for fn, args, word in ((stages.scattering, (2, 4), "kymatio"), (stages.msc, (8, 4), "not implemented")):
+        try:
+            fn(tiles, *args)
+            assert False, fn
+        except stages.NotImplementedStage as e:
+            assert word in str(e)
+    try:
+        import pywt  # noqa: F401
+    except ImportError:
+        try:
+            stages.wavelet(tiles, "db4", 2)
+            assert False
+        except stages.NotImplementedStage as e:
+            assert "pywt" in str(e)
+
+
 def test_b1_example_end_to_end_and_apf_equals_fixture():
     if not _have_tools():
         return
