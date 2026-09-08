@@ -369,7 +369,9 @@ function descOf(id, memo = {}) {
       d = u ? Object.assign({}, u, {type: "field", axis: "blocked", wp: wp_, hp: hp_,
         n_blocks: (N_PAGES < wp_ || wp_ < 1 || hp_ < 1) ? 0 : Math.floor((N_PAGES - wp_) / hp_) + 1}) : null; break; }
     case "window": { const u = up("in"); d = u ? Object.assign({}, u, {type: "tiles", w: +p.w, h: +p.h, taper: p.taper, edge: p.edge}) : null; break; }
-    case "baseline": { const u = up("in"); d = {type: "reference", mode: p.mode, fitted: !!u}; break; }
+    case "baseline": { const u = up("in"); d = {type: "reference", mode: p.mode, fitted: !!u, kind: p.mode === "benign" ? "envelope" : "plv",
+      src: u ? u.type : null, complex: u ? !!u.complex : false, names: u ? u.names : null}; break; }
+    case "deviation": { const u = up("in"); d = {type: "features", names: ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"], up: u, w: u ? u.w : null}; break; }
     case "concat": d = {type: "features", n: inEdges(id, "in").length}; break;
     case "write": d = {type: "sink"}; break;
     default: { const u = up("in"); d = {type: "features", names: (n.mod === "stats" || n.mod === "deep") ? p.feats : [n.mod], up: u, w: u ? u.w : null}; }
@@ -467,9 +469,33 @@ function nodeConstraints(n, memo) {
       else if (u && u.w && u.w < need) I("hard", `MSC (${esc(meth)}) at ${iw}/${ih} needs a tile of at least ${need} samples; upstream tiles are W=${u.w}`, "runner/stages.py msc_min_window", null, {label: `internal ${Math.max(2, Math.floor(u.w / 2))}/${Math.max(1, Math.floor(u.w / 4))}`, run: () => { p.iw = Math.max(2, Math.floor(u.w / 2)); p.ih = Math.max(1, Math.floor(u.w / 4)); }});
       if (meth === "legacy_adjacent") I("soft", "the legacy MSC is identically 1 wherever both windows hold power: it measures spectral occupancy, not coherence", "known_issues.py msc_single_segment", "msc_legacy");
       break; }
+    case "baseline": {
+      const u = up("in"), mode = p.mode || "cell";
+      if (u) {
+        if (mode === "benign" && u.type !== "features") I("hard", "the benign envelope is a band per FEATURE: connect a lens (features), not tiles", "plan05_campaign/normal_profile.py");
+        if (mode === "cell" && u.type !== "tiles") I("hard", "a PLV phase baseline is fitted on tiles: connect a Window, not features", "plv_calcolator.py fit_baseline");
+        if (mode === "cell" && u.type === "tiles" && !u.complex) I("hard", "a PLV phase baseline needs complex tiles; put a Complex module before the window", "plv_calcolator.py _getPhaseOfComplexSignal");
+      }
+      if (mode === "benign") {
+        const want = p.recordings || [], unknown = want.filter(r => !REC[r]);
+        if (unknown.length) I("hard", `${unknown.length} benign recording(s) are not in the manifest`, "corpus_manifest.py");
+        const lo = +p.q_lo, hi = +p.q_hi;
+        if (!(lo >= 0 && lo < hi && hi <= 100)) I("hard", `the percentiles must satisfy 0 <= q_lo < q_hi <= 100; got ${lo} and ${hi}`, "numpy.nanpercentile");
+        if (!want.length) I("soft", "no benign set chosen, so the envelope is fitted over EVERY recording reaching this node, threats included; that is a normal region defined partly by what it should flag", "plan05_campaign/normal_profile.py fits on the benign cells only", "benign_all:" + n.id);
+        I("note", `'normal' here means these ${want.length || "all"} recordings, not production traffic; normal_profile.py states the same limit`, "plan05_campaign/normal_profile.py scope note");
+      }
+      break; }
+    case "deviation": {
+      const r = up("ref"), u = up("in");
+      if (r && r.kind !== "envelope") I("hard", "Deviation needs a benign envelope; this Baseline is in cell mode and fits a PLV phase baseline", "runner/stages.py deviation");
+      if (r && !r.fitted) I("hard", "the Baseline module has nothing to fit on; connect features to it", "runner/stages.py baseline_envelope");
+      if (u && r && u.names && r.names && u.names.join() !== r.names.join()) I("hard", "the features and the envelope carry different feature names; the band is per feature, so both sides must come from the same lens", "runner/stages.py deviation");
+      break; }
     case "plv": {
       const u = up("in"); if (u && !u.complex) I("hard", "PLV reads the phase of a complex signal; upstream tiles are real. Put a Complex module before the window", "plv_calcolator.py _getPhaseOfComplexSignal");
-      const r = up("ref"); if (r && !r.fitted) I("hard", "the Baseline module has nothing to fit on; connect a clean run to it", "plv_calcolator.py fit_baseline");
+      const r = up("ref");
+      if (r && r.kind !== "plv") I("hard", "PLV needs a phase baseline; this Baseline is in benign mode and fits a p5-p95 envelope", "plv_calcolator.py fit_baseline");
+      if (r && !r.fitted) I("hard", "the Baseline module has nothing to fit on; connect a clean run to it", "plv_calcolator.py fit_baseline");
       break; }
     case "stats": case "deep": {
       if (!p.feats.length) I("hard", "no features selected", "nothing to emit");
@@ -606,12 +632,13 @@ function renderInspector(issues) {
       h += `<div class="subnote">Live/dead follows each recording's capture speed. No recording records it, so the config value ${CONFIG.substrateSpeed} is assumed; a recording that records its own speed would override it here.</div></div>`;
     }
     else if (q.kind === "cells") {
+      const key = q.k, picked = n.p[key] || [];
       const fams = [...new Set(RECS.map(r => r.family))].sort();
       const shown = RECS.filter(r => !famFilter || r.family === famFilter);
-      h += `<div class="field"><label class="fl">recordings, ${n.p.sel.length} of ${RECS.filter(usable).length} usable selected</label>
-        <div class="famfilter"><button data-fam="" class="${famFilter ? "" : "on"}">all</button>${fams.map(f => `<button data-fam="${esc(f)}" class="${famFilter === f ? "on" : ""}">${esc(f)}</button>`).join("")}<button data-selall="1" style="margin-left:auto">select usable</button><button data-selnone="1">none</button></div>
+      h += `<div class="field"><label class="fl">${esc(q.lab || "recordings")}, ${picked.length} of ${RECS.filter(usable).length} usable selected</label>
+        <div class="famfilter"><button data-fam="" class="${famFilter ? "" : "on"}">all</button>${fams.map(f => `<button data-fam="${esc(f)}" class="${famFilter === f ? "on" : ""}">${esc(f)}</button>`).join("")}<button data-selall="${key}" style="margin-left:auto">select usable</button><button data-selnone="${key}">none</button></div>
         <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th>workload</th><th>rep</th><th>pairs</th><th>dur</th><th>has</th></tr></thead><tbody>` +
-        shown.map(r => `<tr class="${usable(r) && n.p.sel.includes(r.id) ? "" : "off"}"><td><input type="checkbox" class="cb" data-cell="${esc(r.id)}" ${n.p.sel.includes(r.id) ? "checked" : ""} ${usable(r) ? "" : "disabled"}></td><td title="${esc(r.id)}">${esc(r.workload)}<br><span class="pill">${esc(r.family)}</span> <span class="pill">${esc(r.run_label || "")}</span></td><td>${r.rep}</td><td>${r.n_pairs}</td><td>${r.variant.duration_s != null ? r.variant.duration_s : "?"}</td><td>${r.has.chain ? '<span class="pill have">chain</span>' : `<span class="pill none">${esc(r.status)}</span>`} ${r.has.substrate_csv ? '<span class="pill have">substrate csv</span>' : '<span class="pill warn">no csv</span>'}</td></tr>`).join("") + `</tbody></table></div>
+        shown.map(r => `<tr class="${usable(r) && picked.includes(r.id) ? "" : "off"}"><td><input type="checkbox" class="cb" data-cell="${esc(r.id)}" data-cellkey="${esc(key)}" ${picked.includes(r.id) ? "checked" : ""} ${usable(r) ? "" : "disabled"}></td><td title="${esc(r.id)}">${esc(r.workload)}<br><span class="pill">${esc(r.family)}</span> <span class="pill">${esc(r.run_label || "")}</span></td><td>${r.rep}</td><td>${r.n_pairs}</td><td>${r.variant.duration_s != null ? r.variant.duration_s : "?"}</td><td>${r.has.chain ? '<span class="pill have">chain</span>' : `<span class="pill none">${esc(r.status)}</span>`} ${r.has.substrate_csv ? '<span class="pill have">substrate csv</span>' : '<span class="pill warn">no csv</span>'}</td></tr>`).join("") + `</tbody></table></div>
         <div class="subnote">Speed and interval are unrecorded per recording (see the build bar). A recording without a chain is not selectable. The substrate CSV is what Channels reads; without it the runner would have to re-diff the chain.</div></div>`;
     }
   });
@@ -633,10 +660,10 @@ function renderInspector(issues) {
   host.querySelectorAll("[data-multi]").forEach(b => b.onclick = () => { const arr = n.p[b.dataset.multi]; const i = arr.indexOf(b.dataset.v); i >= 0 ? arr.splice(i, 1) : arr.push(b.dataset.v); renderAll(); });
   host.querySelectorAll("[data-chan]").forEach(b => b.onclick = () => { const i = n.p.chans.indexOf(b.dataset.chan); i >= 0 ? n.p.chans.splice(i, 1) : n.p.chans.push(b.dataset.chan); renderAll(); });
   host.querySelectorAll("[data-grp]").forEach(b => b.onclick = () => { const cols = GROUPS[b.dataset.grp]; const recs = d ? d.recs : []; const sp = recs.length ? Math.max(...recs.map(r => recSpeed(r)[0])) : CONFIG.substrateSpeed; n.p.chans = n.p.chans.filter(c => !cols.includes(c)); if (b.dataset.m === "all") n.p.chans.push(...cols.filter(c => !deadFor(c, sp))); renderAll(); });
-  host.querySelectorAll("[data-cell]").forEach(cb => cb.onchange = () => { cb.checked ? n.p.sel.push(cb.dataset.cell) : (n.p.sel = n.p.sel.filter(w => w !== cb.dataset.cell)); renderAll(); });
+  host.querySelectorAll("[data-cell]").forEach(cb => cb.onchange = () => { const k = cb.dataset.cellkey; n.p[k] = n.p[k] || []; cb.checked ? n.p[k].push(cb.dataset.cell) : (n.p[k] = n.p[k].filter(w => w !== cb.dataset.cell)); renderAll(); });
   host.querySelectorAll("[data-fam]").forEach(b => b.onclick = () => { famFilter = b.dataset.fam || null; renderAll(); });
-  const sa = host.querySelector("[data-selall]"); if (sa) sa.onclick = () => { n.p.sel = RECS.filter(r => usable(r) && r.n_pairs >= n.p.min_pairs).map(r => r.id); renderAll(); };
-  const sn = host.querySelector("[data-selnone]"); if (sn) sn.onclick = () => { n.p.sel = []; renderAll(); };
+  const sa = host.querySelector("[data-selall]"); if (sa) sa.onclick = () => { n.p[sa.dataset.selall] = RECS.filter(r => usable(r) && r.n_pairs >= (n.p.min_pairs || 0)).map(r => r.id); renderAll(); };
+  const sn = host.querySelector("[data-selnone]"); if (sn) sn.onclick = () => { n.p[sn.dataset.selnone] = []; renderAll(); };
   host.querySelectorAll("[data-ack]").forEach(cb => cb.onchange = () => { cb.checked ? G.acks.set(cb.dataset.ack, {at: new Date().toISOString(), note: ""}) : G.acks.delete(cb.dataset.ack); renderAll(); });
   host.querySelectorAll("[data-acknote]").forEach(inp => inp.addEventListener("change", () => { const a = G.acks.get(inp.dataset.acknote); if (a) a.note = inp.value; renderReadout(validate()); }));
   host.querySelectorAll("[data-fix]").forEach(b => b.onclick = () => { mine[+b.dataset.fix].fix.run(); renderAll(); });

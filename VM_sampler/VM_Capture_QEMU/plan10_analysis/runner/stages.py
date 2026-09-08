@@ -634,9 +634,76 @@ def msc(tiles: dict, iw: int, ih: int, method: str = "welch", detrend: str = "me
 # reference tier
 # ---------------------------------------------------------------------------
 
+def baseline_envelope(blocks: list, q_lo: float = 5.0, q_hi: float = 95.0) -> dict:
+    """The benign operating region: a per-feature p5-p95 band over the benign rows.
+
+    The project's own definition, from plan05_campaign/normal_profile.py: "per-feature
+    benign p5-p95 band = the normal operating region, plus a simple INTERPRETABLE deviation
+    detector (count of features a cell falls outside the band)". That detector is the
+    `deviation` stage below.
+
+    `blocks` is a list of (recording_id, features). Every block must carry the same feature
+    names, since the band is per feature.
+    """
+    if not blocks:
+        raise ValueError("the benign envelope needs at least one recording's features")
+    names = list(blocks[0][1]["names"])
+    for rid, b in blocks:
+        if list(b["names"]) != names:
+            raise ValueError(f"{rid} carries different feature names; the envelope is per feature")
+        if np.asarray(b["rows"]).shape[1] != len(names):
+            raise ValueError(f"{rid} has {np.asarray(b['rows']).shape[1]} columns for {len(names)} feature names")
+    X = np.concatenate([np.asarray(b["rows"], dtype=np.float64) for _, b in blocks], axis=0)
+    if X.shape[0] < 2:
+        raise ValueError(f"the benign envelope needs at least 2 rows to have a band; got {X.shape[0]}")
+    allnan = np.all(np.isnan(X), axis=0)
+    lo = np.where(allnan, np.nan, np.nanpercentile(np.where(np.isnan(X), np.nan, X), q_lo, axis=0))
+    hi = np.where(allnan, np.nan, np.nanpercentile(np.where(np.isnan(X), np.nan, X), q_hi, axis=0))
+    med = np.where(allnan, np.nan, np.nanmedian(X, axis=0))
+    return {"kind": "envelope", "names": names, "lo": lo, "hi": hi, "median": med,
+            "width": hi - lo, "n_rows": int(X.shape[0]),
+            "recordings": [rid for rid, _ in blocks], "q": [q_lo, q_hi]}
+
+
+def deviation(features: dict, ref: dict) -> dict:
+    """How far each tile falls outside the benign envelope.
+
+    `dev_n_outside` is normal_profile.py's detector verbatim: the count of features whose
+    value sits outside the benign band. A feature that is NaN counts as inside, as it does
+    there.
+
+    The excess features normalise the distance past the edge so features on different scales
+    compare. The scale is the band's own width; where the benign set pins a feature to one
+    value the width is zero, and the fallback is |median|, then 1.0. Without that fallback a
+    feature that is constant across the benign set could be violated by any margin and still
+    report an excess of zero, which is how this first behaved: a recording writing ten times
+    more scored 2 features outside and an excess of 0.00.
+    """
+    if ref.get("kind") != "envelope":
+        raise ValueError(f"deviation needs an envelope reference; got {ref.get('kind')!r}")
+    if list(features["names"]) != list(ref["names"]):
+        raise ValueError("the features and the envelope carry different feature names")
+    X = np.asarray(features["rows"], dtype=np.float64)
+    if X.ndim != 2 or X.shape[1] != len(ref["names"]):
+        raise ValueError(f"the features have {X.shape[1] if X.ndim == 2 else '?'} columns "
+                         f"for {len(ref['names'])} feature names in the envelope")
+    lo, hi, width = ref["lo"], ref["hi"], ref["width"]
+    excess = np.maximum(0.0, np.maximum(lo - X, X - hi))
+    known = ~np.isnan(X) & ~np.isnan(lo) & ~np.isnan(hi)
+    outside = (excess > 0) & known
+    med = np.abs(np.asarray(ref["median"], dtype=np.float64))
+    scale = np.where((width > 0) & ~np.isnan(width), width,
+                     np.where((med > 0) & ~np.isnan(med), med, 1.0))
+    norm = np.where(known, excess / scale, 0.0)
+    norm = np.nan_to_num(norm, nan=0.0, posinf=0.0)
+    rows = np.stack([outside.sum(axis=1), outside.mean(axis=1), norm.max(axis=1), norm.sum(axis=1)], axis=1)
+    return {"names": ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"],
+            "rows": rows.astype(np.float32), "keys": features["keys"]}
+
+
 def baseline(tiles: dict, mode: str, recording: str) -> dict:
     if mode != "cell":
-        raise NotImplementedStage("the benign-envelope baseline is not implemented in this pass")
+        raise ValueError(f"baseline mode {mode!r} is not fitted from tiles; the benign envelope reads features")
     if not tiles["complex"]:
         raise ValueError("PLV baseline needs complex tiles")
     X = tiles["X"]

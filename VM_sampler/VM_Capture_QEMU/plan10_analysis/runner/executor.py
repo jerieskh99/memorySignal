@@ -42,7 +42,7 @@ from plan10_analysis.modules import build_modules                         # noqa
 from plan10_analysis.sources import make_source                           # noqa: E402
 from plan10_analysis.runner import extract, stages, differ                # noqa: E402
 
-CROSS = {"baseline", "plv", "concat", "write"}
+CROSS = {"baseline", "plv", "deviation", "concat", "write"}
 
 
 class Stop(Exception):
@@ -131,7 +131,7 @@ def topo(nodes: dict, pipes: list[dict]) -> list[str]:
 
 def cross_set(nodes: dict, pipes: list[dict]) -> set[str]:
     """Nodes evaluated over all recordings at once: baseline/plv/write and their descendants."""
-    cross = {n for n, v in nodes.items() if v["module"] in ("baseline", "plv", "write")}
+    cross = {n for n, v in nodes.items() if v["module"] in ("baseline", "plv", "deviation", "write")}
     changed = True
     while changed:
         changed = False
@@ -274,12 +274,26 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             return cross_out[src_node] if src_node in cross_out else per_rec.get(src_node, {})
 
         if mod == "baseline":
-            tiles_map = fetch(ins["in"])
-            target = p.get("recording") or (rec_ids[0] if rec_ids else None)
-            if target not in tiles_map:
-                raise ValueError(f"baseline recording {target!r} produced no tiles")
-            cross_out[n] = stages.baseline(tiles_map[target], p.get("mode", "cell"), target)
-            st.logline(f"baseline fitted on {target}")
+            src_map = fetch(ins["in"])
+            if p.get("mode", "cell") == "benign":
+                want = list(p.get("recordings") or []) or rec_ids
+                blocks = [(rid, src_map[rid]) for rid in want if rid in src_map]
+                missing = [rid for rid in want if rid not in src_map]
+                if missing:
+                    raise ValueError(f"benign envelope: {len(missing)} selected recording(s) produced no features, e.g. {missing[0]}")
+                cross_out[n] = stages.baseline_envelope(blocks, float(p.get("q_lo", 5.0)), float(p.get("q_hi", 95.0)))
+                st.logline(f"benign envelope fitted on {len(blocks)} recording(s), {cross_out[n]['n_rows']} rows, "
+                           f"{len(cross_out[n]['names'])} features at p{p.get('q_lo', 5.0):g}-p{p.get('q_hi', 95.0):g}")
+            else:
+                target = p.get("recording") or (rec_ids[0] if rec_ids else None)
+                if target not in src_map:
+                    raise ValueError(f"baseline recording {target!r} produced no tiles")
+                cross_out[n] = stages.baseline(src_map[target], "cell", target)
+                st.logline(f"PLV baseline fitted on {target}")
+        elif mod == "deviation":
+            feats_map = fetch(ins["in"])
+            ref = cross_out[ins["ref"]]
+            cross_out[n] = {rid: stages.deviation(f, ref) for rid, f in feats_map.items()}
         elif mod == "plv":
             tiles_map = fetch(ins["in"])
             ref = cross_out[ins["ref"]]

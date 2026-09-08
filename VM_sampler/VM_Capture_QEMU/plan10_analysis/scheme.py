@@ -207,7 +207,14 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
         d = dict(u, type="tiles", w=int(p["w"]), h=int(p["h"]), taper=p["taper"], edge=p["edge"]) if u else None
     elif mod == "baseline":
         u = up("in")
-        d = {"type": "reference", "mode": p.get("mode"), "fitted": u is not None}
+        d = {"type": "reference", "mode": p.get("mode"), "fitted": u is not None,
+             "kind": "envelope" if p.get("mode") == "benign" else "plv",
+             "src": (u or {}).get("type"), "complex": (u or {}).get("complex", False),
+             "names": (u or {}).get("names")}
+    elif mod == "deviation":
+        u = up("in")
+        d = {"type": "features", "names": ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"],
+             "up": u, "w": (u or {}).get("w")}
     elif mod == "concat":
         es = g.in_pipes(nid, "in")
         d = {"type": "features", "n": len(es)}
@@ -436,11 +443,47 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
             out.append(_issue(nid, "soft", "the legacy MSC is identically 1 wherever both windows hold power: it measures spectral occupancy, not coherence",
                               "known_issues.py msc_single_segment", id="msc_legacy"))
 
+    elif mod == "baseline":
+        u = up("in")
+        mode = p.get("mode", "cell")
+        if u:
+            if mode == "benign" and u.get("type") != "features":
+                out.append(_issue(nid, "hard", "the benign envelope is a band per FEATURE: connect a lens (features), not tiles", "plan05_campaign/normal_profile.py"))
+            if mode == "cell" and u.get("type") != "tiles":
+                out.append(_issue(nid, "hard", "a PLV phase baseline is fitted on tiles: connect a Window, not features", "plv_calcolator.py fit_baseline"))
+            if mode == "cell" and u.get("type") == "tiles" and not u.get("complex"):
+                out.append(_issue(nid, "hard", "a PLV phase baseline needs complex tiles; put a Complex module before the window", "plv_calcolator.py _getPhaseOfComplexSignal"))
+        if mode == "benign":
+            want = list(p.get("recordings") or [])
+            unknown = [r for r in want if r not in ctx.rec_by_id]
+            if unknown:
+                out.append(_issue(nid, "hard", f"{len(unknown)} benign recording(s) are not in the manifest: {unknown[:2]}", "corpus_manifest.py"))
+            lo, hi = float(p.get("q_lo", 5.0)), float(p.get("q_hi", 95.0))
+            if not (0.0 <= lo < hi <= 100.0):
+                out.append(_issue(nid, "hard", f"the percentiles must satisfy 0 <= q_lo < q_hi <= 100; got {lo} and {hi}", "numpy.nanpercentile"))
+            if not want:
+                out.append(_issue(nid, "soft", "no benign set chosen, so the envelope is fitted over EVERY recording reaching this node, threats included; that is a normal region defined partly by what it should flag",
+                                  "plan05_campaign/normal_profile.py fits on the benign cells only", id=f"benign_all:{nid}"))
+            out.append(_issue(nid, "note", f"'normal' here means these {len(want) or 'all'} recordings, not production traffic; normal_profile.py states the same limit",
+                              "plan05_campaign/normal_profile.py scope note"))
+
+    elif mod == "deviation":
+        r = up("ref")
+        if r and r.get("kind") != "envelope":
+            out.append(_issue(nid, "hard", "Deviation needs a benign envelope; this Baseline is in cell mode and fits a PLV phase baseline", "runner/stages.py deviation"))
+        if r and not r.get("fitted"):
+            out.append(_issue(nid, "hard", "the Baseline module has nothing to fit on; connect features to it", "runner/stages.py baseline_envelope"))
+        u = up("in")
+        if u and r and u.get("names") and r.get("names") and list(u["names"]) != list(r["names"]):
+            out.append(_issue(nid, "hard", "the features and the envelope carry different feature names; the band is per feature, so both sides must come from the same lens", "runner/stages.py deviation"))
+
     elif mod == "plv":
         u = up("in")
         if u and not u.get("complex"):
             out.append(_issue(nid, "hard", "PLV reads the phase of a complex signal; upstream tiles are real. Put a Complex module before the window", "plv_calcolator.py _getPhaseOfComplexSignal"))
         r = up("ref")
+        if r and r.get("kind") != "plv":
+            out.append(_issue(nid, "hard", "PLV needs a phase baseline; this Baseline is in benign mode and fits a p5-p95 envelope", "plv_calcolator.py fit_baseline"))
         if r and not r.get("fitted"):
             out.append(_issue(nid, "hard", "the Baseline module has nothing to fit on; connect a clean run to it", "plv_calcolator.py fit_baseline"))
 

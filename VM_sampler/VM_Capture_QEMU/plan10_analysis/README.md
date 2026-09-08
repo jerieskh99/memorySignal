@@ -50,7 +50,7 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | `runner/chain.py` | walk a zstd patch chain with a two-file rolling window | `test_plan10_runner_extract.py` |
 | `runner/differ.py` | run the differ on a pair, parse its sparse CSV; refuses dumps not a multiple of 4 MiB | same |
 | `runner/extract.py` | the L1 store | same |
-| `runner/stages.py` | one pure function per module kind; reuses b1_features, CepstrumStability, PLVStability, plan04_cusum | `test_plan10_runner_executor.py` |
+| `runner/stages.py` | one pure function per module kind; reuses b1_features, CepstrumStability, PLVStability, plan04_cusum, normal_profile | `test_plan10_runner_executor.py` |
 | `runner/executor.py` | order, run per recording, status, control, output, sidecar | same |
 | `ui/analysis_bridge.py` | the local HTTP backend | `test_plan10_bridge.py` |
 | `ui/build_analysis_console.py` | injects everything above into the template; static build has no network code | `test_plan10_build.py` |
@@ -61,8 +61,8 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-Tiles at full page resolution (put Collapse or Block before Window), the benign-envelope
-baseline, remote execution (SSH fetches to a local cache; the runner is local). Each refuses
+Tiles at full page resolution (put Collapse or Block before Window) and remote execution
+(SSH fetches to a local cache; the runner is local). Each refuses
 with a message in the run log and, where the console can see it, as a hard constraint.
 
 Blocks along the address axis take any width and hop: equal to tile, smaller to overlap
@@ -79,3 +79,21 @@ actual page count.
 3. `runner/executor.py` `_eval_local` (per recording) or the cross-recording branch.
 4. `scheme.py` `node_constraints` and the mirror in the template's `nodeConstraints`.
 5. A case in `tests/test_plan10_runner_executor.py`.
+
+## References: two kinds, not interchangeable
+
+`Baseline` produces one of two things and the consumers check which:
+
+- **cell** fits a PLV phase baseline on one clean recording's complex tiles. Only `PLV` reads it.
+- **benign** fits the p5-p95 band per feature over a chosen set of recordings, which is
+  `plan05_campaign/normal_profile.py`'s normal operating region. Only `Deviation` reads it.
+
+`Deviation` emits `dev_n_outside` (that file's detector: how many features fall outside the
+band, NaN counting as inside), `dev_frac_outside`, and the distance past the edge normalised
+by the band width, falling back to |median| then 1.0 where the benign set pins a feature to a
+single value.
+
+Choosing no benign set fits the envelope over every recording reaching the node, threats
+included; that is warned about, since a normal region defined partly by what it should flag is
+not one. As `normal_profile.py` says of itself, "normal" here means the chosen recordings, not
+production traffic.

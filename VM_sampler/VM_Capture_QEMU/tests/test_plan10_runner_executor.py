@@ -376,6 +376,80 @@ def test_msc_welch_against_the_degenerate_legacy():
             assert "at least" in str(e)
 
 
+def test_benign_envelope_and_deviation():
+    """A p5-p95 band must leave about 10% of benign values outside per feature, and more as data shifts."""
+    rng = np.random.default_rng(0)
+    names = ["mean", "std", "cov", "max"]
+    mkf = lambda X: {"names": names, "rows": np.asarray(X, np.float32), "keys": [(None, i, i) for i in range(len(X))]}
+    benign = [(f"r{i}", mkf(rng.normal(1.0, 0.1, size=(40, 4)))) for i in range(3)]
+    env = stages.baseline_envelope(benign)
+    assert env["kind"] == "envelope" and env["names"] == names and env["n_rows"] == 120
+    assert env["recordings"] == ["r0", "r1", "r2"] and env["q"] == [5.0, 95.0]
+    assert np.all(env["lo"] < env["hi"]) and np.all(env["width"] > 0)
+
+    col = lambda d, k: d["rows"][:, d["names"].index(k)]
+    out_by = lambda X: float(col(stages.deviation(mkf(X), env), "dev_n_outside").mean())
+    same = out_by(rng.normal(1.0, 0.1, size=(400, 4)))
+    assert 0.2 < same < 0.7, same                      # about 10% of 4 features
+    # the further from normal, the more features leave the band
+    assert same < out_by(rng.normal(1.1, 0.1, size=(400, 4))) < out_by(rng.normal(1.5, 0.1, size=(400, 4)))
+    assert out_by(rng.normal(1.5, 0.1, size=(400, 4))) > 3.5
+    d = stages.deviation(mkf(rng.normal(1.5, 0.1, size=(50, 4))), env)
+    assert d["names"] == ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"]
+    assert np.all(col(d, "dev_frac_outside") <= 1.0) and np.all(col(d, "dev_max_excess") >= 0)
+
+    # NaN counts as inside, as normal_profile.py does
+    X = np.full((2, 4), 1.0)
+    X[0, 0] = np.nan
+    X[1, 1] = 99.0
+    dn = stages.deviation(mkf(X), env)
+    assert col(dn, "dev_n_outside").tolist() == [0.0, 1.0]
+
+    # a zero-width band still yields an excess: the scale falls back to |median|, then 1.0.
+    # Without it a feature the benign set pins to one value could be violated by any margin
+    # and still report 0, which is how this first behaved end to end.
+    flat = stages.baseline_envelope([("r", {"names": ["a", "b"], "rows": np.array([[1.0, 5.0]] * 3, np.float32), "keys": []})])
+    assert np.all(flat["width"] == 0)
+    dz = stages.deviation({"names": ["a", "b"], "rows": np.array([[1.0, 5.0], [2.0, 5.0], [1.0, 0.0]], np.float32), "keys": []}, flat)
+    assert col(dz, "dev_n_outside").tolist() == [0.0, 1.0, 1.0]
+    assert np.allclose(col(dz, "dev_max_excess"), [0.0, 1.0, 1.0])       # 1.0/|1.0| and 5.0/|5.0|
+    zero_med = stages.baseline_envelope([("r", {"names": ["a"], "rows": np.zeros((3, 1), np.float32), "keys": []})])
+    dz0 = stages.deviation({"names": ["a"], "rows": np.array([[3.0]], np.float32), "keys": []}, zero_med)
+    assert np.isclose(col(dz0, "dev_max_excess")[0], 3.0)                # scale falls through to 1.0
+
+    # a percentile pair that is not a band, and the two reference kinds are not interchangeable
+    for lo, hi in ((95.0, 5.0), (5.0, 5.0)):
+        e = stages.baseline_envelope(benign, lo, hi)
+        assert np.all(e["width"] <= 0) or lo >= hi          # scheme.py refuses this before the runner sees it
+    try:
+        stages.deviation(mkf(np.zeros((5, 4))), {"kind": "plv"})
+        assert False
+    except ValueError as e:
+        assert "envelope reference" in str(e)
+    try:
+        stages.baseline({"complex": True, "X": np.zeros((2, 4), np.complex64), "w": 4, "channels": ["a"]}, "benign", "r")
+        assert False
+    except ValueError as e:
+        assert "reads features" in str(e)
+    # shape mismatches are named, not left to numpy
+    for rows, why in ((np.zeros((5, 3)), "columns"), (np.zeros((5, 5)), "columns")):
+        try:
+            stages.deviation({"names": names, "rows": rows, "keys": []}, env)
+            assert False
+        except ValueError as e:
+            assert why in str(e)
+    try:
+        stages.baseline_envelope([("a", mkf(np.zeros((5, 4)))), ("b", {"names": ["x"], "rows": np.zeros((5, 1)), "keys": []})])
+        assert False
+    except ValueError as e:
+        assert "different feature names" in str(e)
+    try:
+        stages.baseline_envelope([("a", mkf(np.zeros((1, 4))))])
+        assert False
+    except ValueError as e:
+        assert "at least 2 rows" in str(e)
+
+
 def test_unimplemented_modules_refuse_by_name():
     tiles = stages.window({"values": np.arange(32, dtype=np.float32), "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, 16, 8)
     try:
