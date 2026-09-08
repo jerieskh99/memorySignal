@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Analysis Console — mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ============ design tokens: identical to capture_console.template.html ============ */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --panel-2:#f5f7fa; --sunk:#eaeef3;
+  --ink:#151b24; --ink-2:#48545f; --ink-3:#78838f; --line:#dbe1e9; --line-2:#c8d0da;
+  --accent:#0f8ba3; --accent-ink:#ffffff; --accent-soft:#d3edf2;
+  --ok:#1c8a4e; --ok-soft:#d5efdf; --warn:#a86a08; --warn-soft:#f8e9c9; --bad:#c23b3b; --bad-soft:#f6d9d9;
+  --trace:#0f8ba3; --ghost:#9aa7b4; --amber:#b8860b;
+  --shadow:0 1px 2px rgba(20,27,36,.06),0 8px 24px -12px rgba(20,27,36,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1017; --panel:#141b25; --panel-2:#101720; --sunk:#0b1119;
+    --ink:#e8edf3; --ink-2:#9aa7b4; --ink-3:#69757f; --line:#232e3b; --line-2:#2e3b4a;
+    --accent:#38c6dc; --accent-ink:#04121a; --accent-soft:#123039;
+    --ok:#4ade80; --ok-soft:#122a1c; --warn:#fbbf24; --warn-soft:#2c2411; --bad:#f87171; --bad-soft:#2e1618;
+    --trace:#38c6dc; --ghost:#5b6875; --amber:#fbbf24;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1017; --panel:#141b25; --panel-2:#101720; --sunk:#0b1119;
+  --ink:#e8edf3; --ink-2:#9aa7b4; --ink-3:#69757f; --line:#232e3b; --line-2:#2e3b4a;
+  --accent:#38c6dc; --accent-ink:#04121a; --accent-soft:#123039;
+  --ok:#4ade80; --ok-soft:#122a1c; --warn:#fbbf24; --warn-soft:#2c2411; --bad:#f87171; --bad-soft:#2e1618;
+  --trace:#38c6dc; --ghost:#5b6875; --amber:#fbbf24;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -14px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif; font-size:14px; line-height:1.5;}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+h1,h2,h3{margin:0; text-wrap:balance}
+button{font:inherit; cursor:pointer} input,select{font:inherit; color:inherit}
+
+.top{position:sticky; top:0; z-index:30; background:var(--panel); border-bottom:1px solid var(--line);
+  padding:13px 22px; display:flex; align-items:center; gap:13px}
+.brandmark{width:26px;height:26px;flex:none}
+.brand h1{font-size:16px; font-weight:600} .brand .sub{font-size:12px; color:var(--ink-3)}
+.top .spacer{flex:1}
+.tbtn{background:var(--panel-2); border:1px solid var(--line-2); color:var(--ink-2);
+  width:34px;height:34px;border-radius:9px; display:grid;place-items:center}
+.tbtn:hover{color:var(--ink); border-color:var(--accent)}
+
+.mockbar{background:var(--warn-soft); color:var(--warn); font-size:12px; padding:8px 22px; border-bottom:1px solid var(--line);
+  display:flex; gap:8px; align-items:flex-start}
+.mockbar b{font-weight:600}
+
+.wrap{max-width:1280px; margin:0 auto; padding:20px 22px 8px;
+  display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:20px; align-items:start}
+@media(max-width:1000px){.wrap{grid-template-columns:1fr}}
+.full{max-width:1280px; margin:0 auto; padding:0 22px}
+
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); overflow:hidden}
+.panel + .panel{margin-top:16px}
+.phead{display:flex; align-items:baseline; gap:10px; padding:14px 18px 11px}
+.phead .idx{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--accent); font-weight:600; letter-spacing:.06em}
+.phead h2{font-size:14px; font-weight:600}
+.phead .hint{margin-left:auto; font-size:11.5px; color:var(--ink-3)}
+.pbody{padding:2px 18px 17px}
+.disabled-note{font-size:11.5px; color:var(--warn); margin:2px 0 11px; display:flex; gap:6px; align-items:flex-start}
+.panel.dim .pbody > *:not(.disabled-note){opacity:.42; pointer-events:none}
+
+label.fl{display:block; font-size:11px; font-weight:600; color:var(--ink-2); text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px}
+.field + .field{margin-top:14px}
+.row{display:flex; gap:12px; flex-wrap:wrap} .row > .field{flex:1; min-width:140px}
+input[type=text],input[type=number],select{width:100%; padding:9px 11px; background:var(--sunk); border:1px solid var(--line-2); border-radius:9px; outline:none}
+input:focus,select:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+input.mono{font-size:13px}
+
+.chips{display:flex; flex-wrap:wrap; gap:7px; align-items:center; padding:7px; background:var(--sunk); border:1px solid var(--line-2); border-radius:9px; min-height:42px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft); color:var(--accent); border-radius:7px; padding:4px 6px 4px 10px; font-size:12.5px; font-family:"IBM Plex Mono",monospace; font-weight:500}
+.chip button{background:none;border:none;color:inherit; opacity:.7; padding:0; line-height:1; font-size:15px; width:16px;height:16px;border-radius:4px}
+.chip button:hover{opacity:1; background:rgba(0,0,0,.12)}
+.chips input{border:none;background:none;outline:none;flex:1;min-width:64px;padding:4px;box-shadow:none}
+
+.cards{display:grid; gap:9px} .cards.c3{grid-template-columns:repeat(3,1fr)} .cards.c2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:560px){.cards.c3,.cards.c2{grid-template-columns:1fr}}
+.card{position:relative; border:1px solid var(--line-2); border-radius:10px; padding:10px 12px; background:var(--panel-2); text-align:left; width:100%}
+.card.on{border-color:var(--accent); background:var(--accent-soft)}
+.card.blocked{opacity:.55; cursor:not-allowed}
+.card .t{font-weight:600; font-size:13px; display:flex;align-items:center;gap:7px; flex-wrap:wrap}
+.card .d{font-size:11.5px; color:var(--ink-3); margin-top:3px; line-height:1.35}
+.card.on .d{color:var(--ink-2)}
+.card .tag{font-family:"IBM Plex Mono",monospace; font-size:10px; padding:1px 5px; border-radius:5px; background:var(--sunk); color:var(--ink-3); font-weight:600}
+.card.on .tag{background:var(--accent); color:var(--accent-ink)}
+
+.grp{border:1px solid var(--line); border-radius:11px; overflow:hidden} .grp + .grp{margin-top:10px}
+.grp-h{display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--panel-2)}
+.grp-h .name{font-weight:600; font-size:13px; text-transform:capitalize}
+.grp-h .fam{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--ink-3)}
+.seg{display:inline-flex; margin-left:auto; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; padding:2px}
+.seg button{border:none; background:none; color:var(--ink-2); padding:4px 11px; border-radius:6px; font-size:12px; font-weight:600}
+.seg button.on{background:var(--accent); color:var(--accent-ink)}
+.cols{padding:11px 12px; display:flex; flex-wrap:wrap; gap:6px}
+.col{font-family:"IBM Plex Mono",monospace; font-size:11px; padding:4px 8px; border-radius:6px; border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2); position:relative}
+.col.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.col.dead{opacity:.5; text-decoration:line-through; cursor:not-allowed; border-style:dashed}
+.col.flagged::after{content:"!"; position:absolute; top:-5px; right:-4px; width:12px;height:12px; border-radius:50%;
+  background:var(--bad); color:#fff; font-size:9px; font-weight:700; line-height:12px; text-align:center; font-family:"IBM Plex Sans",sans-serif}
+.col.flag-caution::after{background:var(--warn)}
+.grp-foot{padding:0 12px 10px; font-size:11px; color:var(--ink-3)} .grp-foot b{color:var(--trace); font-family:"IBM Plex Mono",monospace; font-weight:600}
+
+/* ============ new: the spine ============ */
+.spine{padding:6px 10px 14px}
+.spine svg{width:100%; height:auto; display:block; overflow:visible}
+.sp-node{cursor:pointer}
+.sp-box{fill:var(--panel-2); stroke:var(--line-2); stroke-width:1.2}
+.sp-node.lit .sp-box{fill:var(--accent-soft); stroke:var(--accent); stroke-width:1.8}
+.sp-node.empty .sp-box{stroke-dasharray:4 3}
+.sp-t{font:600 11px "IBM Plex Sans",sans-serif; fill:var(--ink); text-anchor:middle}
+.sp-v{font:500 10px "IBM Plex Mono",monospace; fill:var(--ink-3); text-anchor:middle}
+.sp-node.lit .sp-v{fill:var(--accent)}
+.sp-edge{stroke:var(--line-2); stroke-width:1.6; fill:none}
+.sp-edge.lit{stroke:var(--accent); stroke-width:2.2}
+.sp-edge.ghost{stroke:var(--ghost); stroke-dasharray:3 4; stroke-width:1}
+.sp-key{font:10px "IBM Plex Sans",sans-serif; fill:var(--ink-3)}
+.sp-seam{font:600 9.5px "IBM Plex Mono",monospace; fill:var(--amber); text-anchor:middle}
+
+/* ============ new: flags ============ */
+.flag{display:inline-flex; align-items:center; gap:4px; font-family:"IBM Plex Mono",monospace; font-size:9.5px;
+  font-weight:600; padding:1px 6px; border-radius:5px; letter-spacing:.02em; cursor:help; position:relative; white-space:nowrap}
+.flag.do_not_use{background:var(--bad-soft); color:var(--bad)}
+.flag.caution{background:var(--warn-soft); color:var(--warn)}
+.flag.note{background:var(--sunk); color:var(--ink-3)}
+.hovercard{position:absolute; z-index:60; left:0; top:calc(100% + 7px); width:330px; background:var(--panel);
+  border:1px solid var(--line-2); border-radius:11px; box-shadow:var(--shadow); padding:11px 13px; display:none;
+  font-family:"IBM Plex Sans",sans-serif; font-weight:400; letter-spacing:0; white-space:normal; cursor:auto}
+.flag:hover .hovercard, .flag:focus-within .hovercard{display:block}
+.hovercard .hc-h{font-size:12px; font-weight:600; margin-bottom:4px; display:flex; gap:6px; align-items:baseline}
+.hovercard .hc-h .sev{font-family:"IBM Plex Mono",monospace; font-size:9.5px; text-transform:uppercase}
+.hovercard .hc-d{font-size:12px; color:var(--ink-2); line-height:1.45}
+.hovercard .hc-s{margin-top:7px; padding-top:7px; border-top:1px solid var(--line); font-family:"IBM Plex Mono",monospace;
+  font-size:10px; color:var(--ink-3); word-break:break-all}
+
+/* ============ new: constraints ============ */
+.cons{margin:10px 0 0; display:flex; flex-direction:column; gap:7px}
+.cons-item{border-radius:9px; padding:8px 11px; font-size:12px; line-height:1.45; display:flex; gap:8px; align-items:flex-start}
+.cons-item.hard{background:var(--bad-soft); color:var(--bad)}
+.cons-item.soft{background:var(--warn-soft); color:var(--warn)}
+.cons-item .cbody{flex:1}
+.cons-item .csrc{font-family:"IBM Plex Mono",monospace; font-size:10px; opacity:.8; display:block; margin-top:3px}
+.cons-item .fixbtn{background:transparent; border:1px solid currentColor; color:inherit; border-radius:7px;
+  padding:3px 9px; font-size:11px; font-weight:600; flex:none; opacity:.9}
+.cons-item .fixbtn:hover{opacity:1}
+.ack{display:flex; gap:7px; align-items:center; font-size:11.5px; margin-top:6px; font-weight:600}
+.ack input{accent-color:currentColor; width:15px;height:15px}
+
+/* ============ misc ============ */
+.tbl{width:100%; border-collapse:collapse; font-size:12px}
+.tbl th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3);
+  font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line)}
+.tbl td{padding:6px 8px; border-bottom:1px solid var(--line); font-family:"IBM Plex Mono",monospace; font-size:11.5px}
+.tbl tr.off td{opacity:.42}
+.tbl tr:hover td{background:var(--panel-2)}
+.tbl .cb{accent-color:var(--accent); width:15px;height:15px}
+.pill{font-family:"IBM Plex Mono",monospace; font-size:10px; padding:1px 6px; border-radius:5px; background:var(--sunk); color:var(--ink-3)}
+.pill.have{background:var(--ok-soft); color:var(--ok)}
+.pill.none{background:var(--bad-soft); color:var(--bad)}
+.subnote{font-size:11.5px; color:var(--ink-3); margin-top:9px; line-height:1.45}
+.subnote b{color:var(--ink-2)}
+
+.readout{position:sticky; top:78px}
+.scope{background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); overflow:hidden}
+.scope-h{padding:13px 16px 0; display:flex; align-items:baseline; gap:8px}
+.scope-h .idx{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--accent); font-weight:600; letter-spacing:.06em}
+.scope-h h2{font-size:13px; font-weight:600}
+.count{padding:6px 16px 4px; display:flex; align-items:baseline; gap:9px}
+.count .n{font-family:"IBM Plex Mono",monospace; font-size:38px; font-weight:600; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.count .n.zero{color:var(--ink-3)}
+.count .u{font-size:11.5px; color:var(--ink-3)}
+.count .formula{margin-left:auto; text-align:right; font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3); line-height:1.5}
+.subcount{padding:0 16px 12px; font-size:11.5px; color:var(--ink-3)}
+.subcount b{font-family:"IBM Plex Mono",monospace; color:var(--ink-2)}
+.warns{margin:0 12px 12px; display:flex; flex-direction:column; gap:7px}
+.warn-chip{background:var(--warn-soft); color:var(--warn); border-radius:9px; padding:8px 11px; font-size:11.5px; line-height:1.4}
+.warn-chip.bad{background:var(--bad-soft); color:var(--bad)}
+.warn-chip.ok{background:var(--ok-soft); color:var(--ok)}
+.out{margin:12px}
+.out-h{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+.out-h .lab{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; color:var(--ink-3)}
+.copy{margin-left:auto; background:var(--panel-2); border:1px solid var(--line-2); color:var(--ink-2); border-radius:7px; padding:4px 10px; font-size:11.5px; font-weight:600}
+.copy:hover{border-color:var(--accent); color:var(--ink)} .copy.done{color:var(--ok); border-color:var(--ok)}
+pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-radius:10px; padding:11px 12px;
+  font-family:"IBM Plex Mono",monospace; font-size:11px; line-height:1.5; overflow-x:auto; white-space:pre-wrap; color:var(--ink); max-height:300px}
+.bigbtn{background:var(--accent); color:var(--accent-ink); border:none; border-radius:9px; padding:9px 16px; font-size:13px; font-weight:600}
+.bigbtn:hover{filter:brightness(1.06)} .bigbtn:disabled{opacity:.4; cursor:not-allowed}
+.bigbtn.ghost{background:var(--panel-2); color:var(--ink-2); border:1px solid var(--line-2)}
+.plan-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:2px 18px 12px}
+.plan-stat{margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--ink-2)}
+.plan-stat b{color:var(--trace); font-weight:600}
+.steps{border-top:1px solid var(--line); max-height:300px; overflow-y:auto}
+.step{display:flex; align-items:center; gap:10px; padding:8px 18px; border-bottom:1px solid var(--line); font-size:12.5px}
+.step:hover{background:var(--panel-2)} .step.off{opacity:.44}
+.step .cb{width:16px;height:16px; flex:none; accent-color:var(--accent)}
+.step .ord{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3); width:28px; flex:none; text-align:right}
+.bdg{font-family:"IBM Plex Mono",monospace; font-size:10.5px; padding:2px 6px; border-radius:5px; background:var(--sunk); color:var(--ink-2); font-weight:500; white-space:nowrap}
+.bdg.fam{background:var(--accent-soft); color:var(--accent)}
+.step .cmd{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-3); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.legend{padding:8px 22px 40px; max-width:1280px; margin:0 auto; font-size:11px; color:var(--ink-3); display:flex; gap:16px; flex-wrap:wrap}
+.legend b{color:var(--ink-2)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <svg class="brandmark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <rect x="1" y="1" width="30" height="30" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.4"/>
+    <path d="M5 22 L9 22 L11 14 L14 26 L17 6 L20 18 L23 12 L27 12" stroke="var(--trace)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div class="brand"><h1>Analysis Console</h1><div class="sub">Aggregate &middot; divide &middot; extract features &mdash; from migrated traces</div></div>
+  <div class="spacer"></div>
+  <button class="tbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </button>
+</header>
+
+<div class="mockbar">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+  <div><b>Mockup.</b> Layout and behaviour only &mdash; nothing runs. The <b>channel roster, the flags and their numbers, and every constraint</b> are real and traced to the code and artifacts. The <b>cell list is illustrative</b>, shaped after B1's realized panel; a real console discovers it by scanning the trace root.</div>
+</div>
+
+<div class="wrap">
+  <div>
+
+    <!-- ============ 00 · the spine ============ -->
+    <section class="panel">
+      <div class="phead"><span class="idx">00</span><h2>Scheme</h2><span class="hint">one path through the graph &middot; click a stage</span></div>
+      <div class="pbody spine">
+        <svg viewBox="0 0 880 132" role="img" aria-label="Analysis pipeline spine">
+          <g id="spine-g"></g>
+          <g transform="translate(0,120)">
+            <line x1="4" y1="0" x2="26" y2="0" class="sp-edge lit"/><text x="32" y="3.5" class="sp-key">selected</text>
+            <line x1="104" y1="0" x2="126" y2="0" class="sp-edge"/><text x="132" y="3.5" class="sp-key">built, off path</text>
+            <line x1="228" y1="0" x2="250" y2="0" class="sp-edge ghost"/><text x="256" y="3.5" class="sp-key">designed, unbuilt</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ============ 01 · source ============ -->
+    <section class="panel" id="p-source">
+      <div class="phead"><span class="idx">01</span><h2>Source</h2><span class="hint" id="src-hint">&mdash;</span></div>
+      <div class="pbody">
+        <div class="row">
+          <div class="field" style="flex:3"><label class="fl" for="root">Trace root &middot; assumed migrated to this machine</label>
+            <input type="text" id="root" class="mono" value="$HOME/thesis_traces/zstd_local" spellcheck="false"></div>
+          <div class="field" style="flex:0 0 auto; align-self:flex-end"><button class="bigbtn ghost" id="rescan">Rescan</button></div>
+        </div>
+        <div class="subnote" id="scan-line"></div>
+        <table class="tbl" style="margin-top:10px">
+          <thead><tr><th style="width:26px"></th><th>workload</th><th>family</th><th>reps</th><th>n_pairs</th><th>iv_ms</th><th>has</th></tr></thead>
+          <tbody id="cells"></tbody>
+        </table>
+        <div class="subnote">A cell holding only an APF trajectory cannot feed composition: that file stored <b>K/N</b> per snapshot and discarded the per-page detail.</div>
+      </div>
+    </section>
+
+    <!-- ============ 02 · compose ============ -->
+    <section class="panel" id="p-compose">
+      <div class="phead"><span class="idx">02</span><h2>Compose</h2><span class="hint">what one page becomes</span></div>
+      <div class="pbody">
+        <div class="cards c3" id="mode-cards"></div>
+        <div id="compose-rule" class="cons"></div>
+
+        <div id="phase-block" style="margin-top:15px" hidden>
+          <label class="fl">Phase convention &middot; required, and recorded in the sidecar</label>
+          <div class="cards c3" id="phase-cards"></div>
+          <div style="display:flex; gap:16px; align-items:center; margin-top:11px; flex-wrap:wrap">
+            <svg width="128" height="128" viewBox="0 0 128 128" style="flex:none">
+              <circle cx="64" cy="64" r="42" fill="none" stroke="var(--line-2)" stroke-width="1.4"/>
+              <g id="dial"></g>
+            </svg>
+            <div class="subnote" style="margin:0; flex:1; min-width:190px" id="dial-note"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <label class="fl">Channels &middot; same taxonomy as the capture console</label>
+          <div id="groups"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 03 · divide ============ -->
+    <section class="panel" id="p-divide">
+      <div class="phead"><span class="idx">03</span><h2>Divide</h2><span class="hint">two axes: time and address</span></div>
+      <div class="pbody">
+        <div class="row">
+          <div class="field"><label class="fl">Time window W<sub>t</sub> &middot; frames</label>
+            <div class="chips" id="wt-chips"><input type="text" id="wt-in" class="mono" placeholder="add&hellip;" size="5"></div></div>
+          <div class="field"><label class="fl">Time hop H<sub>t</sub></label><input type="number" id="ht" value="4" min="1"></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="field"><label class="fl">Address axis</label>
+            <select id="paxis"><option value="collapse">collapse &middot; average the page axis away</option><option value="blocks">blocks</option><option value="full">full page resolution</option></select></div>
+          <div class="field"><label class="fl">Block W<sub>p</sub> &middot; pages</label><input type="number" id="wp" value="8192" min="1" step="256"></div>
+          <div class="field"><label class="fl">Block hop H<sub>p</sub></label><input type="number" id="hp" value="8192" min="1" step="256"></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="field"><label class="fl">Edge handling <span style="text-transform:none;font-weight:400;color:var(--ink-3)">&mdash; changes tile count</span></label>
+            <select id="edge"><option value="drop">drop &middot; whole windows only</option><option value="zero">zero-pad</option><option value="reflect">reflect</option><option value="replicate">replicate</option></select></div>
+          <div class="field"><label class="fl">Taper <span style="text-transform:none;font-weight:400;color:var(--ink-3)">&mdash; changes spectral leakage</span></label>
+            <select id="taper"><option value="rectangular">rectangular &middot; none</option><option value="hann">hann</option><option value="hamming">hamming</option><option value="blackman">blackman</option></select></div>
+          <div class="field"><label class="fl">Unchanged pages</label>
+            <select id="unchanged"><option value="zero">count as zero &middot; matches K/N</option><option value="excluded">excluded from statistics</option></select></div>
+        </div>
+        <div id="divide-cons" class="cons"></div>
+        <table class="tbl" style="margin-top:13px">
+          <thead><tr><th>W<sub>t</sub> / H<sub>t</sub></th><th>windows / cell</th><th>freq bins</th><th>span @500ms</th><th>tiles</th></tr></thead>
+          <tbody id="wintable"></tbody>
+        </table>
+        <div class="subnote">Effective n is <b>workloads</b>, not windows. Selected: <b id="eff-n">0</b> workloads &middot; <span id="eff-w" class="mono">0</span> windows.</div>
+      </div>
+    </section>
+
+    <!-- ============ 04 · lens ============ -->
+    <section class="panel" id="p-lens">
+      <div class="phead"><span class="idx">04</span><h2>Lens</h2><span class="hint">fan-out &middot; each declares what it needs</span></div>
+      <div class="pbody">
+        <div class="cards c2" id="lens-cards"></div>
+        <div id="lens-cons" class="cons"></div>
+      </div>
+    </section>
+
+    <!-- ============ 05 · reference ============ -->
+    <section class="panel" id="p-ref">
+      <div class="phead"><span class="idx">05</span><h2>Reference</h2><span class="hint">needed by PLV &middot; and by any &ldquo;deviation from normal&rdquo;</span></div>
+      <div class="pbody">
+        <div class="cards c3" id="ref-cards"></div>
+        <div class="subnote">PLV is not a per-tile function: a baseline is fitted on a clean run first, then every run is evaluated against it.</div>
+      </div>
+    </section>
+
+    <!-- ============ 06 · output + runtime ============ -->
+    <section class="panel" id="p-out">
+      <div class="phead"><span class="idx">06</span><h2>Output &amp; runtime</h2><span class="hint">local &middot; resumable</span></div>
+      <div class="pbody">
+        <div class="row">
+          <div class="field"><label class="fl">Label &middot; refuses to overwrite</label><input type="text" id="label" class="mono" value="e2_split_channels"></div>
+          <div class="field"><label class="fl">Format</label><select id="fmt"><option>npz + csv twin</option><option>npz only</option><option>parquet + csv twin</option></select></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <div class="field"><label class="fl">Workers</label><input type="number" id="workers" value="4" min="1" max="16"></div>
+          <div class="field"><label class="fl">Memory ceiling &middot; GB</label><input type="number" id="memgb" value="8" min="1"></div>
+          <div class="field"><label class="fl">Page-axis chunk</label><input type="number" id="chunk" value="32768" step="4096"></div>
+        </div>
+        <div class="subnote">Resumable on a per-cell sentinel, the pattern <b>b1_extract_all.sh</b> already uses. The sidecar is written with the features or the run is not valid.</div>
+      </div>
+    </section>
+
+    <!-- ============ generated runs ============ -->
+    <section class="panel">
+      <div class="phead"><span class="idx">RUN</span><h2>Generated runs</h2><span class="hint">the expansion of the scheme</span></div>
+      <div class="plan-toolbar">
+        <button class="bigbtn" id="gen">Generate</button>
+        <button class="bigbtn ghost" id="clear">Clear</button>
+        <div class="plan-stat" id="run-stat">&mdash;</div>
+      </div>
+      <div class="steps" id="runs"></div>
+    </section>
+
+  </div>
+
+  <!-- ============ readout ============ -->
+  <aside class="readout">
+    <div class="scope">
+      <div class="scope-h"><span class="idx">CFG</span><h2>Readout</h2></div>
+      <div class="count"><div><span class="n zero" id="tile-n">0</span></div><div class="u">tiles</div>
+        <div class="formula" id="tile-formula"></div></div>
+      <div class="subcount" id="dims"></div>
+      <div class="warns" id="warns"></div>
+      <div class="out">
+        <div class="out-h"><span class="lab">scheme.json</span><button class="copy" id="copy">copy</button></div>
+        <pre class="code" id="scheme-code"></pre>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="legend">
+  <span><b>hard</b> constraint blocks the choice</span>
+  <span><b>soft</b> constraint warns and requires an acknowledgment, recorded in the sidecar</span>
+  <span><b>do not use</b> stays selectable, badged, with its history on hover</span>
+  <span><b>struck through</b> = identically zero at substrateSpeed 2</span>
+</div>
+
+<script>
+/* =====================================================================
+   Data below is injected at build time in the real console
+   (build_analysis_console.py), never typed into the HTML.
+   Here it is inlined so the mockup stands alone.
+   ===================================================================== */
+
+/* channel taxonomy — verbatim from plan07_campaign/subset_run.py */
+const FEATURES_BY_GROUP = {
+  amount: ["hamming","l0","l1","l2","linf","mean_abs","gradient_mag","tv","chi2","hellinger","kl","js",
+           "wasserstein","bhattacharyya","hist_inter_dist","ent_delta","csize_delta","ncd","struct_ent_change","lz_change"],
+  direction: ["cosine","pearson","ssim_struct","spearman","kendall","mean_shift","ssim_lum","median_shift",
+              "var_ratio","std_delta","ssim_contrast","range_delta","iqr_delta","polarity","sign_delta_ent",
+              "zero_mass_delta","cross_corr_lag","phase_corr","byte_rotation"],
+  content: ["ent_q","struct_ent_q","distinct_bytes","zero_frac","fill_frac","printable_frac","mean_q","var_q",
+            "skew_q","kurt_q","chi2_uniform","bigram_ent","autocorr_peak"],
+  texture: ["changed_runs","change_span","change_centroid","longest_changed_run","change_density","edge_energy",
+            "glcm_contrast","glcm_homogeneity","glcm_energy","glcm_correlation","high_freq_frac","max_run_len"],
+};
+const GROUP_FAMILY = {amount:"A · magnitude", direction:"B · direction", content:"C · state of q", texture:"D · texture"};
+/* the 13 identically zero at substrateSpeed 2 — counted in the Rust */
+const DEAD = new Set(["ncd","lz_change","kendall","cross_corr_lag","phase_corr","byte_rotation",
+                      "bigram_ent","autocorr_peak","glcm_contrast","glcm_homogeneity","glcm_energy",
+                      "glcm_correlation","high_freq_frac"]);
+
+/* known-issue registry — plan10_analysis/known_issues.py */
+const ISSUES = [
+ {id:"f1_phase", applies:["feature:f1_phase"], sev:"do_not_use",
+  head:"Empty in every row of the shipped sweep",
+  detail:"0 of 792 rows carry a value. Marker-aligned F1 is structurally unavailable: PHASE markers describe events inside the workload, CUSUM detects mean shifts in the memory signal. Different kinds of event.",
+  src:"plan05_campaign/downstream/sweep.csv · Plan 04 / D-86 · verified 2026-09-07"},
+ {id:"coverage_ratio", applies:["feature:coverage_ratio"], sev:"do_not_use",
+  head:"A per-family constant, not a measurement",
+  detail:"Computed as (W × iv)/rhythm with rhythm fixed per family (20 s phasic, 30 s steady), so at any fixed window it takes one value per family — 0.2 vs 0.1333 at W=8. Alone it reproduces the headline 1.000 binary accuracy exactly (36/0/0/30). Kept only as the contaminated control arm that makes the leak measurable.",
+  src:"plan03_sweep.py:130,49-52 · leakage_ablation.json · verified 2026-09-07"},
+ {id:"ceps_snr", applies:["feature:ceps_peak_snr_db","lens:cepstrum"], sev:"caution",
+  head:"A presence gate, not a discriminator",
+  detail:"Alone it classifies phasic-vs-steady at 0.5152 against a majority baseline of 0.5455 — it does not beat guessing. Fine for “is there a rhythm here”, wrong for “which class is this”.",
+  src:"leakage_ablation.json · ceps_snr_alone · verified 2026-09-07"},
+ {id:"cv_workingset", applies:["feature:cv_workingset"], sev:"caution",
+  head:"Only computed for steady workloads",
+  detail:"The plan03 kernel fills it for steady cells and leaves it null otherwise, so its presence encodes family membership. Sits with coverage_ratio and f1_phase in FAMILY_CONDITIONAL.",
+  src:"plan03_metric_kernel.py · behavior_families.py:40"},
+ {id:"duty_gt05", applies:["feature:duty_gt05"], sev:"caution",
+  head:"Absolute threshold, calibrated to APF's scale",
+  detail:"Counts samples above a fixed 0.05. Not scale-equivariant: in any comparison across encodings it favours whichever arm shares that scale. Use duty (fraction above 0.1 × max) instead.",
+  src:"plan05_campaign/extra_features.py:56"},
+ {id:"cusum_band", applies:["lens:cusum"], sev:"caution",
+  head:"Null calibration failed: gap 0.000",
+  detail:"The plausibility band scored 0.850 on real phasic data, 0.850 on time-shuffled surrogates and 0.850 on IID Gaussian. The artifact self-flags band_near_unfalsifiable.",
+  src:"Plan 04 record · null calibration"},
+ {id:"phase_2pi", applies:["phase:2pi"], sev:"do_not_use",
+  head:"The angle collides: 0 and 1 land on the same tick",
+  detail:"cosine is a distance — 0 means identical, and an all-zero previous page pins to 1. Multiplying by 2π glues both ends together, so a page rewritten in place is indistinguishable from a page freshly allocated. Kept because reproducing B1 and the first-generation features requires it.",
+  src:"live_delta_calc_modular/src/metrics/family_b/structure.rs"},
+ {id:"w8h4", applies:["window:8"], sev:"note",
+  head:"Inherited, not chosen",
+  detail:"Tuned on the APF trajectory alone, won partly on a “smallest W” tiebreak, and W=128 was never in the sweep grid.",
+  src:"plan05_campaign/downstream/recommendation.json · plan03_sweep.py:275"},
+ {id:"dead_channels", applies:["channel:dead"], sev:"do_not_use",
+  head:"Identically zero at substrateSpeed 2",
+  detail:"The differ drops these thirteen at speed 2 but the schema still writes 64 columns, so they arrive as zeros rather than as absent. Any per-channel reasoning about them is reasoning about zeros.",
+  src:"metrics/mod.rs · family_a/informational.rs · family_b/{structure,spatial_shift}.rs · family_c.rs · family_d/texture.rs"},
+];
+const issueFor = key => ISSUES.filter(i => i.applies.includes(key));
+
+/* lenses */
+const LENSES = [
+ {id:"stats", name:"Simple statistics", desc:"mean · std · cov · median · max · p95 · peak2med · duty", impl:"b1_features.py"},
+ {id:"deep", name:"Deep statistics", desc:"stat_pass_frac · n_boundaries · skew · kurtosis · entropy · τ", impl:"new + plan03/plan04"},
+ {id:"fft", name:"FFT", desc:"spectrum · peak · band energies", spectral:true},
+ {id:"cepstrum", name:"Cepstrum", desc:"peak quefrency · ceps_peak_snr_db", spectral:true, impl:"CepstrumStability"},
+ {id:"wavelet", name:"Wavelet", desc:"pywt · db4 · sym5 · coif3 · morlet", spectral:true, impl:"pywt"},
+ {id:"scattering", name:"Scattering", desc:"J · Q · 1D | 2D", spectral:true, impl:"kymatio + torch", env:"needs env"},
+ {id:"msc", name:"MSC", desc:"magnitude-squared coherence · peak SNR", spectral:true, impl:"MagnitudeSquaredCoherence"},
+ {id:"cusum", name:"CUSUM", desc:"change points · boundary count"},
+ {id:"plv", name:"PLV", desc:"phase-locking value vs a baseline", impl:"PLVStability"},
+];
+
+/* illustrative corpus — shaped after B1's realized panel */
+const CELLS = [
+ {wl:"mem_workingset_sweep", fam:"mem", reps:3, n:712, iv:500, has:["chain","substrate"]},
+ {wl:"mem_pagefault_density", fam:"mem", reps:3, n:698, iv:500, has:["chain","substrate"]},
+ {wl:"mem_mmap_traversal",   fam:"mem", reps:3, n:704, iv:500, has:["chain"]},
+ {wl:"mem_writemag_sweep",   fam:"mem", reps:1, n:688, iv:500, has:["chain","substrate"]},
+ {wl:"cpu_hash_loop",        fam:"cpu", reps:3, n:701, iv:500, has:["chain","substrate"]},
+ {wl:"cpu_branch_random",    fam:"cpu", reps:3, n:706, iv:500, has:["chain"]},
+ {wl:"cpu_matrix_mult",      fam:"cpu", reps:3, n:695, iv:500, has:["chain","substrate"]},
+ {wl:"thread_lock_contention", fam:"thread", reps:3, n:709, iv:500, has:["chain","substrate"]},
+ {wl:"thread_producer_consumer", fam:"thread", reps:3, n:702, iv:500, has:["chain"]},
+ {wl:"thread_parallel_alloc", fam:"thread", reps:3, n:697, iv:500, has:["chain","substrate"]},
+ {wl:"app_hashtable_intensive", fam:"app", reps:3, n:711, iv:500, has:["chain","substrate"]},
+ {wl:"app_json_parse",       fam:"app", reps:3, n:690, iv:500, has:["chain"]},
+ {wl:"app_sqlite_txn",       fam:"app", reps:3, n:705, iv:500, has:["chain","substrate"]},
+ {wl:"io_direct_write",      fam:"io",  reps:3, n:700, iv:500, has:["chain","substrate"]},
+ {wl:"io_read_stream",       fam:"io",  reps:3, n:694, iv:500, has:["chain"]},
+ {wl:"cache_thrash_l2",      fam:"cache", reps:1, n:96,  iv:500, has:["apf"]},
+ {wl:"cache_stride_walk",    fam:"cache", reps:1, n:88,  iv:500, has:["apf"]},
+ {wl:"cache_line_pingpong",  fam:"cache", reps:1, n:660, iv:250, has:["chain"]},
+ {wl:"sandbox_stealth_paced",fam:"sandbox", reps:1, n:683, iv:500, has:["chain","substrate"]},
+];
+const N_PAGES = 262144;
+
+/* ===================== state ===================== */
+const S = {
+  sel: new Set(CELLS.filter(c => c.has.includes("substrate")).map(c => c.wl)),
+  mode: "single",
+  chans: new Set(["hamming"]),
+  phase: null,
+  wt: [8], ht: 4,
+  paxis: "collapse", wp: 8192, hp: 8192,
+  edge: "drop", taper: "rectangular", unchanged: "zero",
+  lenses: new Set(["stats"]),
+  ref: "none",
+  acks: new Set(),
+};
+let RUNS = null;
+
+/* ===================== helpers ===================== */
+const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
+const selCells = () => CELLS.filter(c => S.sel.has(c.wl));
+const usable = c => c.has.includes("chain") || c.has.includes("substrate");
+const nWindows = (n, w, h) => n < w ? 0 : Math.floor((n - w) / h) + 1;
+const nBlocks = () => S.paxis === "collapse" ? 1
+  : S.paxis === "full" ? N_PAGES
+  : Math.max(0, Math.floor((N_PAGES - S.wp) / Math.max(1, S.hp)) + 1);
+const chansIn = g => [...S.chans].filter(c => FEATURES_BY_GROUP[g].includes(c));
+const spectralOn = () => [...S.lenses].some(id => (LENSES.find(l => l.id === id) || {}).spectral);
+
+function flagHTML(key) {
+  return issueFor(key).map(i => `<span class="flag ${i.sev}" tabindex="0">${i.sev.replace(/_/g," ")}
+    <span class="hovercard"><span class="hc-h"><span class="sev" style="color:inherit">${i.sev.replace(/_/g," ")}</span>${i.head}</span>
+    <span class="hc-d">${i.detail}</span><span class="hc-s">${i.src}</span></span></span>`).join("");
+}
+
+/* ===================== constraints ===================== */
+function constraints() {
+  const out = [];
+  const mag = chansIn("amount"), dir = chansIn("direction"), cont = chansIn("content");
+  const minPairs = selCells().length ? Math.min(...selCells().map(c => c.n)) : 0;
+  const ivs = new Set(selCells().map(c => c.iv));
+
+  if (S.mode === "complex") {
+    if (mag.length !== 1 || dir.length !== 1)
+      out.push({sev:"hard", target:"compose",
+        msg:`Complex needs exactly one magnitude and one direction channel. Selected: ${mag.length} magnitude, ${dir.length} direction.`,
+        src:"the mode is defined by it"});
+    if (!S.phase)
+      out.push({sev:"hard", target:"compose", msg:"Choose a phase convention. It cannot be recovered from the output afterwards.",
+        src:"plan10 §13.2"});
+    if (cont.length)
+      out.push({sev:"soft", id:"content_as_angle", target:"compose",
+        msg:`Family C (${cont.join(", ")}) describes the new page — state — while A/B/D describe the change. Fusing a state channel with a derivative makes a number that does not mean what it looks like.`,
+        src:"ANALYSIS_PIPELINE_METHODOLOGY.md §2.1"});
+  }
+  if (S.mode === "vector" && S.chans.size > 8)
+    out.push({sev:"soft", id:"wide_vector", target:"compose",
+      msg:`${S.chans.size} channels per page. Payload and the effective-n gap both scale with this.`, src:"methodology §6.4"});
+
+  if (S.lenses.has("plv")) {
+    if (S.mode !== "complex")
+      out.push({sev:"hard", target:"lens", msg:"PLV reads the phase of a complex signal. Set Compose to complex.",
+        src:"coherence_temp_spec_stability/plv_calcolator.py:9", fix:{label:"Set Compose = complex", run:() => {S.mode = "complex";}}});
+    if (S.ref === "none")
+      out.push({sev:"hard", target:"lens", msg:"PLV needs a baseline fitted on a clean run before any run can be evaluated.",
+        src:"plv_calcolator.py fit_baseline / evaluate_run", fix:{label:"Set Reference = cell", run:() => {S.ref = "cell";}}});
+  }
+  if (S.lenses.has("msc")) {
+    if (S.chans.size < 2)
+      out.push({sev:"hard", target:"lens", msg:"MSC is a pairwise quantity and needs two or more channels.", src:"magnitude_squared_coherence.py"});
+    const smallest = Math.min(...S.wt);
+    if (smallest < 128)
+      out.push({sev:"soft", id:"msc_internal_window", target:"lens",
+        msg:`MSC re-windows internally with its own Welch slicing at 128/64. At W_t=${smallest} it cannot form a single sub-window, so the value is degenerate rather than wrong.`,
+        src:"magnitude_squared_coherence.py:30,37 · stability_validator defaults 128/64",
+        fix:{label:"Set W_t = 128, H_t = 64", run:() => {S.wt = [128]; S.ht = 64;}}});
+  }
+  if (spectralOn() && Math.min(...S.wt) < 4)
+    out.push({sev:"hard", target:"divide", msg:`A spectral lens needs at least 4 frames; W_t=${Math.min(...S.wt)} gives fewer than two bins.`, src:"plan10 §13.2"});
+  if (spectralOn() && S.taper === "rectangular")
+    out.push({sev:"soft", id:"no_taper", target:"divide",
+      msg:"A spectral lens with no taper leaks across bins. Rectangular is a choice here, not a default.", src:"plan10 §5.2",
+      fix:{label:"Set taper = hann", run:() => {S.taper = "hann";}}});
+  if (selCells().length && Math.max(...S.wt) > minPairs)
+    out.push({sev:"hard", target:"divide",
+      msg:`W_t=${Math.max(...S.wt)} exceeds the shortest selected cell (${minPairs} pairs), which would yield zero windows.`, src:"plan10 §13.2"});
+  if (S.paxis === "blocks") {
+    out.push({sev:"soft", id:"gate2_scatter", target:"divide",
+      msg:"Address blocks are allocator placement, not program structure: Gate 2 measured frac_in_longest_run at 0.087–0.162, so a contiguous array arrives in physical RAM as ~3000 fragments.",
+      src:"docs/dwarf_pilot_design/GATE2_RESULT.md"});
+    if (S.wp % 1 !== 0 || S.wp < 1)
+      out.push({sev:"hard", target:"divide", msg:"A block must be a whole number of pages.", src:"methodology §5"});
+  }
+  if (ivs.size > 1)
+    out.push({sev:"soft", id:"mixed_iv", target:"source",
+      msg:`Selected cells mix sampling intervals (${[...ivs].join(", ")} ms). One window then means different wall-clock spans across them.`,
+      src:"plan10 §11.2", fix:{label:"Keep 500 ms only", run:() => {CELLS.forEach(c => {if (c.iv !== 500) S.sel.delete(c.wl);});}}});
+  if ([...S.chans].some(c => DEAD.has(c)))
+    out.push({sev:"hard", target:"compose", msg:"A selected channel is identically zero at substrateSpeed 2.", src:"the Rust, counted"});
+  if (S.phase === "2pi")
+    out.push({sev:"soft", id:"phase_2pi", target:"compose",
+      msg:"The 2π convention collides: a page rewritten in place and a page freshly allocated land on the same angle. Proceed only to reproduce B1 or the first-generation features.",
+      src:"family_b/structure.rs"});
+  return out;
+}
+const hardBlocks = () => constraints().filter(c => c.sev === "hard");
+const unacked = () => constraints().filter(c => c.sev === "soft" && !S.acks.has(c.id));
+
+/* ===================== render ===================== */
+function renderSpine() {
+  const g = document.getElementById("spine-g");
+  const chanN = S.chans.size;
+  const stages = [
+    {k:"source",  t:"SOURCE",  v:`${selCells().length} cells`, lit:selCells().length > 0},
+    {k:"compose", t:"COMPOSE", v:S.mode === "complex" ? `complex · ${S.phase || "no convention"}` : `${S.mode} · ${chanN} ch`, lit:chanN > 0},
+    {k:"divide",  t:"DIVIDE",  v:`${S.wt.join("/")} · ${S.ht}${S.paxis === "collapse" ? " · collapse" : " · blocks"}`, lit:true},
+    {k:"lens",    t:"LENS",    v:`${S.lenses.size} selected`, lit:S.lenses.size > 0},
+    {k:"out",     t:"OUTPUT",  v:"features + sidecar", lit:S.lenses.size > 0},
+  ];
+  const W = 152, GAP = 30, Y = 30, H = 46;
+  let h = "";
+  stages.forEach((s, i) => {
+    const x = i * (W + GAP) + 6;
+    if (i) {
+      const lit = stages[i - 1].lit && s.lit;
+      h += `<path class="sp-edge ${lit ? "lit" : ""}" d="M ${x - GAP} ${Y + H / 2} L ${x} ${Y + H / 2}"/>`;
+    }
+    h += `<g class="sp-node ${s.lit ? "lit" : "empty"}" data-go="p-${s.k}">
+      <rect class="sp-box" x="${x}" y="${Y}" width="${W}" height="${H}" rx="10"/>
+      <text class="sp-t" x="${x + W / 2}" y="${Y + 19}">${s.t}</text>
+      <text class="sp-v" x="${x + W / 2}" y="${Y + 35}">${s.v}</text></g>`;
+  });
+  /* the seam the capture console stops at */
+  h += `<text class="sp-seam" x="94" y="18">↑ capture console ends here</text>`;
+  /* ghost branches at the lens stage */
+  const lx = 3 * (W + GAP) + 6;
+  [...S.lenses].slice(0, 3).forEach((id, j) => {
+    const yy = Y + H + 12 + j * 15;
+    h += `<path class="sp-edge lit" d="M ${lx + W / 2} ${Y + H} L ${lx + W / 2} ${yy} L ${lx + W + 12} ${yy}"/>
+          <text class="sp-v" style="text-anchor:start" x="${lx + W + 18}" y="${yy + 3.5}">${id}</text>`;
+  });
+  g.innerHTML = h;
+  g.querySelectorAll(".sp-node").forEach(n => n.onclick = () => {
+    const t = document.getElementById(n.dataset.go); if (t) t.scrollIntoView({behavior:"smooth", block:"start"});
+  });
+}
+
+function renderCells() {
+  const tb = document.getElementById("cells"); tb.innerHTML = "";
+  CELLS.forEach(c => {
+    const ok = usable(c), on = S.sel.has(c.wl);
+    const tr = el("tr", ok ? (on ? "" : "off") : "off");
+    const cb = el("input"); cb.type = "checkbox"; cb.className = "cb"; cb.checked = on && ok; cb.disabled = !ok;
+    cb.onchange = () => { cb.checked ? S.sel.add(c.wl) : S.sel.delete(c.wl); render(); };
+    const td0 = el("td"); td0.appendChild(cb); tr.appendChild(td0);
+    tr.appendChild(el("td", null, c.wl));
+    tr.appendChild(el("td", null, `<span class="bdg fam">${c.fam}</span>`));
+    tr.appendChild(el("td", null, String(c.reps)));
+    tr.appendChild(el("td", null, String(c.n)));
+    tr.appendChild(el("td", null, c.iv === 500 ? "500" : `<span class="pill none">${c.iv}</span>`));
+    tr.appendChild(el("td", null, c.has.map(x =>
+      `<span class="pill ${x === "apf" ? "none" : "have"}">${x === "apf" ? "apf only" : x}</span>`).join(" ")));
+    tb.appendChild(tr);
+  });
+  const nUse = CELLS.filter(usable).length;
+  document.getElementById("src-hint").textContent = `${S.sel.size} of ${nUse} usable selected`;
+  document.getElementById("scan-line").innerHTML =
+    `Scanned <b>${CELLS.length}</b> cells &middot; <b>${nUse}</b> usable &middot; <b>${CELLS.length - nUse}</b> APF-only &middot; assumption: <b>traces migrated to this machine</b>`;
+}
+
+function renderModes() {
+  const host = document.getElementById("mode-cards"); host.innerHTML = "";
+  const modes = [
+    {v:"single", t:"Single", d:"one channel → a scalar per page"},
+    {v:"vector", t:"Vectorize", d:"N channels → a real vector. No cross-channel math — the control arm the thesis never ran"},
+    {v:"complex", t:"Complex", d:"one magnitude × one direction → magnitude and angle in one object"},
+  ];
+  modes.forEach(m => {
+    const c = el("button", "card" + (S.mode === m.v ? " on" : ""),
+      `<div class="t">${m.t}</div><div class="d">${m.d}</div>`);
+    c.onclick = () => { S.mode = m.v; if (m.v !== "complex") S.phase = null; render(); };
+    host.appendChild(c);
+  });
+  document.getElementById("phase-block").hidden = S.mode !== "complex";
+
+  const ph = document.getElementById("phase-cards"); ph.innerHTML = "";
+  [{v:"2pi", t:"2π × distance", d:"the current convention"},
+   {v:"pi",  t:"π × distance", d:"half turn; extremes become antipodal"},
+   {v:"arccos", t:"arccos(similarity)", d:"the true geometric angle"}].forEach(p => {
+    const c = el("button", "card" + (S.phase === p.v ? " on" : ""),
+      `<div class="t">${p.t} ${p.v === "2pi" ? flagHTML("phase:2pi") : ""}</div><div class="d">${p.d}</div>`);
+    c.onclick = e => { if (e.target.closest(".flag")) return; S.phase = p.v; render(); };
+    ph.appendChild(c);
+  });
+  renderDial();
+}
+
+function renderDial() {
+  const g = document.getElementById("dial"), note = document.getElementById("dial-note");
+  if (!g) return;
+  const conv = S.phase || "2pi";
+  const ang = d => conv === "2pi" ? 2 * Math.PI * d : conv === "pi" ? Math.PI * d : Math.acos(1 - 2 * d);
+  const pt = a => [64 + 42 * Math.cos(a - Math.PI / 2), 64 + 42 * Math.sin(a - Math.PI / 2)];
+  const [x0, y0] = pt(ang(0)), [x1, y1] = pt(ang(1));
+  const collide = Math.abs(ang(0) - ang(1)) % (2 * Math.PI) < 1e-9;
+  const col = collide ? "var(--bad)" : "var(--accent)";
+  g.innerHTML = `
+    <line x1="64" y1="64" x2="${x0}" y2="${y0}" stroke="${col}" stroke-width="2"/>
+    <circle cx="${x0}" cy="${y0}" r="4.5" fill="${col}"/>
+    <line x1="64" y1="64" x2="${x1}" y2="${y1}" stroke="${collide ? col : "var(--warn)"}" stroke-width="2" stroke-dasharray="${collide ? "3 3" : "0"}"/>
+    <circle cx="${x1}" cy="${y1}" r="4.5" fill="${collide ? col : "var(--warn)"}"/>
+    <text x="64" y="60" text-anchor="middle" style="font:600 9px 'IBM Plex Mono',monospace" fill="var(--ink-3)">d=0</text>
+    <text x="64" y="74" text-anchor="middle" style="font:600 9px 'IBM Plex Mono',monospace" fill="var(--ink-3)">d=1</text>`;
+  note.innerHTML = collide
+    ? `<b style="color:var(--bad)">Distance 0 and distance 1 land on the same angle.</b> A page rewritten in place and a page freshly allocated from zeros become indistinguishable — and most of the data sits exactly there.`
+    : `Distance 0 and distance 1 are <b>${conv === "pi" ? "antipodal" : "distinct"}</b>. The mapping is injective on its domain, so the angle carries information the magnitude does not.`;
+}
+
+function renderGroups() {
+  const host = document.getElementById("groups"); host.innerHTML = "";
+  Object.keys(FEATURES_BY_GROUP).forEach(g => {
+    const cols = FEATURES_BY_GROUP[g], live = cols.filter(c => !DEAD.has(c));
+    const grp = el("div", "grp");
+    const head = el("div", "grp-h",
+      `<span class="name">${g}</span><span class="fam">${GROUP_FAMILY[g]} · ${live.length} live of ${cols.length}</span>`);
+    const seg = el("div", "seg");
+    [["none","none"],["all","all live"]].forEach(([m, lbl]) => {
+      const b = el("button", null, lbl);
+      b.onclick = () => { cols.forEach(c => S.chans.delete(c)); if (m === "all") live.forEach(c => S.chans.add(c)); render(); };
+      seg.appendChild(b);
+    });
+    head.appendChild(seg); grp.appendChild(head);
+    const box = el("div", "cols");
+    cols.forEach(c => {
+      const dead = DEAD.has(c), on = S.chans.has(c);
+      const b = el("button", "col" + (on ? " on" : "") + (dead ? " dead" : ""), c);
+      if (dead) { b.disabled = true; b.title = "identically zero at substrateSpeed 2"; }
+      else b.onclick = () => { on ? S.chans.delete(c) : S.chans.add(c); render(); };
+      box.appendChild(b);
+    });
+    grp.appendChild(box);
+    const picked = cols.filter(c => S.chans.has(c));
+    grp.appendChild(el("div", "grp-foot",
+      picked.length ? `selected &rarr; <b>${picked.join(", ")}</b>` : "nothing selected"));
+    host.appendChild(grp);
+  });
+}
+
+function renderConstraints() {
+  const byTarget = {compose:[], divide:[], lens:[], source:[]};
+  constraints().forEach(c => (byTarget[c.target] || byTarget.compose).push(c));
+  const paint = (hostId, list) => {
+    const host = document.getElementById(hostId); if (!host) return;
+    host.innerHTML = "";
+    list.forEach(c => {
+      const item = el("div", "cons-item " + c.sev);
+      const body = el("div", "cbody");
+      body.innerHTML = `<b>${c.sev === "hard" ? "blocked" : "warning"}</b> &middot; ${c.msg}<span class="csrc">${c.src}</span>`;
+      if (c.sev === "soft") {
+        const lab = el("label", "ack");
+        const cb = el("input"); cb.type = "checkbox"; cb.checked = S.acks.has(c.id);
+        cb.onchange = () => { cb.checked ? S.acks.add(c.id) : S.acks.delete(c.id); render(); };
+        lab.appendChild(cb); lab.appendChild(el("span", null, "I know — proceed, and record it in the sidecar"));
+        body.appendChild(lab);
+      }
+      item.appendChild(body);
+      if (c.fix) { const b = el("button", "fixbtn", c.fix.label); b.onclick = () => { c.fix.run(); render(); }; item.appendChild(b); }
+      host.appendChild(item);
+    });
+  };
+  paint("compose-rule", byTarget.compose); paint("divide-cons", byTarget.divide); paint("lens-cons", byTarget.lens);
+}
+
+function renderLenses() {
+  const host = document.getElementById("lens-cards"); host.innerHTML = "";
+  LENSES.forEach(l => {
+    const on = S.lenses.has(l.id);
+    const blockers = (() => {
+      const probe = new Set(S.lenses); probe.add(l.id);
+      const saved = S.lenses; S.lenses = probe;
+      const hb = constraints().filter(c => c.sev === "hard" && c.target === "lens");
+      S.lenses = saved; return hb;
+    })();
+    const blocked = !on && blockers.length > 0;
+    const c = el("button", "card" + (on ? " on" : "") + (blocked ? " blocked" : ""),
+      `<div class="t">${l.name}
+         ${l.env ? `<span class="tag">${l.env}</span>` : ""}
+         ${flagHTML("lens:" + l.id)}</div>
+       <div class="d">${l.desc}${l.impl ? ` &middot; <span class="mono" style="font-size:10.5px">${l.impl}</span>` : ""}</div>
+       ${blocked ? `<div class="d" style="color:var(--bad); margin-top:5px">${blockers[0].msg}</div>` : ""}`);
+    c.onclick = e => { if (e.target.closest(".flag")) return; on ? S.lenses.delete(l.id) : S.lenses.add(l.id); render(); };
+    host.appendChild(c);
+  });
+  const rh = document.getElementById("ref-cards"); rh.innerHTML = "";
+  [{v:"none", t:"None", d:"no baseline fitted"},
+   {v:"cell", t:"Single cell", d:"one clean run as the reference"},
+   {v:"benign", t:"Benign set", d:"p5–p95 envelope over the benign cells"}].forEach(r => {
+    const c = el("button", "card" + (S.ref === r.v ? " on" : ""), `<div class="t">${r.t}</div><div class="d">${r.d}</div>`);
+    c.onclick = () => { S.ref = r.v; render(); }; rh.appendChild(c);
+  });
+}
+
+function renderDivide() {
+  const wrap = document.getElementById("wt-chips"), input = document.getElementById("wt-in");
+  [...wrap.querySelectorAll(".chip")].forEach(c => c.remove());
+  S.wt.slice().sort((a, b) => a - b).forEach((v, i) => {
+    const chip = el("span", "chip", `${v}${issueFor("window:" + v).length ? " " + flagHTML("window:" + v) : ""}<button aria-label="remove">&times;</button>`);
+    chip.querySelector("button").onclick = () => { S.wt.splice(S.wt.indexOf(v), 1); if (!S.wt.length) S.wt.push(8); render(); };
+    wrap.insertBefore(chip, input);
+  });
+  document.getElementById("ht").value = S.ht;
+  document.getElementById("paxis").value = S.paxis;
+  document.getElementById("wp").value = S.wp;
+  document.getElementById("hp").value = S.hp;
+  document.getElementById("edge").value = S.edge;
+  document.getElementById("taper").value = S.taper;
+  document.getElementById("unchanged").value = S.unchanged;
+  const tap = document.getElementById("taper");
+  tap.disabled = !spectralOn();
+  tap.parentElement.style.opacity = spectralOn() ? "1" : ".45";
+
+  const tb = document.getElementById("wintable"); tb.innerHTML = "";
+  const cells = selCells(), blocks = nBlocks();
+  [8, 16, 32, 64, 128].forEach(w => {
+    const h = Math.max(1, Math.round(w / 2));
+    const wins = cells.reduce((a, c) => a + nWindows(c.n, w, h), 0);
+    const tr = el("tr", S.wt.includes(w) ? "" : "off");
+    tr.innerHTML = `<td>${w} / ${h}</td><td>${wins.toLocaleString()}</td><td>${w / 2}</td>
+      <td>${(w * 0.5).toFixed(0)} s</td><td>${(wins * blocks).toLocaleString()}</td>`;
+    tb.appendChild(tr);
+  });
+  const wins = cells.reduce((a, c) => a + S.wt.reduce((b, w) => b + nWindows(c.n, w, S.ht), 0), 0);
+  document.getElementById("eff-n").textContent = new Set(cells.map(c => c.wl)).size;
+  document.getElementById("eff-w").textContent = wins.toLocaleString();
+}
+
+function renderReadout() {
+  const cells = selCells(), blocks = nBlocks();
+  const wins = cells.reduce((a, c) => a + S.wt.reduce((b, w) => b + nWindows(c.n, w, S.ht), 0), 0);
+  const tiles = wins * blocks;
+  const n = document.getElementById("tile-n");
+  n.textContent = tiles.toLocaleString(); n.classList.toggle("zero", tiles === 0);
+  document.getElementById("tile-formula").innerHTML =
+    `${wins.toLocaleString()} windows<br>× ${blocks.toLocaleString()} block${blocks === 1 ? "" : "s"}`;
+  const perTile = S.mode === "complex" ? "1 complex" : `${S.chans.size} real`;
+  document.getElementById("dims").innerHTML =
+    `per tile: <b>${perTile}</b> × <b>${Math.min(...S.wt)}</b> frames &middot; lenses: <b>${S.lenses.size}</b> &middot; est. output <b>${(tiles * S.lenses.size * 8 * 8 / 1e6).toFixed(1)} MB</b> <span class="pill">mock</span>`;
+
+  const w = document.getElementById("warns"); w.innerHTML = "";
+  const hb = hardBlocks(), ua = unacked();
+  hb.forEach(c => w.appendChild(el("div", "warn-chip bad", `<b>blocked</b> · ${c.msg}`)));
+  ua.forEach(c => w.appendChild(el("div", "warn-chip", `<b>unacknowledged</b> · ${c.msg}`)));
+  [...S.acks].forEach(id => w.appendChild(el("div", "warn-chip ok", `<b>acknowledged</b> · ${id} — written to the sidecar`)));
+  if (!hb.length && !ua.length && !S.acks.size) w.appendChild(el("div", "warn-chip ok", "No blocking constraints. Every choice is explicit."));
+
+  document.getElementById("gen").disabled = hb.length > 0 || ua.length > 0;
+  document.getElementById("scheme-code").textContent = JSON.stringify(scheme(), null, 1);
+}
+
+function scheme() {
+  return {
+    schema: "plan10.scheme.v1",
+    label: document.getElementById("label").value,
+    source: {root: document.getElementById("root").value, cells: selCells().length, assumed_local: true},
+    channels: [...S.chans],
+    compose: {mode: S.mode, phase_convention: S.mode === "complex" ? S.phase : null},
+    divide: {window_t: S.wt, hop_t: S.ht, page_axis: S.paxis,
+             block_pages: S.paxis === "blocks" ? S.wp : null, hop_pages: S.paxis === "blocks" ? S.hp : null,
+             edge: S.edge, taper: S.taper, unchanged_pages: S.unchanged},
+    lenses: [...S.lenses],
+    reference: S.ref,
+    runtime: {workers: +document.getElementById("workers").value, mem_gb: +document.getElementById("memgb").value,
+              chunk_pages: +document.getElementById("chunk").value},
+    acknowledged: [...S.acks].map(id => ({id, at: "<written at launch>"})),
+  };
+}
+
+function renderRuns() {
+  const host = document.getElementById("runs"), stat = document.getElementById("run-stat");
+  if (!RUNS) { host.innerHTML = `<div style="padding:26px 18px;text-align:center;color:var(--ink-3);font-size:13px">No runs yet. Set the scheme above, then <b>Generate</b>.</div>`; stat.textContent = "—"; return; }
+  host.innerHTML = "";
+  RUNS.forEach((r, i) => {
+    const row = el("div", "step" + (r.on ? "" : " off"));
+    const cb = el("input"); cb.type = "checkbox"; cb.className = "cb"; cb.checked = r.on;
+    cb.onchange = () => { r.on = cb.checked; renderRuns(); };
+    row.appendChild(cb);
+    row.appendChild(el("span", "ord", String(i + 1)));
+    row.appendChild(el("span", "bdg fam", r.lens));
+    row.appendChild(el("span", "bdg", `W=${r.w}`));
+    row.appendChild(el("span", "cmd", r.cmd));
+    host.appendChild(row);
+  });
+  stat.innerHTML = `<b>${RUNS.filter(r => r.on).length}</b> of ${RUNS.length} runs enabled`;
+}
+
+function render() {
+  renderSpine(); renderCells(); renderModes(); renderGroups(); renderLenses();
+  renderDivide(); renderConstraints(); renderReadout(); renderRuns();
+}
+
+/* ===================== wiring ===================== */
+document.getElementById("wt-in").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const v = parseInt(e.target.value, 10);
+  if (v > 0 && !S.wt.includes(v)) S.wt.push(v);
+  e.target.value = ""; render();
+});
+["ht","wp","hp","workers","memgb","chunk"].forEach(id =>
+  document.getElementById(id).addEventListener("input", e => {
+    const v = parseInt(e.target.value || "0", 10);
+    if (id === "ht") S.ht = Math.max(1, v); if (id === "wp") S.wp = v; if (id === "hp") S.hp = v;
+    render();
+  }));
+["paxis","edge","taper","unchanged"].forEach(id =>
+  document.getElementById(id).addEventListener("change", e => {
+    if (id === "paxis") S.paxis = e.target.value; if (id === "edge") S.edge = e.target.value;
+    if (id === "taper") S.taper = e.target.value; if (id === "unchanged") S.unchanged = e.target.value;
+    render();
+  }));
+document.getElementById("label").addEventListener("input", render);
+document.getElementById("rescan").onclick = () => { document.getElementById("scan-line").style.opacity = ".4";
+  setTimeout(() => { document.getElementById("scan-line").style.opacity = "1"; render(); }, 240); };
+document.getElementById("gen").onclick = () => {
+  RUNS = [];
+  S.wt.forEach(w => [...S.lenses].forEach(l => RUNS.push({
+    w, lens: l, on: true,
+    cmd: `plan10_analysis/analysis_run.py --scheme ${document.getElementById("label").value}.json --window ${w} --lens ${l} --cells ${selCells().length}`
+  })));
+  renderRuns();
+};
+document.getElementById("clear").onclick = () => { RUNS = null; renderRuns(); };
+document.getElementById("copy").onclick = e => {
+  navigator.clipboard.writeText(JSON.stringify(scheme(), null, 2));
+  e.target.classList.add("done"); e.target.textContent = "copied";
+  setTimeout(() => { e.target.classList.remove("done"); e.target.textContent = "copy"; }, 1400);
+};
+document.getElementById("theme").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  renderDial();
+};
+
+render();
+</script>
+</body>
+</html>

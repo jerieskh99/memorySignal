@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Analysis Canvas — mockup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* ===== tokens: identical to capture_console.template.html ===== */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --panel-2:#f5f7fa; --sunk:#eaeef3;
+  --ink:#151b24; --ink-2:#48545f; --ink-3:#78838f; --line:#dbe1e9; --line-2:#c8d0da;
+  --accent:#0f8ba3; --accent-ink:#ffffff; --accent-soft:#d3edf2;
+  --ok:#1c8a4e; --ok-soft:#d5efdf; --warn:#a86a08; --warn-soft:#f8e9c9; --bad:#c23b3b; --bad-soft:#f6d9d9;
+  --trace:#0f8ba3; --amber:#b8860b; --violet:#6d28d9; --violet-soft:#ece6fb;
+  --grid:#dfe4ea;
+  --shadow:0 1px 2px rgba(20,27,36,.06),0 8px 24px -12px rgba(20,27,36,.18);
+  /* port / signal type colours */
+  --t-cells:#78838f; --t-field:#0f8ba3; --t-complex:#6d28d9; --t-series:#1c8a4e;
+  --t-tiles:#2563eb; --t-features:#d97706; --t-reference:#b8860b;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1017; --panel:#141b25; --panel-2:#101720; --sunk:#0b1119;
+    --ink:#e8edf3; --ink-2:#9aa7b4; --ink-3:#69757f; --line:#232e3b; --line-2:#2e3b4a;
+    --accent:#38c6dc; --accent-ink:#04121a; --accent-soft:#123039;
+    --ok:#4ade80; --ok-soft:#122a1c; --warn:#fbbf24; --warn-soft:#2c2411; --bad:#f87171; --bad-soft:#2e1618;
+    --trace:#38c6dc; --amber:#fbbf24; --violet:#a78bfa; --violet-soft:#241a3f; --grid:#182130;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -14px rgba(0,0,0,.6);
+    --t-cells:#9aa7b4; --t-field:#38c6dc; --t-complex:#a78bfa; --t-series:#4ade80;
+    --t-tiles:#60a5fa; --t-features:#fbbf24; --t-reference:#f59e0b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1017; --panel:#141b25; --panel-2:#101720; --sunk:#0b1119;
+  --ink:#e8edf3; --ink-2:#9aa7b4; --ink-3:#69757f; --line:#232e3b; --line-2:#2e3b4a;
+  --accent:#38c6dc; --accent-ink:#04121a; --accent-soft:#123039;
+  --ok:#4ade80; --ok-soft:#122a1c; --warn:#fbbf24; --warn-soft:#2c2411; --bad:#f87171; --bad-soft:#2e1618;
+  --trace:#38c6dc; --amber:#fbbf24; --violet:#a78bfa; --violet-soft:#241a3f; --grid:#182130;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 30px -14px rgba(0,0,0,.6);
+  --t-cells:#9aa7b4; --t-field:#38c6dc; --t-complex:#a78bfa; --t-series:#4ade80;
+  --t-tiles:#60a5fa; --t-features:#fbbf24; --t-reference:#f59e0b;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:13.5px; line-height:1.45; overflow:hidden; display:flex; flex-direction:column}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+h1,h2,h3{margin:0}
+button{font:inherit; cursor:pointer} input,select{font:inherit; color:inherit}
+
+/* ===== top bar ===== */
+.top{flex:none; background:var(--panel); border-bottom:1px solid var(--line); padding:9px 16px; display:flex; align-items:center; gap:12px; z-index:30}
+.brandmark{width:26px;height:26px;flex:none}
+.brand h1{font-size:15px; font-weight:600; line-height:1.2} .brand .sub{font-size:11.5px; color:var(--ink-3)}
+.top .spacer{flex:1}
+.top input.label{width:220px; padding:7px 10px; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; outline:none; font-family:"IBM Plex Mono",monospace; font-size:12.5px}
+.top input.label:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.top select{padding:7px 9px; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; font-size:12.5px}
+.bigbtn{background:var(--accent); color:var(--accent-ink); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:600}
+.bigbtn:hover{filter:brightness(1.06)} .bigbtn:disabled{opacity:.4; cursor:not-allowed}
+.bigbtn.ghost{background:var(--panel-2); color:var(--ink-2); border:1px solid var(--line-2)} .bigbtn.ghost:hover{border-color:var(--accent); color:var(--ink)}
+.tbtn{background:var(--panel-2); border:1px solid var(--line-2); color:var(--ink-2); width:32px;height:32px;border-radius:8px; display:grid;place-items:center}
+.tbtn:hover{color:var(--ink); border-color:var(--accent)}
+.mockbar{flex:none; background:var(--warn-soft); color:var(--warn); font-size:11.5px; padding:5px 16px; border-bottom:1px solid var(--line)}
+.mockbar b{font-weight:600}
+
+/* ===== app layout ===== */
+.app{flex:1; min-height:0; display:grid; grid-template-columns:236px minmax(0,1fr) 372px}
+@media(max-width:1100px){.app{grid-template-columns:200px minmax(0,1fr) 320px}}
+
+/* ===== palette ===== */
+.palette{background:var(--panel); border-right:1px solid var(--line); overflow-y:auto; padding:10px 10px 30px}
+.tier{margin-bottom:12px}
+.tier-h{display:flex; align-items:baseline; gap:8px; padding:6px 6px 5px}
+.tier-h .idx{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--accent); font-weight:600; letter-spacing:.06em}
+.tier-h h2{font-size:12px; font-weight:600}
+.tier-h .n{margin-left:auto; font-size:10px; color:var(--ink-3); font-family:"IBM Plex Mono",monospace}
+.mod{display:flex; gap:8px; align-items:flex-start; padding:7px 8px; border:1px solid var(--line-2); border-radius:9px; background:var(--panel-2); margin-bottom:6px; cursor:grab; user-select:none}
+.mod:hover{border-color:var(--accent)} .mod:active{cursor:grabbing}
+.mod.unbuilt{opacity:.55; border-style:dashed; cursor:not-allowed}
+.mod .ico{width:20px;height:20px; border-radius:6px; flex:none; display:grid; place-items:center; font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:700; color:#fff}
+.mod .t{font-size:12px; font-weight:600; line-height:1.25; display:flex; gap:5px; align-items:center; flex-wrap:wrap}
+.mod .d{font-size:10.5px; color:var(--ink-3); line-height:1.3; margin-top:1px}
+.mod .io{font-family:"IBM Plex Mono",monospace; font-size:9.5px; color:var(--ink-3); margin-top:3px; display:flex; gap:4px; align-items:center; flex-wrap:wrap}
+.dot{display:inline-block; width:7px;height:7px; border-radius:50%; background:var(--t-field)}
+.pal-help{font-size:11px; color:var(--ink-3); padding:4px 6px 10px; line-height:1.4}
+
+/* ===== canvas ===== */
+.canvas{position:relative; overflow:hidden; background:var(--bg);
+  background-image:radial-gradient(var(--grid) 1px, transparent 1px); background-size:22px 22px; cursor:grab}
+.canvas.panning{cursor:grabbing}
+.world{position:absolute; left:0; top:0; transform-origin:0 0}
+.edges{position:absolute; left:0; top:0; overflow:visible; width:1px; height:1px; pointer-events:none}
+.edges path{fill:none; stroke-width:2.4; pointer-events:stroke; cursor:pointer}
+.edges path.hit{stroke:transparent; stroke-width:14}
+.edges path.sel{stroke-width:3.4; filter:drop-shadow(0 0 3px var(--accent))}
+.edges path.temp{stroke:var(--accent); stroke-dasharray:6 5; stroke-width:2}
+.canvas-hint{position:absolute; left:14px; bottom:12px; font-size:11px; color:var(--ink-3); pointer-events:none; display:flex; gap:14px; flex-wrap:wrap}
+.canvas-hint b{color:var(--ink-2)}
+.zoomctl{position:absolute; right:12px; bottom:12px; display:flex; gap:4px}
+.zoomctl button{width:28px;height:28px; border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2); border-radius:7px; font-weight:600}
+.zoomctl button:hover{border-color:var(--accent); color:var(--ink)}
+
+/* node */
+.node{position:absolute; width:214px; background:var(--panel); border:1.5px solid var(--line-2); border-radius:12px; box-shadow:var(--shadow); user-select:none}
+.node.sel{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft), var(--shadow)}
+.node.hard{border-color:var(--bad)} .node.soft{border-color:var(--warn)}
+.node.sel.hard{box-shadow:0 0 0 3px var(--bad-soft), var(--shadow)} .node.sel.soft{box-shadow:0 0 0 3px var(--warn-soft), var(--shadow)}
+.node-h{display:flex; align-items:center; gap:7px; padding:8px 10px 7px; border-bottom:1px solid var(--line); cursor:grab; border-radius:12px 12px 0 0; background:var(--panel-2)}
+.node-h:active{cursor:grabbing}
+.node-h .ico{width:18px;height:18px; border-radius:5px; flex:none; display:grid; place-items:center; font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:700; color:#fff}
+.node-h .t{font-size:12.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.node-h .st{font-family:"IBM Plex Mono",monospace; font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px}
+.node-h .st.hard{background:var(--bad-soft); color:var(--bad)} .node-h .st.soft{background:var(--warn-soft); color:var(--warn)} .node-h .st.ok{background:var(--ok-soft); color:var(--ok)}
+.node-b{padding:6px 0 8px; position:relative}
+.node-sum{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2); padding:2px 12px 6px; line-height:1.45; word-break:break-word}
+.node-sum .k{color:var(--ink-3)}
+.ports{display:flex; justify-content:space-between; gap:8px}
+.pcol{display:flex; flex-direction:column; gap:5px; min-width:0}
+.pcol.in{align-items:flex-start} .pcol.out{align-items:flex-end}
+.prow{display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--ink-2); height:18px; position:relative}
+.pcol.out .prow{flex-direction:row-reverse}
+.prow .lab{white-space:nowrap} .prow .lab i{font-style:normal; color:var(--ink-3); font-family:"IBM Plex Mono",monospace; font-size:9px; margin-left:3px}
+.port{width:12px;height:12px; border-radius:50%; border:2px solid var(--panel); box-shadow:0 0 0 1.5px var(--line-2); background:var(--t-field); flex:none; cursor:crosshair; position:relative}
+.pcol.in .port{margin-left:-7px} .pcol.out .port{margin-right:-7px}
+.port:hover{transform:scale(1.25)} .port.req::after{content:""; position:absolute; inset:2px; border-radius:50%; background:var(--panel); opacity:.55}
+.port.linked.req::after{display:none}
+.port.can{box-shadow:0 0 0 3px var(--ok-soft), 0 0 0 1.5px var(--ok)} .port.cant{opacity:.35}
+.node-flags{display:flex; gap:4px; flex-wrap:wrap; padding:0 12px 4px}
+
+/* flags */
+.flag{display:inline-flex; align-items:center; gap:4px; font-family:"IBM Plex Mono",monospace; font-size:9px; font-weight:600; padding:1px 6px; border-radius:5px; letter-spacing:.02em; cursor:help; position:relative; white-space:nowrap}
+.flag.do_not_use{background:var(--bad-soft); color:var(--bad)} .flag.caution{background:var(--warn-soft); color:var(--warn)} .flag.note{background:var(--sunk); color:var(--ink-3)}
+.hovercard{position:absolute; z-index:80; left:0; top:calc(100% + 7px); width:300px; background:var(--panel); border:1px solid var(--line-2); border-radius:10px; box-shadow:var(--shadow); padding:10px 12px; display:none;
+  font-family:"IBM Plex Sans",sans-serif; font-weight:400; letter-spacing:0; white-space:normal; cursor:auto; text-align:left}
+.flag:hover .hovercard, .flag:focus-within .hovercard{display:block}
+.hovercard .hc-h{font-size:12px; font-weight:600; margin-bottom:3px; color:var(--ink)}
+.hovercard .hc-d{font-size:11.5px; color:var(--ink-2); line-height:1.45}
+.hovercard .hc-s{margin-top:6px; padding-top:6px; border-top:1px solid var(--line); font-family:"IBM Plex Mono",monospace; font-size:9.5px; color:var(--ink-3); word-break:break-all}
+
+/* ===== right column ===== */
+.right{background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0}
+.insp{flex:1; min-height:0; overflow-y:auto; padding:12px 14px 16px; border-bottom:1px solid var(--line)}
+.readout{flex:none; max-height:44%; overflow-y:auto; padding:10px 14px 14px; background:var(--panel-2)}
+.sec-h{display:flex; align-items:baseline; gap:8px; margin:0 0 8px}
+.sec-h .idx{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--accent); font-weight:600; letter-spacing:.06em}
+.sec-h h2{font-size:12.5px; font-weight:600} .sec-h .hint{margin-left:auto; font-size:10.5px; color:var(--ink-3)}
+.insp-empty{color:var(--ink-3); font-size:12px; padding:22px 4px; text-align:center; line-height:1.5}
+.insp .desc{font-size:11.5px; color:var(--ink-3); margin:-2px 0 10px; line-height:1.45}
+label.fl{display:block; font-size:10.5px; font-weight:600; color:var(--ink-2); text-transform:uppercase; letter-spacing:.05em; margin:0 0 5px}
+.field + .field{margin-top:11px}
+.row{display:flex; gap:9px} .row > .field{flex:1; min-width:0}
+input[type=text],input[type=number],select.f{width:100%; padding:7px 9px; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; outline:none; font-size:12.5px}
+input:focus,select.f:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.cols{display:flex; flex-wrap:wrap; gap:5px}
+.col{font-family:"IBM Plex Mono",monospace; font-size:10.5px; padding:3px 7px; border-radius:6px; border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2); position:relative}
+.col.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.col.dead{opacity:.5; text-decoration:line-through; cursor:not-allowed; border-style:dashed}
+.col.fbad::after,.col.fwarn::after{content:"!"; position:absolute; top:-5px; right:-4px; width:11px;height:11px; border-radius:50%; background:var(--bad); color:#fff; font-size:8.5px; font-weight:700; line-height:11px; text-align:center; font-family:"IBM Plex Sans",sans-serif}
+.col.fwarn::after{background:var(--warn)}
+.grp{border:1px solid var(--line); border-radius:9px; overflow:hidden; margin-bottom:7px}
+.grp-h{display:flex; align-items:center; gap:8px; padding:6px 9px; background:var(--panel-2); font-size:11.5px; font-weight:600; text-transform:capitalize}
+.grp-h .fam{font-family:"IBM Plex Mono",monospace; font-size:9.5px; color:var(--ink-3); font-weight:500}
+.grp-h .seg{margin-left:auto; display:inline-flex; gap:2px}
+.grp-h .seg button{border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2); padding:1px 7px; border-radius:5px; font-size:10px; font-weight:600}
+.grp .cols{padding:7px 9px}
+.iolist{font-size:11.5px; display:flex; flex-direction:column; gap:4px; margin-top:4px}
+.iolist .r{display:flex; gap:7px; align-items:center; font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2)}
+.iolist .r .s{margin-left:auto; font-size:9.5px; color:var(--ink-3)} .iolist .r .s.on{color:var(--ok)}
+.tbl{width:100%; border-collapse:collapse; font-size:11px}
+.tbl th{text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:600; padding:4px 5px; border-bottom:1px solid var(--line)}
+.tbl td{padding:4px 5px; border-bottom:1px solid var(--line); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+.tbl tr.off td{opacity:.42} .tbl .cb{accent-color:var(--accent); width:13px;height:13px}
+.pill{font-family:"IBM Plex Mono",monospace; font-size:9px; padding:1px 5px; border-radius:4px; background:var(--sunk); color:var(--ink-3)}
+.pill.have{background:var(--ok-soft); color:var(--ok)} .pill.none{background:var(--bad-soft); color:var(--bad)}
+.bdg{font-family:"IBM Plex Mono",monospace; font-size:9.5px; padding:1px 5px; border-radius:4px; background:var(--accent-soft); color:var(--accent); font-weight:500}
+.subnote{font-size:11px; color:var(--ink-3); margin-top:8px; line-height:1.45} .subnote b{color:var(--ink-2)}
+
+/* constraints */
+.cons{display:flex; flex-direction:column; gap:6px; margin-top:10px}
+.cons-item{border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.42; display:flex; gap:7px; align-items:flex-start}
+.cons-item.hard{background:var(--bad-soft); color:var(--bad)} .cons-item.soft{background:var(--warn-soft); color:var(--warn)} .cons-item.note{background:var(--sunk); color:var(--ink-2)}
+.cons-item .cbody{flex:1} .cons-item .csrc{font-family:"IBM Plex Mono",monospace; font-size:9.5px; opacity:.8; display:block; margin-top:2px}
+.cons-item .fixbtn{background:transparent; border:1px solid currentColor; color:inherit; border-radius:6px; padding:2px 8px; font-size:10.5px; font-weight:600; flex:none}
+.cons-item .who{font-weight:600; cursor:pointer; text-decoration:underline dotted}
+.ack{display:flex; gap:6px; align-items:center; font-size:11px; margin-top:5px; font-weight:600} .ack input{accent-color:currentColor; width:14px;height:14px}
+.dial-wrap{display:flex; gap:12px; align-items:center; margin-top:8px}
+.danger{margin-top:14px; display:flex; gap:8px}
+.danger button{border:1px solid var(--line-2); background:var(--panel-2); color:var(--ink-2); border-radius:7px; padding:5px 10px; font-size:11.5px; font-weight:600}
+.danger button.del:hover{border-color:var(--bad); color:var(--bad)}
+
+/* readout */
+.count{display:flex; align-items:baseline; gap:8px; margin-bottom:4px}
+.count .n{font-family:"IBM Plex Mono",monospace; font-size:30px; font-weight:600; line-height:1; letter-spacing:-.02em}
+.count .n.zero{color:var(--ink-3)} .count .u{font-size:11px; color:var(--ink-3)}
+.count .formula{margin-left:auto; text-align:right; font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--ink-3); line-height:1.45}
+.verdict{border-radius:8px; padding:7px 10px; font-size:11.5px; margin:6px 0 8px; font-weight:600}
+.verdict.ok{background:var(--ok-soft); color:var(--ok)} .verdict.bad{background:var(--bad-soft); color:var(--bad)} .verdict.warn{background:var(--warn-soft); color:var(--warn)}
+.out-h{display:flex; align-items:center; gap:8px; margin:8px 0 5px}
+.out-h .lab{font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; color:var(--ink-3)}
+.copy{margin-left:auto; background:var(--panel); border:1px solid var(--line-2); color:var(--ink-2); border-radius:6px; padding:3px 9px; font-size:11px; font-weight:600}
+.copy.done{color:var(--ok); border-color:var(--ok)}
+pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-radius:9px; padding:9px 10px; font-family:"IBM Plex Mono",monospace; font-size:10.5px; line-height:1.45; overflow-x:auto; white-space:pre-wrap; word-break:break-all; color:var(--ink); max-height:190px}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <svg class="brandmark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <rect x="1" y="1" width="30" height="30" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.4"/>
+    <circle cx="9" cy="16" r="3" fill="var(--trace)"/><circle cx="23" cy="9" r="3" fill="var(--trace)"/><circle cx="23" cy="23" r="3" fill="var(--trace)"/>
+    <path d="M12 16 L20 10 M12 16 L20 22" stroke="var(--trace)" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>
+  <div class="brand"><h1>Analysis Canvas</h1><div class="sub">drop modules &middot; pipe them &middot; the graph is the scheme</div></div>
+  <div class="spacer"></div>
+  <input class="label mono" id="label" value="e2_split_channels" spellcheck="false" aria-label="scheme label">
+  <select id="examples" aria-label="load example">
+    <option value="">load example&hellip;</option>
+    <option value="b1">B1 floor · APF → stats</option>
+    <option value="complex">complex → FFT + cepstrum</option>
+    <option value="plv">complex → PLV vs baseline</option>
+    <option value="blank">blank canvas</option>
+  </select>
+  <button class="bigbtn ghost" id="validate">Validate</button>
+  <button class="bigbtn" id="gen">Generate</button>
+  <button class="tbtn" id="theme" title="Toggle theme" aria-label="Toggle theme">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+  </button>
+</header>
+<div class="mockbar"><b>Mockup.</b> Nothing runs. Modules, port types, channel roster, flags and constraints are real and traced; the cell list is illustrative. Metrics are assumed present.</div>
+
+<div class="app">
+  <aside class="palette" id="palette"></aside>
+
+  <section class="canvas" id="canvas">
+    <div class="world" id="world">
+      <svg class="edges" id="edges"></svg>
+      <div id="nodes"></div>
+    </div>
+    <div class="canvas-hint"><span><b>drag</b> a module from the left</span><span><b>drag</b> output &rarr; input to pipe</span><span><b>wheel</b> zoom &middot; <b>drag background</b> pan</span><span><b>Del</b> removes selection</span></div>
+    <div class="zoomctl"><button id="zin">+</button><button id="zout">&minus;</button><button id="zfit" title="fit">&#8982;</button></div>
+  </section>
+
+  <aside class="right">
+    <div class="insp" id="insp"></div>
+    <div class="readout" id="readout"></div>
+  </aside>
+</div>
+
+<script>
+/* =====================================================================
+   Injected at build time in the real console (build_analysis_console.py).
+   Inlined here so the mockup stands alone.
+   ===================================================================== */
+const FEATURES_BY_GROUP = {
+  amount: ["hamming","l0","l1","l2","linf","mean_abs","gradient_mag","tv","chi2","hellinger","kl","js","wasserstein","bhattacharyya","hist_inter_dist","ent_delta","csize_delta","ncd","struct_ent_change","lz_change"],
+  direction: ["cosine","pearson","ssim_struct","spearman","kendall","mean_shift","ssim_lum","median_shift","var_ratio","std_delta","ssim_contrast","range_delta","iqr_delta","polarity","sign_delta_ent","zero_mass_delta","cross_corr_lag","phase_corr","byte_rotation"],
+  content: ["ent_q","struct_ent_q","distinct_bytes","zero_frac","fill_frac","printable_frac","mean_q","var_q","skew_q","kurt_q","chi2_uniform","bigram_ent","autocorr_peak"],
+  texture: ["changed_runs","change_span","change_centroid","longest_changed_run","change_density","edge_energy","glcm_contrast","glcm_homogeneity","glcm_energy","glcm_correlation","high_freq_frac","max_run_len"],
+};
+const GROUP_FAMILY = {amount:"A · magnitude", direction:"B · direction", content:"C · state of q", texture:"D · texture"};
+const FAMILY_OF = {}; Object.keys(FEATURES_BY_GROUP).forEach(g => FEATURES_BY_GROUP[g].forEach(c => FAMILY_OF[c] = g));
+const DEAD = new Set(["ncd","lz_change","kendall","cross_corr_lag","phase_corr","byte_rotation","bigram_ent","autocorr_peak","glcm_contrast","glcm_homogeneity","glcm_energy","glcm_correlation","high_freq_frac"]);
+const N_PAGES = 262144;
+
+const ISSUES = {
+  f1_phase:{sev:"do_not_use", head:"Empty in every row of the shipped sweep", detail:"0 of 792 rows carry a value. Marker-aligned F1 is structurally unavailable: PHASE markers describe events inside the workload, CUSUM detects mean shifts in the memory signal.", src:"sweep.csv · Plan 04 / D-86 · verified 2026-09-07"},
+  coverage_ratio:{sev:"do_not_use", head:"A per-family constant, not a measurement", detail:"(W × iv)/rhythm with rhythm fixed per family, so at any fixed window it takes one value per family (0.2 vs 0.1333 at W=8). Alone it reproduces the 1.000 binary accuracy exactly. Kept only as the contaminated control arm.", src:"plan03_sweep.py:130 · leakage_ablation.json"},
+  ceps_snr:{sev:"caution", head:"A presence gate, not a discriminator", detail:"Alone it classifies phasic-vs-steady at 0.5152 against a 0.5455 majority baseline. Fine for “is there a rhythm”, wrong for “which class”.", src:"leakage_ablation.json · ceps_snr_alone"},
+  cv_workingset:{sev:"caution", head:"Only computed for steady workloads", detail:"Its presence encodes family membership. Sits in FAMILY_CONDITIONAL with coverage_ratio and f1_phase.", src:"plan03_metric_kernel.py · behavior_families.py:40"},
+  duty_gt05:{sev:"caution", head:"Absolute threshold, calibrated to APF's scale", detail:"Not scale-equivariant: across encodings it favours whichever arm shares that scale. Use duty (fraction above 0.1 × max).", src:"extra_features.py:56"},
+  cusum_band:{sev:"caution", head:"Null calibration failed: gap 0.000", detail:"Real 0.850, time-shuffled 0.850, IID Gaussian 0.850. The artifact self-flags band_near_unfalsifiable.", src:"Plan 04 record"},
+  phase_2pi:{sev:"do_not_use", head:"The angle collides: 0 and 1 land on the same tick", detail:"cosine is a distance (0 = identical; an all-zero previous page pins to 1). ×2π glues both ends, so a page rewritten in place and a page freshly allocated are indistinguishable. Kept only to reproduce B1.", src:"family_b/structure.rs"},
+  w8h4:{sev:"note", head:"Inherited, not chosen", detail:"Tuned on the APF trajectory alone, won partly on a smallest-W tiebreak; 128 was never in the sweep grid.", src:"recommendation.json · plan03_sweep.py:275"},
+  dead:{sev:"do_not_use", head:"Identically zero at substrateSpeed 2", detail:"The differ drops these thirteen at speed 2 but the schema still writes 64 columns.", src:"metrics/mod.rs and the family_* sources"},
+  gate2:{sev:"caution", head:"Blocks are allocator placement, not program structure", detail:"Gate 2 measured frac_in_longest_run at 0.087–0.162: a contiguous array arrives in physical RAM as ~3000 fragments.", src:"dwarf_pilot_design/GATE2_RESULT.md"},
+  needs_env:{sev:"note", head:"Needs packages outside the pinned env", detail:"Existing implementation imports pywt / kymatio / torch; the analysis env pins numpy + scikit-learn. pywt is being added; scattering stays a separate call.", src:"plan08_b1/requirements.txt · wavelet_analysis_features.py"},
+};
+const flag = id => { const i = ISSUES[id]; if (!i) return "";
+  return `<span class="flag ${i.sev}" tabindex="0">${i.sev.replace(/_/g," ")}<span class="hovercard"><span class="hc-h">${i.head}</span><span class="hc-d">${i.detail}</span><span class="hc-s">${i.src}</span></span></span>`; };
+
+/* illustrative corpus */
+const CELLS = [
+ {wl:"mem_workingset_sweep",fam:"mem",reps:3,n:712,iv:500,has:["substrate"]},
+ {wl:"mem_pagefault_density",fam:"mem",reps:3,n:698,iv:500,has:["substrate"]},
+ {wl:"mem_writemag_sweep",fam:"mem",reps:1,n:688,iv:500,has:["substrate"]},
+ {wl:"cpu_hash_loop",fam:"cpu",reps:3,n:701,iv:500,has:["substrate"]},
+ {wl:"cpu_branch_random",fam:"cpu",reps:3,n:706,iv:500,has:["substrate"]},
+ {wl:"cpu_matrix_mult",fam:"cpu",reps:3,n:695,iv:500,has:["substrate"]},
+ {wl:"thread_lock_contention",fam:"thread",reps:3,n:709,iv:500,has:["substrate"]},
+ {wl:"thread_producer_consumer",fam:"thread",reps:3,n:702,iv:500,has:["substrate"]},
+ {wl:"thread_parallel_alloc",fam:"thread",reps:3,n:697,iv:500,has:["substrate"]},
+ {wl:"app_hashtable_intensive",fam:"app",reps:3,n:711,iv:500,has:["substrate"]},
+ {wl:"app_json_parse",fam:"app",reps:3,n:690,iv:500,has:["substrate"]},
+ {wl:"app_sqlite_txn",fam:"app",reps:3,n:705,iv:500,has:["substrate"]},
+ {wl:"io_direct_write",fam:"io",reps:3,n:700,iv:500,has:["substrate"]},
+ {wl:"io_read_stream",fam:"io",reps:3,n:694,iv:500,has:["substrate"]},
+ {wl:"cache_thrash_l2",fam:"cache",reps:1,n:96,iv:500,has:["apf"]},
+ {wl:"cache_line_pingpong",fam:"cache",reps:1,n:660,iv:250,has:["substrate"]},
+ {wl:"sandbox_stealth_paced",fam:"sandbox",reps:1,n:683,iv:500,has:["substrate"]},
+];
+const usable = c => c.has.includes("substrate");
+
+/* ===================== signal types (port colours) ===================== */
+const TYPES = {
+  cells:{c:"var(--t-cells)", l:"cells"}, field:{c:"var(--t-field)", l:"field"}, complex:{c:"var(--t-complex)", l:"complex field"},
+  series:{c:"var(--t-series)", l:"series"}, tiles:{c:"var(--t-tiles)", l:"tiles"}, features:{c:"var(--t-features)", l:"features"},
+  reference:{c:"var(--t-reference)", l:"reference"},
+};
+
+/* ===================== module registry ===================== */
+const SIMPLE = ["mean","std","cov","median","max","p95","peak2med","duty","duty_gt05"];
+const DEEP = ["stat_pass_frac","n_boundaries","tau","skew","kurtosis","entropy","cv_workingset","f1_phase","coverage_ratio"];
+const FEAT_FLAG = {duty_gt05:"duty_gt05", cv_workingset:"cv_workingset", f1_phase:"f1_phase", coverage_ratio:"coverage_ratio"};
+
+const TIERS = [
+  {k:"source", idx:"01", name:"Source", color:"#78838f"},
+  {k:"compose", idx:"02", name:"Compose", color:"#0f8ba3"},
+  {k:"divide", idx:"03", name:"Divide", color:"#2563eb"},
+  {k:"lens", idx:"04", name:"Lens", color:"#d97706"},
+  {k:"reference", idx:"05", name:"Reference", color:"#b8860b"},
+  {k:"output", idx:"06", name:"Output", color:"#1c8a4e"},
+];
+const M = {};
+const def = (id, m) => { M[id] = Object.assign({id, inputs:[], outputs:[], params:[], flags:[]}, m); };
+
+def("cells", {tier:"source", name:"Cells", ico:"C", desc:"which recordings feed the scheme",
+  outputs:[{k:"cells", t:"cells"}],
+  params:[{k:"sel", kind:"cells", def:() => CELLS.filter(usable).map(c => c.wl)}],
+  summary:p => `${p.sel.length} cells · ${new Set(CELLS.filter(c=>p.sel.includes(c.wl)).map(c=>c.fam)).size} families`});
+def("channels", {tier:"source", name:"Channels", ico:"ch", desc:"pull the chosen metric columns out of the substrate CSV, one streaming pass",
+  inputs:[{k:"cells", t:["cells"], req:true}], outputs:[{k:"field", t:"field", lab:"field"}],
+  params:[{k:"chans", kind:"channels", def:() => ["hamming"]}],
+  summary:p => p.chans.length ? p.chans.slice(0,4).join(", ") + (p.chans.length > 4 ? ` +${p.chans.length-4}` : "") : "<span class=k>none</span>"});
+def("single", {tier:"compose", name:"Single", ico:"1", desc:"one channel → a scalar per page",
+  inputs:[{k:"in", t:["field"], req:true}], outputs:[{k:"out", t:"field"}],
+  summary:(p,d) => d ? `${d.channels.length === 1 ? d.channels[0] : d.channels.length + " ch — needs 1"}` : ""});
+def("vectorize", {tier:"compose", name:"Vectorize", ico:"[]", desc:"N channels → a real vector per page. No cross-channel math: the control arm the thesis never ran",
+  inputs:[{k:"in", t:["field"], req:true}], outputs:[{k:"out", t:"field", lab:"field[N]"}],
+  summary:(p,d) => d ? `${d.channels.length} channels, kept apart` : ""});
+def("complex", {tier:"compose", name:"Complex", ico:"z", desc:"one magnitude × one direction → magnitude and angle in one object",
+  inputs:[{k:"mag", t:["field"], req:true, lab:"magnitude"}, {k:"dir", t:["field"], req:true, lab:"direction"}],
+  outputs:[{k:"out", t:"complex", lab:"complex"}],
+  params:[{k:"phase", kind:"select", lab:"phase convention", opts:[["", "— choose —"],["2pi","2π × distance"],["pi","π × distance"],["arccos","arccos(similarity)"]], def:() => ""}],
+  summary:(p,d) => `phase: ${p.phase || "<span class=k>not chosen</span>"}`});
+def("collapse", {tier:"divide", name:"Collapse pages", ico:"Σ", desc:"average the page axis away — what every result to date does (APF is this)",
+  inputs:[{k:"in", t:["field","complex"], req:true}], outputs:[{k:"out", t:"series"}],
+  params:[{k:"unchanged", kind:"select", lab:"unchanged pages", opts:[["zero","count as zero · matches K/N"],["excluded","excluded from statistics"]], def:() => "zero"}],
+  summary:p => `unchanged = ${p.unchanged}`});
+def("block", {tier:"divide", name:"Block pages", ico:"▦", desc:"cut the address axis into blocks of whole pages",
+  inputs:[{k:"in", t:["field","complex"], req:true}], outputs:[{k:"out", t:"field", lab:"field · blocked"}],
+  params:[{k:"wp", kind:"number", lab:"block W_p · pages", def:() => 8192, step:256}, {k:"hp", kind:"number", lab:"block hop H_p", def:() => 8192, step:256}],
+  flags:["gate2"], summary:p => `W_p ${p.wp} · H_p ${p.hp} · ${Math.max(0, Math.floor((N_PAGES - p.wp)/Math.max(1,p.hp)) + 1)} blocks`});
+def("window", {tier:"divide", name:"Window time", ico:"⌷", desc:"slide a window over snapshots: W frames, hop H",
+  inputs:[{k:"in", t:["series","field","complex"], req:true}], outputs:[{k:"out", t:"tiles"}],
+  params:[{k:"w", kind:"number", lab:"W_t · frames", def:() => 8}, {k:"h", kind:"number", lab:"H_t · hop", def:() => 4},
+          {k:"edge", kind:"select", lab:"edge handling · changes tile count", opts:[["drop","drop · whole windows only"],["zero","zero-pad"],["reflect","reflect"],["replicate","replicate"]], def:() => "drop"},
+          {k:"taper", kind:"select", lab:"taper · changes spectral leakage", opts:[["rectangular","rectangular · none"],["hann","hann"],["hamming","hamming"],["blackman","blackman"]], def:() => "rectangular"}],
+  summary:p => `W ${p.w} · H ${p.h} · ${p.edge} · ${p.taper}`});
+def("stats", {tier:"lens", name:"Simple statistics", ico:"x̄", desc:"the 8 scale-equivariant shape features already implemented (b1_features.py)",
+  inputs:[{k:"in", t:["tiles","series"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"feats", kind:"multi", lab:"features", opts:SIMPLE, def:() => SIMPLE.filter(f => f !== "duty_gt05")}],
+  summary:p => `${p.feats.length} features`});
+def("deep", {tier:"lens", name:"Deep statistics", ico:"τ", desc:"stationarity, boundaries, moments, entropy, and τ — the decorrelation time the per-channel window question rests on",
+  inputs:[{k:"in", t:["tiles","series"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"feats", kind:"multi", lab:"features", opts:DEEP, def:() => ["stat_pass_frac","n_boundaries","tau","skew","kurtosis","entropy"]}],
+  summary:p => `${p.feats.length} features${p.feats.includes("tau") ? " · τ" : ""}`});
+def("fft", {tier:"lens", name:"FFT", ico:"~", desc:"spectrum · peak · band energies", spectral:true,
+  inputs:[{k:"in", t:["tiles"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"out", kind:"select", lab:"emit", opts:[["bands","band energies"],["peak","peak frequency"],["spectrum","full spectrum"]], def:() => "bands"}],
+  summary:(p,d) => `${p.out}${d && d.w ? ` · ${Math.floor(d.w/2)} bins` : ""}`});
+def("cepstrum", {tier:"lens", name:"Cepstrum", ico:"c", desc:"peak quefrency and ceps_peak_snr_db (CepstrumStability)", spectral:true,
+  inputs:[{k:"in", t:["tiles"], req:true}], outputs:[{k:"out", t:"features"}], flags:["ceps_snr"],
+  summary:() => "peak_idx · snr_db"});
+def("wavelet", {tier:"lens", name:"Wavelet", ico:"ψ", desc:"pywt DWT / CWT", spectral:true,
+  inputs:[{k:"in", t:["tiles"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"fam", kind:"select", lab:"family · pywt.wavelist()", opts:[["db4","db4"],["sym5","sym5"],["coif3","coif3"],["haar","haar"],["morl","morl (CWT)"],["mexh","mexh (CWT)"]], def:() => "db4"},
+          {k:"levels", kind:"number", lab:"levels", def:() => 3}],
+  summary:p => `${p.fam} · ${p.levels} levels`});
+def("scattering", {tier:"lens", name:"Scattering", ico:"S", desc:"kymatio 1D / 2D", spectral:true, flags:["needs_env"],
+  inputs:[{k:"in", t:["tiles"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"J", kind:"number", lab:"J", def:() => 3}, {k:"Q", kind:"number", lab:"Q", def:() => 8}],
+  summary:p => `J ${p.J} · Q ${p.Q}`});
+def("msc", {tier:"lens", name:"MSC", ico:"γ²", desc:"magnitude-squared coherence between channels · re-windows internally (Welch)", spectral:true,
+  inputs:[{k:"in", t:["tiles"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"iw", kind:"number", lab:"internal window", def:() => 128}, {k:"ih", kind:"number", lab:"internal step", def:() => 64}],
+  summary:p => `welch ${p.iw}/${p.ih}`});
+def("plv", {tier:"lens", name:"PLV", ico:"φ", desc:"phase-locking value against a fitted baseline · reads the phase of a complex signal",
+  inputs:[{k:"in", t:["tiles"], req:true}, {k:"ref", t:["reference"], req:true, lab:"baseline"}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"drop", kind:"number", lab:"drop threshold", def:() => 0.2}, {k:"normal", kind:"number", lab:"normal threshold", def:() => 0.7}],
+  summary:p => `drop ${p.drop} · normal ${p.normal}`});
+def("cusum", {tier:"lens", name:"CUSUM", ico:"⊿", desc:"change points on the series · boundary count", flags:["cusum_band"],
+  inputs:[{k:"in", t:["series","tiles"], req:true}], outputs:[{k:"out", t:"features"}],
+  params:[{k:"k", kind:"number", lab:"k", def:() => 2.0}, {k:"h", kind:"number", lab:"h", def:() => 4.0}],
+  summary:p => `k ${p.k} · h ${p.h}`});
+def("baseline", {tier:"reference", name:"Baseline", ico:"⌂", desc:"fit a reference on a clean run (PLV) or a benign envelope (p5–p95)",
+  inputs:[{k:"in", t:["tiles","series","complex","field"], req:true, lab:"clean run"}], outputs:[{k:"out", t:"reference"}],
+  params:[{k:"mode", kind:"select", lab:"mode", opts:[["cell","single clean cell"],["benign","benign set · p5–p95 envelope"]], def:() => "cell"}],
+  summary:p => p.mode});
+def("concat", {tier:"output", name:"Concat features", ico:"⊕", desc:"join feature blocks side by side, one row per tile",
+  inputs:[{k:"in", t:["features"], req:true, multi:true}], outputs:[{k:"out", t:"features"}],
+  summary:(p,d) => d ? `${d.n || 0} blocks` : ""});
+def("write", {tier:"output", name:"Write", ico:"→", desc:"npz + csv twin, and the sidecar that records every choice — or the run is not valid",
+  inputs:[{k:"in", t:["features"], req:true, multi:true}],
+  params:[{k:"fmt", kind:"select", lab:"format", opts:[["npz+csv","npz + csv twin"],["npz","npz only"],["parquet+csv","parquet + csv twin"]], def:() => "npz+csv"}],
+  summary:p => `${p.fmt} · sidecar`});
+
+/* unbuilt, drawn as the figure draws them */
+const UNBUILT = [{tier:"compose", name:"Other combiners · gates", desc:"ratios, products, per-channel gating — designed, unbuilt"}];
+
+/* ===================== graph state ===================== */
+const G = {nodes:[], edges:[], sel:null, selEdge:null, acks:new Set(), nextId:1};
+let VIEW = {x:40, y:30, z:1};
+const byId = id => G.nodes.find(n => n.id === id);
+const newParams = m => { const p = {}; (m.params || []).forEach(q => p[q.k] = q.def()); return p; };
+function addNode(mod, x, y, params) {
+  const m = M[mod]; const n = {id:"n" + (G.nextId++), mod, x, y, p:Object.assign(newParams(m), params || {})};
+  G.nodes.push(n); return n;
+}
+function connect(from, fp, to, tp) {
+  const tgt = M[byId(to).mod].inputs.find(i => i.k === tp);
+  if (!tgt.multi) G.edges = G.edges.filter(e => !(e.to === to && e.tp === tp));
+  if (!G.edges.some(e => e.from === from && e.fp === fp && e.to === to && e.tp === tp)) G.edges.push({id:"e" + (G.nextId++), from, fp, to, tp});
+}
+function removeNode(id) { G.nodes = G.nodes.filter(n => n.id !== id); G.edges = G.edges.filter(e => e.from !== id && e.to !== id); if (G.sel === id) G.sel = null; }
+function inEdges(id, k) { return G.edges.filter(e => e.to === id && (k == null || e.tp === k)); }
+function outEdges(id) { return G.edges.filter(e => e.from === id); }
+function portType(nodeId, k, out) { const m = M[byId(nodeId).mod]; const p = (out ? m.outputs : m.inputs).find(x => x.k === k); return p; }
+function accepts(fromNode, fp, toNode, tp) {
+  if (fromNode === toNode) return {ok:false, why:"a module cannot feed itself"};
+  const o = portType(fromNode, fp, true), i = portType(toNode, tp, false);
+  if (!o || !i) return {ok:false, why:"no such port"};
+  if (!i.t.includes(o.t)) return {ok:false, why:`${TYPES[o.t].l} cannot enter a ${i.t.map(t => TYPES[t].l).join(" / ")} port`};
+  if (reaches(toNode, fromNode)) return {ok:false, why:"that would make a cycle"};
+  return {ok:true};
+}
+function reaches(a, b) { const seen = new Set(); const st = [a]; while (st.length) { const x = st.pop(); if (x === b) return true; if (seen.has(x)) continue; seen.add(x); outEdges(x).forEach(e => st.push(e.to)); } return false; }
+
+/* ===================== descriptor propagation ===================== */
+function descOf(id, memo = {}) {
+  if (memo[id]) return memo[id];
+  const n = byId(id), m = M[n.mod], p = n.p;
+  const up = k => { const e = inEdges(id, k)[0]; return e ? descOf(e.from, memo) : null; };
+  let d = null;
+  switch (n.mod) {
+    case "cells": { const cs = CELLS.filter(c => p.sel.includes(c.wl)); d = {type:"cells", cells:cs, nmin:cs.length ? Math.min(...cs.map(c => c.n)) : 0, ivs:[...new Set(cs.map(c => c.iv))]}; break; }
+    case "channels": { const u = up("cells"); d = {type:"field", channels:p.chans.slice(), complex:false, axis:"page", nmin:u ? u.nmin : 0, ivs:u ? u.ivs : [], cellsN:u ? u.cells.length : 0}; break; }
+    case "single": case "vectorize": { const u = up("in"); d = u ? Object.assign({}, u, {type:"field"}) : null; break; }
+    case "complex": { const a = up("mag"), b = up("dir"); d = {type:"complex", complex:true, channels:[...(a ? a.channels : []), ...(b ? b.channels : [])], mag:a, dir:b, phase:p.phase, axis:"page", nmin:Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), ivs:[...new Set([...(a?a.ivs:[]), ...(b?b.ivs:[])])]}; break; }
+    case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type:"series", axis:"collapsed"}) : null; break; }
+    case "block": { const u = up("in"); d = u ? Object.assign({}, u, {type:"field", axis:"blocked", wp:p.wp, hp:p.hp}) : null; break; }
+    case "window": { const u = up("in"); d = u ? Object.assign({}, u, {type:"tiles", w:p.w, h:p.h, taper:p.taper, edge:p.edge}) : null; break; }
+    case "baseline": { const u = up("in"); d = {type:"reference", mode:p.mode, fitted:!!u}; break; }
+    case "concat": { const es = inEdges(id, "in"); d = {type:"features", n:es.length, names:es.flatMap(e => (descOf(e.from, memo) || {}).names || [])}; break; }
+    case "write": d = {type:"sink"}; break;
+    default: { const u = up("in"); const names = n.mod === "stats" || n.mod === "deep" ? p.feats : [n.mod]; d = {type:"features", names, up:u, w:u ? u.w : null}; }
+  }
+  memo[id] = d; return d;
+}
+
+/* ===================== constraints ===================== */
+function nodeConstraints(n, memo) {
+  const m = M[n.mod], p = n.p, out = [];
+  const up = k => { const e = inEdges(n.id, k)[0]; return e ? descOf(e.from, memo) : null; };
+  m.inputs.forEach(i => { if (i.req && !inEdges(n.id, i.k).length) out.push({sev:"hard", msg:`input “${i.lab || i.k}” is not connected`, src:"required port"}); });
+  switch (n.mod) {
+    case "cells": {
+      if (!p.sel.length) out.push({sev:"hard", msg:"no cells selected", src:"nothing to read"});
+      const ivs = new Set(CELLS.filter(c => p.sel.includes(c.wl)).map(c => c.iv));
+      if (ivs.size > 1) out.push({sev:"soft", id:"mixed_iv", msg:`selected cells mix sampling intervals (${[...ivs].join(", ")} ms); one window then spans different wall-clock times across them`, src:"plan10 §11.2", fix:{label:"keep 500 ms only", run:() => { p.sel = p.sel.filter(w => CELLS.find(c => c.wl === w).iv === 500); }}});
+      break; }
+    case "channels": {
+      if (!p.chans.length) out.push({sev:"hard", msg:"no channels selected", src:"nothing to extract"});
+      const dead = p.chans.filter(c => DEAD.has(c)); if (dead.length) out.push({sev:"hard", msg:`${dead.join(", ")} identically zero at substrateSpeed 2`, src:"the Rust, counted"});
+      break; }
+    case "single": { const u = up("in"); if (u && u.channels.length !== 1) out.push({sev:"hard", msg:`Single needs exactly one channel upstream; got ${u.channels.length}`, src:"the mode is defined by it"}); break; }
+    case "vectorize": { const u = up("in"); if (u && u.channels.length > 8) out.push({sev:"soft", id:"wide_vector", msg:`${u.channels.length} channels per page; payload and the effective-n gap both scale with this`, src:"methodology §6.4"}); break; }
+    case "complex": {
+      const a = up("mag"), b = up("dir");
+      if (a && a.channels.length !== 1) out.push({sev:"hard", msg:`magnitude input must carry exactly one channel; got ${a.channels.length}`, src:"one magnitude × one direction"});
+      if (b && b.channels.length !== 1) out.push({sev:"hard", msg:`direction input must carry exactly one channel; got ${b.channels.length}`, src:"one magnitude × one direction"});
+      if (a && a.channels.length === 1 && FAMILY_OF[a.channels[0]] !== "amount") out.push({sev:"soft", id:"mag_not_A", msg:`${a.channels[0]} is family ${FAMILY_OF[a.channels[0]]}, not A (amount) — it is not a magnitude`, src:"Entry 13 · reading = amount"});
+      if (b && b.channels.length === 1 && FAMILY_OF[b.channels[0]] !== "direction") out.push({sev:"soft", id:"dir_not_B", msg:`${b.channels[0]} is family ${FAMILY_OF[b.channels[0]]}${FAMILY_OF[b.channels[0]] === "content" ? " — state, not change; fusing it with a derivative makes a number that does not mean what it looks like" : ", not B (direction)"}`, src:"methodology §2.1"});
+      if (!p.phase) out.push({sev:"hard", msg:"choose a phase convention — it cannot be recovered from the output afterwards", src:"plan10 §13.2"});
+      if (p.phase === "2pi") out.push({sev:"soft", id:"phase_2pi", msg:"2π collides: distance 0 and distance 1 land on the same angle. Proceed only to reproduce B1 / first-generation features", src:"family_b/structure.rs"});
+      break; }
+    case "block": {
+      out.push({sev:"soft", id:"gate2", msg:"address blocks are allocator placement, not program structure (Gate 2: frac_in_longest_run 0.087–0.162)", src:"GATE2_RESULT.md"});
+      if (p.wp < 1 || p.hp < 1) out.push({sev:"hard", msg:"block and hop must be ≥ 1 page", src:"methodology §5"});
+      break; }
+    case "window": {
+      const u = up("in");
+      if (p.w < 1 || p.h < 1) out.push({sev:"hard", msg:"W and H must be ≥ 1", src:""});
+      if (u && u.nmin && p.w > u.nmin) out.push({sev:"hard", msg:`W_t=${p.w} exceeds the shortest connected cell (${u.nmin} pairs) → zero windows`, src:"plan10 §13.2"});
+      if (p.h > p.w) out.push({sev:"soft", id:"hop_gt_w", msg:"hop larger than the window skips frames", src:"G4 hop validity"});
+      if (p.w === 8 && p.h === 4) out.push({sev:"note", msg:"8/4 is inherited: tuned on APF alone, smallest-W tiebreak, 128 never swept", src:"recommendation.json"});
+      const spectralDown = outEdges(n.id).some(e => M[byId(e.to).mod].spectral);
+      if (spectralDown && p.w < 4) out.push({sev:"hard", msg:`a spectral lens downstream needs W_t ≥ 4; ${p.w} gives fewer than two bins`, src:"plan10 §13.2"});
+      if (spectralDown && p.taper === "rectangular") out.push({sev:"soft", id:"no_taper:" + n.id, msg:"a spectral lens downstream with no taper leaks across bins — rectangular is a choice here, not a default", src:"plan10 §5.2", fix:{label:"taper = hann", run:() => { p.taper = "hann"; }}});
+      break; }
+    case "fft": case "cepstrum": case "wavelet": case "scattering": {
+      const u = up("in"); if (u && u.w && u.w < 4) out.push({sev:"hard", msg:`upstream window W=${u.w} is too short for a spectrum`, src:""});
+      if (n.mod === "wavelet" && u && u.w && p.levels > Math.floor(Math.log2(u.w))) out.push({sev:"soft", id:"wav_levels:" + n.id, msg:`${p.levels} levels need W ≥ ${2 ** p.levels}; upstream W=${u.w}`, src:"pywt.dwt_max_level"});
+      break; }
+    case "msc": {
+      const u = up("in");
+      if (u && u.channels && u.channels.length < 2) out.push({sev:"hard", msg:"MSC is pairwise: needs two or more channels upstream", src:"magnitude_squared_coherence.py"});
+      if (u && u.w && u.w < p.iw) out.push({sev:"soft", id:"msc_iw:" + n.id, msg:`MSC re-windows internally at ${p.iw}/${p.ih}; upstream tiles are W=${u.w}, so it cannot form a single sub-window — the value is degenerate`, src:"magnitude_squared_coherence.py:30,37 · stability_validator 128/64", fix:{label:`internal = ${u.w}`, run:() => { p.iw = u.w; p.ih = Math.max(1, Math.floor(u.w/2)); }}});
+      break; }
+    case "plv": {
+      const u = up("in"); if (u && !u.complex) out.push({sev:"hard", msg:"PLV reads the phase of a complex signal; upstream tiles are real — put a Complex module before the window", src:"plv_calcolator.py:9"});
+      const r = up("ref"); if (r && !r.fitted) out.push({sev:"hard", msg:"the Baseline module has nothing to fit on — connect a clean run to it", src:"plv_calcolator.py fit_baseline"});
+      break; }
+    case "stats": case "deep": {
+      if (!p.feats.length) out.push({sev:"hard", msg:"no features selected", src:""});
+      p.feats.filter(f => FEAT_FLAG[f]).forEach(f => { const i = ISSUES[FEAT_FLAG[f]]; out.push({sev:"soft", id:"feat:" + f, msg:`${f} — ${i.head.toLowerCase()}`, src:i.src}); });
+      break; }
+    case "write": { if (!inEdges(n.id, "in").length) out.push({sev:"hard", msg:"nothing to write", src:""}); break; }
+  }
+  return out.map(c => Object.assign({node:n.id}, c));
+}
+function validate() {
+  const memo = {}; let list = [];
+  G.nodes.forEach(n => list = list.concat(nodeConstraints(n, memo)));
+  if (!G.nodes.some(n => n.mod === "write")) list.push({sev:"hard", msg:"no Write module — the scheme produces nothing", src:"plan10 §7"});
+  if (!G.nodes.some(n => n.mod === "cells")) list.push({sev:"hard", msg:"no Cells module — nothing is read", src:""});
+  G.nodes.forEach(n => { if (!inEdges(n.id).length && !outEdges(n.id).length && G.nodes.length > 1) list.push({node:n.id, sev:"note", msg:`${M[n.mod].name} is not connected to anything`, src:""}); });
+  return list;
+}
+const isAcked = c => c.sev !== "soft" || G.acks.has(c.id);
+
+/* ===================== tiles estimate ===================== */
+function estimate() {
+  const memo = {}; let tiles = 0, wins = 0, blocks = 1, nWl = new Set();
+  G.nodes.filter(n => n.mod === "window").forEach(n => {
+    const d = descOf(n.id, memo); if (!d) return;
+    const cellsNode = G.nodes.find(c => c.mod === "cells"); const cs = cellsNode ? CELLS.filter(c => cellsNode.p.sel.includes(c.wl)) : [];
+    cs.forEach(c => { nWl.add(c.wl); wins += c.n < n.p.w ? 0 : Math.floor((c.n - n.p.w)/n.p.h) + 1; });
+    if (d.axis === "blocked") blocks = Math.max(0, Math.floor((N_PAGES - d.wp)/Math.max(1, d.hp)) + 1);
+  });
+  tiles = wins * blocks; return {tiles, wins, blocks, nWl:nWl.size};
+}
+
+/* ===================== rendering: palette ===================== */
+const tierOf = k => TIERS.find(t => t.k === k);
+function renderPalette() {
+  const host = document.getElementById("palette"); host.innerHTML = "";
+  host.appendChild(Object.assign(document.createElement("div"), {className:"pal-help", innerHTML:"Drag a module onto the canvas. Ports are typed: a pipe only connects where the signal fits."}));
+  TIERS.forEach(t => {
+    const mods = Object.values(M).filter(m => m.tier === t.k);
+    const sec = document.createElement("div"); sec.className = "tier";
+    sec.innerHTML = `<div class="tier-h"><span class="idx">${t.idx}</span><h2>${t.name}</h2><span class="n">${mods.length}</span></div>`;
+    mods.forEach(m => {
+      const el = document.createElement("div"); el.className = "mod"; el.draggable = true;
+      el.innerHTML = `<div class="ico" style="background:${t.color}">${m.ico}</div><div style="min-width:0;flex:1"><div class="t">${m.name}${m.flags.map(flag).join("")}</div><div class="d">${m.desc}</div>
+        <div class="io">${m.inputs.map(i => `<span class="dot" style="background:${TYPES[i.t[0]].c}"></span>${i.lab || i.k}`).join(" ")}${m.inputs.length ? " → " : ""}${m.outputs.map(o => `<span class="dot" style="background:${TYPES[o.t].c}"></span>${o.lab || TYPES[o.t].l}`).join(" ")}</div></div>`;
+      el.addEventListener("dragstart", e => { e.dataTransfer.setData("text/module", m.id); e.dataTransfer.effectAllowed = "copy"; });
+      el.addEventListener("dblclick", () => { const r = canvas.getBoundingClientRect(); const n = addNode(m.id, (r.width/2 - VIEW.x)/VIEW.z - 107, (r.height/2 - VIEW.y)/VIEW.z - 40); G.sel = n.id; renderAll(); });
+      sec.appendChild(el);
+    });
+    UNBUILT.filter(u => u.tier === t.k).forEach(u => {
+      const el = document.createElement("div"); el.className = "mod unbuilt";
+      el.innerHTML = `<div class="ico" style="background:var(--amber)">?</div><div><div class="t">${u.name}</div><div class="d">${u.desc}</div></div>`; sec.appendChild(el);
+    });
+    host.appendChild(sec);
+  });
+}
+
+/* ===================== rendering: canvas ===================== */
+const canvas = document.getElementById("canvas"), world = document.getElementById("world"), nodesHost = document.getElementById("nodes"), svg = document.getElementById("edges");
+function applyView() { world.style.transform = `translate(${VIEW.x}px,${VIEW.y}px) scale(${VIEW.z})`; }
+function toWorld(sx, sy) { const r = canvas.getBoundingClientRect(); return [(sx - r.left - VIEW.x)/VIEW.z, (sy - r.top - VIEW.y)/VIEW.z]; }
+
+function renderNodes(issues) {
+  nodesHost.innerHTML = "";
+  const memo = {};
+  G.nodes.forEach(n => {
+    const m = M[n.mod], t = tierOf(m.tier);
+    const mine = issues.filter(c => c.node === n.id);
+    const hard = mine.some(c => c.sev === "hard"), soft = !hard && mine.some(c => c.sev === "soft" && !isAcked(c));
+    const el = document.createElement("div"); el.className = "node" + (G.sel === n.id ? " sel" : "") + (hard ? " hard" : soft ? " soft" : ""); el.dataset.id = n.id;
+    el.style.left = n.x + "px"; el.style.top = n.y + "px";
+    const d = descOf(n.id, memo);
+    const st = hard ? `<span class="st hard">blocked</span>` : soft ? `<span class="st soft">warn</span>` : mine.length === 0 && (m.inputs.length === 0 || inEdges(n.id).length) ? `<span class="st ok">ok</span>` : "";
+    const flags = [...m.flags, ...(n.mod === "complex" && n.p.phase === "2pi" ? ["phase_2pi"] : []), ...(n.mod === "window" && n.p.w === 8 && n.p.h === 4 ? ["w8h4"] : [])];
+    el.innerHTML = `<div class="node-h"><div class="ico" style="background:${t.color}">${m.ico}</div><div class="t">${m.name}</div>${st}</div>
+      <div class="node-b">
+        <div class="ports">
+          <div class="pcol in">${m.inputs.map(i => `<div class="prow"><span class="port ${i.req ? "req" : ""} ${inEdges(n.id, i.k).length ? "linked" : ""}" data-node="${n.id}" data-port="${i.k}" data-dir="in" style="background:${TYPES[i.t[0]].c}" title="${i.t.map(x => TYPES[x].l).join(" / ")}"></span><span class="lab">${i.lab || i.k}<i>${i.t[0]}${i.multi ? "[]" : ""}</i></span></div>`).join("")}</div>
+          <div class="pcol out">${m.outputs.map(o => `<div class="prow"><span class="port" data-node="${n.id}" data-port="${o.k}" data-dir="out" style="background:${TYPES[o.t].c}" title="${TYPES[o.t].l}"></span><span class="lab">${o.lab || TYPES[o.t].l}<i>${o.t}</i></span></div>`).join("")}</div>
+        </div>
+        <div class="node-sum">${m.summary ? m.summary(n.p, d) : ""}</div>
+        ${flags.length ? `<div class="node-flags">${flags.map(flag).join("")}</div>` : ""}
+      </div>`;
+    nodesHost.appendChild(el);
+  });
+  drawEdges();
+}
+function portCenter(nodeId, k, dir) {
+  const el = nodesHost.querySelector(`.port[data-node="${nodeId}"][data-port="${k}"][data-dir="${dir}"]`); if (!el) return null;
+  const r = el.getBoundingClientRect(); return toWorld(r.left + r.width/2, r.top + r.height/2);
+}
+function bez(a, b) { const dx = Math.max(40, Math.abs(b[0] - a[0]) * 0.5); return `M ${a[0]} ${a[1]} C ${a[0] + dx} ${a[1]}, ${b[0] - dx} ${b[1]}, ${b[0]} ${b[1]}`; }
+function drawEdges(temp) {
+  let h = "";
+  G.edges.forEach(e => {
+    const a = portCenter(e.from, e.fp, "out"), b = portCenter(e.to, e.tp, "in"); if (!a || !b) return;
+    const t = portType(e.from, e.fp, true).t;
+    h += `<path class="hit" data-edge="${e.id}" d="${bez(a, b)}"/><path data-edge="${e.id}" class="${G.selEdge === e.id ? "sel" : ""}" d="${bez(a, b)}" stroke="${TYPES[t].c}"/>`;
+  });
+  if (temp) h += `<path class="temp" d="${bez(temp[0], temp[1])}"/>`;
+  svg.innerHTML = h;
+}
+
+/* ===================== rendering: inspector ===================== */
+function renderInspector(issues) {
+  const host = document.getElementById("insp");
+  const n = byId(G.sel);
+  if (!n) {
+    if (G.selEdge) { const e = G.edges.find(x => x.id === G.selEdge); host.innerHTML = `<div class="sec-h"><span class="idx">PIPE</span><h2>${M[byId(e.from).mod].name} → ${M[byId(e.to).mod].name}</h2></div><div class="subnote">${TYPES[portType(e.from, e.fp, true).t].l} into <b>${e.tp}</b>. Press Delete to remove.</div><div class="danger"><button class="del" id="del-edge">remove pipe</button></div>`;
+      host.querySelector("#del-edge").onclick = () => { G.edges = G.edges.filter(x => x.id !== G.selEdge); G.selEdge = null; renderAll(); }; return; }
+    host.innerHTML = `<div class="sec-h"><span class="idx">NODE</span><h2>Inspector</h2></div><div class="insp-empty">Select a module on the canvas to edit its parameters, see its ports, and read its constraints and flags.<br><br>Double-click a palette entry to drop it at the centre.</div>`; return;
+  }
+  const m = M[n.mod], t = tierOf(m.tier), memo = {}, d = descOf(n.id, memo);
+  let h = `<div class="sec-h"><span class="idx">${t.idx} · ${t.name.toUpperCase()}</span><h2>${m.name}</h2><span class="hint mono">${n.id}</span></div><div class="desc">${m.desc}</div>`;
+  /* params */
+  (m.params || []).forEach(q => {
+    if (q.kind === "number") h += `<div class="field"><label class="fl">${q.lab}</label><input type="number" data-p="${q.k}" value="${n.p[q.k]}" ${q.step ? `step="${q.step}"` : ""}></div>`;
+    else if (q.kind === "select") h += `<div class="field"><label class="fl">${q.lab}</label><select class="f" data-p="${q.k}">${q.opts.map(([v, l]) => `<option value="${v}" ${n.p[q.k] === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
+    else if (q.kind === "multi") h += `<div class="field"><label class="fl">${q.lab}</label><div class="cols">${q.opts.map(f => { const fl = FEAT_FLAG[f]; const sev = fl ? ISSUES[fl].sev : ""; return `<button class="col ${n.p[q.k].includes(f) ? "on" : ""} ${sev === "do_not_use" ? "fbad" : sev === "caution" ? "fwarn" : ""}" data-multi="${q.k}" data-v="${f}" title="${fl ? ISSUES[fl].head : ""}">${f}</button>`; }).join("")}</div>
+      ${q.opts.some(f => FEAT_FLAG[f]) ? `<div class="subnote">Badged features stay selectable. Selecting one is a soft warning you acknowledge below, recorded in the sidecar. Hover a badge in the palette or on a node for the history.</div>` : ""}</div>`;
+    else if (q.kind === "channels") {
+      h += `<div class="field"><label class="fl">channels · same taxonomy as the capture console</label>`;
+      Object.keys(FEATURES_BY_GROUP).forEach(g => { const cols = FEATURES_BY_GROUP[g], live = cols.filter(c => !DEAD.has(c));
+        h += `<div class="grp"><div class="grp-h">${g}<span class="fam">${GROUP_FAMILY[g]} · ${live.length} live of ${cols.length}</span><span class="seg"><button data-grp="${g}" data-m="none">none</button><button data-grp="${g}" data-m="all">all live</button></span></div>
+          <div class="cols">${cols.map(c => `<button class="col ${n.p.chans.includes(c) ? "on" : ""} ${DEAD.has(c) ? "dead" : ""}" data-chan="${c}" ${DEAD.has(c) ? 'disabled title="identically zero at substrateSpeed 2"' : ""}>${c}</button>`).join("")}</div></div>`; });
+      h += `</div>`;
+    }
+    else if (q.kind === "cells") {
+      h += `<div class="field"><label class="fl">cells · ${n.p.sel.length} of ${CELLS.filter(usable).length} usable</label><table class="tbl"><thead><tr><th></th><th>workload</th><th>fam</th><th>n</th><th>iv</th></tr></thead><tbody>` +
+        CELLS.map(c => `<tr class="${usable(c) && n.p.sel.includes(c.wl) ? "" : "off"}"><td><input type="checkbox" class="cb" data-cell="${c.wl}" ${n.p.sel.includes(c.wl) ? "checked" : ""} ${usable(c) ? "" : "disabled"}></td><td>${c.wl}</td><td><span class="bdg">${c.fam}</span></td><td>${c.n}</td><td>${c.iv === 500 ? "500" : `<span class="pill none">${c.iv}</span>`}${usable(c) ? "" : ` <span class="pill none">apf only</span>`}</td></tr>`).join("") + `</tbody></table>
+        <div class="subnote">APF-only cells cannot feed composition: that file stored K/N and discarded the per-page detail.</div></div>`;
+    }
+  });
+  /* dial for complex */
+  if (n.mod === "complex") {
+    const conv = n.p.phase || "2pi"; const ang = x => conv === "2pi" ? 2*Math.PI*x : conv === "pi" ? Math.PI*x : Math.acos(1 - 2*x);
+    const pt = a => [50 + 34*Math.cos(a - Math.PI/2), 50 + 34*Math.sin(a - Math.PI/2)]; const [x0,y0] = pt(ang(0)), [x1,y1] = pt(ang(1)); const collide = Math.abs(ang(0) - ang(1)) % (2*Math.PI) < 1e-9;
+    const col = collide ? "var(--bad)" : "var(--accent)";
+    h += `<div class="dial-wrap"><svg width="100" height="100" viewBox="0 0 100 100" style="flex:none"><circle cx="50" cy="50" r="34" fill="none" stroke="var(--line-2)" stroke-width="1.3"/>
+      <line x1="50" y1="50" x2="${x0}" y2="${y0}" stroke="${col}" stroke-width="2"/><circle cx="${x0}" cy="${y0}" r="4" fill="${col}"/>
+      <line x1="50" y1="50" x2="${x1}" y2="${y1}" stroke="${collide ? col : "var(--warn)"}" stroke-width="2" stroke-dasharray="${collide ? "3 3" : "0"}"/><circle cx="${x1}" cy="${y1}" r="4" fill="${collide ? col : "var(--warn)"}"/></svg>
+      <div class="subnote" style="margin:0">${collide ? `<b style="color:var(--bad)">d=0 and d=1 land on the same angle</b> — a page rewritten in place is indistinguishable from one freshly allocated.` : `d=0 and d=1 are <b>${conv === "pi" ? "antipodal" : "distinct"}</b>; the angle carries what the magnitude does not.`}</div></div>`;
+  }
+  /* ports */
+  h += `<div class="field"><label class="fl">ports</label><div class="iolist">` +
+    m.inputs.map(i => `<div class="r"><span class="dot" style="background:${TYPES[i.t[0]].c}"></span>in · ${i.lab || i.k} <span class="s ${inEdges(n.id, i.k).length ? "on" : ""}">${inEdges(n.id, i.k).length ? "connected" : i.req ? "required" : "optional"}</span></div>`).join("") +
+    m.outputs.map(o => `<div class="r"><span class="dot" style="background:${TYPES[o.t].c}"></span>out · ${o.lab || TYPES[o.t].l} <span class="s ${outEdges(n.id).filter(e => e.fp === o.k).length ? "on" : ""}">${outEdges(n.id).filter(e => e.fp === o.k).length} pipe(s)</span></div>`).join("") + `</div></div>`;
+  /* constraints */
+  const mine = issues.filter(c => c.node === n.id);
+  if (mine.length) h += `<div class="cons">` + mine.map((c, i) => `<div class="cons-item ${c.sev}"><div class="cbody"><b>${c.sev === "hard" ? "blocked" : c.sev === "soft" ? "warning" : "note"}</b> · ${c.msg}<span class="csrc">${c.src}</span>
+      ${c.sev === "soft" ? `<label class="ack"><input type="checkbox" data-ack="${c.id}" ${G.acks.has(c.id) ? "checked" : ""}> I know — proceed, and record it in the sidecar</label>` : ""}</div>
+      ${c.fix ? `<button class="fixbtn" data-fix="${i}">${c.fix.label}</button>` : ""}</div>`).join("") + `</div>`;
+  h += `<div class="danger"><button id="dup">duplicate</button><button class="del" id="del">remove module</button></div>`;
+  host.innerHTML = h;
+  /* wire */
+  host.querySelectorAll("[data-p]").forEach(inp => inp.addEventListener("change", () => { const q = m.params.find(x => x.k === inp.dataset.p); n.p[q.k] = q.kind === "number" ? parseFloat(inp.value) : inp.value; renderAll(); }));
+  host.querySelectorAll("[data-multi]").forEach(b => b.onclick = () => { const arr = n.p[b.dataset.multi]; const i = arr.indexOf(b.dataset.v); i >= 0 ? arr.splice(i, 1) : arr.push(b.dataset.v); renderAll(); });
+  host.querySelectorAll("[data-chan]").forEach(b => b.onclick = () => { const i = n.p.chans.indexOf(b.dataset.chan); i >= 0 ? n.p.chans.splice(i, 1) : n.p.chans.push(b.dataset.chan); renderAll(); });
+  host.querySelectorAll("[data-grp]").forEach(b => b.onclick = () => { const cols = FEATURES_BY_GROUP[b.dataset.grp]; n.p.chans = n.p.chans.filter(c => !cols.includes(c)); if (b.dataset.m === "all") n.p.chans.push(...cols.filter(c => !DEAD.has(c))); renderAll(); });
+  host.querySelectorAll("[data-cell]").forEach(cb => cb.onchange = () => { cb.checked ? n.p.sel.push(cb.dataset.cell) : (n.p.sel = n.p.sel.filter(w => w !== cb.dataset.cell)); renderAll(); });
+  host.querySelectorAll("[data-ack]").forEach(cb => cb.onchange = () => { cb.checked ? G.acks.add(cb.dataset.ack) : G.acks.delete(cb.dataset.ack); renderAll(); });
+  host.querySelectorAll("[data-fix]").forEach(b => b.onclick = () => { mine[+b.dataset.fix].fix.run(); renderAll(); });
+  host.querySelector("#del").onclick = () => { removeNode(n.id); renderAll(); };
+  host.querySelector("#dup").onclick = () => { const c = addNode(n.mod, n.x + 30, n.y + 30, JSON.parse(JSON.stringify(n.p))); G.sel = c.id; renderAll(); };
+}
+
+/* ===================== rendering: readout ===================== */
+function scheme() {
+  return {schema:"plan10.scheme.v1", label:document.getElementById("label").value,
+    nodes:G.nodes.map(n => ({id:n.id, module:n.mod, params:n.p, x:Math.round(n.x), y:Math.round(n.y)})),
+    pipes:G.edges.map(e => ({from:[e.from, e.fp], to:[e.to, e.tp]})),
+    acknowledged:[...G.acks].map(id => ({id, at:"<written at launch>"}))};
+}
+function renderReadout(issues) {
+  const host = document.getElementById("readout"); const est = estimate();
+  const hard = issues.filter(c => c.sev === "hard"), soft = issues.filter(c => c.sev === "soft" && !isAcked(c));
+  const verdict = hard.length ? `<div class="verdict bad">${hard.length} blocking · cannot generate</div>` : soft.length ? `<div class="verdict warn">${soft.length} unacknowledged warning${soft.length > 1 ? "s" : ""}</div>` : `<div class="verdict ok">valid · every choice is explicit</div>`;
+  let h = `<div class="sec-h"><span class="idx">CFG</span><h2>Readout</h2><span class="hint">${G.nodes.length} modules · ${G.edges.length} pipes</span></div>
+    <div class="count"><span class="n ${est.tiles ? "" : "zero"}">${est.tiles.toLocaleString()}</span><span class="u">tiles</span><span class="formula">${est.wins.toLocaleString()} windows × ${est.blocks.toLocaleString()} block${est.blocks === 1 ? "" : "s"}<br>effective n = <b>${est.nWl}</b> workloads</span></div>${verdict}`;
+  const shown = issues.filter(c => c.sev !== "note" && !(c.sev === "soft" && isAcked(c)));
+  if (shown.length) h += `<div class="cons">` + shown.slice(0, 8).map(c => `<div class="cons-item ${c.sev}"><div class="cbody">${c.node ? `<span class="who" data-go="${c.node}">${M[byId(c.node).mod].name}</span> · ` : ""}${c.msg}</div></div>`).join("") + (shown.length > 8 ? `<div class="subnote">+${shown.length - 8} more</div>` : "") + `</div>`;
+  if (G.acks.size) h += `<div class="subnote">acknowledged: <b>${[...G.acks].join(", ")}</b></div>`;
+  h += `<div class="out-h"><span class="lab">scheme.json</span><button class="copy" id="copy">copy</button></div><pre class="code" id="code">${JSON.stringify(scheme(), null, 1)}</pre>`;
+  host.innerHTML = h;
+  host.querySelectorAll("[data-go]").forEach(el => el.onclick = () => { G.sel = el.dataset.go; G.selEdge = null; renderAll(); });
+  host.querySelector("#copy").onclick = e => { navigator.clipboard.writeText(JSON.stringify(scheme(), null, 2)); e.target.classList.add("done"); e.target.textContent = "copied"; setTimeout(() => { e.target.classList.remove("done"); e.target.textContent = "copy"; }, 1400); };
+  document.getElementById("gen").disabled = hard.length > 0 || soft.length > 0;
+}
+function renderAll() { const issues = validate(); renderNodes(issues); renderInspector(issues); renderReadout(issues); }
+
+/* ===================== interaction ===================== */
+let drag = null; // {kind:'node'|'pan'|'edge', ...}
+canvas.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+canvas.addEventListener("drop", e => { e.preventDefault(); const mod = e.dataTransfer.getData("text/module"); if (!mod) return; const [x, y] = toWorld(e.clientX, e.clientY); const n = addNode(mod, x - 107, y - 20); G.sel = n.id; G.selEdge = null; renderAll(); });
+
+canvas.addEventListener("pointerdown", e => {
+  const port = e.target.closest(".port"), head = e.target.closest(".node-h"), node = e.target.closest(".node"), edge = e.target.closest("path[data-edge]");
+  if (port && port.dataset.dir === "out") {
+    drag = {kind:"edge", from:port.dataset.node, fp:port.dataset.port};
+    const from = portCenter(drag.from, drag.fp, "out");
+    nodesHost.querySelectorAll(".port[data-dir='in']").forEach(p => { const ok = accepts(drag.from, drag.fp, p.dataset.node, p.dataset.port).ok; p.classList.add(ok ? "can" : "cant"); });
+    drag.fromPt = from; canvas.setPointerCapture(e.pointerId); e.preventDefault(); return;
+  }
+  if (head) { const n = byId(node.dataset.id); const [wx, wy] = toWorld(e.clientX, e.clientY); drag = {kind:"node", id:n.id, ox:wx - n.x, oy:wy - n.y}; G.sel = n.id; G.selEdge = null; renderAll(); canvas.setPointerCapture(e.pointerId); return; }
+  if (node) { G.sel = node.dataset.id; G.selEdge = null; renderAll(); return; }
+  if (edge) { G.selEdge = edge.dataset.edge; G.sel = null; renderAll(); return; }
+  drag = {kind:"pan", sx:e.clientX, sy:e.clientY, vx:VIEW.x, vy:VIEW.y, moved:false}; canvas.classList.add("panning"); canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (drag.kind === "node") { const n = byId(drag.id); const [wx, wy] = toWorld(e.clientX, e.clientY); n.x = wx - drag.ox; n.y = wy - drag.oy; const el = nodesHost.querySelector(`.node[data-id="${n.id}"]`); el.style.left = n.x + "px"; el.style.top = n.y + "px"; drawEdges(); }
+  else if (drag.kind === "pan") { VIEW.x = drag.vx + (e.clientX - drag.sx); VIEW.y = drag.vy + (e.clientY - drag.sy); drag.moved = true; applyView(); }
+  else if (drag.kind === "edge") { drawEdges([drag.fromPt, toWorld(e.clientX, e.clientY)]); }
+});
+canvas.addEventListener("pointerup", e => {
+  if (!drag) return;
+  if (drag.kind === "edge") {
+    nodesHost.querySelectorAll(".port").forEach(p => p.classList.remove("can", "cant"));
+    const under = document.elementFromPoint(e.clientX, e.clientY); const p = under && under.closest(".port[data-dir='in']");
+    if (p) { const r = accepts(drag.from, drag.fp, p.dataset.node, p.dataset.port); if (r.ok) connect(drag.from, drag.fp, p.dataset.node, p.dataset.port); else toast(r.why); }
+    drag = null; renderAll(); return;
+  }
+  if (drag.kind === "pan") { canvas.classList.remove("panning"); if (!drag.moved) { G.sel = null; G.selEdge = null; renderAll(); } }
+  if (drag.kind === "node") renderAll();
+  drag = null;
+});
+canvas.addEventListener("wheel", e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const z2 = Math.min(2, Math.max(0.4, VIEW.z * (e.deltaY < 0 ? 1.1 : 0.9))); VIEW.x = mx - (mx - VIEW.x) * z2/VIEW.z; VIEW.y = my - (my - VIEW.y) * z2/VIEW.z; VIEW.z = z2; applyView(); drawEdges(); }, {passive:false});
+document.getElementById("zin").onclick = () => { VIEW.z = Math.min(2, VIEW.z * 1.15); applyView(); drawEdges(); };
+document.getElementById("zout").onclick = () => { VIEW.z = Math.max(0.4, VIEW.z / 1.15); applyView(); drawEdges(); };
+document.getElementById("zfit").onclick = fit;
+function fit() {
+  if (!G.nodes.length) { VIEW = {x:40, y:30, z:1}; applyView(); return; }
+  const xs = G.nodes.map(n => n.x), ys = G.nodes.map(n => n.y); const minx = Math.min(...xs) - 30, miny = Math.min(...ys) - 30, maxx = Math.max(...xs) + 250, maxy = Math.max(...ys) + 170;
+  const r = canvas.getBoundingClientRect(); const z = Math.min(1.2, Math.max(0.4, Math.min(r.width/(maxx - minx), r.height/(maxy - miny))));
+  VIEW = {z, x:(r.width - (maxx - minx) * z)/2 - minx * z, y:(r.height - (maxy - miny) * z)/2 - miny * z}; applyView(); drawEdges();
+}
+window.addEventListener("keydown", e => {
+  if (["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)) return;
+  if (e.key === "Delete" || e.key === "Backspace") { if (G.sel) { removeNode(G.sel); renderAll(); } else if (G.selEdge) { G.edges = G.edges.filter(x => x.id !== G.selEdge); G.selEdge = null; renderAll(); } }
+  if (e.key === "Escape") { G.sel = null; G.selEdge = null; renderAll(); }
+});
+function toast(msg) { let t = document.getElementById("toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--bad);color:#fff;padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;z-index:99;box-shadow:var(--shadow)"; document.body.appendChild(t); } t.textContent = msg; t.style.opacity = "1"; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = "0", 1800); }
+
+/* ===================== examples ===================== */
+function loadExample(which) {
+  G.nodes = []; G.edges = []; G.sel = null; G.selEdge = null; G.acks = new Set(); G.nextId = 1;
+  if (which === "b1") {
+    const c = addNode("cells", 20, 120), ch = addNode("channels", 290, 120, {chans:["hamming"]}), col = addNode("collapse", 560, 120), w = addNode("window", 830, 120, {w:8, h:4}), s = addNode("stats", 1100, 120), wr = addNode("write", 1370, 120);
+    connect(c.id, "cells", ch.id, "cells"); connect(ch.id, "field", col.id, "in"); connect(col.id, "out", w.id, "in"); connect(w.id, "out", s.id, "in"); connect(s.id, "out", wr.id, "in");
+    document.getElementById("label").value = "b1_apf_floor";
+  } else if (which === "complex") {
+    const c = addNode("cells", 20, 200), a = addNode("channels", 290, 90, {chans:["hamming"]}), b = addNode("channels", 290, 320, {chans:["cosine"]}), z = addNode("complex", 560, 200, {phase:"pi"}), w = addNode("window", 830, 200, {w:32, h:16, taper:"hann"}), f = addNode("fft", 1100, 90), ce = addNode("cepstrum", 1100, 320), cc = addNode("concat", 1370, 200), wr = addNode("write", 1640, 200);
+    connect(c.id, "cells", a.id, "cells"); connect(c.id, "cells", b.id, "cells"); connect(a.id, "field", z.id, "mag"); connect(b.id, "field", z.id, "dir"); connect(z.id, "out", w.id, "in"); connect(w.id, "out", f.id, "in"); connect(w.id, "out", ce.id, "in"); connect(f.id, "out", cc.id, "in"); connect(ce.id, "out", cc.id, "in"); connect(cc.id, "out", wr.id, "in");
+    document.getElementById("label").value = "complex_pi_spectral";
+  } else if (which === "plv") {
+    const c = addNode("cells", 20, 200), a = addNode("channels", 290, 90, {chans:["hamming"]}), b = addNode("channels", 290, 320, {chans:["cosine"]}), z = addNode("complex", 560, 200, {phase:"arccos"}), w = addNode("window", 830, 200, {w:128, h:64, taper:"hann"}), base = addNode("baseline", 1100, 360), p = addNode("plv", 1100, 120), wr = addNode("write", 1370, 120);
+    connect(c.id, "cells", a.id, "cells"); connect(c.id, "cells", b.id, "cells"); connect(a.id, "field", z.id, "mag"); connect(b.id, "field", z.id, "dir"); connect(z.id, "out", w.id, "in"); connect(w.id, "out", base.id, "in"); connect(w.id, "out", p.id, "in"); connect(base.id, "out", p.id, "ref"); connect(p.id, "out", wr.id, "in");
+    document.getElementById("label").value = "complex_plv_baseline";
+  }
+  renderAll(); requestAnimationFrame(() => { fit(); });
+}
+document.getElementById("examples").addEventListener("change", e => { if (e.target.value) loadExample(e.target.value); e.target.value = ""; });
+document.getElementById("validate").onclick = () => { renderAll(); const hard = validate().filter(c => c.sev === "hard"); if (hard.length) { G.sel = hard[0].node || null; renderAll(); } };
+document.getElementById("gen").onclick = () => toast("mockup: would write " + document.getElementById("label").value + ".json and launch the runner");
+document.getElementById("label").addEventListener("input", () => { const iss = validate(); renderReadout(iss); });
+document.getElementById("theme").onclick = () => { const cur = document.documentElement.getAttribute("data-theme"); const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; document.documentElement.setAttribute("data-theme", dark ? "light" : "dark"); renderAll(); };
+window.addEventListener("resize", () => drawEdges());
+
+/* boot */
+renderPalette(); applyView(); loadExample("b1");
+window.__A = {G, M, validate, loadExample, addNode, connect, renderAll};
+</script>
+</body>
+</html>
