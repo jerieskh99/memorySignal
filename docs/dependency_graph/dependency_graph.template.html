@@ -193,10 +193,11 @@ ul.tight li{margin:2px 0}
 #svg[data-f="imports"] .viol,#svg[data-f="invokes"] .viol,#svg[data-f="writes"] .viol,#svg[data-f="reads"] .viol{display:none}
 #svg[data-f="unresolved"] .edge:not(.b-unresolved){display:none}
 #svg[data-f="unresolved"] .viol{display:none}
-/* toggles */
-#svg.hide-r1 .node.r1,#svg.hide-r1 .edge.r1,#svg.hide-r1 .band1{display:none}
-#svg.hide-doc .node.k-doc,#svg.hide-doc .edge.doc{display:none}
-#svg.hide-test .edge.test{display:none}
+/* toggles -- a hidden node must take its edges, its expected-edge violations and any
+   SCC band that depends on it with it, or the canvas keeps traces that lead nowhere */
+#svg.hide-r1 .node.r1,#svg.hide-r1 .edge.r1,#svg.hide-r1 .viol.r1,#svg.hide-r1 .sccbox.r1,#svg.hide-r1 .band1{display:none}
+#svg.hide-doc .node.k-doc,#svg.hide-doc .edge.doc,#svg.hide-doc .viol.doc,#svg.hide-doc .sccbox.doc{display:none}
+#svg.hide-test .edge.test,#svg.hide-test .viol.test{display:none}
 @media (max-width:1000px){#stage{grid-template-columns:1fr}#panel{display:none}}
 </style>
 </head>
@@ -394,7 +395,12 @@ LY.columns.forEach(c => {
 
 // SCC boxes
 LY.scc_boxes.forEach(b => {
-  const g = el("g", {class: "sccbox"}, gScc);
+  // an SCC band whose members are all hidden must go too, label included
+  const mem = b.members.map(m => N.get(m)).filter(Boolean);
+  const scls = ["sccbox"];
+  if (mem.length && mem.every(n => n.rank === 1)) scls.push("r1");
+  if (mem.length && mem.every(n => n.kind === "doc")) scls.push("doc");
+  const g = el("g", {class: scls.join(" ")}, gScc);
   el("rect", {x: b.x, y: b.y, width: b.w, height: b.h, rx: 6}, g);
   const t = el("text", {x: b.x + 6, y: b.y + 12}, g); t.textContent = `cycle: SCC ${b.scc_id} (${b.members.length} members, banded; edges inside may point either way)`;
 });
@@ -429,7 +435,13 @@ E.forEach(e => {
 G.violations.forEach(v => {
   if (!v.expected_edge) return;
   const a = P[v.expected_edge.src], b = P[v.expected_edge.dst]; if (!a || !b) return;
-  const g = el("g", {class: "viol", "data-v": v._i}, gViol);
+  // carry the same visibility tags as a real edge, so a violation disappears with its endpoints
+  const va = N.get(v.expected_edge.src), vb = N.get(v.expected_edge.dst);
+  const vcls = ["viol"];
+  if ((va && va.rank === 1) || (vb && vb.rank === 1)) vcls.push("r1");
+  if ((va && va.kind === "doc") || (vb && vb.kind === "doc")) vcls.push("doc");
+  if (v.expected_edge.role === "test") vcls.push("test");
+  const g = el("g", {class: vcls.join(" "), "data-v": v._i}, gViol);
   const geo = edgePath(a, b);
   el("path", {d: geo.d, "marker-end": "url(#m-viol)"}, g);
   const t = el("text", {x: geo.mx, y: geo.my - 4}, g); t.textContent = "expected " + v.expected_edge.type + ", missing";
