@@ -110,10 +110,25 @@ def wavelet_families() -> dict:
 # the modules
 # ---------------------------------------------------------------------------
 
+def scattering_limits() -> dict:
+    """Max J per (window, Q), measured from kymatio so the page can enforce it without kymatio."""
+    try:
+        import kymatio  # type: ignore
+    except ImportError:
+        return {"available": False, "source": "kymatio not importable in the build environment", "max_J": {}}
+    import sys as _sys
+    _sys.path.insert(0, str(HERE / "runner"))
+    from plan10_analysis.runner.stages import scattering_max_J  # noqa: E402
+    grid = {str(w): {str(q): scattering_max_J(w, q) for q in (1, 2, 4, 8, 16)}
+            for w in (8, 16, 32, 64, 128, 256, 512, 1024)}
+    return {"available": True, "source": f"kymatio {kymatio.__version__} numpy frontend, measured", "max_J": grid}
+
+
 def build_modules() -> dict:
     simple = simple_features()
     deep = deep_features()
     wav = wavelet_families()
+    scat = scattering_limits()
     simple_default = [f["name"] for f in simple if "flag" not in f]
     deep_default = [f["name"] for f in deep if "flag" not in f]
     wav_opts = [[w, w] for w in wav["families"]]
@@ -192,10 +207,11 @@ def build_modules() -> dict:
                     num("levels", "levels (the family and window set the ceiling)", 2),
                     sel("mode", "extension mode", [["periodization", "periodization: energy-preserving"], ["symmetric", "symmetric: pywt default, pads"]], "periodization")],
             flags=[] if wav["families"] else ["needs_env"], impl="pywt.wavedec"),
-        mod("scattering", "lens", "Scattering", "S", "kymatio 1D / 2D", spectral=True,
+        mod("scattering", "lens", "Scattering", "S",
+            "time-averaged 1D scattering, one feature per path; translation invariant by construction", spectral=True,
             inputs=[inp("in", ["tiles"])], outputs=[outp("out", "features")],
-            params=[num("J", "J", 3), num("Q", "Q", 8)], flags=["needs_env"],
-            impl="VMsig_featureExctraction/wavelet_analysis_features.py"),
+            params=[num("J", "J (the window and Q set the ceiling)", 2), num("Q", "Q (wavelets per octave)", 4)],
+            flags=[] if scat["available"] else ["needs_env"], impl="kymatio.numpy.Scattering1D"),
         mod("msc", "lens", "MSC", "g", "magnitude-squared coherence between channels; re-windows internally (Welch)", spectral=True,
             inputs=[inp("in", ["tiles"])], outputs=[outp("out", "features")],
             params=[num("iw", "internal window", 128), num("ih", "internal step", 64)],
@@ -221,7 +237,7 @@ def build_modules() -> dict:
     unbuilt = [{"tier": "compose", "name": "Other combiners, gates",
                 "desc": "ratios, products, per-channel gating: designed, unbuilt (Entry 13 figure)"}]
     return {"schema": "plan10.modules.v1", "types": TYPES, "tiers": TIERS, "modules": M, "unbuilt": unbuilt,
-            "feature_sources": {"simple": simple, "deep": deep, "wavelet": wav}}
+            "feature_sources": {"simple": simple, "deep": deep, "wavelet": wav, "scattering": scat}}
 
 
 if __name__ == "__main__":

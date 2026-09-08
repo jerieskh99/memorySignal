@@ -365,6 +365,17 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         u = up("in")
         if u and u.get("w") and u["w"] < 4:
             out.append(_issue(nid, "hard", f"upstream window W={u['w']} is too short for a spectrum", "plan10 UX section 13.2"))
+        if mod == "scattering" and u and u.get("w"):
+            J, Q = int(p["J"]), int(p["Q"])
+            lim = ctx.modules["feature_sources"].get("scattering", {}).get("max_J", {}).get(str(u["w"]), {}).get(str(Q))
+            if not ctx.modules["feature_sources"].get("scattering", {}).get("available"):
+                out.append(_issue(nid, "hard", "scattering needs kymatio in the analysis environment (pip install kymatio; the numpy frontend needs no torch)", "runner/stages.py"))
+            elif lim is None:
+                out.append(_issue(nid, "note", f"no measured J ceiling for W={u['w']} at Q={Q}; the runner measures it and may refuse", "modules.py scattering_limits"))
+            elif lim < 1:
+                out.append(_issue(nid, "hard", f"a {u['w']}-sample window is too short for scattering at Q={Q}: kymatio's filters do not fit at any J", "kymatio, measured"))
+            elif J < 1 or J > lim:
+                out.append(_issue(nid, "hard", f"scattering J={J} on a {u['w']}-sample window at Q={Q} allows 1 to {lim}; beyond that every coefficient is a border effect", "kymatio, measured"))
         if mod == "wavelet" and u and u.get("w"):
             levels, fam = int(p["levels"]), p.get("fam", "")
             lim = stages_wavelet_max_level(fam, int(u["w"]))

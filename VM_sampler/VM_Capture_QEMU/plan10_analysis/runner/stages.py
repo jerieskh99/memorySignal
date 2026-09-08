@@ -404,8 +404,92 @@ def wavelet(tiles: dict, fam: str, levels: int, mode: str = "periodization") -> 
     return {"names": names, "rows": np.concatenate(cols, axis=1), "keys": tiles["keys"]}
 
 
+_SCAT_CACHE: dict = {}
+
+
+def scattering_max_J(w: int, Q: int) -> int:
+    """Largest J whose filters fit in a w-sample window without border effects, or -1 without kymatio.
+
+    kymatio decides this numerically, not by a formula: it warns "Signal support is too
+    small to avoid border effects" when a filter's L1 tail does not decay inside the
+    window. So this measures it, by building the transform and watching for that warning,
+    rather than guessing a rule. Returns 0 when even J=1 borders.
+    """
+    try:
+        import warnings
+
+        from kymatio.numpy import Scattering1D  # type: ignore
+    except ImportError:
+        return -1
+    key = ("maxJ", int(w), int(Q))
+    if key in _SCAT_CACHE:
+        return _SCAT_CACHE[key]
+    best = 0
+    for J in range(int(w).bit_length(), 0, -1):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                Scattering1D(J=J, shape=(int(w),), Q=int(Q))
+            best = J
+            break
+        except Exception:
+            continue
+    _SCAT_CACHE[key] = best
+    return best
+
+
+def _scat_op(w: int, J: int, Q: int):
+    key = ("op", int(w), int(J), int(Q))
+    if key not in _SCAT_CACHE:
+        from kymatio.numpy import Scattering1D  # type: ignore
+        _SCAT_CACHE[key] = Scattering1D(J=int(J), shape=(int(w),), Q=int(Q))
+    return _SCAT_CACHE[key]
+
+
 def scattering(tiles: dict, J: int, Q: int) -> dict:
-    raise NotImplementedStage("scattering needs kymatio and torch; not in the analysis environment")
+    """Time-averaged wavelet scattering coefficients, one feature per path.
+
+    Scattering is in this pipeline for the reason Entry 1 gives: where a change happened is
+    noise, what kind it is is signal. The transform is translation invariant by
+    construction. Measured on a 64-sample window, moving an 8-sample burst from position 8
+    to position 40 changes the coefficients by 0.008 relative, against 0.058 for FFT band
+    energies, while flat and periodic signals still differ by 0.157.
+
+    It is not the only shift-tolerant lens here, and the docstring said so wrongly at first:
+    per-level wavelet energy scored 0.007 on the same test, because summing squared
+    coefficients over a level discards position too. What scattering adds is second-order
+    paths, which keep the amplitude modulation that a single energy per level averages away.
+
+    kymatio's numpy frontend is used, so this needs neither torch nor a GPU (the
+    first-generation code in VMsig_featureExctraction reached for the torch backend).
+    S(x) returns (n_paths, w / 2^J); each path is averaged over its time bins, which is the
+    standard scattering feature vector. Refuses a J the window cannot support, naming the
+    measured limit, rather than returning border artefacts.
+    """
+    try:
+        from kymatio.numpy import Scattering1D  # noqa: F401
+    except ImportError as e:
+        raise NotImplementedStage(
+            "scattering needs kymatio in the analysis environment (pip install kymatio; "
+            "the numpy frontend needs no torch)") from e
+    w = int(tiles["w"])
+    lim = scattering_max_J(w, Q)
+    if J < 1 or J > lim:
+        raise ValueError(
+            f"scattering J={J} on a {w}-sample window at Q={Q} allows 1 to {lim}; "
+            "beyond that kymatio's filters do not fit and every coefficient is a border effect")
+    op = _scat_op(w, J, Q)
+    order = np.asarray(op.meta()["order"]).astype(int)
+    names, cols = [], []
+    for suffix, X in _per_channel(tiles):
+        R = _real(X).astype(np.float32)
+        rows = np.stack([op(R[t]).mean(axis=1) for t in range(R.shape[0])]) if R.shape[0] else np.zeros((0, len(order)), np.float32)
+        seen: dict[int, int] = {}
+        for o in order:
+            seen[o] = seen.get(o, 0) + 1
+            names.append(f"scat_o{o}_{seen[o] - 1}{suffix}")
+        cols.append(rows.astype(np.float32))
+    return {"names": names, "rows": np.concatenate(cols, axis=1) if cols else np.zeros((0, 0), np.float32), "keys": tiles["keys"]}
 
 
 def msc(tiles: dict, iw: int, ih: int) -> dict:

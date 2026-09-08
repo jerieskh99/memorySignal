@@ -430,6 +430,13 @@ function nodeConstraints(n, memo) {
       break; }
     case "fft": case "cepstrum": case "wavelet": case "scattering": {
       const u = up("in"); if (u && u.w && u.w < 4) I("hard", `upstream window W=${u.w} is too short for a spectrum`, "plan10 UX section 13.2");
+      if (n.mod === "scattering" && u && u.w) {
+        const sc = MODULES.feature_sources.scattering || {available: false, max_J: {}};
+        const lim = ((sc.max_J || {})[String(u.w)] || {})[String(p.Q)];
+        if (!sc.available) I("hard", "scattering needs kymatio in the analysis environment (pip install kymatio; the numpy frontend needs no torch)", "runner/stages.py");
+        else if (lim == null) I("note", `no measured J ceiling for W=${u.w} at Q=${p.Q}; the runner measures it and may refuse`, "modules.py scattering_limits");
+        else if (lim < 1) I("hard", `a ${u.w}-sample window is too short for scattering at Q=${p.Q}: kymatio's filters do not fit at any J`, "kymatio, measured");
+        else if (p.J < 1 || p.J > lim) I("hard", `scattering J=${p.J} on a ${u.w}-sample window at Q=${p.Q} allows 1 to ${lim}; beyond that every coefficient is a border effect`, "kymatio, measured"); }
       if (n.mod === "wavelet" && u && u.w) { const lim = WAVELET_MAX_LEVEL[p.fam] ? (WAVELET_MAX_LEVEL[p.fam][u.w] != null ? WAVELET_MAX_LEVEL[p.fam][u.w] : maxLevelFor(p.fam, u.w)) : maxLevelFor(p.fam, u.w);
         if (lim < 1) I("hard", `${esc(p.fam)} cannot be used on a ${u.w}-sample window: its filter is too long for even one level`, "pywt.dwt_max_level");
         else if (p.levels < 1 || p.levels > lim) I("hard", `${esc(p.fam)} on a ${u.w}-sample window allows 1 to ${lim} level(s); got ${p.levels}. The limit is the filter length, not log2(W)`, "pywt.dwt_max_level"); }

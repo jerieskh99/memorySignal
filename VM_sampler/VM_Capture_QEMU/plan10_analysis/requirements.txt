@@ -10,4 +10,5 @@
 # VM_sampler/VM_Capture/live_delta_calc_modular, or set PLAN10_DIFFER).
 numpy>=1.24,<3
 PyWavelets>=1.4          # wavelet lens; without it the module refuses by name
-# scattering (kymatio + torch) and MSC are not implemented; see runner/stages.py
+kymatio>=0.3               # scattering lens (numpy frontend; no torch needed)
+# MSC is not implemented; see runner/stages.py

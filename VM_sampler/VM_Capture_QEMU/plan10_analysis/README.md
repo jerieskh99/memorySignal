@@ -18,7 +18,7 @@ The launcher scans the source, rebuilds the served console against it, starts th
 `127.0.0.1:8766` and opens the browser at the tokenised URL it prints. Ctrl-C stops the
 bridge; a launched run is its own process and keeps going.
 
-Needs: `python3` (3.10+), `numpy`, `PyWavelets` (see `requirements.txt`), the `zstd` CLI, the differ binary
+Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.txt`), the `zstd` CLI, the differ binary
 (`cd VM_sampler/VM_Capture/live_delta_calc_modular && cargo build --release`, or set
 `PLAN10_DIFFER`), and for an SSH source `ssh` and `rsync`.
 
@@ -61,7 +61,7 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-Scattering (needs `kymatio`, `torch`), MSC, tiles at full page
+MSC, tiles at full page
 resolution (put Collapse or Block before Window), overlapping blocks, the benign-envelope
 baseline, remote execution (SSH fetches to a local cache; the runner is local). Each refuses
 with a message in the run log and, where the console can see it, as a hard constraint.

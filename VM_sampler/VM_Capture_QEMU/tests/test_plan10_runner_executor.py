@@ -24,6 +24,7 @@ import numpy as np
 QEMU_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(QEMU_DIR))
 from plan10_analysis import corpus_manifest, scheme as S       # noqa: E402
+from plan10_analysis.modules import build_modules              # noqa: E402
 from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402
 from plan10_analysis.testing import synth                        # noqa: E402
 
@@ -188,14 +189,66 @@ def test_wavelet_when_pywt_is_present():
     assert wav["filter_len"]["db4"] == 8 and wav["filter_len"]["haar"] == 2
 
 
+def test_scattering_when_kymatio_is_present():
+    """Translation invariance is the property this lens is here for; pin it and the J ceiling."""
+    try:
+        import kymatio  # noqa: F401
+    except ImportError:
+        print("skip: kymatio not installed")
+        return
+    W = 64
+    rng = np.random.default_rng(3)
+    mk = lambda x: {"X": np.asarray(x, np.float32).reshape(1, -1), "keys": [(None, 0, 1)], "w": W, "h": W,
+                    "taper": "rectangular", "channels": ["h"], "complex": False, "series_mean": 0.0, "series_std": 1.0}
+
+    def burst(pos, width=8, amp=0.05):
+        v = 0.05 + 0.002 * rng.standard_normal(W)
+        v[pos:pos + width] += amp
+        return v.astype(np.float32)
+
+    J = stages.scattering_max_J(W, 4)
+    assert J == 2, J                      # measured from kymatio, not assumed
+    assert stages.scattering_max_J(16, 4) == 0    # too short for any J
+    rel = lambda a, b: float(np.linalg.norm(a - b) / np.linalg.norm(a))
+    a, b = burst(8), burst(40)
+    sa, sb = (stages.scattering(mk(x), J, 4) for x in (a, b))
+    assert sa["names"] == sb["names"] and len(sa["names"]) == sa["rows"].shape[1]
+    assert all(n.startswith("scat_o") for n in sa["names"])
+    assert np.isfinite(sa["rows"]).all()
+    shift = rel(sa["rows"][0], sb["rows"][0])
+    # invariant to where the burst sits, and far more so than a spectrum of the same tile
+    assert shift < 0.02, shift
+    assert shift < rel(stages.fft(mk(a), "bands")["rows"][0], stages.fft(mk(b), "bands")["rows"][0])
+    # still separates different shapes by much more than it moves under a shift
+    flat = (0.05 + 0.002 * rng.standard_normal(W)).astype(np.float32)
+    per = (0.05 + 0.02 * np.sin(2 * np.pi * np.arange(W) / 8)).astype(np.float32)
+    assert rel(stages.scattering(mk(flat), J, 4)["rows"][0], stages.scattering(mk(per), J, 4)["rows"][0]) > 5 * shift
+    for bad in (J + 1, 0):
+        try:
+            stages.scattering(mk(a), bad, 4)
+            assert False, bad
+        except ValueError as e:
+            assert "allows 1 to" in str(e)
+    # the ceiling the console enforces without kymatio matches the measured one
+    grid = build_modules()["feature_sources"]["scattering"]
+    assert grid["available"] and grid["max_J"]["64"]["4"] == J and grid["max_J"]["16"]["4"] == 0
+
+
 def test_unimplemented_modules_refuse_by_name():
     tiles = stages.window({"values": np.arange(32, dtype=np.float32), "channels": ["h"], "complex": False, "block": None, "n_pages": 1}, 16, 8)
-    for fn, args, word in ((stages.scattering, (2, 4), "kymatio"), (stages.msc, (8, 4), "not implemented")):
+    try:
+        stages.msc(tiles, 8, 4)
+        assert False
+    except stages.NotImplementedStage as e:
+        assert "not implemented" in str(e)
+    try:
+        import kymatio  # noqa: F401
+    except ImportError:
         try:
-            fn(tiles, *args)
-            assert False, fn
+            stages.scattering(tiles, 2, 4)
+            assert False
         except stages.NotImplementedStage as e:
-            assert word in str(e)
+            assert "kymatio" in str(e)
     try:
         import pywt  # noqa: F401
     except ImportError:
