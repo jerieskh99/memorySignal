@@ -31,7 +31,88 @@ HERE = Path(__file__).resolve().parent
 TEMPLATE = HERE / "dependency_graph.template.html"
 DEFAULT_JSON = HERE / "dependency_graph.json"
 DEFAULT_OUT = HERE / "dependency_graph.html"
+CORE_OUT = HERE / "dependency_graph_core.html"
 MARKER = "/*@@GENERATED_DATA@@*/"
+
+# Two views over one graph.
+#   full -- every node the extractor found, rank 0 above the divider and rank 1 below.
+#   core -- rank 0 only: the two console entry points and everything they actually reach.
+# core is a SUBSET and says so on the page. A partial graph presented as whole would license
+# deletions a complete one forbids, so the banner carries the global counts, names what dropped
+# out, and links to the full view.
+VIEWS = ("full", "core")
+
+
+def filter_view(d: dict, view: str) -> dict:
+    """Return a graph dict restricted to `view`. `full` is the input unchanged."""
+    if view == "full":
+        return d
+    keep = {n["path"] for n in d["nodes"] if n["rank"] == 0}
+    nodes = [n for n in d["nodes"] if n["path"] in keep]
+    edges = [e for e in d["edges"] if e["src"] in keep and e["dst"] in keep]
+
+    def viol_in(v: dict) -> bool:
+        ee = v.get("expected_edge")
+        if ee:
+            return ee["src"] in keep and ee["dst"] in keep
+        return v.get("node") in keep
+
+    by_class: dict[str, int] = defaultdict(int)
+    by_kind: dict[str, int] = defaultdict(int)
+    for n in nodes:
+        by_class[n["class"]] += 1
+        by_kind[n["kind"]] += 1
+    by_type: dict[str, int] = defaultdict(int)
+    by_binding: dict[str, int] = defaultdict(int)
+    for e in edges:
+        by_type[e["type"]] += 1
+        by_binding[e["binding"]] += 1
+    cycles = [c for c in d.get("cycles", []) if all(m in keep for m in c["members"])]
+
+    out = dict(d)
+    out["nodes"] = nodes
+    out["edges"] = edges
+    out["cycles"] = cycles
+    out["violations"] = [v for v in d["violations"] if viol_in(v)]
+    out["roots"] = {"true": d["roots"]["true"], "secondary": []}
+    out["summary"] = {
+        "nodes": len(nodes), "edges": len(edges),
+        "by_class": dict(by_class), "by_kind": dict(by_kind),
+        "edges_by_type": dict(by_type), "edges_by_binding": dict(by_binding),
+        "unresolved_edges": by_binding.get("unresolved", 0),
+        "cycles": len(cycles),
+        "nodes_edges_incomplete": sum(1 for n in nodes if n.get("edges_incomplete")),
+    }
+    return out
+
+
+def view_meta(d: dict, shown: dict, view: str) -> dict:
+    """The honesty block the page prints: what is on screen, and what is not."""
+    gs, ss = d["summary"], shown["summary"]
+    acc = d.get("acceptance", {})
+    kept = {n["path"] for n in shown["nodes"]}
+    dropped_acc = []
+    for key in ("A", "B"):
+        a = acc.get(key) or {}
+        paths = [p for p in (a.get("node"), a.get("artifact"),
+                             (a.get("writes_edge") or [{}])[0].get("dst") if a.get("writes_edge") else None) if p]
+        if paths and not any(p in kept for p in paths):
+            dropped_acc.append(key)
+    return {
+        "name": view,
+        "is_subset": view != "full",
+        "shown_nodes": ss["nodes"], "total_nodes": gs["nodes"],
+        "shown_edges": ss["edges"], "total_edges": gs["edges"],
+        "hidden_nodes": gs["nodes"] - ss["nodes"],
+        "hidden_edges": gs["edges"] - ss["edges"],
+        "global_by_class": gs["by_class"],
+        "shown_by_class": ss["by_class"],
+        "global_violations": len(d["violations"]),
+        "shown_violations": len(shown["violations"]),
+        "acceptance_not_shown": dropped_acc,
+        "counterpart": "dependency_graph.html" if view == "core" else "dependency_graph_core.html",
+        "counterpart_label": "full view (all ranks)" if view == "core" else "core view (rank 0 only)",
+    }
 
 # geometry (px, unscaled)
 COL_W = 340          # x step per layer
@@ -187,7 +268,13 @@ def build_layout(d: dict) -> dict:
                 y += h + GAP_DENSE
             y += u["gap"] - GAP_DENSE
         col_bottom1[L] = y
-    total_h = max(list(col_bottom1.values()) + [band1_top]) + 60
+    has_rank1 = any(groups[(L, 1)] for L in layers)
+    if not has_rank1:
+        # nothing below the divider in this view: do not reserve a band for it
+        divider_y = band1_top = max(col_bottom0.values())
+        total_h = divider_y + 60
+    else:
+        total_h = max(list(col_bottom1.values()) + [band1_top]) + 60
     total_w = X0 + (max(layers) + 1) * COL_W
 
     # --- SCC bands ----------------------------------------------------------------------------
@@ -220,12 +307,18 @@ def build_layout(d: dict) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--json", type=Path, default=DEFAULT_JSON)
-    ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--view", choices=VIEWS, default="full",
+                    help="full: every node. core: rank 0 only, the two roots and what they reach.")
     a = ap.parse_args()
-    d = json.loads(a.json.read_text())
+    if a.out is None:
+        a.out = DEFAULT_OUT if a.view == "full" else CORE_OUT
+    full = json.loads(a.json.read_text())
     for key in ("nodes", "edges", "violations", "blind_spots", "roots", "cycles", "summary", "acceptance", "meta"):
-        if key not in d:
+        if key not in full:
             sys.exit(f"{a.json}: missing top-level key {key!r}")
+    d = filter_view(full, a.view)
+    vmeta = view_meta(full, d, a.view)
     layout = build_layout(d)
     if layout["inversions"]:
         print(f"[render] WARNING: {len(layout['inversions'])} edge(s) do not point left to right outside an SCC; "
@@ -233,6 +326,7 @@ def main() -> int:
     payload = {
         "graph": d,
         "layout": layout,
+        "view": vmeta,
         "render": {"generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    "source_json": str(a.json.relative_to(HERE.parent.parent)) if a.json.is_relative_to(HERE.parent.parent) else str(a.json),
                    "source_bytes": a.json.stat().st_size,
@@ -245,6 +339,12 @@ def main() -> int:
     html = template.replace(MARKER, "const DATA = " + blob + ";")
     a.out.write_text(html)
     g = layout["geometry"]
+    if vmeta["is_subset"]:
+        print(f"[render] view={a.view}: SUBSET -- {vmeta['shown_nodes']}/{vmeta['total_nodes']} nodes, "
+              f"{vmeta['shown_edges']}/{vmeta['total_edges']} edges, "
+              f"{vmeta['shown_violations']}/{vmeta['global_violations']} violations"
+              + (f"; acceptance {', '.join(vmeta['acceptance_not_shown'])} not visible in this view"
+                 if vmeta["acceptance_not_shown"] else ""), file=sys.stderr)
     print(f"[render] {a.out.name}: {len(d['nodes'])} nodes, {len(d['edges'])} edges, {len(d['violations'])} violation rows; "
           f"canvas {g['total_w']}x{int(g['total_h'])}px, divider at y={int(g['divider_y'])}, "
           f"{layout['counts']['rank0']} rank-0 / {layout['counts']['rank1']} rank-1 nodes, "

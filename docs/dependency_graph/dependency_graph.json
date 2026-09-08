@@ -26,11 +26,11 @@
   "layer_note": "layer = longest path from the dominating root on the SCC condensation; true roots 0, secondary roots 1. Edges INTO a true root from a deeper node are reported under back_edges_into_roots and are not broken."
  },
  "summary": {
-  "nodes": 643,
-  "edges": 1030,
+  "nodes": 647,
+  "edges": 1036,
   "by_class": {
-   "named-but-unlinked": 211,
-   "orphaned-but-live": 92,
+   "named-but-unlinked": 214,
+   "orphaned-but-live": 93,
    "reachable": 287,
    "root": 2,
    "unconsumed-artifact": 51
@@ -38,27 +38,27 @@
   "by_kind": {
    "artifact": 77,
    "config": 49,
-   "doc": 161,
-   "entry": 176,
+   "doc": 163,
+   "entry": 177,
    "generated": 25,
    "module": 147,
    "script": 4,
-   "template": 4
+   "template": 5
   },
   "edges_by_type": {
-   "imports": 385,
+   "imports": 391,
    "invokes": 372,
    "reads": 138,
    "writes": 135
   },
   "edges_by_binding": {
-   "interpolated": 623,
-   "literal": 402,
+   "interpolated": 628,
+   "literal": 403,
    "unresolved": 5
   },
   "unresolved_edges": 5,
   "cycles": 1,
-  "nodes_edges_incomplete": 133
+  "nodes_edges_incomplete": 135
  },
  "acceptance": {
   "A": {
@@ -1511,12 +1511,32 @@
     "scc_id": null
    },
    {
+    "path": "docs/dependency_graph/dependency_graph.html",
+    "dominated_subtree_size": 0,
+    "scc_id": null
+   },
+   {
     "path": "docs/dependency_graph/dependency_graph.json",
     "dominated_subtree_size": 0,
     "scc_id": null
    },
    {
+    "path": "docs/dependency_graph/dependency_graph.template.html",
+    "dominated_subtree_size": 0,
+    "scc_id": null
+   },
+   {
+    "path": "docs/dependency_graph/dependency_graph_core.html",
+    "dominated_subtree_size": 0,
+    "scc_id": null
+   },
+   {
     "path": "docs/dependency_graph/extract_dependency_graph.py",
+    "dominated_subtree_size": 0,
+    "scc_id": null
+   },
+   {
+    "path": "docs/dependency_graph/render_dependency_graph.py",
     "dominated_subtree_size": 0,
     "scc_id": null
    },
@@ -1659,7 +1679,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": ".python-version",
@@ -1672,7 +1692,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "B1_RESULT_EXPLAINED.html",
@@ -1685,7 +1705,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "B1_RESULT_EXPLAINED.md",
@@ -1711,7 +1731,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "README.md",
@@ -1750,7 +1770,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "START_HERE.md",
@@ -1945,7 +1965,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_executables/next_gen_workload_test_design_review.md",
@@ -2062,7 +2082,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_executables/vm_workload_executables_purpose_for_ai.md",
@@ -2088,7 +2108,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_executables_phase2/.gitignore",
@@ -2101,7 +2121,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_executables_phase2/Makefile",
@@ -3786,7 +3806,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture/apf_calc/Cargo.toml",
@@ -3855,7 +3875,7 @@
    "incomplete_reasons": [
     "line 15: artifact name 'config.json' on a code line with no read/write verb"
    ],
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture/config.json",
@@ -3907,7 +3927,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture/live_delta_calc/.gitignore",
@@ -3964,7 +3984,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture/live_delta_calc_modular/Cargo.toml",
@@ -5004,7 +5024,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/plan05_snap_throughput_proposal.html",
@@ -5096,7 +5116,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/plan06_results.md",
@@ -5109,7 +5129,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/plan07_execution_log.html",
@@ -5204,7 +5224,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/snapshot_interval_qa.html",
@@ -5271,7 +5291,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/timing_experiment_1_lab.html",
@@ -5352,7 +5372,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/tuning_plans/PLAN02_V3_RUNBOOK.md",
@@ -5514,7 +5534,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/docs/zstd_retention.html",
@@ -5769,7 +5789,7 @@
    "path": "VM_sampler/VM_Capture_QEMU/plan04_cusum.py",
    "kind": "module",
    "class": "reachable",
-   "layer": 5,
+   "layer": 7,
    "rank": 0,
    "edges_incomplete": false,
    "in_degree": 4,
@@ -5904,7 +5924,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan05_campaign/downstream/anomaly_detect.json",
@@ -6231,7 +6251,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan06_campaign/downstream/cells_full/manifest.csv",
@@ -6388,7 +6408,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan07_campaign/DATABASE_DESIGN.md",
@@ -6462,7 +6482,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan07_campaign/full_campaign_steps_notes.md",
@@ -6475,7 +6495,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan07_campaign/generate",
@@ -6923,7 +6943,7 @@
    "path": "VM_sampler/VM_Capture_QEMU/plan08_b1/b1_features.py",
    "kind": "entry",
    "class": "reachable",
-   "layer": 6,
+   "layer": 7,
    "rank": 0,
    "edges_incomplete": false,
    "entry_marker": "shebang",
@@ -7032,7 +7052,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan10_analysis/README.md",
@@ -7054,7 +7074,7 @@
    "layer": 6,
    "rank": 0,
    "edges_incomplete": false,
-   "in_degree": 14,
+   "in_degree": 15,
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0
@@ -7098,7 +7118,7 @@
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
    "incomplete_reasons": [
-    "line 148: artifact name 'VM_sampler/VM_Capture_QEMU/plan05_campaign/downstream/leakage_ablation.json' on a code line with no read/write verb"
+    "line 165: artifact name 'VM_sampler/VM_Capture_QEMU/plan05_campaign/downstream/leakage_ablation.json' on a code line with no read/write verb"
    ]
   },
   {
@@ -7131,10 +7151,10 @@
    "path": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/__init__.py",
    "kind": "module",
    "class": "reachable",
-   "layer": 5,
+   "layer": 6,
    "rank": 0,
    "edges_incomplete": false,
-   "in_degree": 5,
+   "in_degree": 6,
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0
@@ -7195,11 +7215,11 @@
    "path": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/stages.py",
    "kind": "entry",
    "class": "reachable",
-   "layer": 4,
+   "layer": 6,
    "rank": 0,
    "edges_incomplete": false,
    "entry_marker": "shebang",
-   "in_degree": 2,
+   "in_degree": 3,
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0
@@ -7321,7 +7341,7 @@
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
    "incomplete_reasons": [
-    "not scanned: 195211 bytes > 100 KB"
+    "not scanned: 190577 bytes > 100 KB"
    ]
   },
   {
@@ -7335,7 +7355,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/plan10_analysis/ui/analysis_console.served.html",
@@ -7349,7 +7369,7 @@
    "read_in_degree": 1,
    "read_in_degree_nontest": 1,
    "incomplete_reasons": [
-    "not scanned: 205768 bytes > 100 KB"
+    "not scanned: 201134 bytes > 100 KB"
    ]
   },
   {
@@ -7704,7 +7724,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU/steps_phase_blocks.txt",
@@ -8078,7 +8098,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "VM_sampler/VM_Capture_QEMU_MAC/README.md",
@@ -8333,7 +8353,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "architectural_form_section_clean.tex",
@@ -8439,7 +8459,7 @@
    "path": "artifact:b1_trajectory.jsonl",
    "kind": "artifact",
    "class": "reachable",
-   "layer": 7,
+   "layer": 8,
    "rank": 0,
    "edges_incomplete": false,
    "in_degree": 6,
@@ -8537,7 +8557,7 @@
    "path": "artifact:features_long.csv",
    "kind": "artifact",
    "class": "unconsumed-artifact",
-   "layer": 7,
+   "layer": 8,
    "rank": 0,
    "edges_incomplete": false,
    "in_degree": 1,
@@ -9104,7 +9124,7 @@
    "path": "artifact:provenance.json",
    "kind": "artifact",
    "class": "reachable",
-   "layer": 7,
+   "layer": 8,
    "rank": 0,
    "edges_incomplete": false,
    "in_degree": 4,
@@ -9283,7 +9303,7 @@
    "layer": 7,
    "rank": 0,
    "edges_incomplete": false,
-   "in_degree": 1,
+   "in_degree": 4,
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0
@@ -9519,7 +9539,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/RUN_FILES_CONTROLLED_FLOW.md",
@@ -9558,7 +9578,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/b1_diagnosis/dsp_engineer.md",
@@ -9623,7 +9643,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/controlled-qemu-pipeline/01-host-orchestrator.md",
@@ -9740,7 +9760,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/controlled-qemu-pipeline/issue/02-capture-slowdown-ranking-and-timestamp-analysis.md",
@@ -9766,7 +9786,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/controlled-qemu-pipeline/styles.css",
@@ -9870,7 +9890,23 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/extract_dependency_graph.py"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
+  },
+  {
+   "path": "docs/dependency_graph/dependency_graph.html",
+   "kind": "doc",
+   "class": "named-but-unlinked",
+   "layer": 1,
+   "rank": 1,
+   "edges_incomplete": true,
+   "in_degree": 0,
+   "write_in_degree": 0,
+   "read_in_degree": 0,
+   "read_in_degree_nontest": 0,
+   "incomplete_reasons": [
+    "not scanned: 900466 bytes > 100 KB"
+   ],
+   "named_in": "docs/dependency_graph/dependency_graph.json"
   },
   {
    "path": "docs/dependency_graph/dependency_graph.json",
@@ -9884,9 +9920,38 @@
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
    "incomplete_reasons": [
-    "not scanned: 878312 bytes > 100 KB"
+    "not scanned: 885165 bytes > 100 KB"
    ],
    "named_in": "docs/dependency_graph/DEPENDENCY_GRAPH.md"
+  },
+  {
+   "path": "docs/dependency_graph/dependency_graph.template.html",
+   "kind": "template",
+   "class": "named-but-unlinked",
+   "layer": 1,
+   "rank": 1,
+   "edges_incomplete": false,
+   "in_degree": 0,
+   "write_in_degree": 0,
+   "read_in_degree": 0,
+   "read_in_degree_nontest": 0,
+   "named_in": "docs/dependency_graph/dependency_graph.html"
+  },
+  {
+   "path": "docs/dependency_graph/dependency_graph_core.html",
+   "kind": "doc",
+   "class": "named-but-unlinked",
+   "layer": 1,
+   "rank": 1,
+   "edges_incomplete": true,
+   "in_degree": 0,
+   "write_in_degree": 0,
+   "read_in_degree": 0,
+   "read_in_degree_nontest": 0,
+   "incomplete_reasons": [
+    "not scanned: 495047 bytes > 100 KB"
+   ],
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/dependency_graph/extract_dependency_graph.py",
@@ -9905,6 +9970,19 @@
    ]
   },
   {
+   "path": "docs/dependency_graph/render_dependency_graph.py",
+   "kind": "entry",
+   "class": "orphaned-but-live",
+   "layer": 1,
+   "rank": 1,
+   "edges_incomplete": false,
+   "entry_marker": "shebang",
+   "in_degree": 0,
+   "write_in_degree": 0,
+   "read_in_degree": 0,
+   "read_in_degree_nontest": 0
+  },
+  {
    "path": "docs/dwarf_pilot_design/DWARF_PILOT_DESIGN.html",
    "kind": "doc",
    "class": "named-but-unlinked",
@@ -9915,7 +9993,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/dwarf_pilot_design/DWARF_PILOT_DESIGN_RAJA.html",
@@ -9928,7 +10006,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/dwarf_pilot_design/DWARF_PILOT_START_HERE.html",
@@ -9941,7 +10019,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/dwarf_pilot_design/GATE2_RESULT.md",
@@ -9980,7 +10058,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/index.html",
@@ -10019,7 +10097,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/lesson3.html",
@@ -10032,7 +10110,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/lesson4.html",
@@ -10045,7 +10123,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/lesson5.html",
@@ -10058,7 +10136,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/lesson6.html",
@@ -10071,7 +10149,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/lesson7.html",
@@ -10084,7 +10162,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/part1_reduction.html",
@@ -10110,7 +10188,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/part1_thesis.html",
@@ -10123,7 +10201,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "docs/research-diary/part_b1_result.html",
@@ -10188,7 +10266,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "sanity_checks/symmetryNullValidator.py",
@@ -10201,7 +10279,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "tests/test_streaming_metrics.py",
@@ -10214,7 +10292,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "utility_validation/README_baselineXor.md",
@@ -10227,7 +10305,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "utility_validation/baselineParityXOR.py",
@@ -10240,7 +10318,7 @@
    "write_in_degree": 0,
    "read_in_degree": 0,
    "read_in_degree_nontest": 0,
-   "named_in": "docs/dependency_graph/dependency_graph.json"
+   "named_in": "docs/dependency_graph/dependency_graph.html"
   },
   {
    "path": "utility_validation/featureExtractor.py",
@@ -19263,6 +19341,17 @@
   },
   {
    "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/known_issues.py",
+   "dst": "coherence_temp_spec_stability/magnitude_squared_coherence.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/known_issues.py",
+    "line": 140,
+    "text": "from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence"
+   },
+   "binding": "interpolated"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/known_issues.py",
    "dst": "VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/structure.rs",
    "type": "reads",
    "evidence": {
@@ -19399,7 +19488,7 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/known_issues.py",
-    "line": 139,
+    "line": 156,
     "text": "wav = (REPO / \"VMsig_featureExctraction\" / \"wavelet_analysis_features.py\").read_text()"
    },
    "binding": "literal",
@@ -19425,6 +19514,39 @@
     "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
     "line": 64,
     "text": "from b1_features import FEAT  # noqa: E402  (pure stdlib, per its docstring)"
+   },
+   "binding": "interpolated"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+   "dst": "VM_sampler/VM_Capture_QEMU/plan10_analysis/__init__.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+    "line": 121,
+    "text": "from plan10_analysis.runner.stages import scattering_max_J  # noqa: E402"
+   },
+   "binding": "interpolated"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+   "dst": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/__init__.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+    "line": 121,
+    "text": "from plan10_analysis.runner.stages import scattering_max_J  # noqa: E402"
+   },
+   "binding": "interpolated"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+   "dst": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/stages.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/modules.py",
+    "line": 121,
+    "text": "from plan10_analysis.runner.stages import scattering_max_J  # noqa: E402"
    },
    "binding": "interpolated"
   },
@@ -19678,7 +19800,7 @@
    "type": "writes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/executor.py",
-    "line": 368,
+    "line": 384,
     "text": "with (out_dir / \"features.csv\").open(\"w\") as f:"
    },
    "binding": "literal"
@@ -19689,7 +19811,7 @@
    "type": "writes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/executor.py",
-    "line": 367,
+    "line": 383,
     "text": "np.savez_compressed(out_dir / \"features.npz\", X=X, feature_names=np.array(names or [], dtype=\"U64\"), tile_keys=tile_keys)"
    },
    "binding": "literal"
@@ -19712,7 +19834,7 @@
    "type": "writes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/executor.py",
-    "line": 391,
+    "line": 407,
     "text": "(out_dir / \"sidecar.json\").write_text(json.dumps(sidecar, indent=1, default=str))"
    },
    "binding": "literal"
@@ -19837,6 +19959,17 @@
     "text": "from coherence_temp_spec_stability.cepstrum_stability import CepstrumStability  # noqa: E402"
    },
    "binding": "literal"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/stages.py",
+   "dst": "coherence_temp_spec_stability/magnitude_squared_coherence.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/stages.py",
+    "line": 688,
+    "text": "from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence"
+   },
+   "binding": "interpolated"
   },
   {
    "src": "VM_sampler/VM_Capture_QEMU/plan10_analysis/runner/stages.py",
@@ -22663,16 +22796,21 @@
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
      "line": 27,
-     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
+     "text": "from plan10_analysis.modules import build_modules              # noqa: E402"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
      "line": 28,
+     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
+    },
+    {
+     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
+     "line": 29,
      "text": "from plan10_analysis.testing import synth                        # noqa: E402"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 184,
+     "line": 332,
      "text": "from plan10_analysis.modules import build_modules"
     }
    ]
@@ -22694,10 +22832,17 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 184,
-    "text": "from plan10_analysis.modules import build_modules"
+    "line": 27,
+    "text": "from plan10_analysis.modules import build_modules              # noqa: E402"
    },
-   "binding": "interpolated"
+   "binding": "literal",
+   "also_evidence": [
+    {
+     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
+     "line": 332,
+     "text": "from plan10_analysis.modules import build_modules"
+    }
+   ]
   },
   {
    "src": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
@@ -22705,7 +22850,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 27,
+    "line": 28,
     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
    },
    "binding": "literal"
@@ -22716,7 +22861,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 27,
+    "line": 28,
     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
    },
    "binding": "literal"
@@ -22727,7 +22872,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 27,
+    "line": 28,
     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
    },
    "binding": "literal"
@@ -22738,7 +22883,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 27,
+    "line": 28,
     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
    },
    "binding": "literal"
@@ -22749,7 +22894,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 27,
+    "line": 28,
     "text": "from plan10_analysis.runner import chain, differ, executor, stages  # noqa: E402"
    },
    "binding": "literal"
@@ -22771,7 +22916,7 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 28,
+    "line": 29,
     "text": "from plan10_analysis.testing import synth                        # noqa: E402"
    },
    "binding": "literal"
@@ -22782,10 +22927,21 @@
    "type": "imports",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 28,
+    "line": 29,
     "text": "from plan10_analysis.testing import synth                        # noqa: E402"
    },
    "binding": "literal"
+  },
+  {
+   "src": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
+   "dst": "coherence_temp_spec_stability/magnitude_squared_coherence.py",
+   "type": "imports",
+   "evidence": {
+    "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
+    "line": 410,
+    "text": "from coherence_temp_spec_stability.magnitude_squared_coherence import MagnitudeSquaredCoherence"
+   },
+   "binding": "interpolated"
   },
   {
    "src": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
@@ -22793,7 +22949,7 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 237,
+    "line": 563,
     "text": "assert (out / \"features.csv\").read_text().splitlines()[0].startswith(\"recording,workload,family,block,t_index,seq_start,mean\")"
    },
    "binding": "literal",
@@ -22805,20 +22961,25 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 225,
-    "text": "z = np.load(out / \"features.npz\")"
+    "line": 167,
+    "text": "z = np.load(td / \"out\" / sch[\"label\"] / \"features.npz\")"
    },
    "binding": "literal",
    "role": "test",
    "also_evidence": [
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 253,
+     "line": 551,
+     "text": "z = np.load(out / \"features.npz\")"
+    },
+    {
+     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
+     "line": 579,
      "text": "z = np.load(td / \"out\" / s[\"label\"] / \"features.npz\")"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 264,
+     "line": 590,
      "text": "z = np.load(td / \"out\" / s[\"label\"] / \"features.npz\")"
     }
    ]
@@ -22829,7 +22990,7 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 221,
+    "line": 547,
     "text": "assert rc == 0, (td / \"out\" / s[\"label\"] / \"run.log\").read_text()"
    },
    "binding": "literal",
@@ -22837,17 +22998,17 @@
    "also_evidence": [
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 252,
+     "line": 578,
      "text": "assert rc == 0, (td / \"out\" / s[\"label\"] / \"run.log\").read_text()"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 263,
+     "line": 589,
      "text": "assert rc == 0, (td / \"out\" / s[\"label\"] / \"run.log\").read_text()"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 266,
+     "line": 592,
      "text": "log = (td / \"out\" / s[\"label\"] / \"run.log\").read_text()"
     }
    ]
@@ -22858,7 +23019,7 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 234,
+    "line": 560,
     "text": "side = json.loads((out / \"sidecar.json\").read_text())"
    },
    "binding": "literal",
@@ -22870,7 +23031,7 @@
    "type": "reads",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 223,
+    "line": 549,
     "text": "st = json.loads((out / \"status.json\").read_text())"
    },
    "binding": "literal",
@@ -22878,12 +23039,12 @@
    "also_evidence": [
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 283,
+     "line": 609,
      "text": "st = json.loads((td / \"out\" / s[\"label\"] / \"status.json\").read_text())"
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-     "line": 290,
+     "line": 616,
      "text": "assert rc == 130 and json.loads((out / \"status.json\").read_text())[\"state\"] == \"stopped\""
     }
    ]
@@ -22894,7 +23055,7 @@
    "type": "writes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 288,
+    "line": 614,
     "text": "(out / \"control.json\").write_text(json.dumps({\"command\": \"stop\"}))"
    },
    "binding": "literal",
@@ -22906,11 +23067,11 @@
    "type": "writes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py",
-    "line": 48,
+    "line": 49,
     "text": "mp.write_text(json.dumps(manifest))"
    },
    "binding": "interpolated",
-   "via": "mp defined at VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py:47",
+   "via": "mp defined at VM_sampler/VM_Capture_QEMU/tests/test_plan10_runner_executor.py:48",
    "role": "test"
   },
   {
@@ -23076,7 +23237,7 @@
    "type": "invokes",
    "evidence": {
     "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_scheme.py",
-    "line": 190,
+    "line": 197,
     "text": "r = subprocess.run([sys.executable, str(QEMU_DIR / \"plan10_analysis\" / \"scheme.py\"), \"validate\", str(sp), \"--manifest\", str(mp)],"
    },
    "binding": "literal",
@@ -23084,7 +23245,7 @@
    "also_evidence": [
     {
      "file": "VM_sampler/VM_Capture_QEMU/tests/test_plan10_scheme.py",
-     "line": 185,
+     "line": 192,
      "text": "r = subprocess.run([sys.executable, str(QEMU_DIR / \"plan10_analysis\" / \"scheme.py\"), \"validate\", str(sp), \"--manifest\", str(mp)],"
     }
    ]
@@ -23780,10 +23941,10 @@
    "observed": "no reads edge to the authority",
    "derives_from": "workload/family copied from the corpus manifest built by corpus_manifest.py (executor.py:363-369)",
    "fact_literal_lines": [
-    363,
-    365,
-    369,
-    380
+    379,
+    381,
+    385,
+    396
    ]
   }
  ],
@@ -24159,7 +24320,7 @@
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/known_issues.py",
-     "line": 148,
+     "line": 165,
      "text": "ISSUES = [",
      "artifact": "VM_sampler/VM_Capture_QEMU/plan05_campaign/downstream/leakage_ablation.json"
     },
@@ -25141,11 +25302,11 @@
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/ui/analysis_console.html",
-     "bytes": 195211
+     "bytes": 190577
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/ui/analysis_console.served.html",
-     "bytes": 205768
+     "bytes": 201134
     },
     {
      "file": "VMsig_featureExctraction/wavelet_analysis_features.py",
@@ -25156,8 +25317,16 @@
      "bytes": 119962
     },
     {
+     "file": "docs/dependency_graph/dependency_graph.html",
+     "bytes": 900466
+    },
+    {
      "file": "docs/dependency_graph/dependency_graph.json",
-     "bytes": 878312
+     "bytes": 885165
+    },
+    {
+     "file": "docs/dependency_graph/dependency_graph_core.html",
+     "bytes": 495047
     },
     {
      "file": "docs/dependency_graph/extract_dependency_graph.py",
@@ -25224,8 +25393,13 @@
     },
     {
      "file": "VM_sampler/VM_Capture_QEMU/plan10_analysis/ui/analysis_console.template.html",
-     "line": 719,
+     "line": 783,
      "text": "const r = await fetch(path + sep + \"token=\" + encodeURIComponent(B.token), {method: body ? \"POST\" : \"GET\", headers: {\"Content-Type\": \"application/json\"}, body: "
+    },
+    {
+     "file": "docs/dependency_graph/dependency_graph.template.html",
+     "line": 627,
+     "text": "browser_to_bridge_http: \"fetch() call sites in the console templates: HTTP coupling to bridge routes, declared missing rather than absent\","
     }
    ],
    "argv_pass_through": [

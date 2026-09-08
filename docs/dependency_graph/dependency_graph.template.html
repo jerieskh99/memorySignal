@@ -46,6 +46,14 @@ header h1 .sub{font-weight:400;color:var(--ink-3);font-size:13px}
 .chip.find{border-color:var(--find);background:var(--warn-soft);color:var(--find-ink)}
 .chip.bad{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
 .controls{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#viewBanner:empty{display:none}
+#viewBanner{margin:6px 0 2px;padding:7px 11px;border:1px solid var(--e-viol,#b8860b);border-left-width:4px;border-radius:5px;background:rgba(184,134,11,.10);font-size:12px;line-height:1.5}
+#viewBanner b{font-weight:600}
+#viewBanner .hd{letter-spacing:.04em;text-transform:uppercase;font-size:11px;opacity:.85}
+#viewBanner ul{margin:4px 0 0;padding-left:18px}
+.vlink{font-size:12px;padding:3px 9px;border:1px solid var(--line-2);border-radius:6px;text-decoration:none;color:var(--ink);background:var(--panel-2)}
+.vlink:hover{border-color:var(--accent)}
+.vlink.active{border-color:var(--accent);font-weight:600;cursor:default;opacity:.95}
 fieldset{border:1px solid var(--line);border-radius:8px;padding:4px 10px 6px;margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 legend{font-size:11px;color:var(--ink-3);padding:0 4px;text-transform:uppercase;letter-spacing:.04em}
 label.opt{display:inline-flex;gap:4px;align-items:center;cursor:pointer;font-size:12px;white-space:nowrap}
@@ -196,7 +204,12 @@ ul.tight li{margin:2px 0}
 <header>
   <h1>Dependency graph <span class="sub">file-level, read-only; left to right by layer; artifacts are nodes</span></h1>
   <div id="chips"></div>
+  <div id="viewBanner"></div>
   <div class="controls">
+    <fieldset id="viewSwitch"><legend>view</legend>
+      <a class="vlink" id="vFull" href="dependency_graph.html">full (all ranks)</a>
+      <a class="vlink" id="vCore" href="dependency_graph_core.html">core (rank 0 only)</a>
+    </fieldset>
     <fieldset id="edgeFilter"><legend>edges</legend>
       <label class="opt"><input type="radio" name="ef" value="all" checked> all</label>
       <label class="opt"><input type="radio" name="ef" value="imports"> <span class="sw" style="border-color:var(--e-imports)"></span> imports</label>
@@ -276,6 +289,8 @@ ul.tight li{margin:2px 0}
 (function(){
 "use strict";
 const G = DATA.graph, LY = DATA.layout, GEO = LY.geometry, R = DATA.render;
+const V = DATA.view || {name: "full", is_subset: false};
+const HAS_R1 = Object.values(LY.nodes).some(p => p.rank === 1);
 const N = new Map(G.nodes.map(n => [n.path, n]));
 const P = LY.nodes;
 const E = G.edges;
@@ -317,13 +332,46 @@ function trunc(s, n) { if (s.length <= n) return s; const k = Math.max(4, Math.f
   c.innerHTML = items.join("");
 })();
 
+// ------------------------------------------------------------------ view banner
+// A subset presented as a whole would license deletions the whole graph forbids, so a
+// restricted view states its own boundaries: what is on screen, what is not, and where the
+// rest lives.
+(function viewBanner() {
+  document.getElementById("v" + (V.name === "core" ? "Core" : "Full")).classList.add("active");
+  if (!HAS_R1) {                       // no rank-1 band in this view: the toggle is meaningless
+    const t = document.getElementById("tgR1");
+    if (t) { t.checked = true; t.disabled = true; const lab = t.closest("label"); if (lab) lab.style.display = "none"; }
+    const sp = document.getElementById("btnSpine");
+    if (sp) sp.style.display = "none";  // "fit spine" and "fit all" are the same thing here
+  }
+  const b = document.getElementById("viewBanner");
+  if (!V.is_subset) { b.textContent = ""; return; }
+  const missClass = Object.entries(V.global_by_class || {})
+    .map(([k, n]) => [k, n, (V.shown_by_class || {})[k] || 0])
+    .filter(([, n, s]) => n !== s)
+    .map(([k, n, s]) => `<li><b>${k}</b>: ${s} of ${n} shown</li>`).join("");
+  const acc = (V.acceptance_not_shown || []).length
+    ? `<li>acceptance <b>${V.acceptance_not_shown.join(" and ")}</b> not visible here: it involves rank-1 nodes. Check it in the full view.</li>`
+    : "";
+  b.innerHTML =
+    `<div class="hd">core view: a subset, not the graph</div>` +
+    `Showing <b>${V.shown_nodes}</b> of <b>${V.total_nodes}</b> nodes and <b>${V.shown_edges}</b> of ` +
+    `<b>${V.total_edges}</b> edges: rank 0 only, meaning the two console entry points and everything ` +
+    `they actually reach. <b>${V.hidden_nodes}</b> nodes are hidden. An absent node here means ` +
+    `<em>not reached from a root</em>, never <em>not present in the repository</em>, and nothing on ` +
+    `this page is evidence that anything is unused.` +
+    `<ul>${missClass}${acc}<li>${V.shown_violations} of ${V.global_violations} expected-edge violations shown.</li>` +
+    `<li>The rest is in the <a href="${V.counterpart}">${V.counterpart_label}</a>.</li></ul>`;
+})();
+
 // ------------------------------------------------------------------ SVG build
 const svg = document.getElementById("svg"), view = document.getElementById("view");
 const gBands = document.getElementById("gBands"), gCols = document.getElementById("gCols"), gScc = document.getElementById("gScc"),
       gEdges = document.getElementById("gEdges"), gViol = document.getElementById("gViol"), gNodes = document.getElementById("gNodes");
 
-// rank-1 band
+// rank-1 band (only drawn when this view actually contains rank-1 nodes)
 (function bands() {
+  if (!HAS_R1) return;
   const g = el("g", {class: "band1"}, gBands);
   el("rect", {class: "bg", x: 0, y: GEO.divider_y, width: GEO.total_w + 200, height: GEO.total_h - GEO.divider_y}, g);
   el("line", {x1: 0, y1: GEO.divider_y, x2: GEO.total_w + 200, y2: GEO.divider_y}, g);
