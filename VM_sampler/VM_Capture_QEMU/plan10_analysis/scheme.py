@@ -195,7 +195,13 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
         d = dict(u, type="series", axis="collapsed") if u else None
     elif mod == "block":
         u = up("in")
-        d = dict(u, type="field", axis="blocked", wp=int(p["wp"]), hp=int(p["hp"])) if u else None
+        # n_blocks rides along so it survives the Collapse that must follow: the tile count
+        # is windows x blocks, and Collapse used to erase the marker the estimate looked for.
+        # n_pages is the config default because no recording records its own (UX 14.1 item 7).
+        wp_, hp_ = int(p["wp"]), int(p["hp"])
+        npg = ctx.config["n_pages_default"]
+        d = dict(u, type="field", axis="blocked", wp=wp_, hp=hp_,
+                 n_blocks=(0 if npg < wp_ else (npg - wp_) // hp_ + 1)) if u else None
     elif mod == "window":
         u = up("in")
         d = dict(u, type="tiles", w=int(p["w"]), h=int(p["h"]), taper=p["taper"], edge=p["edge"]) if u else None
@@ -338,8 +344,33 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
     elif mod == "block":
         out.append(_issue(nid, "soft", "address blocks are allocator placement, not program structure (Gate 2 measured guest-physical scatter)",
                           "docs/dwarf_pilot_design/GATE2_RESULT.md", id="gate2"))
-        if int(p["wp"]) < 1 or int(p["hp"]) < 1:
+        wp, hp = int(p["wp"]), int(p["hp"])
+        n_pages = ctx.config["n_pages_default"]
+        if wp < 1 or hp < 1:
             out.append(_issue(nid, "hard", "block and hop must be at least 1 page", "ANALYSIS_PIPELINE_METHODOLOGY.md section 5"))
+        elif wp > n_pages:
+            out.append(_issue(nid, "hard", f"a block of {wp} pages does not fit in {n_pages} pages", "runner/stages.py n_blocks"))
+        else:
+            nb = (n_pages - wp) // hp + 1
+            if hp < wp:
+                out.append(_issue(nid, "soft",
+                                  f"blocks overlap ({wp} pages stepped by {hp}), so each changed page belongs to about {wp / hp:.1f} blocks "
+                                  f"and its row is replicated once per block: {nb} blocks, roughly {wp / hp:.1f}x the rows and the cost",
+                                  "runner/stages.py block", id=f"block_overlap:{nid}"))
+            elif hp > wp:
+                gap = hp - wp
+                out.append(_issue(nid, "soft",
+                                  f"blocks are spaced apart ({wp} pages stepped by {hp}), so {gap} of every {hp} pages fall in no block and are dropped: "
+                                  f"{nb} blocks covering {nb * wp} of {n_pages} pages",
+                                  "runner/stages.py block", id=f"block_gap:{nid}"))
+            tail = n_pages - ((nb - 1) * hp + wp)
+            if tail:
+                out.append(_issue(nid, "note", f"{tail} trailing page(s) do not fill a whole block and are dropped, as Window's edge=drop does in time",
+                                  "runner/stages.py n_blocks"))
+            out.append(_issue(nid, "note",
+                              f"{nb} blocks, and the tile count with it, assume {n_pages} pages per dump from the capture config; "
+                              "no recording records its own page count, and the runner uses each recording's actual one",
+                              "config_qemu_upc.json; plan10 UX 14.1 item 7"))
 
     elif mod == "window":
         u = up("in")
@@ -513,9 +544,7 @@ def estimate(scheme: dict, ctx: Context) -> dict:
             workloads.add(r["workload"])
             n = min(r["n_pairs"], mp) if mp else r["n_pairs"]
             windows += 0 if n < w else (n - w) // h + 1
-        if d.get("axis") == "blocked":
-            n_pages = ctx.config["n_pages_default"]
-            blocks = max(0, (n_pages - d["wp"]) // max(1, d["hp"]) + 1)
+        blocks = max(blocks, int(d.get("n_blocks") or 1))
     return {"windows": windows, "blocks": blocks, "tiles": windows * blocks,
             "effective_n_workloads": len(workloads)}
 

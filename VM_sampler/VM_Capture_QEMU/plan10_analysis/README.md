@@ -61,10 +61,16 @@ Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
 
 ## What is not implemented, and says so
 
-Tiles at full page
-resolution (put Collapse or Block before Window), overlapping blocks, the benign-envelope
+Tiles at full page resolution (put Collapse or Block before Window), the benign-envelope
 baseline, remote execution (SSH fetches to a local cache; the runner is local). Each refuses
 with a message in the run log and, where the console can see it, as a hard constraint.
+
+Blocks along the address axis take any width and hop: equal to tile, smaller to overlap
+(each page's row is replicated once per block it falls in, so cost scales with wp/hp), larger
+to sample with gaps (pages between blocks are dropped). Whole blocks only, the same rule
+Window's `edge=drop` uses in time. The block count the console shows assumes the capture
+config's pages-per-dump, since no recording records its own; the runner uses each recording's
+actual page count.
 
 ## To add a module
 

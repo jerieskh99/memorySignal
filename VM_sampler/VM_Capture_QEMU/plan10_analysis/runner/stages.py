@@ -92,14 +92,57 @@ def complex_field(mag: dict, dirn: dict, phase: str) -> dict:
             "channels": [mag["channels"][0], dirn["channels"][0]], "n_pairs": mag["n_pairs"], "n_pages": mag["n_pages"], "block": None}
 
 
+def n_blocks(n_pages: int, wp: int, hp: int) -> int:
+    """How many whole blocks of `wp` pages, stepped by `hp`, fit in `n_pages`.
+
+    Whole blocks only, the same convention as Window's edge="drop" on the time axis: a
+    trailing run of pages too short to fill a block is dropped rather than averaged over a
+    smaller denominator. This is the single definition; scheme.py's tile estimate and the
+    console's readout compute it the same way, so what the page counts is what the runner
+    produces.
+    """
+    if wp < 1 or hp < 1:
+        raise ValueError("block width and hop must be at least one page")
+    return 0 if n_pages < wp else (n_pages - wp) // hp + 1
+
+
 def block(field: dict, wp: int, hp: int) -> dict:
-    if hp != wp:
-        raise NotImplementedStage("block hop different from block width (overlapping blocks) is not implemented")
-    if wp < 1:
-        raise ValueError("block width must be at least one page")
+    """Cut the address axis into blocks of `wp` pages stepped by `hp`.
+
+    With hp == wp the blocks tile the axis and every changed page belongs to exactly one.
+    With hp < wp they overlap, a page belongs to several, and its row is REPLICATED once
+    per block it falls in: the field grows by about wp/hp. That replication is what lets a
+    later Collapse reduce each block independently, and it is why a small hop is expensive.
+
+    With hp > wp the blocks are spaced apart and pages in the gaps belong to none; those
+    rows are dropped, which is a legitimate sampling of the address axis but silently
+    discards data, so scheme.py warns.
+    """
+    nb = n_blocks(field["n_pages"], wp, hp)
+    if nb < 1:
+        raise ValueError(f"a block of {wp} pages does not fit in {field['n_pages']} pages")
+    p = field["page_index"].astype(np.int64)
+    # blocks containing page p: those b with b*hp <= p < b*hp + wp
+    b_lo = np.maximum(0, (p - wp) // hp + 1)
+    b_hi = np.minimum(p // hp, nb - 1)
+    counts = np.maximum(0, b_hi - b_lo + 1)
+    total = int(counts.sum())
+    idx = np.repeat(np.arange(p.shape[0], dtype=np.int64), counts)
+    starts = np.concatenate(([0], np.cumsum(counts)[:-1])) if counts.size else np.zeros(0, np.int64)
+    ordinal = np.arange(total, dtype=np.int64) - np.repeat(starts, counts)
+    blk = (np.repeat(b_lo, counts) + ordinal).astype(np.int32)
+
     out = dict(field)
-    out["block"] = (field["page_index"] // wp).astype(np.int32)
-    out["block_w"] = wp
+    out["seq"] = field["seq"][idx]
+    out["page_index"] = field["page_index"][idx]
+    if field.get("z") is not None:
+        out["z"] = field["z"][idx]
+    if field.get("cols"):
+        out["cols"] = {c: v[idx] for c, v in field["cols"].items()}
+    out["block"] = blk
+    out["block_w"] = int(wp)
+    out["block_h"] = int(hp)
+    out["n_blocks"] = nb
     return out
 
 
@@ -148,12 +191,12 @@ def collapse(field: dict, unchanged: str = "zero", reduce: str = "mean") -> dict
             "complex": field["z"] is not None and reduce == "mean", "n_pages": n_pages}
     if blocks is None:
         return dict(base, values=reduce_rows(np.ones(len(seq), dtype=bool), n_pages), block=None)
-    bw = field["block_w"]
-    n_blocks = max(1, math.ceil(n_pages / bw))
+    bw, bh = field["block_w"], field.get("block_h", field["block_w"])
+    nb = field.get("n_blocks") or n_blocks(n_pages, bw, bh)
     out = []
-    for b in range(n_blocks):
-        pages_in_block = min(bw, n_pages - b * bw)
-        out.append(dict(base, values=reduce_rows(blocks == b, pages_in_block), block=b))
+    for b in range(nb):
+        # whole blocks only, so every block spans exactly bw pages; that is the denominator
+        out.append(dict(base, values=reduce_rows(blocks == b, bw), block=b))
     return out
 
 

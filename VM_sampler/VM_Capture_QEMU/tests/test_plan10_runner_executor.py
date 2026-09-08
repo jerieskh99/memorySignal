@@ -84,6 +84,91 @@ def test_stages_on_known_inputs():
     assert np.isclose(np.angle(z2["z"][1]), 0.0, atol=1e-6)   # the collision: distance 1 lands on angle 0
 
 
+def test_blocks_overlapping_tiling_and_gapped():
+    """Membership against brute force, row replication, and one block count everywhere."""
+    pages = np.array([0, 3, 4, 7, 8, 11, 15, 19], dtype=np.int32)
+    f = {"seq": np.ones(len(pages), np.int32), "page_index": pages,
+         "cols": {"hamming": pages.astype(np.float32)}, "z": None, "channels": ["hamming"],
+         "n_pairs": 1, "n_pages": 20, "block": None}
+    for wp, hp in ((4, 4), (8, 4), (8, 2), (8, 8), (8, 12), (5, 5), (6, 4), (20, 20), (20, 1)):
+        nb = stages.n_blocks(20, wp, hp)
+        b = stages.block(f, wp, hp)
+        assert b["n_blocks"] == nb and b["block_w"] == wp and b["block_h"] == hp
+        want = {int(p): [i for i in range(nb) if i * hp <= p < i * hp + wp] for p in pages}
+        got: dict = {}
+        for p_, blk in zip(b["page_index"], b["block"]):
+            got.setdefault(int(p_), []).append(int(blk))
+        for p in want:
+            assert sorted(got.get(p, [])) == want[p], (wp, hp, p, got.get(p), want[p])
+        # every row keeps its own value through the replication
+        assert np.array_equal(b["cols"]["hamming"], b["page_index"].astype(np.float32))
+        assert len(b["page_index"]) == sum(len(v) for v in want.values())
+    # overlap replicates, a tiling does not, a gap drops
+    assert len(stages.block(f, 8, 4)["page_index"]) == 13
+    assert len(stages.block(f, 4, 4)["page_index"]) == 8
+    assert len(stages.block(f, 8, 12)["page_index"]) == 6
+    # whole blocks only, the same rule Window's edge=drop uses in time
+    assert stages.n_blocks(20, 8, 8) == 2 and stages.n_blocks(20, 4, 4) == 5
+    assert stages.n_blocks(20, 21, 1) == 0
+    try:
+        stages.block(f, 21, 1)
+        assert False
+    except ValueError as e:
+        assert "does not fit" in str(e)
+    for bad in ((0, 4), (4, 0)):
+        try:
+            stages.n_blocks(20, *bad)
+            assert False, bad
+        except ValueError:
+            pass
+    # collapse reduces each block over the block's own width
+    for s in stages.collapse(stages.block(f, 8, 4), reduce="changed_fraction"):
+        lo = s["block"] * 4
+        assert np.isclose(float(s["values"][0]), sum(1 for p in pages if lo <= p < lo + 8) / 8)
+    # the runner's block count is the one scheme.py estimates from
+    for n_pages, wp, hp in ((20, 8, 4), (1024, 300, 300), (262144, 8192, 4096)):
+        assert stages.n_blocks(n_pages, wp, hp) == (n_pages - wp) // hp + 1
+
+
+def test_blocked_tile_count_matches_the_estimate():
+    """The estimate must carry the block factor through Collapse; it used to drop it entirely."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, _ = _corpus(td, n_snapshots=30)
+        ctx = S.Context(__import__("plan10_analysis.channel_roster", fromlist=["x"]).build_roster(),
+                        manifest, build_modules(), S.load_config())
+
+        def scheme_with(wp, hp, label):
+            n = lambda i, m, **p: {"id": i, "module": m, "params": p, "x": 0, "y": 0}
+            e = lambda a, ap, b, bp: {"from": [a, ap], "to": [b, bp]}
+            return {"schema": "plan10.scheme.v1", "label": label, "acknowledged": [{"id": "no_substrate", "at": "t"}],
+                    "nodes": [n("c", "cells", sel=[r["id"] for r in manifest["recordings"]], min_pairs=1),
+                              n("ch", "channels", chans=["hamming"]), n("b", "block", wp=wp, hp=hp),
+                              n("co", "collapse", reduce="changed_fraction"), n("wi", "window", w=8, h=4),
+                              n("st", "stats", feats=["mean"]), n("w", "write")],
+                    "pipes": [e("c", "cells", "ch", "cells"), e("ch", "field", "b", "in"), e("b", "out", "co", "in"),
+                              e("co", "out", "wi", "in"), e("wi", "out", "st", "in"), e("st", "out", "w", "in")]}
+
+        cfg_pages = ctx.config["n_pages_default"]
+        for wp, hp in ((256, 256), (256, 128), (256, 64), (128, 256)):
+            sch = scheme_with(wp, hp, f"blk_{wp}_{hp}")
+            est = S.estimate(sch, ctx)
+            windows = est["windows"]
+            # the estimate counts blocks over the CONFIG page count, and says so in a note
+            assert est["tiles"] == windows * stages.n_blocks(cfg_pages, wp, hp), (wp, hp, est)
+            assert any("assume" in i["msg"] and "pages per dump" in i["msg"] for i in S.validate(sch, ctx))
+            # the runner counts them over the recording's ACTUAL page count
+            sp = td / f"{sch['label']}.json"
+            sp.write_text(json.dumps(sch))
+            assert executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1",
+                                speed=2, manifest_path=mp, acknowledge_all=True) == 0
+            z = np.load(td / "out" / sch["label"] / "features.npz")
+            assert z["X"].shape[0] == windows * stages.n_blocks(synth.N_PAGES, wp, hp), (wp, hp, z["X"].shape)
+            assert len(set(z["tile_keys"]["block"].tolist())) == stages.n_blocks(synth.N_PAGES, wp, hp)
+
+
 def test_lenses_find_a_known_period():
     """A period-8 series at W=32: the spectral peak is bin 4 and the quefrency peak is 8.
 

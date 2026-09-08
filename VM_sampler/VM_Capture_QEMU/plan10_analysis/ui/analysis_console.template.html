@@ -363,7 +363,11 @@ function descOf(id, memo = {}) {
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
       d = {type: "complex", complex: true, axis: "page", phase: p.phase, channels: [...(a ? a.channels : []), ...(b ? b.channels : [])], mag: a, dir: b, recs: base.recs, nmin: Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), workloads: base.workloads}; break; }
     case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}) : null; break; }
-    case "block": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field", axis: "blocked", wp: +p.wp, hp: +p.hp}) : null; break; }
+    /* n_blocks rides along so it survives the Collapse that must follow: tiles = windows x blocks.
+       N_PAGES is the config default because no recording records its own. */
+    case "block": { const u = up("in"); const wp_ = +p.wp, hp_ = +p.hp;
+      d = u ? Object.assign({}, u, {type: "field", axis: "blocked", wp: wp_, hp: hp_,
+        n_blocks: (N_PAGES < wp_ || wp_ < 1 || hp_ < 1) ? 0 : Math.floor((N_PAGES - wp_) / hp_) + 1}) : null; break; }
     case "window": { const u = up("in"); d = u ? Object.assign({}, u, {type: "tiles", w: +p.w, h: +p.h, taper: p.taper, edge: p.edge}) : null; break; }
     case "baseline": { const u = up("in"); d = {type: "reference", mode: p.mode, fitted: !!u}; break; }
     case "concat": d = {type: "features", n: inEdges(id, "in").length}; break;
@@ -416,7 +420,20 @@ function nodeConstraints(n, memo) {
       if (!p.phase) I("hard", "choose a phase convention; it cannot be recovered from the output afterwards", "plan10 UX section 13.2");
       else if (p.phase === "2pi") I("soft", "2 pi collides: distance 0 and distance 1 land on the same angle. Proceed only to reproduce B1 or the first-generation features", "family_b/structure.rs", "phase_2pi");
       break; }
-    case "block": { I("soft", "address blocks are allocator placement, not program structure (Gate 2 measured guest-physical scatter)", "docs/dwarf_pilot_design/GATE2_RESULT.md", "gate2"); if (p.wp < 1 || p.hp < 1) I("hard", "block and hop must be at least 1 page", "ANALYSIS_PIPELINE_METHODOLOGY.md section 5"); break; }
+    case "block": {
+      I("soft", "address blocks are allocator placement, not program structure (Gate 2 measured guest-physical scatter)", "docs/dwarf_pilot_design/GATE2_RESULT.md", "gate2");
+      const wp = +p.wp, hp = +p.hp;
+      if (wp < 1 || hp < 1) I("hard", "block and hop must be at least 1 page", "ANALYSIS_PIPELINE_METHODOLOGY.md section 5");
+      else if (wp > N_PAGES) I("hard", `a block of ${wp} pages does not fit in ${N_PAGES} pages`, "runner/stages.py n_blocks");
+      else {
+        const nb = Math.floor((N_PAGES - wp) / hp) + 1;
+        if (hp < wp) I("soft", `blocks overlap (${wp} pages stepped by ${hp}), so each changed page belongs to about ${(wp / hp).toFixed(1)} blocks and its row is replicated once per block: ${nb} blocks, roughly ${(wp / hp).toFixed(1)}x the rows and the cost`, "runner/stages.py block", "block_overlap:" + n.id);
+        else if (hp > wp) I("soft", `blocks are spaced apart (${wp} pages stepped by ${hp}), so ${hp - wp} of every ${hp} pages fall in no block and are dropped: ${nb} blocks covering ${nb * wp} of ${N_PAGES} pages`, "runner/stages.py block", "block_gap:" + n.id);
+        const tail = N_PAGES - ((nb - 1) * hp + wp);
+        if (tail) I("note", `${tail} trailing page(s) do not fill a whole block and are dropped, as Window's edge=drop does in time`, "runner/stages.py n_blocks");
+        I("note", `${nb} blocks, and the tile count with it, assume ${N_PAGES} pages per dump from the capture config; no recording records its own page count, and the runner uses each recording's actual one`, "config_qemu_upc.json; plan10 UX 14.1 item 7");
+      }
+      break; }
     case "window": {
       const u = up("in"), w = +p.w, h = +p.h;
       if (w < 1 || h < 1) I("hard", "W and H must be at least 1", "window arithmetic");
@@ -478,7 +495,7 @@ function estimate() {
   G.nodes.filter(n => n.mod === "window").forEach(n => {
     const d = descOf(n.id, memo); if (!d) return;
     (d.recs || []).forEach(r => { wl.add(r.workload); const np_ = d.max_pairs ? Math.min(r.n_pairs, d.max_pairs) : r.n_pairs; wins += np_ < n.p.w ? 0 : Math.floor((np_ - n.p.w) / n.p.h) + 1; });
-    if (d.axis === "blocked") blocks = Math.max(0, Math.floor((N_PAGES - d.wp) / Math.max(1, d.hp)) + 1);
+    blocks = Math.max(blocks, +d.n_blocks || 1);
   });
   return {tiles: wins * blocks, wins, blocks, nWl: wl.size};
 }
