@@ -114,20 +114,22 @@ def view_meta(d: dict, shown: dict, view: str) -> dict:
         "counterpart_label": "full view (all ranks)" if view == "core" else "core view (rank 0 only)",
     }
 
-# geometry (px, unscaled)
-COL_W = 340          # x step per layer
-NODE_W = 244         # node width
-X0 = 60              # left margin
-Y0 = 96              # top of the rank-0 band (below column headers)
-H_ROOT = 32
-H0 = 22              # rank-0 node height
-H0_DENSE = 15        # rank-0 height in a column with more than DENSE_THRESHOLD nodes
-H1 = 17              # rank-1 node height
-H_DOC = 13           # rank-1 doc node height
-GAP = 6
-GAP_DENSE = 3
+# geometry (px, unscaled). Sized for a human reader at 100% zoom: a 12px monospace label fits
+# about 36 characters in a node, rows breathe, and the two bands are separated by a labelled gap.
+COL_W = 420          # x step per layer (node plus a 120px edge channel)
+NODE_W = 300         # node width
+X0 = 80              # left margin
+Y0 = 132             # top of the rank-0 band (below column headers)
+H_ROOT = 40
+H0 = 30              # rank-0 node height
+H0_DENSE = 22        # rank-0 height in a column with more than DENSE_THRESHOLD nodes
+H1 = 24              # rank-1 node height
+H_DOC = 18           # rank-1 doc node height
+GAP = 10
+GAP_DENSE = 5
+BLOCK_GAP = 34       # extra room before the pinned block of files with no edges, and before the docs
 DENSE_THRESHOLD = 40
-DIVIDER_GAP = 84     # vertical room for the divider label between the two bands
+DIVIDER_GAP = 150    # vertical room for the divider label between the two bands
 SWEEPS = 10
 
 
@@ -261,10 +263,15 @@ def build_layout(d: dict) -> dict:
     for L in layers:
         x = X0 + L * COL_W
         y = float(band1_top)
+        prev_iso, prev_doc = False, False
         for u in groups[(L, 1)]:
+            iso, doc = isolated(u), is_doc(u)
+            if (iso and not prev_iso) or (doc and not prev_doc):
+                y += BLOCK_GAP           # a visible seam before "no edges at all" and before the docs
+            prev_iso, prev_doc = iso, doc
             for m, h in zip(u["members"], u["heights"]):
                 positions[m] = {"x": x, "y": round(y, 1), "w": NODE_W, "h": h, "layer": L, "rank": 1,
-                                "dense": False}
+                                "dense": False, "iso": iso}
                 y += h + GAP_DENSE
             y += u["gap"] - GAP_DENSE
         col_bottom1[L] = y
@@ -283,10 +290,10 @@ def build_layout(d: dict) -> dict:
         ps = [positions[m] for m in c["members"] if m in positions]
         if not ps:
             continue
-        x0 = min(p["x"] for p in ps) - 8
-        y0 = min(p["y"] for p in ps) - 18
-        x1 = max(p["x"] + p["w"] for p in ps) + 8
-        y1 = max(p["y"] + p["h"] for p in ps) + 8
+        x0 = min(p["x"] for p in ps) - 10
+        y0 = min(p["y"] for p in ps) - 24
+        x1 = max(p["x"] + p["w"] for p in ps) + 10
+        y1 = max(p["y"] + p["h"] for p in ps) + 10
         scc_boxes.append({"scc_id": c["scc_id"], "members": c["members"], "x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0})
 
     columns = [{"layer": L, "x": X0 + L * COL_W, "n0": sum(len(u["members"]) for u in groups[(L, 0)]),
