@@ -109,6 +109,49 @@ def extract(rec_id: str, rec_dir: Path, speed: int, columns: list[str], store: P
     return npz_path
 
 
+def extract_from_trajectory(rec_id: str, csv_path: Path, speed: int, columns: list[str], store: Path,
+                            max_pairs: int | None = None, n_pages: int | None = None,
+                            progress: Callable[[int, int | None], None] | None = None) -> Path:
+    """The capture's own per-page rows, read instead of recomputed. Same store layout as extract().
+
+    A capture with CAPTURE_METRIC=substrate already ran the differ on every pair and kept the
+    result beside the chain; walking the chain again reproduces it at hours per recording. The
+    store this writes is interchangeable with extract()'s -- same key, same arrays -- with two
+    facts the sidecar must carry: the differ speed is the config assumption (no recording records
+    its own), and n_pages is the config default unless the data addresses a page beyond it.
+    """
+    from plan10_analysis.runner import trajectory
+    store = Path(store)
+    store.mkdir(parents=True, exist_ok=True)
+    hit = existing(store, rec_id, speed, columns, max_pairs)
+    if hit:
+        return hit
+    cols = sorted(set(columns) | {"hamming"})
+    key = _key(rec_id, speed, cols)
+    npz_path = store / f"{key}.npz"
+    meta_path = store / f"{key}.meta.json"
+    meta = {"rec_id": rec_id, "speed": speed, "speed_assumed": True, "columns": cols, "max_pairs": max_pairs,
+            "source": "substrate_csv", "trajectory": Path(csv_path).name,
+            "differ": "capture-time (version unrecorded)", "complete": False, "n_pairs": 0}
+    meta_path.write_text(json.dumps(meta, indent=1))
+    rows = trajectory.read(csv_path, cols, max_pairs=max_pairs, progress=progress)
+    npg = int(n_pages or 0)
+    src_npg = "config default"
+    if rows["page_index"].size and int(rows["page_index"].max()) >= npg:
+        npg = int(rows["page_index"].max()) + 1          # never fewer pages than the data addresses
+        src_npg = "max page_index + 1"
+    arrays = {"seq": rows["seq"], "page_index": rows["page_index"],
+              "n_pairs": np.int64(rows["n_pairs"]), "n_pages": np.int64(npg)}
+    for c in cols:
+        arrays[c] = rows[c]
+    tmp = npz_path.with_name(npz_path.stem + ".tmp.npz")
+    np.savez_compressed(tmp, **arrays)
+    os.replace(tmp, npz_path)
+    meta.update(complete=True, n_pairs=int(rows["n_pairs"]), n_pages=npg, n_pages_source=src_npg)
+    meta_path.write_text(json.dumps(meta, indent=1))
+    return npz_path
+
+
 def load(npz_path: Path) -> dict:
     z = np.load(npz_path)
     out = {k: z[k] for k in z.files}

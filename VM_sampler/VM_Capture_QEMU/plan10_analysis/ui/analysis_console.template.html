@@ -217,6 +217,49 @@ input:focus,select.f:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(
 pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-radius:9px; padding:9px 10px; font-family:"IBM Plex Mono",monospace; font-size:10.5px; line-height:1.45; overflow-x:auto; white-space:pre-wrap; word-break:break-all; color:var(--ink); max-height:190px}
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--bad);color:#fff;padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;z-index:99;box-shadow:var(--shadow);opacity:0;transition:opacity .2s}
 :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* ===== Monitor: the full-screen view of one run ===== */
+.mon{display:none; position:fixed; inset:0; z-index:60; background:var(--bg); flex-direction:column; overflow:hidden}
+html.mon-open .mon{display:flex}
+html.mon-open{overflow:hidden}
+.mon-top{display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel)}
+.mon-top h2{margin:0; font-size:15px; font-weight:700; letter-spacing:-.01em}
+.mon-top .sp{flex:1}
+.mon-state{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:3px 9px; border-radius:999px; border:1px solid var(--line-2); color:var(--ink-2)}
+.mon-state.running{background:var(--accent-soft); color:var(--accent); border-color:var(--accent)}
+.mon-state.done{background:var(--ok-soft); color:var(--ok); border-color:var(--ok)}
+.mon-state.failed,.mon-state.refused{background:var(--bad-soft); color:var(--bad); border-color:var(--bad)}
+.mon-state.stopped,.mon-state.paused{background:var(--warn-soft); color:var(--warn); border-color:var(--warn)}
+.mon-body{flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:12px; padding:12px 16px; overflow:auto}
+.mon-col{display:flex; flex-direction:column; gap:12px; min-width:0}
+.mon-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0}
+.mon-card>h3{margin:0 0 8px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.mon-bar{height:8px; border-radius:999px; background:var(--sunk); overflow:hidden; margin:8px 0 4px}
+.mon-bar i{display:block; height:100%; background:var(--accent); transition:width .4s ease}
+.mon-bar i.fetch{background:var(--violet)}
+.mon-lab{display:flex; justify-content:space-between; gap:10px; margin-top:6px}
+.mon-lab b{font-weight:600; color:var(--ink-2)}
+.mon-kv{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:12px}
+.mon-kv dt{color:var(--ink-3)} .mon-kv dd{margin:0; color:var(--ink); min-width:0; overflow-wrap:anywhere}
+.mon-trace{font-family:var(--mono,ui-monospace,SFMono-Regular,Menlo,monospace); font-size:11.5px; line-height:1.5; overflow-wrap:anywhere}
+.mon-trace b{color:var(--accent); font-weight:600}
+.mon-tbl{width:100%; border-collapse:collapse; font-size:11.5px}
+.mon-tbl th{text-align:left; font-weight:600; color:var(--ink-3); padding:3px 6px; border-bottom:1px solid var(--line); white-space:nowrap}
+.mon-tbl td{padding:3px 6px; border-bottom:1px solid var(--line); overflow-wrap:anywhere}
+.mon-tbl tr:last-child td{border-bottom:none}
+.mon-tbl .st{white-space:nowrap; font-weight:600}
+.mon-tbl .st.done{color:var(--ok)} .mon-tbl .st.now{color:var(--accent)} .mon-tbl .st.wait{color:var(--ink-3)}
+.mon-shell{background:var(--sunk); border:1px solid var(--line); border-radius:10px; display:flex; flex-direction:column; min-height:200px; flex:1}
+.mon-shell h3{margin:0; padding:8px 12px 6px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.mon-shell pre{margin:0; padding:0 12px 10px; flex:1; overflow:auto; font-size:11px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ink-2)}
+.mon-empty{color:var(--ink-3); font-size:12px; padding:6px 0}
+@media (max-width:1000px){.mon-body{grid-template-columns:1fr}}
+
+/* channel availability in the capture's own trajectory */
+.col.traj-all{box-shadow:inset 0 0 0 2px var(--ok)}
+.col.traj-some{box-shadow:inset 0 0 0 2px var(--warn)}
+.col.traj-none{opacity:.5}
+.col.on.traj-all{box-shadow:inset 0 0 0 2px var(--ok), 0 0 0 1px var(--ok)}
 </style>
 </head>
 <body>
@@ -283,6 +326,58 @@ pre.code{margin:0; background:var(--sunk); border:1px solid var(--line); border-
       <div class="field" style="flex:1;min-width:0"><label class="fl" id="res-title">result</label><div class="tblwrap" style="max-height:170px"><table class="tbl" id="res-table"></table></div><div class="subnote" id="res-side"></div></div></div>
     </div>
   </section>
+  <section class="mon" id="mon" aria-label="run monitor">
+    <div class="mon-top">
+      <h2 id="mon-label">run</h2>
+      <span class="mon-state" id="mon-state">-</span>
+      <span class="subnote" id="mon-phase"></span>
+      <span class="sp"></span>
+      <select id="mon-pick" aria-label="which run"></select>
+      <button class="bigbtn ghost" id="mon-pause">Pause</button>
+      <button class="bigbtn ghost" id="mon-stop">Stop</button>
+      <button class="bigbtn" id="mon-close">Close</button>
+    </div>
+    <div class="mon-body">
+      <div class="mon-col">
+        <div class="mon-card">
+          <h3>where it is</h3>
+          <div id="mon-where" class="mon-empty">no run selected</div>
+          <div class="subnote mon-lab" id="mon-fetch-lab">fetch</div>
+          <div class="mon-bar"><i id="mon-fetch-fill" style="width:0"></i></div>
+          <div class="subnote mon-lab" id="mon-diff-lab">differ</div>
+          <div class="mon-bar"><i id="mon-fill" style="width:0"></i></div>
+          <div class="subnote" id="mon-progress"></div>
+          <div class="mon-trace" id="mon-trace" style="margin-top:8px"></div>
+        </div>
+        <div class="mon-card">
+          <h3>traces</h3>
+          <div style="max-height:240px;overflow:auto"><table class="mon-tbl" id="mon-cells"></table></div>
+        </div>
+        <div class="mon-card">
+          <h3>output</h3>
+          <dl class="mon-kv" id="mon-out"></dl>
+          <div class="mon-lab" style="margin-top:10px">
+            <button class="bigbtn ghost" id="mon-drop">Drop fetched chains</button>
+            <span class="subnote" id="mon-drop-note"></span>
+          </div>
+        </div>
+      </div>
+      <div class="mon-col">
+        <div class="mon-card">
+          <h3>input</h3>
+          <dl class="mon-kv" id="mon-in"></dl>
+        </div>
+        <div class="mon-card">
+          <h3>counts</h3>
+          <dl class="mon-kv" id="mon-counts"></dl>
+        </div>
+        <div class="mon-shell">
+          <h3>shell</h3>
+          <pre id="mon-log"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
 <!--@@SERVED_ONLY_END@@-->
   </div>
   <aside class="right"><div class="insp" id="insp"></div><div class="readout" id="readout"></div></aside>
@@ -299,6 +394,7 @@ const ISSUE = {}; ISSUES.forEach(i => ISSUE[i.id] = i);
 const CH = ROSTER.channels, GROUPS = {}, DROP_AT = {}, GROUP_OF = {}, SUB_OF = {};
 CH.forEach(c => { (GROUPS[c.group] = GROUPS[c.group] || []).push(c.name); DROP_AT[c.name] = c.drop_at; GROUP_OF[c.name] = c.group; SUB_OF[c.name] = c.submodule; });
 const GROUP_LABEL = {amount:"A, magnitude", direction:"B, direction", content:"C, state of q", texture:"D, texture"};  /* UI labelling only */
+const TRAJ_COLS = (window.__TRAJ_COLS__ = window.__TRAJ_COLS__ || {});   // recording id -> trajectory header; the served client fills it
 let MANIFEST_CUR = MANIFEST, RECS = [], REC = {};
 function setManifest(m) { MANIFEST_CUR = m; RECS = m.recordings; REC = {}; RECS.forEach(r => REC[r.id] = r); }
 setManifest(MANIFEST);
@@ -640,11 +736,19 @@ function renderInspector(issues) {
       const recs = d ? d.recs : [];
       const speeds = [...new Set(recs.map(r => recSpeed(r)[0]))]; const assumed = recs.some(r => recSpeed(r)[1] !== "recorded");
       const sp = speeds.length ? Math.max(...speeds) : CONFIG.substrateSpeed;
-      h += `<div class="field"><label class="fl">channels, liveness at substrateSpeed ${sp}${assumed || !recs.length ? " (assumed from config, unrecorded per recording)" : ""}</label>`;
+      /* what the capture already computed: a channel in every selected trajectory is read straight
+         from it; one in none re-diffs the chain. Headers arrive from the bridge (served build only);
+         until then the ids are listed on the field so the client knows what to ask for. */
+      const tAvail = recs.filter(r => TRAJ_COLS[r.id] && TRAJ_COLS[r.id].length);
+      const tNeed = recs.filter(r => r.has && r.has.substrate_csv && !TRAJ_COLS[r.id]).map(r => r.id);
+      const tHave = c => tAvail.filter(r => TRAJ_COLS[r.id].includes(c)).length;
+      const tcls = c => !tAvail.length ? "" : tHave(c) === tAvail.length ? "traj-all" : tHave(c) ? "traj-some" : "traj-none";
+      const ttl = c => !tAvail.length ? "" : tHave(c) === tAvail.length ? "in every selected trajectory: read directly, no re-diff" : tHave(c) ? `in ${tHave(c)} of ${tAvail.length} trajectories; the others re-diff the chain` : "in no selected trajectory: re-diffs the chain";
+      h += `<div class="field" data-need-cols="${esc(tNeed.join("|"))}"><label class="fl">channels, liveness at substrateSpeed ${sp}${assumed || !recs.length ? " (assumed from config, unrecorded per recording)" : ""}</label>`;
       Object.keys(GROUPS).forEach(g => { const cols = GROUPS[g], live = cols.filter(c => !deadFor(c, sp));
         h += `<div class="grp"><div class="grp-h">${esc(g)}<span class="fam">${esc(GROUP_LABEL[g] || "")}, ${live.length} live of ${cols.length}</span><span class="seg"><button data-grp="${g}" data-m="none">none</button><button data-grp="${g}" data-m="all">all live</button></span></div>
-          <div class="cols">${cols.map(c => `<button class="col ${n.p.chans.includes(c) ? "on" : ""} ${deadFor(c, sp) ? "dead" : ""}" data-chan="${esc(c)}" ${deadFor(c, sp) ? `disabled title="zero from speed ${DROP_AT[c]} up (${esc(SUB_OF[c] || "")})"` : `title="${esc(SUB_OF[c] || "")}"`}>${esc(c)}</button>`).join("")}</div></div>`; });
-      h += `<div class="subnote">Live/dead follows each recording's capture speed. No recording records it, so the config value ${CONFIG.substrateSpeed} is assumed; a recording that records its own speed would override it here.</div></div>`;
+          <div class="cols">${cols.map(c => `<button class="col ${n.p.chans.includes(c) ? "on" : ""} ${deadFor(c, sp) ? "dead" : ""} ${tcls(c)}" data-chan="${esc(c)}" ${deadFor(c, sp) ? `disabled title="zero from speed ${DROP_AT[c]} up (${esc(SUB_OF[c] || "")})"` : `title="${esc((SUB_OF[c] || "") + (ttl(c) ? " \u00b7 " + ttl(c) : ""))}"`}>${esc(c)}</button>`).join("")}</div></div>`; });
+      h += `<div class="subnote">${tAvail.length ? `<b>${tAvail.length} of ${recs.length}</b> selected recording(s) carry a substrate trajectory (${TRAJ_COLS[tAvail[0].id].length} columns): a green-ringed channel is read from it with no re-diff, amber is in some, dimmed is in none. ` : tNeed.length ? "reading trajectory headers... " : recs.length ? "no selected recording carries a trajectory: every channel re-diffs the chain. " : ""}Live/dead follows each recording's capture speed. No recording records it, so the config value ${CONFIG.substrateSpeed} is assumed; a recording that records its own speed would override it here.</div></div>`;
     }
     else if (q.kind === "cells") {
       const key = q.k, picked = n.p[key] || [];
@@ -859,6 +963,191 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       [...$("runs-list").children].forEach(b => b.classList.toggle("on", b.textContent.startsWith(label)));
     } catch (e) { $("res-title").textContent = label + ": " + e.message; $("res-table").innerHTML = ""; $("res-side").textContent = ""; }
   }
+  /* ===== Monitor ===== */
+  const mon = $("mon"), monApp = document.querySelector(".app") || document.body;
+  let monLabel = null, monTimer = null, monDetail = null, monPinned = false;
+
+  const fmtBytes = n => n == null ? "-" : n >= 1e9 ? (n/1073741824).toFixed(2)+" GB" : n >= 1e6 ? (n/1048576).toFixed(1)+" MB" : n >= 1e3 ? (n/1024).toFixed(0)+" KB" : n+" B";
+  const fmtEl = iso => { if (!iso) return "-"; const s = Math.max(0, (Date.now() - new Date(iso).getTime())/1000);
+    const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = Math.floor(s%60);
+    return (h?h+"h ":"") + (h||m?m+"m ":"") + x + "s"; };
+  const shortTrace = id => { const p = String(id||"").split("/"); return p.length >= 4 ? {wl:p[1], variant:p[2], rep:p[3]} : {wl:id||"", variant:"", rep:""}; };
+
+  function monRenderDetail(d) {
+    const src = d.source || {};
+    $("mon-in").innerHTML =
+      `<dt>source</dt><dd>${esc(src.kind || "?")}${src.host ? " &mdash; " + esc(src.user ? src.user+"@"+src.host : src.host) : ""}</dd>` +
+      `<dt>root</dt><dd class="mono">${esc(src.remote_root || src.root || d.manifest_root || "-")}</dd>` +
+      `<dt>where</dt><dd>${esc(src.mode === "remote" ? "extraction on the server" : src.kind === "ssh" ? "fetch: chains pulled here" : "local")}</dd>` +
+      (src.cache ? `<dt>fetch cache</dt><dd class="mono">${esc(src.cache)}</dd>` : "") +
+      `<dt>channels</dt><dd>${esc((d.channels||[]).join(", ") || "-")}</dd>` +
+      `<dt>scheme</dt><dd>${(d.nodes||[]).length} modules, ${d.n_pipes} pipes &mdash; ${esc((d.nodes||[]).map(n=>n.module).join(" &rarr; "))}</dd>` +
+      ((d.acknowledged||[]).length ? `<dt>acknowledged</dt><dd>${esc((d.acknowledged||[]).map(a=>a.id||a).join(", "))}</dd>` : "");
+  }
+
+  function monRender(s, d) {
+    $("mon-label").textContent = s.label || monLabel || "run";
+    const st = $("mon-state"); st.textContent = s.state || "-"; st.className = "mon-state " + (s.state || "");
+    $("mon-phase").textContent = [s.phase, s.node ? "node " + s.node : "", s.message || ""].filter(Boolean).join(" · ");
+
+    const cur = shortTrace(s.recording);
+    const pct = s.n_pairs ? Math.min(100, Math.round(100 * (s.pair || 0) / s.n_pairs)) : 0;
+
+    /* phase "extract" is two halves: an rsync that reports nothing, then the differ loop that
+       moves `pair`. Size the fetch cache against the archive's byte count so the half actually
+       running is the one on screen. */
+    const cell = ((d && d.cells) || []).find(c => c.id === s.recording);
+    const fb = cell && cell.fetched_bytes, tb = cell && cell.bytes;
+    const fetching = s.phase === "extract" && fb != null && tb ? fb < tb : false;
+    const fpct = (fb != null && tb) ? Math.min(100, Math.round(100 * fb / tb)) : null;
+    $("mon-fetch-fill").className = "fetch";
+    $("mon-fetch-fill").style.width = (fpct == null ? 0 : fpct) + "%";
+    $("mon-fetch-lab").innerHTML = fpct == null
+      ? `<b>fetch</b><span>${esc(d && d.source && d.source.kind === "ssh" ? "waiting" : "local source, no fetch")}</span>`
+      : `<b>fetch</b><span>${esc(fmtBytes(fb))} of ${esc(fmtBytes(tb))} &mdash; ${cell.fetched_files || 0}/${cell.n_snapshots || "?"} files ${fpct}%${fetching ? " (running)" : " (complete)"}</span>`;
+    $("mon-diff-lab").innerHTML = `<b>differ</b><span>${s.n_pairs ? `${s.pair || 0} of ${s.n_pairs} pairs ${pct}%` : "-"}${fetching ? " (waits for the fetch)" : ""}</span>`;
+    $("mon-where").innerHTML = s.recording
+      ? `recording <b>${s.recording_index}</b> of <b>${s.n_recordings}</b> &mdash; phase <b>${esc(s.phase || "")}</b>`
+      : `<span class="mon-empty">${esc(s.phase || s.state || "")}</span>`;
+    $("mon-fill").style.width = pct + "%";
+    $("mon-progress").textContent = `elapsed ${fmtEl(s.started_at)}` + (fetching ? "  \u2014 fetching the chain; the differ has not started" : "");
+    $("mon-trace").innerHTML = s.recording
+      ? `<b>${esc(cur.wl)}</b><br>${esc(cur.variant)}<br>${esc(cur.rep)}`
+      : "";
+
+    const done = s.per_recording || {};
+    const cells = (d && d.cells) || [];
+    const rows = cells.length ? cells : Object.keys(done).map(id => ({id}));
+    $("mon-cells").innerHTML =
+      "<thead><tr><th></th><th>workload</th><th>variant</th><th>pairs</th><th>size</th></tr></thead><tbody>" +
+      (rows.map(c => {
+        const isDone = !!done[c.id], isNow = s.recording === c.id;
+        const cls = isDone ? "done" : isNow ? "now" : "wait";
+        const mark = isDone ? "✓ done" : isNow ? "▸ now" : "· queued";
+        const t = shortTrace(c.id);
+        const np = isDone && done[c.id].n_pairs != null ? done[c.id].n_pairs : (c.n_pairs != null ? c.n_pairs : "");
+        const got = c.fetched_bytes, tot = c.bytes;
+        const fetched = (got != null && tot) ? `${Math.min(100, Math.round(100*got/tot))}%` : "";
+        return `<tr><td class="st ${cls}">${mark}</td><td>${esc(c.workload || t.wl)}</td><td class="mono">${esc((c.variant || t.variant || "").slice(0,42))}</td><td>${esc(String(np))}</td><td>${esc(fmtBytes(c.bytes))}${fetched ? ` <span class="subnote">${fetched} local</span>` : ""}</td></tr>`;
+      }).join("") || `<tr><td colspan="5" class="mon-empty">no traces reported yet</td></tr>`) + "</tbody>";
+
+    $("mon-counts").innerHTML =
+      `<dt>recordings</dt><dd>${s.n_recordings ?? "-"} selected, ${Object.keys(done).length} extracted</dd>` +
+      `<dt>pairs</dt><dd>${s.pair ?? 0} of ${s.n_pairs ?? "-"} in this recording</dd>` +
+      `<dt>max pairs</dt><dd>${s.max_pairs == null ? "all (unbounded)" : esc(String(s.max_pairs))}</dd>` +
+      `<dt>differ speed</dt><dd>${d && d.speed != null ? esc(String(d.speed)) : "-"}</dd>` +
+      `<dt>channels</dt><dd>${esc((s.channels||[]).join(", ") || "-")}</dd>` +
+      `<dt>started</dt><dd>${esc(s.started_at || "-")}</dd>` +
+      `<dt>updated</dt><dd>${esc(s.updated_at || "-")}</dd>`;
+
+    /* what the local fetch cache is holding for recordings already extracted: droppable, since
+       the archive copy is authoritative and the fetch never wrote back to it. */
+    const doneIds = Object.keys(done);
+    const cached = ((d && d.cells) || []).filter(c => doneIds.includes(c.id) && (c.fetched_bytes || 0) > 0
+                                                  && !(s.state === "running" && c.id === s.recording));
+    const reclaim = cached.reduce((a, c) => a + (c.fetched_bytes || 0), 0);
+    const dropBtn = $("mon-drop");
+    if (dropBtn) {
+      dropBtn.disabled = !cached.length;
+      dropBtn.textContent = cached.length ? `Drop ${cached.length} fetched chain${cached.length > 1 ? "s" : ""} (${fmtBytes(reclaim)})` : "Drop fetched chains";
+      if (!$("mon-drop-note").dataset.sticky)
+        $("mon-drop-note").textContent = cached.length
+          ? "verifies each against the archive, then deletes the local copy"
+          : (d && d.source && d.source.kind === "ssh" ? "nothing extracted and idle yet" : "local source: nothing is cached");
+    }
+
+    const files = (d && d.files) || [];
+    $("mon-out").innerHTML =
+      `<dt>run dir</dt><dd class="mono">${esc((d && d.run_dir) || "-")}</dd>` +
+      `<dt>files</dt><dd>${files.length ? files.map(f => `${esc(f.name)} <span class="subnote">${esc(fmtBytes(f.bytes))}</span>`).join("<br>") : "<span class=\"mon-empty\">none written yet</span>"}</dd>` +
+      ((s.errors||[]).length ? `<dt>errors</dt><dd style="color:var(--bad)">${esc(s.errors.join("; "))}</dd>` : "") +
+      (((s.verdict||{}).notes||[]).length ? `<dt>notes</dt><dd class="subnote">${esc(s.verdict.notes.join(" · "))}</dd>` : "");
+
+    const pre = $("mon-log"), stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 24;
+    pre.textContent = (s.log_tail || []).join("\n");
+    if (stick) pre.scrollTop = pre.scrollHeight;
+  }
+
+  async function monTick() {
+    if (!monLabel) return;
+    try {
+      const s = await api("/status?label=" + encodeURIComponent(monLabel) + "&lines=200");
+      try { monDetail = await api("/rundetail?label=" + encodeURIComponent(monLabel)); }
+      catch (e) { if (!monDetail || monDetail.label !== monLabel) monDetail = null; }
+      if (monDetail) monRenderDetail(monDetail);
+      monRender(s, monDetail);
+    } catch (e) { $("mon-phase").textContent = "status: " + e.message; }
+    monTimer = setTimeout(monTick, 1500);
+  }
+
+  async function monFill() {
+    try {
+      const r = await api("/runs");
+      const sel = $("mon-pick"); const runs = (r.runs || []).slice().reverse();
+      sel.innerHTML = runs.map(x => `<option value="${esc(x.label)}">${esc(x.label)} — ${esc(x.state || "")}</option>`).join("");
+      if (!monLabel) { const live = runs.find(x => x.state === "running" || x.state === "starting"); monLabel = (live || runs[0] || {}).label || null; }
+      if (monLabel) sel.value = monLabel;
+    } catch (e) {}
+  }
+
+  async function monOpen(label) {
+    monLabel = label || current || monLabel || null;
+    monDetail = null;
+    await monFill();
+    monApp.classList.add("mon-open"); document.documentElement.classList.add("mon-open");
+    clearTimeout(monTimer); monTick();
+  }
+  function monClose() { clearTimeout(monTimer); monTimer = null; monApp.classList.remove("mon-open"); document.documentElement.classList.remove("mon-open"); }
+
+  $("mon-drop").onclick = async () => {
+    const b = $("mon-drop"), note = $("mon-drop-note");
+    b.disabled = true; note.dataset.sticky = "1"; note.textContent = "verifying against the archive...";
+    try {
+      const r = await api("/cache/drop", {label: monLabel});
+      const kept = (r.results || []).filter(x => x.action === "kept");
+      note.textContent = `dropped ${r.n_dropped} (${fmtBytes(r.freed_bytes)})` +
+        (kept.length ? `; kept ${kept.length}: ${kept.map(k => k.why).join("; ")}` : "");
+      monDetail = null;
+    } catch (e) { note.textContent = "drop failed: " + e.message; }
+    setTimeout(() => { delete note.dataset.sticky; }, 8000);
+  };
+
+  $("mon-close").onclick = monClose;
+  $("mon-pick").onchange = e => { monLabel = e.target.value; monDetail = null; clearTimeout(monTimer); monTick(); };
+  $("mon-pause").onclick = async () => { if (monLabel) try { await api("/control", {label: monLabel, command: "pause"}); } catch (e) {} };
+  $("mon-stop").onclick  = async () => { if (monLabel) try { await api("/control", {label: monLabel, command: "stop"}); } catch (e) {} };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && monApp.classList.contains("mon-open")) monClose(); });
+
+  /* header button */
+  (function () {
+    const host = document.querySelector("header.top");
+    if (!host) return;
+    const b = document.createElement("button");
+    b.className = "bigbtn ghost"; b.id = "mon-btn"; b.textContent = "Monitor";
+    b.title = "full-screen view of a run: status, traces, counts, shell";
+    b.onclick = () => monOpen();
+    const anchor = $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
+
+  /* ===== trajectory headers for the Channels module ===== */
+  const trajPending = new Set();
+  async function ensureTrajCols() {
+    const el = document.querySelector("[data-need-cols]"); if (!el) return;
+    const ids = (el.dataset.needCols || "").split("|").filter(x => x && !trajPending.has(x) && !window.__TRAJ_COLS__[x]);
+    if (!ids.length) return;
+    ids.forEach(x => trajPending.add(x));
+    let changed = false;
+    for (const id of ids) {
+      try { const r = await api("/trajectory_columns?rec=" + encodeURIComponent(id)); window.__TRAJ_COLS__[id] = r.columns || []; changed = true; }
+      catch (e) { window.__TRAJ_COLS__[id] = []; }        /* recorded as empty: asked once, not forever */
+      trajPending.delete(id);
+    }
+    if (changed && typeof renderAll === "function") renderAll();
+  }
+  const _renderInspector = renderInspector;
+  renderInspector = function (issues) { _renderInspector(issues); ensureTrajCols(); };
+
   refreshRuns();
 })();
 /*@@SERVED_ONLY_END@@*/

@@ -136,6 +136,7 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
             continue
         snaps: list[int] = []
         nbytes, base_bytes = 0, None
+        inchain: list[str] = []      # a substrate trajectory the capture left beside its chain
         for name, size in children.get(d, []):
             if _RE_PARTIAL.match(name):
                 partials.append(f"{d}/{name}")
@@ -146,12 +147,20 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
                 nbytes += size
                 if s.group(1) == "000000":
                     base_bytes = size
+            elif _RE_SUBSTRATE.search(name):
+                inchain.append(f"{d}/{name}")
         snaps.sort()
         n = len(snaps)
         contiguous = snaps == list(range(n))
         if not contiguous and n:
             warnings.append(f"snapshot numbering has gaps: {d}")
+        # In-chain first: it is this recording's own output, not a workload-name guess. The
+        # listing carries it for a remote source too, which a metrics root (local only) cannot.
         substrate = metrics["by_workload"].get(wl, [])
+        join = "workload-name" if substrate else None
+        if inchain:
+            substrate = sorted(inchain) + substrate
+            join = "in-chain"
         recs.append({
             "id": d,
             "family": fam,
@@ -170,7 +179,7 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
                 "base_only": n == 1,
                 "substrate_csv": bool(substrate),
                 "substrate_csv_paths": substrate,
-                "substrate_join": "workload-name" if substrate else None,
+                "substrate_join": join,
             },
             "speed": None,
             "speed_source": "unrecorded: not in the chain tree nor in runs/<label>.json; "

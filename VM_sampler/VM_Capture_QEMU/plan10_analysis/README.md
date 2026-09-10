@@ -39,7 +39,8 @@ Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.tx
 3. Fix what is red (hard), acknowledge what is amber (soft) in the inspector with a note.
    Save scheme writes the JSON; Launch runs it.
 4. **Run** tab: differ speed (default the config's), max pairs (0 = all), progress, log,
-   pause, stop. **Results** tab: every run, its rows, its sidecar.
+   pause, stop. **Results** tab: every run, its rows, its sidecar. **Monitor** (header) is the
+   full-screen view of the same run.
 
 Runs land under `~/.cache/plan10/runs/<label>/`: `features.npz` (`X`, `feature_names`,
 `tile_keys`), `features.csv`, `sidecar.json`, `status.json`, `run.log`. Extracted channels
@@ -58,6 +59,7 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | `runner/chain.py` | walk a zstd patch chain with a two-file rolling window | `test_plan10_runner_extract.py` |
 | `runner/differ.py` | run the differ on a pair, parse its sparse CSV; refuses dumps not a multiple of 4 MiB | same |
 | `runner/extract.py` | the L1 store | same |
+| `runner/trajectory.py` | read the substrate trajectory a capture already wrote: its header is what a recording can serve, its rows become the L1 without a re-diff | same |
 | `runner/stages.py` | one pure function per module kind; reuses b1_features, CepstrumStability, PLVStability, plan04_cusum, normal_profile | `test_plan10_runner_executor.py` |
 | `runner/executor.py` | order, run per recording, status, control, output, sidecar | same |
 | `ui/analysis_bridge.py` | the local HTTP backend | `test_plan10_bridge.py` |
@@ -66,6 +68,37 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | `testing/synth.py` | a 4 MiB-dump synthetic corpus with known answers | used by the runner tests |
 
 Tests are plain asserts (`python3 tests/test_plan10_*.py`) or pytest.
+
+## Reading the capture's own trajectory
+
+A capture run with `CAPTURE_METRIC=substrate` already ran the differ on every pair and left the
+result beside the chain: `run_matrix_test<N>_<workload>.npy.substrate_trajectory.csv.zst`, one row
+per changed page per pair, 64 columns. Walking the chain again reproduces it at hours per
+recording. Measured on the M2 laptop, one 931-pair recording: the differ path is ~7.5 s per pair
+(~2 s differ, ~5.5 s rebuilding a 1 GiB dump from the delta chain), about 2 h, after a 27 min
+11 GB fetch; the trajectory path reads the same rows in 54 s after a 755 MB fetch.
+
+So the executor tries the trajectory first. `corpus_manifest` reports it from the listing
+(`has.substrate_join: in-chain`), which is what an SSH source needs since a metrics root is
+local-only. `SshSource.fetch_trajectory` pulls the CSV alone. When it carries every requested
+column, `extract.extract_from_trajectory` writes the same L1 store as `extract.extract` (same key,
+same arrays) and the run log says so; otherwise the chain is fetched and re-diffed, and the log
+names the missing columns. The Channels module shows the same fact per channel: a green ring is in
+every selected trajectory (read directly), amber in some, dimmed in none; headers are read on the
+server in one round trip via `/trajectory_columns`, never fetched.
+
+Two things the file cannot tell you, and the store records as such. The differ speed it was made
+at is unrecorded (config `substrateSpeed`, the value the console labels "assumed"); the L1 meta
+carries `speed_assumed: true`. `n_pages` is the config default unless the data addresses a page
+beyond it. Two format facts are load-bearing: the trajectory numbers pairs from 0 and `walk_chain`
+from 1 (the reader adds one), and `differ.parse_sparse_csv` cannot read it (it takes `row[0]` as
+the page index, which here is `seq`), hence a separate reader.
+
+The **Monitor** button in the header is the full-screen view of a run: fetch and differ progress
+as separate bars (the fetch reports nothing of its own; the bar sizes the cache against the
+archive's byte count), every selected trace by name, counts, inputs, outputs, and the log.
+`/cache/drop` deletes fetched chains only after re-stat'ing the archive copy over ssh and matching
+snapshot count and bytes exactly; the archive is never written to, so there is nothing to send back.
 
 ## What is not implemented, and says so
 
@@ -164,5 +197,6 @@ what `PLVStability` was written for and what no collapsed tile can give it.
 
 The server's `plan10_analysis` is a copy pushed with rsync, not a git checkout; the branch has
 not been pushed there. Re-sync it after changing the runner, or a remote run executes the old
-code. **Fetch mode has still not been run against the real server** (it would pull the whole
-5.9 GB recording); only its rsync argv is asserted.
+code. **Fetch mode ran against the real server on 2026-09-11**: two `kernel_bnb_tsp_v2` recordings
+(931 and 933 pairs) through `b1_apf_floor`, 463 rows x 8 features in 198 s, both read from their
+trajectories; the second pulled its 804 MB CSV and no snapshot at all.

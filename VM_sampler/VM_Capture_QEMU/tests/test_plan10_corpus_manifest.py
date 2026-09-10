@@ -102,6 +102,23 @@ def test_default_root_comes_from_console_sh():
     assert str(p).endswith("thesis_traces/zstd_local"), p
 
 
+def test_substrate_in_chain_is_seen_from_the_listing():
+    """A trajectory the capture left beside its chain needs no metrics root: the listing
+    carries it, for a remote source too. It joins as that recording's own, not by name."""
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "zstd_local"
+        _tree(root)
+        m0 = cm.scan(root)
+        rec = next(r for r in m0["recordings"] if r["has"]["chain"])
+        (root / rec["id"] / "run_matrix_test2_x.npy.substrate_trajectory.csv.zst").write_bytes(b"z")
+        m = cm.scan(root)
+        r = next(x for x in m["recordings"] if x["id"] == rec["id"])
+        assert r["has"]["substrate_csv"] and r["has"]["substrate_join"] == "in-chain"
+        assert r["has"]["substrate_csv_paths"] == [rec["id"] + "/run_matrix_test2_x.npy.substrate_trajectory.csv.zst"]
+        assert r["n_snapshots"] == rec["n_snapshots"] and r["bytes"] == rec["bytes"]   # not counted as a snapshot
+        assert m["n_with_substrate_csv"] == m0["n_with_substrate_csv"] + 1
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

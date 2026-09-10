@@ -120,6 +120,47 @@ def test_extract_store_and_reuse():
         assert p3 != p and extract.load(p3)["n_pairs"] == 2
 
 
+def test_extract_from_trajectory_matches_the_rows():
+    """The capture's own rows become an L1 store shaped like extract()'s: seq counted from 1
+    the way walk_chain numbers pairs, requested columns kept, max_pairs honoured, reused by
+    existing(), and a missing column refused rather than filled."""
+    import json
+    import numpy as np
+    from plan10_analysis.runner import trajectory
+    with tempfile.TemporaryDirectory() as td:
+        csv = Path(td) / "run_matrix_test1_wl.npy.substrate_trajectory.csv"
+        csv.write_text("seq,page_index,hamming,cosine\n"
+                       "0,5,255,0.5\n0,9,11,0.1\n"
+                       "1,5,2,0.9\n"
+                       "2,7,7,0.2\n2,9,3,0.3\n")
+        assert trajectory.columns(csv) == ["hamming", "cosine"]
+        store = Path(td) / "l1"
+        rid = "mem/wl/var/rep001__x"
+        seen = []
+        p = extract.extract_from_trajectory(rid, csv, 2, ["hamming"], store, n_pages=100,
+                                            progress=lambda d, n: seen.append(d))
+        d = extract.load(p)
+        assert seen == [1, 2, 3] and d["n_pairs"] == 3 and d["n_pages"] == 100
+        assert d["seq"].tolist() == [1, 1, 2, 3, 3]                       # 0-based file, 1-based store
+        assert d["page_index"].tolist() == [5, 9, 5, 7, 9]
+        assert d["hamming"].dtype == np.float32 and d["hamming"].tolist() == [255, 11, 2, 7, 3]
+        assert "cosine" not in d
+        meta = json.loads(p.with_name(p.name.replace(".npz", ".meta.json")).read_text())
+        assert meta["source"] == "substrate_csv" and meta["speed_assumed"] and meta["complete"]
+        assert extract.existing(store, rid, 2, ["hamming"], None) == p
+        p2 = extract.extract_from_trajectory(rid, csv, 2, ["hamming", "cosine"], store, max_pairs=2, n_pages=100)
+        d2 = extract.load(p2)
+        assert p2 != p and d2["n_pairs"] == 2 and d2["seq"].tolist() == [1, 1, 2] and d2["cosine"].tolist()[0] == np.float32(0.5)
+        # n_pages never claims fewer pages than the data addresses
+        p3 = extract.extract_from_trajectory(rid, csv, 3, ["hamming"], store, n_pages=4)
+        assert extract.load(p3)["n_pages"] == 10
+        try:
+            trajectory.read(csv, ["nope"])
+            assert False, "a column the file lacks must be refused"
+        except trajectory.TrajectoryError:
+            pass
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

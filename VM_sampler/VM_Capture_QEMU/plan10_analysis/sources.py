@@ -111,6 +111,12 @@ class LocalSource:
             raise SourceError(f"recording not found: {p}")
         return p
 
+    def fetch_trajectory(self, rec_rel: str) -> Path | None:
+        """The substrate trajectory beside the chain, if the capture wrote one. Nothing moves."""
+        from plan10_analysis.runner import trajectory
+        return trajectory.find(self.root / rec_rel)
+
+
 # ---------------------------------------------------------------------------
 # ssh
 # ---------------------------------------------------------------------------
@@ -158,6 +164,29 @@ class SshSource:
 
     def ssh_argv(self, remote_cmd: str) -> list[str]:
         return ["ssh", *self._ssh_opts(), self.target, remote_cmd]
+
+    def rsync_trajectory_argv(self, rec_rel: str, dest: Path) -> list[str]:
+        """Only the substrate trajectory: a few hundred MB against a chain's tens of GB."""
+        ssh_cmd = "ssh " + " ".join(shlex.quote(o) for o in self._ssh_opts())
+        return ["rsync", "-a", "--partial", "--include=*substrate_trajectory*", "--exclude=*", "-e", ssh_cmd,
+                f"{self.target}:{shlex.quote(self.remote_root + '/' + rec_rel)}/", str(dest) + "/"]
+
+    def fetch_trajectory(self, rec_rel: str) -> Path | None:
+        """Pull the capture's substrate trajectory alone into the cache; None if there is none.
+
+        Reading it replaces the whole chain fetch and the re-diff, so it is tried first. The
+        rsync filter matches nothing when the capture wrote no trajectory, which is not an error.
+        """
+        from plan10_analysis.runner import trajectory
+        dest = self.cache / rec_rel
+        dest.mkdir(parents=True, exist_ok=True)
+        hit = trajectory.find(dest)
+        if hit is not None:
+            return hit
+        r = subprocess.run(self.rsync_trajectory_argv(rec_rel, dest), capture_output=True, text=True)
+        if r.returncode != 0:
+            raise SourceError(f"rsync of the trajectory failed for {rec_rel} (exit {r.returncode}): {r.stderr.strip()[:300]}")
+        return trajectory.find(dest)
 
     def rsync_argv(self, rec_rel: str, dest: Path) -> list[str]:
         ssh_cmd = "ssh " + " ".join(shlex.quote(o) for o in self._ssh_opts())

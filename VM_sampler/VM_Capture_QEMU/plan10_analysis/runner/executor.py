@@ -40,7 +40,7 @@ if str(QEMU_DIR) not in sys.path:
 from plan10_analysis import channel_roster, corpus_manifest, scheme as S  # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import make_source                           # noqa: E402
-from plan10_analysis.runner import extract, stages, differ                # noqa: E402
+from plan10_analysis.runner import extract, stages, differ, trajectory    # noqa: E402
 
 CROSS = {"baseline", "plv", "deviation", "concat", "write"}
 
@@ -247,6 +247,33 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             st.d["per_recording"][rid] = {"extracted": True, "where": "remote",
                                           "n_pairs": extract.load(stores[rid])["n_pairs"]}
             continue
+        # The capture may already hold what this pass would compute: a substrate trajectory
+        # beside the chain, one row per changed page per pair. Read it when it carries every
+        # requested column; otherwise fetch the chain and re-diff, and say why.
+        traj = src.fetch_trajectory(rid) if hasattr(src, "fetch_trajectory") else None
+        if traj is not None:
+            try:
+                avail = trajectory.columns(traj)
+            except trajectory.TrajectoryError as e:
+                st.logline(f"[{i}/{len(rec_ids)}] {rid}: trajectory unreadable ({e}); re-diffing the chain")
+                avail = []
+            lacking = sorted(set(union) - set(avail))
+            if avail and not lacking:
+                st.logline(f"[{i}/{len(rec_ids)}] {rid}: reading the capture's substrate trajectory "
+                           f"({len(avail)} columns; speed {speed} assumed, unrecorded per recording)")
+
+                def tprog(d, n, _rid=rid):
+                    st.write(pair=d, n_pairs=n or recs[_rid]["n_pairs"])
+                    st.check_control()
+
+                stores[rid] = extract.extract_from_trajectory(
+                    rid, traj, speed, sorted(union), store_dir, max_pairs=max_pairs,
+                    n_pages=ctx.config["n_pages_default"], progress=tprog)
+                st.d["per_recording"][rid] = {"extracted": True, "where": "trajectory", "source": "substrate_csv",
+                                              "n_pairs": extract.load(stores[rid])["n_pairs"]}
+                continue
+            if avail:
+                st.logline(f"[{i}/{len(rec_ids)}] {rid}: trajectory lacks {lacking}; re-diffing the chain")
         local = src.fetch(rid)
         st.logline(f"[{i}/{len(rec_ids)}] {rid}: extracting ({'fetched' if src.kind == 'ssh' else 'local'})")
 

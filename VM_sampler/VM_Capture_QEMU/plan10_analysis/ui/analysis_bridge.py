@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
+import re
 import os
 import secrets
 import shutil
@@ -46,6 +48,7 @@ QEMU_DIR = PKG.parent
 sys.path.insert(0, str(QEMU_DIR))
 
 from plan10_analysis import channel_roster, corpus_manifest, scheme as S   # noqa: E402
+from plan10_analysis.runner import trajectory                              # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
 
@@ -65,6 +68,7 @@ class State:
         self.lock = threading.Lock()
         self.procs: dict[str, subprocess.Popen] = {}
         self.ctx_cache: tuple | None = None
+        self.traj_cols: dict[str, list[str]] = {}   # recording id -> its trajectory's header, once read
 
     def context(self) -> S.Context:
         if self.manifest is None:
@@ -210,6 +214,141 @@ def ep_status(q, _b):
     return d
 
 
+def ep_trajectory_columns(q, _b):
+    """Header of a recording's substrate trajectory: the channels it can serve without a re-diff.
+
+    Read in place -- locally, or over ssh in one round trip -- never fetched. The header is the
+    honest inventory: the manifest knows a trajectory exists, only the file knows what it holds.
+    """
+    rid = (q.get("rec") or [""])[0]
+    if ST.manifest is None:
+        return {"error": "no manifest yet; scan a source first"}, 400
+    rec = next((r for r in ST.manifest.get("recordings", []) if r["id"] == rid), None)
+    if rec is None:
+        return {"error": "unknown recording"}, 404
+    if rid in ST.traj_cols:
+        return {"rec": rid, "columns": ST.traj_cols[rid], "cached": True}
+    paths = rec["has"].get("substrate_csv_paths") or []
+    if not paths:
+        return {"rec": rid, "trajectory": None, "columns": []}
+    rel = paths[0]
+    try:
+        src = make_source(ST.source)
+    except SourceError as e:
+        return {"error": str(e)}, 400
+    if rec["has"].get("substrate_join") == "in-chain" and src.kind == "ssh":
+        f = shlex.quote(src.remote_root + "/" + rel)
+        cmd = (f"zstd -dc {f} 2>/dev/null | head -1" if rel.endswith(".zst")
+               else f"gzip -dc {f} 2>/dev/null | head -1" if rel.endswith(".gz") else f"head -1 {f}")
+        try:
+            r = subprocess.run(src.ssh_argv(cmd), capture_output=True, text=True, timeout=90)
+        except subprocess.TimeoutExpired:
+            return {"error": "timed out reading the trajectory header on the server"}, 504
+        head = (r.stdout.splitlines() or [""])[0].split(",")
+        if len(head) < 3 or head[0] != "seq":
+            return {"error": f"not a substrate trajectory header: {head[:3]}"}, 502
+        cols = [c for c in head[2:] if c]
+    else:
+        fp = Path(rel) if Path(rel).is_absolute() else Path(getattr(src, "root", ".")) / rel
+        try:
+            cols = trajectory.columns(fp)
+        except (trajectory.TrajectoryError, OSError) as e:
+            return {"error": str(e)}, 502
+    ST.traj_cols[rid] = cols
+    return {"rec": rid, "trajectory": rel, "columns": cols}
+
+
+def ep_rundetail(q, _b):
+    """Everything about a run that is not its live status: what it was pointed at, what it
+    selected, and what it has produced. status.json carries the moving parts; this carries
+    the fixed ones, so the monitor can name traces instead of numbering them."""
+    label = (q.get("label") or [""])[0]
+    run_dir = ST.out_dir / label
+    if not label or not run_dir.is_dir():
+        return {"error": "unknown run"}, 404
+
+    def _load(name):
+        f = run_dir / name
+        try:
+            return json.loads(f.read_text()) if f.exists() else None
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    src = _load("source.json") or {}
+    sch = _load("scheme.json") or {}
+    man = _load("manifest.json") or {}
+
+    # the recordings the scheme selected, resolved against the manifest it ran on
+    sel, chans = [], []
+    for n in (sch.get("nodes") or []):
+        pr = n.get("params") or {}
+        if n.get("module") == "cells":
+            sel = list(pr.get("sel") or [])
+        elif n.get("module") == "channels":
+            chans += list(pr.get("chans") or [])
+    by_id = {r["id"]: r for r in (man.get("recordings") or [])}
+    # An ssh source rsyncs each chain into a local cache before extracting, and that fetch
+    # reports no progress of its own -- the pair counter stays 0 throughout it. Size the cache
+    # against the archive's own byte count so the monitor can show the half that is moving.
+    # Both sides count only NNNNNN.zst, the same rule corpus_manifest uses for "bytes", so a
+    # substrate CSV riding along in the chain directory cannot skew the ratio.
+    cache = None
+    if src.get("kind") == "ssh" and src.get("cache"):
+        cache = Path(os.path.expanduser(str(src["cache"])))
+    snap = re.compile(r"^\d{6}\.zst$")
+
+    def _fetched(rid):
+        if cache is None:
+            return None, None
+        d = cache / rid
+        if not d.is_dir():
+            return 0, 0
+        n = b = 0
+        try:
+            for f in d.iterdir():
+                if f.is_file() and snap.match(f.name):
+                    n += 1
+                    b += f.stat().st_size
+        except OSError:
+            pass
+        return n, b
+
+    cells = []
+    for rid in sel:
+        r = by_id.get(rid) or {}
+        fn, fb = _fetched(rid)
+        cells.append({"id": rid, "workload": r.get("workload"), "family": r.get("family"),
+                      "rep": r.get("rep"), "run_label": r.get("run_label"),
+                      "variant": (r.get("variant") or {}).get("raw"),
+                      "n_pairs": r.get("n_pairs"), "bytes": r.get("bytes"),
+                      "n_snapshots": r.get("n_snapshots"),
+                      "fetched_files": fn, "fetched_bytes": fb})
+
+    # speed is an executor argv, not a status field; the run log states it on its first line
+    speed = None
+    log = run_dir / "run.log"
+    if log.exists():
+        try:
+            head = log.open().readline()
+            m = re.search(r"speed (\d+)", head)
+            if m:
+                speed = int(m.group(1))
+        except OSError:
+            pass
+
+    files = []
+    for f in sorted(run_dir.iterdir()):
+        if f.is_file():
+            files.append({"name": f.name, "bytes": f.stat().st_size})
+
+    nodes = [{"id": n.get("id"), "module": n.get("module")} for n in (sch.get("nodes") or [])]
+    return {"label": label, "source": src, "speed": speed, "channels": sorted(set(chans)),
+            "cells": cells, "n_cells": len(cells), "nodes": nodes,
+            "n_pipes": len(sch.get("pipes") or []), "files": files,
+            "acknowledged": sch.get("acknowledged") or [],
+            "run_dir": str(run_dir), "manifest_root": man.get("root")}
+
+
 def ep_control(_q, body):
     label, cmd = str(body.get("label") or ""), body.get("command")
     run_dir = ST.out_dir / label
@@ -221,6 +360,97 @@ def ep_control(_q, body):
     tmp.write_text(json.dumps({"command": cmd, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}))
     os.replace(tmp, run_dir / "control.json")
     return {"ok": True, "label": label, "command": cmd}
+
+
+def ep_cache_drop(_q, body):
+    """Delete fetched chains from the local cache, but only where the archive still holds them.
+
+    An ssh fetch is a read-only copy: the archive is authoritative and nothing here writes back
+    to it, so "returning" a chain is meaningless -- the only safe question is whether the archive
+    copy is still intact. Each candidate is re-stat'ed on the server (not trusted from the scan,
+    which may be hours old) and dropped only when the remote snapshot count and byte total match
+    the local ones exactly. A recording still being fetched or extracted is never a candidate.
+    """
+    label = str(body.get("label") or "")
+    run_dir = ST.out_dir / label
+    if not label or not run_dir.is_dir():
+        return {"error": "unknown run"}, 404
+    try:
+        src_spec = json.loads((run_dir / "source.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return {"error": "run has no source.json"}, 400
+    if src_spec.get("kind") != "ssh" or not src_spec.get("cache"):
+        return {"error": "not an ssh fetch run; nothing was cached locally"}, 400
+    try:
+        status = json.loads((run_dir / "status.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        status = {}
+
+    cache = Path(os.path.expanduser(str(src_spec["cache"])))
+    snap = re.compile(r"^\d{6}\.zst$")
+    per_rec = status.get("per_recording") or {}
+    current = status.get("recording")
+    only = body.get("recording")
+
+    try:
+        src = make_source(src_spec)
+    except SourceError as e:
+        return {"error": str(e)}, 400
+
+    def local_stats(rid):
+        d = cache / rid
+        if not d.is_dir():
+            return None
+        n = b = 0
+        for f in d.iterdir():
+            if f.is_file() and snap.match(f.name):
+                n += 1
+                b += f.stat().st_size
+        return n, b
+
+    def remote_stats(rid):
+        cmd = (f"cd {shlex.quote(src.remote_root + '/' + rid)} 2>/dev/null && "
+               "find . -maxdepth 1 -name '[0-9][0-9][0-9][0-9][0-9][0-9].zst' -printf '%s\\n' "
+               "| awk '{n++; b+=$1} END {print (n+0), (b+0)}'")
+        r = subprocess.run(src.ssh_argv(cmd), capture_output=True, text=True, timeout=120)
+        parts = (r.stdout or "").split()
+        if r.returncode != 0 or len(parts) != 2:
+            return None
+        return int(parts[0]), int(parts[1])
+
+    results, freed = [], 0
+    for rid in sorted(per_rec.keys()):
+        if only and rid != only:
+            continue
+        if rid == current and status.get("state") == "running":
+            results.append({"recording": rid, "action": "kept", "why": "still the active recording"})
+            continue
+        if not (per_rec.get(rid) or {}).get("extracted"):
+            results.append({"recording": rid, "action": "kept", "why": "not extracted yet"})
+            continue
+        loc = local_stats(rid)
+        if loc is None:
+            results.append({"recording": rid, "action": "absent", "why": "nothing cached locally"})
+            continue
+        rem = remote_stats(rid)
+        if rem is None:
+            results.append({"recording": rid, "action": "kept", "why": "could not read the archive copy"})
+            continue
+        if rem != loc:
+            results.append({"recording": rid, "action": "kept",
+                            "why": f"archive {rem[0]} files/{rem[1]} B vs local {loc[0]}/{loc[1]}"})
+            continue
+        shutil.rmtree(cache / rid, ignore_errors=True)
+        freed += loc[1]
+        results.append({"recording": rid, "action": "dropped", "files": loc[0], "bytes": loc[1]})
+
+    for parent in sorted({(cache / r["recording"]).parent for r in results if r["action"] == "dropped"}, reverse=True):
+        pp = parent
+        while pp != cache and pp.is_dir() and not any(pp.iterdir()):
+            pp.rmdir()
+            pp = pp.parent
+    return {"label": label, "results": results, "freed_bytes": freed,
+            "n_dropped": sum(1 for r in results if r["action"] == "dropped")}
 
 
 def ep_runs(_q, _b):
@@ -248,8 +478,10 @@ def ep_results(q, _b):
             "files": {k: str(run_dir / k) for k in ("features.npz", "features.csv", "sidecar.json") if (run_dir / k).exists()}}
 
 
-ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results}
-ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control}
+ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
+               "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns}
+ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
+                "/cache/drop": ep_cache_drop}
 
 TOKEN = ""
 

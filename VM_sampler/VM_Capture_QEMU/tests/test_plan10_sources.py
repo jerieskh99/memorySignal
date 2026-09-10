@@ -132,6 +132,25 @@ def test_listing_survives_find_exit_1_on_a_live_corpus():
         _src.subprocess.run = real
 
 
+def test_trajectory_fetch_is_its_own_narrow_rsync():
+    """Pulling the trajectory alone must not touch the chain filter, and a local source
+    finds the file in place or reports none."""
+    import tempfile
+    from plan10_analysis.sources import SshSource, make_source
+    s = SshSource("srv.example", "/project/zstd", user="jeries")
+    r = s.rsync_trajectory_argv("mem/wl/var/rep001__x", Path("/tmp/cache/mem/wl/var/rep001__x"))
+    assert r[0] == "rsync" and "--include=*substrate_trajectory*" in r and "--exclude=*" in r
+    assert "--include=*.zst" not in r and r[-2].startswith("jeries@srv.example:")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td) / "mem" / "wl" / "var" / "rep001__x"
+        d.mkdir(parents=True)
+        (d / "000000.zst").write_bytes(b"z")
+        loc = make_source({"kind": "local", "root": td})
+        assert loc.fetch_trajectory("mem/wl/var/rep001__x") is None
+        (d / "run_matrix_test1_wl.npy.substrate_trajectory.csv").write_text("seq,page_index,hamming\n")
+        assert loc.fetch_trajectory("mem/wl/var/rep001__x").name.endswith("substrate_trajectory.csv")
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
