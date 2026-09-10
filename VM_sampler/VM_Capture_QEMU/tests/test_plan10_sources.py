@@ -91,6 +91,47 @@ def test_factory():
             pass
 
 
+def test_listing_survives_find_exit_1_on_a_live_corpus():
+    """A corpus being written to makes find exit 1 without making the listing wrong.
+
+    find returns 1 when an entry vanishes between readdir and stat, which is what an rsync temp
+    file does while an upload is running. It still lists everything else. Treating that as fatal
+    made the whole scan refuse against a corpus that was merely in use.
+    """
+    import subprocess as _sp
+    from plan10_analysis import sources as _src
+
+    rows = ("d\t0\tmem\nd\t0\tmem/wl\nd\t0\tmem/wl/var\nd\t0\tmem/wl/var/rep001__r\n"
+            "f\t100\tmem/wl/var/rep001__r/000000.zst\nf\t5\tmem/wl/var/rep001__r/000001.zst\n")
+    vanished = "find: './mem/wl/var/rep001__r/.000002.zst.pmsrkx': No such file or directory"
+    s = SshSource("h", "/r", user="u")
+    real = _sp.run
+    try:
+        # partial: non-zero exit, but rows came back -> keep them, and say so
+        _src.subprocess.run = lambda *a, **k: _sp.CompletedProcess(a[0] if a else [], 1, rows, vanished)
+        lst = s.listing()
+        assert len(lst) == 6, lst
+        assert s.listing_warning and "partial listing" in s.listing_warning
+        assert "No such file" in s.listing_warning
+        # the vanished temp file never enters the manifest either way
+        m = cm.scan_listing(lst, "srv:/r")
+        assert m["n_recordings"] == 1, m
+
+        # clean: the warning clears rather than sticking from the previous call
+        _src.subprocess.run = lambda *a, **k: _sp.CompletedProcess(a[0] if a else [], 0, rows, "")
+        assert len(s.listing()) == 6 and s.listing_warning is None
+
+        # real failure: non-zero exit and nothing usable -> still refuses
+        _src.subprocess.run = lambda *a, **k: _sp.CompletedProcess(a[0] if a else [], 255, "", "Permission denied")
+        try:
+            s.listing()
+            assert False, "a listing with no usable rows must raise"
+        except SourceError as e:
+            assert "255" in str(e)
+    finally:
+        _src.subprocess.run = real
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

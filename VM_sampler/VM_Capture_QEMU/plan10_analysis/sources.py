@@ -111,7 +111,6 @@ class LocalSource:
             raise SourceError(f"recording not found: {p}")
         return p
 
-
 # ---------------------------------------------------------------------------
 # ssh
 # ---------------------------------------------------------------------------
@@ -142,6 +141,8 @@ class SshSource:
         # numpy (the analysis env is often a venv, as plan08_b1/requirements.txt sets up).
         # --probe reports which interpreter answered, so a mismatch is visible before a run.
         self.remote_python = remote_python or "python3"
+        # set by listing() when find could not reach every entry; None after a clean listing
+        self.listing_warning: str | None = None
         # the transport is injectable so the remote path can be exercised without a server
         self.transport = transport or SshTransport(self)
 
@@ -251,9 +252,20 @@ class SshSource:
 
     def listing(self) -> list[Entry]:
         r = subprocess.run(self.ssh_argv(self.listing_cmd()), capture_output=True, text=True, timeout=300)
+        entries = self.parse_listing(r.stdout)
+        # find exits 1 for a per-entry error -- a file that vanished between readdir and stat --
+        # while still listing everything else it could reach. That happens whenever the corpus is
+        # being written to (an rsync temp file is the usual one), and it is a partial listing, not
+        # a failed one. A real failure -- bad root, refused connection, permission denied -- yields
+        # no usable rows, so require some before treating a non-zero exit as survivable.
         if r.returncode != 0:
-            raise SourceError(f"remote listing failed (exit {r.returncode}): {r.stderr.strip()[:300]}")
-        return self.parse_listing(r.stdout)
+            if not entries:
+                raise SourceError(f"remote listing failed (exit {r.returncode}): {r.stderr.strip()[:300]}")
+            self.listing_warning = (f"partial listing: find exited {r.returncode} and some entries "
+                                    f"were skipped: {r.stderr.strip()[:200]}")
+        else:
+            self.listing_warning = None
+        return entries
 
     def fetch(self, rec_rel: str) -> Path:
         dest = self.cache / rec_rel
