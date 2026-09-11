@@ -298,31 +298,42 @@ def ep_rundetail(q, _b):
     snap = re.compile(r"^\d{6}\.zst$")
 
     def _fetched(rid):
+        """(snapshot files, snapshot bytes, trajectory bytes incl. an in-flight rsync temp)"""
         if cache is None:
-            return None, None
+            return None, None, None
         d = cache / rid
         if not d.is_dir():
-            return 0, 0
-        n = b = 0
+            return 0, 0, 0
+        n = b = t = 0
         try:
             for f in d.iterdir():
-                if f.is_file() and snap.match(f.name):
+                if not f.is_file():
+                    continue
+                if snap.match(f.name):
                     n += 1
                     b += f.stat().st_size
+                elif "substrate_trajectory" in f.name:      # done, or rsync's dotted temp file
+                    t += f.stat().st_size
         except OSError:
             pass
-        return n, b
+        return n, b, t
+
+    # size of the trajectory on the archive side, recorded by the scan: what a fast-path fetch pulls
+    traj_bytes = {r["id"]: (r.get("has") or {}).get("substrate_csv_bytes")
+                  for r in (man.get("recordings") or []) if (r.get("has") or {}).get("substrate_csv")}
 
     cells = []
     for rid in sel:
         r = by_id.get(rid) or {}
-        fn, fb = _fetched(rid)
+        fn, fb, ft = _fetched(rid)
         cells.append({"id": rid, "workload": r.get("workload"), "family": r.get("family"),
                       "rep": r.get("rep"), "run_label": r.get("run_label"),
                       "variant": (r.get("variant") or {}).get("raw"),
                       "n_pairs": r.get("n_pairs"), "bytes": r.get("bytes"),
                       "n_snapshots": r.get("n_snapshots"),
-                      "fetched_files": fn, "fetched_bytes": fb})
+                      "fetched_files": fn, "fetched_bytes": fb,
+                      "has_trajectory": rid in traj_bytes, "trajectory_bytes": traj_bytes.get(rid),
+                      "fetched_trajectory_bytes": ft})
 
     # speed is an executor argv, not a status field; the run log states it on its first line
     speed = None

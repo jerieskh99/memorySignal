@@ -115,6 +115,7 @@ def test_substrate_in_chain_is_seen_from_the_listing():
         r = next(x for x in m["recordings"] if x["id"] == rec["id"])
         assert r["has"]["substrate_csv"] and r["has"]["substrate_join"] == "in-chain"
         assert r["has"]["substrate_csv_paths"] == [rec["id"] + "/run_matrix_test2_x.npy.substrate_trajectory.csv.zst"]
+        assert r["has"]["substrate_csv_bytes"] == 1               # its size, so a fetch of it can be measured
         assert r["n_snapshots"] == rec["n_snapshots"] and r["bytes"] == rec["bytes"]   # not counted as a snapshot
         assert m["n_with_substrate_csv"] == m0["n_with_substrate_csv"] + 1
 

@@ -137,6 +137,7 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
         snaps: list[int] = []
         nbytes, base_bytes = 0, None
         inchain: list[str] = []      # a substrate trajectory the capture left beside its chain
+        inchain_bytes = 0
         for name, size in children.get(d, []):
             if _RE_PARTIAL.match(name):
                 partials.append(f"{d}/{name}")
@@ -149,6 +150,7 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
                     base_bytes = size
             elif _RE_SUBSTRATE.search(name):
                 inchain.append(f"{d}/{name}")
+                inchain_bytes += size
         snaps.sort()
         n = len(snaps)
         contiguous = snaps == list(range(n))
@@ -180,6 +182,7 @@ def scan_listing(entries: list[Entry], root_label: str, metrics: dict | None = N
                 "substrate_csv": bool(substrate),
                 "substrate_csv_paths": substrate,
                 "substrate_join": join,
+                "substrate_csv_bytes": inchain_bytes if inchain else None,
             },
             "speed": None,
             "speed_source": "unrecorded: not in the chain tree nor in runs/<label>.json; "

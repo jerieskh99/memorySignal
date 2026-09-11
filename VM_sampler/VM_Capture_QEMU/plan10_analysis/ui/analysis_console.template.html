@@ -997,20 +997,31 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
        moves `pair`. Size the fetch cache against the archive's byte count so the half actually
        running is the one on screen. */
     const cell = ((d && d.cells) || []).find(c => c.id === s.recording);
-    const fb = cell && cell.fetched_bytes, tb = cell && cell.bytes;
-    const fetching = s.phase === "extract" && fb != null && tb ? fb < tb : false;
-    const fpct = (fb != null && tb) ? Math.min(100, Math.round(100 * fb / tb)) : null;
+    /* Two things can be fetched. With a trajectory the executor pulls that one file and never
+       the chain, so the bar must size against it -- measured against the chain it would sit at
+       0% for a 500 MB download and then jump. The chain is the denominator only when snapshots
+       are actually arriving (no trajectory, or the fallback re-diff). */
+    const viaTraj = !!(cell && cell.has_trajectory && !(cell.fetched_files > 0));
+    const fb = cell && (viaTraj ? cell.fetched_trajectory_bytes : cell.fetched_bytes);
+    const tb = cell && (viaTraj ? cell.trajectory_bytes : cell.bytes);
+    const known = fb != null && tb != null && tb > 0;
+    const fetching = s.phase === "extract" && cell && (known ? fb < tb : (s.pair || 0) === 0);
+    const fpct = known ? Math.min(100, Math.round(100 * fb / tb)) : null;
     $("mon-fetch-fill").className = "fetch";
-    $("mon-fetch-fill").style.width = (fpct == null ? 0 : fpct) + "%";
-    $("mon-fetch-lab").innerHTML = fpct == null
+    $("mon-fetch-fill").style.width = (fpct == null ? (fetching ? 0 : 100) : fpct) + "%";
+    const what = viaTraj ? "trajectory CSV (one file; the chain stays on the archive)" : "chain";
+    $("mon-fetch-lab").innerHTML = !cell
       ? `<b>fetch</b><span>${esc(d && d.source && d.source.kind === "ssh" ? "waiting" : "local source, no fetch")}</span>`
-      : `<b>fetch</b><span>${esc(fmtBytes(fb))} of ${esc(fmtBytes(tb))} &mdash; ${cell.fetched_files || 0}/${cell.n_snapshots || "?"} files ${fpct}%${fetching ? " (running)" : " (complete)"}</span>`;
-    $("mon-diff-lab").innerHTML = `<b>differ</b><span>${s.n_pairs ? `${s.pair || 0} of ${s.n_pairs} pairs ${pct}%` : "-"}${fetching ? " (waits for the fetch)" : ""}</span>`;
+      : fpct == null
+        ? `<b>fetch</b><span>${esc(what)}: ${esc(fmtBytes(fb || 0))} so far${viaTraj ? " (size unknown until listed)" : ""}${fetching ? " (running)" : " (complete)"}</span>`
+        : `<b>fetch</b><span>${esc(what)}: ${esc(fmtBytes(fb))} of ${esc(fmtBytes(tb))}${viaTraj ? "" : ` &mdash; ${cell.fetched_files || 0}/${cell.n_snapshots || "?"} files`} ${fpct}%${fetching ? " (running)" : " (complete)"}</span>`;
+    const readLab = viaTraj ? "read" : "differ";
+    $("mon-diff-lab").innerHTML = `<b>${readLab}</b><span>${s.n_pairs ? `${s.pair || 0} of ${s.n_pairs} pairs ${pct}%` : "-"}${fetching ? " (waits for the fetch)" : ""}${viaTraj && !fetching ? " (from the trajectory, no re-diff)" : ""}</span>`;
     $("mon-where").innerHTML = s.recording
       ? `recording <b>${s.recording_index}</b> of <b>${s.n_recordings}</b> &mdash; phase <b>${esc(s.phase || "")}</b>`
       : `<span class="mon-empty">${esc(s.phase || s.state || "")}</span>`;
     $("mon-fill").style.width = pct + "%";
-    $("mon-progress").textContent = `elapsed ${fmtEl(s.started_at)}` + (fetching ? "  \u2014 fetching the chain; the differ has not started" : "");
+    $("mon-progress").textContent = `elapsed ${fmtEl(s.started_at)}` + (fetching ? (viaTraj ? "  \u2014 fetching the trajectory; reading has not started" : "  \u2014 fetching the chain; the differ has not started") : "");
     $("mon-trace").innerHTML = s.recording
       ? `<b>${esc(cur.wl)}</b><br>${esc(cur.variant)}<br>${esc(cur.rep)}`
       : "";
@@ -1026,9 +1037,11 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
         const mark = isDone ? "✓ done" : isNow ? "▸ now" : "· queued";
         const t = shortTrace(c.id);
         const np = isDone && done[c.id].n_pairs != null ? done[c.id].n_pairs : (c.n_pairs != null ? c.n_pairs : "");
-        const got = c.fetched_bytes, tot = c.bytes;
-        const fetched = (got != null && tot) ? `${Math.min(100, Math.round(100*got/tot))}%` : "";
-        return `<tr><td class="st ${cls}">${mark}</td><td>${esc(c.workload || t.wl)}</td><td class="mono">${esc((c.variant || t.variant || "").slice(0,42))}</td><td>${esc(String(np))}</td><td>${esc(fmtBytes(c.bytes))}${fetched ? ` <span class="subnote">${fetched} local</span>` : ""}</td></tr>`;
+        const tj = c.has_trajectory && !(c.fetched_files > 0);
+        const got = tj ? c.fetched_trajectory_bytes : c.fetched_bytes, tot = tj ? c.trajectory_bytes : c.bytes;
+        const fetched = (got != null && tot) ? `${Math.min(100, Math.round(100*got/tot))}% local` : (got ? `${fmtBytes(got)} local` : "");
+        const size = tj ? (tot ? fmtBytes(tot) + " csv" : "csv") : fmtBytes(c.bytes);
+        return `<tr><td class="st ${cls}">${mark}</td><td>${esc(c.workload || t.wl)}</td><td class="mono">${esc((c.variant || t.variant || "").slice(0,42))}</td><td>${esc(String(np))}</td><td>${esc(size)}${fetched ? ` <span class="subnote">${esc(fetched)}</span>` : ""}</td></tr>`;
       }).join("") || `<tr><td colspan="5" class="mon-empty">no traces reported yet</td></tr>`) + "</tbody>";
 
     $("mon-counts").innerHTML =
