@@ -585,6 +585,37 @@ def test_b1_example_end_to_end_and_apf_equals_fixture():
         assert (out / "features.csv").read_text().splitlines()[0].startswith("recording,workload,family,block,t_index,seq_start,mean")
 
 
+def test_rerun_reuses_every_store_and_still_marks_every_recording():
+    """A run whose recordings are all in the L1 store skips fetch and differ. It must still
+    record each recording in per_recording (the Monitor's rows read it; the first such run on
+    the real corpus finished DONE with every trace shown as queued) and clear the last
+    recording's pair counter from the final status."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        s = _example(manifest, "b1")
+        next(n for n in s["nodes"] if n["module"] == "window")["params"].update(w=4, h=2)
+        sp = td / "b1.json"
+        sp.write_text(json.dumps(s))
+        src = {"kind": "local", "root": str(root)}
+        assert executor.run(sp, td / "out1", src, td / "l1", speed=2, manifest_path=mp) == 0
+        first = json.loads((td / "out1" / s["label"] / "status.json").read_text())
+        assert len(first["per_recording"]) == 3 and all("where" not in r for r in first["per_recording"].values())
+        assert executor.run(sp, td / "out2", src, td / "l1", speed=2, manifest_path=mp) == 0
+        out = td / "out2" / s["label"]
+        log = (out / "run.log").read_text()
+        assert log.count("L1 store reused") == 3 and "extracting" not in log
+        st = json.loads((out / "status.json").read_text())
+        assert st["state"] == "done" and st["recording"] is None and st["n_pairs"] == 0
+        assert len(st["per_recording"]) == 3
+        assert all(r["where"] == "reused" and r["n_pairs"] == 9 for r in st["per_recording"].values())
+        a = np.load(td / "out1" / s["label"] / "features.npz")["X"]
+        b = np.load(out / "features.npz")["X"]
+        assert np.array_equal(a, b)
+
+
 def test_complex_and_plv_examples_end_to_end():
     if not _have_tools():
         return

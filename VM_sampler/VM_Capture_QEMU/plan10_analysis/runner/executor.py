@@ -238,6 +238,10 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
         if hit:
             stores[rid] = hit
             st.logline(f"[{i}/{len(rec_ids)}] {rid}: L1 store reused")
+            # record it like every other branch: the Monitor's rows read per_recording, and a
+            # run that reuses everything otherwise finishes with every trace still "queued"
+            st.d["per_recording"][rid] = {"extracted": True, "where": "reused",
+                                          "n_pairs": extract.load(hit)["n_pairs"]}
             continue
         if getattr(src, "mode", None) == "remote":
             # the chain never crosses the network: the differ runs on the server and only
@@ -352,7 +356,8 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
                              _extraction_provenance(stores, st), st)
         else:
             raise ValueError(f"cross-recording node of kind {mod} not handled")
-    st.write(state="done", phase="done", message=f"{written['n_rows']} rows, {written['n_features']} features in {time.time() - t0:.1f}s" if written else "no Write module reached")
+    st.write(state="done", phase="done", recording=None, pair=0, n_pairs=0,
+             message=f"{written['n_rows']} rows, {written['n_features']} features in {time.time() - t0:.1f}s" if written else "no Write module reached")
     st.logline(st.d["message"])
     return 0
 
