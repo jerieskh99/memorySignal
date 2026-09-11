@@ -965,7 +965,7 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
   }
   /* ===== Monitor ===== */
   const mon = $("mon"), monApp = document.querySelector(".app") || document.body;
-  let monLabel = null, monTimer = null, monDetail = null, monPinned = false;
+  let monLabel = null, monTimer = null, monDetail = null, monPinned = false, monCache = null;
 
   const fmtBytes = n => n == null ? "-" : n >= 1e9 ? (n/1073741824).toFixed(2)+" GB" : n >= 1e6 ? (n/1048576).toFixed(1)+" MB" : n >= 1e3 ? (n/1024).toFixed(0)+" KB" : n+" B";
   const fmtEl = iso => { if (!iso) return "-"; const s = Math.max(0, (Date.now() - new Date(iso).getTime())/1000);
@@ -1053,20 +1053,18 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       `<dt>started</dt><dd>${esc(s.started_at || "-")}</dd>` +
       `<dt>updated</dt><dd>${esc(s.updated_at || "-")}</dd>`;
 
-    /* what the local fetch cache is holding for recordings already extracted: droppable, since
-       the archive copy is authoritative and the fetch never wrote back to it. */
-    const doneIds = Object.keys(done);
-    const cached = ((d && d.cells) || []).filter(c => doneIds.includes(c.id) && (c.fetched_bytes || 0) > 0
-                                                  && !(s.state === "running" && c.id === s.recording));
-    const reclaim = cached.reduce((a, c) => a + (c.fetched_bytes || 0), 0);
+    /* what the whole fetch cache holds that could be reclaimed: any recording with a complete
+       L1 store and no run on it, whichever run fetched it. Sized by /cache/status each tick. */
+    const cs = monCache || {items: [], n_droppable: 0, droppable_bytes: 0, cached_bytes: 0};
     const dropBtn = $("mon-drop");
     if (dropBtn) {
-      dropBtn.disabled = !cached.length;
-      dropBtn.textContent = cached.length ? `Drop ${cached.length} fetched chain${cached.length > 1 ? "s" : ""} (${fmtBytes(reclaim)})` : "Drop fetched chains";
+      dropBtn.disabled = !cs.n_droppable;
+      dropBtn.textContent = cs.n_droppable ? `Drop ${cs.n_droppable} fetched chain${cs.n_droppable > 1 ? "s" : ""} (${fmtBytes(cs.droppable_bytes)})` : "Drop fetched chains";
       if (!$("mon-drop-note").dataset.sticky)
-        $("mon-drop-note").textContent = cached.length
-          ? "verifies each against the archive, then deletes the local copy"
-          : (d && d.source && d.source.kind === "ssh" ? "nothing extracted and idle yet" : "local source: nothing is cached");
+        $("mon-drop-note").textContent = cs.n_droppable
+          ? `cache holds ${fmtBytes(cs.cached_bytes)} in ${cs.items.length} recording(s); verifies each against the archive, then deletes the snapshots`
+          : cs.items.length ? `cache holds ${fmtBytes(cs.cached_bytes)} in ${cs.items.length} recording(s): trajectories only, nothing to reclaim`
+          : (d && d.source && d.source.kind === "ssh" ? "fetch cache is empty" : "local source: nothing is cached");
     }
 
     const files = (d && d.files) || [];
@@ -1087,6 +1085,7 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       const s = await api("/status?label=" + encodeURIComponent(monLabel) + "&lines=200");
       try { monDetail = await api("/rundetail?label=" + encodeURIComponent(monLabel)); }
       catch (e) { if (!monDetail || monDetail.label !== monLabel) monDetail = null; }
+      try { monCache = await api("/cache/status?label=" + encodeURIComponent(monLabel)); } catch (e) { monCache = null; }
       if (monDetail) monRenderDetail(monDetail);
       monRender(s, monDetail);
     } catch (e) { $("mon-phase").textContent = "status: " + e.message; }
@@ -1117,10 +1116,12 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     b.disabled = true; note.dataset.sticky = "1"; note.textContent = "verifying against the archive...";
     try {
       const r = await api("/cache/drop", {label: monLabel});
-      const kept = (r.results || []).filter(x => x.action === "kept");
+      const dropped = (r.results || []).filter(x => x.action === "dropped");
+      const kept = (r.results || []).filter(x => x.action === "kept" && !/trajectory only/.test(x.why));
       note.textContent = `dropped ${r.n_dropped} (${fmtBytes(r.freed_bytes)})` +
+        (dropped.length ? ` \u2014 ${dropped.map(x => (x.recording.match(/seed_[0-9]+/) || [x.recording.split("/").pop()])[0] + ": " + x.verified).join("; ")}` : "") +
         (kept.length ? `; kept ${kept.length}: ${kept.map(k => k.why).join("; ")}` : "");
-      monDetail = null;
+      monDetail = null; monCache = null;
     } catch (e) { note.textContent = "drop failed: " + e.message; }
     setTimeout(() => { delete note.dataset.sticky; }, 8000);
   };

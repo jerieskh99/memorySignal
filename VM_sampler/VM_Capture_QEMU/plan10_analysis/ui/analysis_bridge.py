@@ -48,7 +48,7 @@ QEMU_DIR = PKG.parent
 sys.path.insert(0, str(QEMU_DIR))
 
 from plan10_analysis import channel_roster, corpus_manifest, scheme as S   # noqa: E402
-from plan10_analysis.runner import trajectory                              # noqa: E402
+from plan10_analysis.runner import trajectory, extract                     # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
 
@@ -373,51 +373,97 @@ def ep_control(_q, body):
     return {"ok": True, "label": label, "command": cmd}
 
 
+_SNAP_RE = re.compile(r"^\d{6}\.zst$")
+
+
+def _cache_scan(label: str = ""):
+    """Every recording in the fetch cache, with what would make it droppable.
+
+    Droppable = snapshots present, a COMPLETE L1 store for it (any run: a relaunch with force
+    forgets what its first attempt extracted, and the chain is no less finished for that), and
+    no running run on it. Whether the ARCHIVE still holds it is a separate, ssh question that
+    only the drop itself asks.
+    """
+    src_spec = ST.source
+    if label and (ST.out_dir / label / "source.json").is_file():
+        try:
+            src_spec = json.loads((ST.out_dir / label / "source.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            pass
+    if (src_spec or {}).get("kind") != "ssh" or not src_spec.get("cache"):
+        return src_spec, None, []
+    cache = Path(os.path.expanduser(str(src_spec["cache"])))
+    if not cache.is_dir():
+        return src_spec, cache, []
+    active: set[str] = set()
+    if ST.out_dir.is_dir():
+        for rd in ST.out_dir.iterdir():
+            f = rd / "status.json"
+            if f.is_file():
+                try:
+                    st = json.loads(f.read_text())
+                    if st.get("state") in ("starting", "running") and st.get("recording"):
+                        active.add(st["recording"])
+                except (OSError, json.JSONDecodeError):
+                    pass
+    extracted: set[str] = set()
+    for meta in extract.store_dir(ST.store).glob("*.meta.json"):
+        try:
+            m = json.loads(meta.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if m.get("complete") and m.get("rec_id"):
+            extracted.add(m["rec_id"])
+    out = []
+    for d in sorted(p for p in cache.rglob("rep0*__*") if p.is_dir()):
+        rid = str(d.relative_to(cache))
+        n = b = t = 0
+        for f in d.iterdir():
+            if not f.is_file():
+                continue
+            if _SNAP_RE.match(f.name):
+                n += 1
+                b += f.stat().st_size
+            elif "substrate_trajectory" in f.name:
+                t += f.stat().st_size
+        why = (None if (n and rid in extracted and rid not in active)
+               else "trajectory only; a re-run re-fetches it" if not n
+               else "a running run is on this recording" if rid in active
+               else "no complete L1 store for it; dropping would force a re-fetch")
+        out.append({"recording": rid, "snapshots": n, "bytes": b, "trajectory_bytes": t,
+                    "extracted": rid in extracted, "active": rid in active,
+                    "droppable": why is None, "why": why})
+    return src_spec, cache, out
+
+
+def ep_cache_status(q, _b):
+    """What the local fetch cache holds and what could be reclaimed; no ssh, no deletion."""
+    label = (q.get("label") or [""])[0]
+    _, cache, items = _cache_scan(label)
+    drop = [i for i in items if i["droppable"]]
+    return {"cache": str(cache) if cache else None, "items": items,
+            "n_droppable": len(drop), "droppable_bytes": sum(i["bytes"] for i in drop),
+            "cached_bytes": sum(i["bytes"] + i["trajectory_bytes"] for i in items)}
+
+
 def ep_cache_drop(_q, body):
     """Delete fetched chains from the local cache, but only where the archive still holds them.
 
     An ssh fetch is a read-only copy: the archive is authoritative and nothing here writes back
     to it, so "returning" a chain is meaningless -- the only safe question is whether the archive
-    copy is still intact. Each candidate is re-stat'ed on the server (not trusted from the scan,
-    which may be hours old) and dropped only when the remote snapshot count and byte total match
-    the local ones exactly. A recording still being fetched or extracted is never a candidate.
+    copy is still intact. Each droppable candidate (see _cache_scan) is re-stat'ed on the server,
+    not trusted from the scan, and its snapshots are deleted only when the remote count and byte
+    total match the local ones exactly. The trajectory CSV beside them stays.
     """
     label = str(body.get("label") or "")
-    run_dir = ST.out_dir / label
-    if not label or not run_dir.is_dir():
-        return {"error": "unknown run"}, 404
-    try:
-        src_spec = json.loads((run_dir / "source.json").read_text())
-    except (OSError, json.JSONDecodeError):
-        return {"error": "run has no source.json"}, 400
-    if src_spec.get("kind") != "ssh" or not src_spec.get("cache"):
-        return {"error": "not an ssh fetch run; nothing was cached locally"}, 400
-    try:
-        status = json.loads((run_dir / "status.json").read_text())
-    except (OSError, json.JSONDecodeError):
-        status = {}
-
-    cache = Path(os.path.expanduser(str(src_spec["cache"])))
-    snap = re.compile(r"^\d{6}\.zst$")
-    per_rec = status.get("per_recording") or {}
-    current = status.get("recording")
     only = body.get("recording")
-
+    src_spec, cache, items = _cache_scan(label)
+    if cache is None:
+        return {"error": "not an ssh fetch source; nothing is cached locally"}, 400
     try:
         src = make_source(src_spec)
     except SourceError as e:
         return {"error": str(e)}, 400
-
-    def local_stats(rid):
-        d = cache / rid
-        if not d.is_dir():
-            return None
-        n = b = 0
-        for f in d.iterdir():
-            if f.is_file() and snap.match(f.name):
-                n += 1
-                b += f.stat().st_size
-        return n, b
 
     def remote_stats(rid):
         cmd = (f"cd {shlex.quote(src.remote_root + '/' + rid)} 2>/dev/null && "
@@ -430,36 +476,27 @@ def ep_cache_drop(_q, body):
         return int(parts[0]), int(parts[1])
 
     results, freed = [], 0
-    for rid in sorted(per_rec.keys()):
+    for it in items:
+        rid = it["recording"]
         if only and rid != only:
             continue
-        if rid == current and status.get("state") == "running":
-            results.append({"recording": rid, "action": "kept", "why": "still the active recording"})
-            continue
-        if not (per_rec.get(rid) or {}).get("extracted"):
-            results.append({"recording": rid, "action": "kept", "why": "not extracted yet"})
-            continue
-        loc = local_stats(rid)
-        if loc is None:
-            results.append({"recording": rid, "action": "absent", "why": "nothing cached locally"})
+        if not it["droppable"]:
+            results.append({"recording": rid, "action": "kept", "why": it["why"]})
             continue
         rem = remote_stats(rid)
         if rem is None:
             results.append({"recording": rid, "action": "kept", "why": "could not read the archive copy"})
             continue
-        if rem != loc:
+        if rem != (it["snapshots"], it["bytes"]):
             results.append({"recording": rid, "action": "kept",
-                            "why": f"archive {rem[0]} files/{rem[1]} B vs local {loc[0]}/{loc[1]}"})
+                            "why": f"archive {rem[0]} files/{rem[1]} B vs local {it['snapshots']}/{it['bytes']}"})
             continue
-        shutil.rmtree(cache / rid, ignore_errors=True)
-        freed += loc[1]
-        results.append({"recording": rid, "action": "dropped", "files": loc[0], "bytes": loc[1]})
-
-    for parent in sorted({(cache / r["recording"]).parent for r in results if r["action"] == "dropped"}, reverse=True):
-        pp = parent
-        while pp != cache and pp.is_dir() and not any(pp.iterdir()):
-            pp.rmdir()
-            pp = pp.parent
+        for f in (cache / rid).iterdir():
+            if f.is_file() and _SNAP_RE.match(f.name):
+                f.unlink()
+        freed += it["bytes"]
+        results.append({"recording": rid, "action": "dropped", "files": it["snapshots"], "bytes": it["bytes"],
+                        "verified": f"archive {rem[0]} files/{rem[1]} B == local"})
     return {"label": label, "results": results, "freed_bytes": freed,
             "n_dropped": sum(1 for r in results if r["action"] == "dropped")}
 
@@ -490,7 +527,8 @@ def ep_results(q, _b):
 
 
 ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
-               "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns}
+               "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,
+               "/cache/status": ep_cache_status}
 ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
                 "/cache/drop": ep_cache_drop}
 

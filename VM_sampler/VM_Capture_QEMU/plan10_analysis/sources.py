@@ -31,6 +31,7 @@ DEFAULT_CACHE = "~/.cache/plan10/chains"
 # where the capture console already puts the repo on the server (plan07_campaign/ui/console.sh)
 DEFAULT_REMOTE_REPO = "$HOME/memorySignal/VM_sampler/VM_Capture_QEMU"
 DEFAULT_REMOTE_STORE = "~/.cache/plan10/l1"
+LISTING_TIMEOUT_S = int(os.environ.get("PLAN10_LISTING_TIMEOUT", "1200"))   # a full ssh listing of the archive
 _RE_SNAP = re.compile(r"^\d{6}\.zst$")
 
 
@@ -280,7 +281,11 @@ class SshSource:
         return out
 
     def listing(self) -> list[Entry]:
-        r = subprocess.run(self.ssh_argv(self.listing_cmd()), capture_output=True, text=True, timeout=300)
+        # One stat per entry over NFS: ~90k on the real corpus, 2-3 min on a quiet server and
+        # well past 5 under capture load (the consumer saturates the same disks). Time out at
+        # the cap rather than pretend a slow archive is a missing one.
+        r = subprocess.run(self.ssh_argv(self.listing_cmd()), capture_output=True, text=True,
+                           timeout=LISTING_TIMEOUT_S)
         entries = self.parse_listing(r.stdout)
         # find exits 1 for a per-entry error -- a file that vanished between readdir and stat --
         # while still listing everything else it could reach. That happens whenever the corpus is
