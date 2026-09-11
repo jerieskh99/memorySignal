@@ -255,6 +255,58 @@ html.mon-open{overflow:hidden}
 .mon-empty{color:var(--ink-3); font-size:12px; padding:6px 0}
 @media (max-width:1000px){.mon-body{grid-template-columns:1fr}}
 
+/* Explore: what a run produced, and runs side by side. Numbers come from the bridge (results_view.py). */
+.xp{display:none; position:fixed; inset:0; z-index:61; background:var(--bg); flex-direction:column; overflow:hidden}
+.mon-top select{background:var(--sunk); color:var(--ink); border:1px solid var(--line-2); border-radius:8px; padding:6px 9px; font-size:12.5px; max-width:340px}
+html.xp-open .xp{display:flex}
+html.xp-open{overflow:hidden}
+.xp-body{flex:1; min-height:0; display:grid; grid-template-columns:232px minmax(0,1fr) 250px; gap:12px; padding:12px 16px; overflow:auto}
+.xp-body.has-cmp{grid-template-columns:232px minmax(0,1fr) minmax(0,1fr)}
+.xp-side{display:flex; flex-direction:column; gap:12px; min-width:0}
+.xp-list{display:flex; flex-direction:column; gap:2px; max-height:230px; overflow:auto}
+.xp-list button{text-align:left; border:1px solid transparent; background:none; color:var(--ink-2); border-radius:6px; padding:3px 7px; font-size:11.5px; font-family:"IBM Plex Mono",monospace; display:flex; justify-content:space-between; gap:8px; align-items:baseline}
+.xp-list button:hover{border-color:var(--line-2)}
+.xp-list button.on{border-color:var(--accent); background:var(--accent-soft); color:var(--accent)}
+.xp-list button:disabled{opacity:.45; cursor:default}
+.xp-list button .n{color:var(--ink-3); font-size:10.5px; white-space:nowrap}
+.xp-pane{display:flex; flex-direction:column; min-width:0}
+.xp-pane>.mon-card{flex:1; display:flex; flex-direction:column}
+.xp-ctl{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:flex-end; margin-bottom:8px}
+.xp-ctl .field{flex:0 0 auto; min-width:84px}
+.xp-ctl .field+.field{margin-top:0}
+.xp-ctl select.f{padding:5px 8px; font-size:12px}
+.xp-plot{position:relative; min-height:120px}
+.xp-svg{display:block; font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2)}
+.xp-svg text{fill:currentColor}
+.xp-svg text.dim{fill:var(--ink-3)}
+.xp-svg text.lab{fill:var(--ink-3); font-size:10px; letter-spacing:.04em}
+.xp-svg .grid{stroke:var(--grid)} .xp-svg .axis{stroke:var(--line-2)}
+.xp-svg .guide{stroke:var(--ink-3); stroke-dasharray:3 3}
+.xp-cap{font-size:11px; color:var(--ink-3); line-height:1.5; margin:6px 0 8px}
+.xp-cap b{color:var(--ink-2); font-weight:600} .xp-cap .dim{color:var(--ink-3)}
+.xp-legend{display:flex; flex-wrap:wrap; gap:3px 12px; font-size:11px; color:var(--ink-2); margin:4px 0 2px}
+.xp-legend span{display:inline-flex; align-items:center; gap:5px; cursor:default}
+.xp-legend i{display:inline-block; width:10px; height:10px; border-radius:2px; flex:none}
+.xp-legend em{font-style:normal; color:var(--ink-3)}
+.xp-tip{position:fixed; z-index:70; pointer-events:none; background:var(--panel); border:1px solid var(--line-2); border-radius:8px; padding:6px 9px; font-size:11px; color:var(--ink); box-shadow:var(--shadow); max-width:380px; font-family:"IBM Plex Mono",monospace; line-height:1.5; display:none}
+.xp-tip i{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px}
+.xp-tip em{font-style:normal; color:var(--ink-3)}
+.xp-tip b{font-weight:600}
+.xp-chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; min-height:22px}
+.xp-chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line-2); border-radius:999px; padding:2px 6px 2px 8px; font-size:11px; font-family:"IBM Plex Mono",monospace; color:var(--ink-2)}
+.xp-chip i{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none}
+.xp-chip em{font-style:normal; color:var(--ink-3)}
+.xp-chip button{border:none; background:none; color:var(--ink-3); font-size:13px; padding:0 2px; line-height:1}
+.xp-chip button:hover{color:var(--bad)}
+.xp-foot{display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap}
+.xp-foot .bigbtn{padding:5px 10px; font-size:11.5px}
+.xp-empty{color:var(--ink-3); font-size:12px; padding:22px 8px; text-align:center; line-height:1.5}
+.xp-pane .tblwrap{max-height:280px}
+.xp-pane .tbl td.num{text-align:right; white-space:nowrap}
+.xp-pane .tbl td:first-child{white-space:nowrap}
+.xp-side .mon-kv{font-size:11.5px}
+@media (max-width:1180px){.xp-body,.xp-body.has-cmp{grid-template-columns:232px minmax(0,1fr)} .xp-cmp{grid-column:1 / -1}}
+
 /* channel availability in the capture's own trajectory */
 .col.traj-all{box-shadow:inset 0 0 0 2px var(--ok)}
 .col.traj-some{box-shadow:inset 0 0 0 2px var(--warn)}
@@ -308,7 +360,7 @@ html.mon-open{overflow:hidden}
           <select class="f" id="src-mode"><option value="fetch">fetch: pull chains here</option><option value="remote">remote: run on the server</option></select></div>
         <div class="field src-ssh src-remote" style="flex:3"><label class="fl">repo on the server</label><input type="text" id="src-repo" class="mono" spellcheck="false"></div>
         <div class="field src-ssh src-remote" style="flex:2"><label class="fl">L1 store on the server</label><input type="text" id="src-rstore" class="mono" spellcheck="false"></div>
-        <div class="field" style="flex:0 0 auto"><button class="bigbtn ghost" id="src-test">Test</button> <button class="bigbtn" id="src-scan">Scan</button></div>
+        <div class="field" style="flex:0 0 auto"><button class="bigbtn ghost" id="src-test">Test</button> <button class="bigbtn" id="src-reload" title="read the archive's manifest: what its writers have registered (instant)">Reload</button> <button class="bigbtn" id="src-scan" title="walk the whole archive and rewrite its manifest from what is there (minutes); the Cells list is then exactly the archive">Scan</button></div>
       </div>
       <div class="subnote" id="src-msg">Recordings are read where they live; an ssh source is fetched one recording at a time into a local cache before extraction.</div>
     </div>
@@ -323,7 +375,7 @@ html.mon-open{overflow:hidden}
     </div>
     <div class="tab" id="tab-results" hidden>
       <div class="row"><div class="field" style="flex:0 0 260px"><label class="fl">runs</label><div class="runlist" id="runs-list"></div></div>
-      <div class="field" style="flex:1;min-width:0"><label class="fl" id="res-title">result</label><div class="tblwrap" style="max-height:170px"><table class="tbl" id="res-table"></table></div><div class="subnote" id="res-side"></div></div></div>
+      <div class="field" style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><label class="fl" id="res-title" style="margin:0">result</label><button class="bigbtn ghost" id="res-explore" style="padding:3px 9px;font-size:11px" title="plots and tables of this run">Explore</button></div><div class="tblwrap" style="max-height:170px"><table class="tbl" id="res-table"></table></div><div class="subnote" id="res-side"></div></div></div>
     </div>
   </section>
   <section class="mon" id="mon" aria-label="run monitor">
@@ -378,6 +430,44 @@ html.mon-open{overflow:hidden}
       </div>
     </div>
   </section>
+  <section class="xp" id="xp" aria-label="explore results">
+    <div class="mon-top">
+      <h2>Explore</h2>
+      <select id="xp-pick" aria-label="which run"></select>
+      <span class="subnote" id="xp-facts" style="margin:0"></span>
+      <span class="sp"></span>
+      <button class="bigbtn ghost" id="xp-add">Add to comparison</button>
+      <button class="bigbtn" id="xp-close">Close</button>
+    </div>
+    <div class="xp-body" id="xp-body">
+      <aside class="xp-side">
+        <div class="mon-card"><h3>metrics in this run</h3><div class="xp-list" id="xp-feats"></div></div>
+        <div class="mon-card"><h3>keys</h3><div class="xp-list" id="xp-keys"></div></div>
+        <div class="mon-card"><h3>this run</h3><dl class="mon-kv" id="xp-run"></dl></div>
+      </aside>
+      <div class="xp-pane" id="xp-single">
+        <div class="mon-card">
+          <h3 id="xp-title">one run</h3>
+          <div class="xp-ctl" id="xp-ctl"></div>
+          <div class="xp-plot" id="xp-plot"></div>
+          <div class="xp-cap" id="xp-cap"></div>
+          <div class="tblwrap"><table class="tbl" id="xp-table"></table></div>
+          <div class="xp-foot"><button class="bigbtn ghost" id="xp-csv-copy">Copy table as CSV</button><button class="bigbtn ghost" id="xp-csv-dl">Download CSV</button><span class="subnote" id="xp-note" style="margin:0"></span></div>
+        </div>
+      </div>
+      <div class="xp-pane xp-cmp" id="xp-cmp">
+        <div class="mon-card">
+          <h3>comparison: runs on one axis</h3>
+          <div class="xp-chips" id="cmp-chips"></div>
+          <div class="xp-ctl" id="cmp-ctl"></div>
+          <div class="xp-plot" id="cmp-plot"></div>
+          <div class="xp-cap" id="cmp-cap"></div>
+          <div class="tblwrap"><table class="tbl" id="cmp-table"></table></div>
+          <div class="xp-foot"><button class="bigbtn ghost" id="cmp-csv-copy">Copy table as CSV</button><button class="bigbtn ghost" id="cmp-csv-dl">Download CSV</button><button class="bigbtn ghost" id="cmp-clear">Clear</button><span class="subnote" id="cmp-note" style="margin:0"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
 <!--@@SERVED_ONLY_END@@-->
   </div>
   <aside class="right"><div class="insp" id="insp"></div><div class="readout" id="readout"></div></aside>
@@ -392,7 +482,7 @@ const MODULES = {"schema":"plan10.modules.v1","types":{"cells":{"label":"cells",
 const CONFIG = {"substrateSpeed":2,"intervalMsec":500,"ramSizeMb":1024,"pageSize":4096,"n_pages_default":262144,"source":"VM_sampler/VM_Capture_QEMU/config_qemu_upc.json"};
 const DEFAULTS = {"remote_repo":"$HOME/memorySignal/VM_sampler/VM_Capture_QEMU","remote_store":"~/.cache/plan10/l1","cache":"~/.cache/plan10/chains","key_hint":"~/.ssh/id_ed25519"};
 const EXAMPLES = {"b1":{"schema":"plan10.scheme.v1","label":"b1_apf_floor","acknowledged":[],"nodes":[{"id":"n1","module":"cells","params":{"sel":["cache/cache_cold_scan_v2/working-set-mb_320_--mode_rmw_--duration_300_--seed_42_--pha_c80d0ada/rep001__sandbox_deepdive_05","cache/cache_hot_loop_v2/buffer-kb_32_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cache/cache_stride_sweep_v2/working-set-mb_320_--stride_4096_--duration_300_--seed_42_--_f751a0d3/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_300_--table-kb_64_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_1861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_2861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_300_--block-kb_4_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_2024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_3024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_1803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_2803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_42_--phase-markers/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_30_5c645d6d/rep001__sandbox_deepdive_05","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_498b701c/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_6ee5cc96/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_e5890f3f/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_300_--backing_d01e4452/rep001__sandbox_deepdive_05","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_719e8e73/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_72a92704/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_c7ce2808/rep001__exp-1","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_1744_--phase-markers_--max-m_ce828a06/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_2744_--phase-markers_--max-m_ad01abc2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_3744_--phase-markers_--max-m_5e2f3e6c/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_42_--phase-markers_--max-mb__1df3b370/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_4744_--phase-markers_--max-m_2146876e/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_5744_--phase-markers_--max-m_f4fbee1a/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_6744_--phase-markers_--max-m_3c2c4ef2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_7744_--phase-markers_--max-m_c25f6c3f/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_171_76b98256/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_271_a6c4f8c1/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_371_1f86bcc7/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_42__ce23d749/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_471_d5507522/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_571_8e1df96b/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_671_63e9dbe0/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_771_179e1f5b/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_1548_--phase-markers_--max-m_72e293c5/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_2548_--phase-markers_--max-m_a14413a8/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_3548_--phase-markers_--max-m_862efd82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_42_--phase-markers_--max-mb__0405982c/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_4548_--phase-markers_--max-m_90ff1013/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_5548_--phase-markers_--max-m_83ad5dfa/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_6548_--phase-markers_--max-m_1a3f5f82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_7548_--phase-markers_--max-m_8b58815f/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_1044_--phase-markers_--max-mb_bd41e128/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_2044_--phase-markers_--max-mb_fb80d031/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_3044_--phase-markers_--max-mb_8d5abf33/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_4044_--phase-markers_--max-mb_fc31f04d/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_42_--phase-markers_--max-mb_5_20ac1e1e/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_5044_--phase-markers_--max-mb_f23b8f3a/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_6044_--phase-markers_--max-mb_13703bfd/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_7044_--phase-markers_--max-mb_09c60402/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_1703_--phase-marke_599e2e36/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_2703_--phase-marke_f7134e57/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_3703_--phase-marke_9341cd8a/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_42_--phase-markers_53945912/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_4703_--phase-marke_c3800832/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_5703_--phase-marke_57048d67/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_6703_--phase-marke_703d8880/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_7703_--phase-marke_38592d57/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_077eba8b/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_1488bb0f/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_18fbaaac/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_9b4148f1/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_be0fe502/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_cb7b404c/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d1b7b6d0/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d474978f/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_08c1285e/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_1f1eb342/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_25dce9cf/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_782b83f7/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_935f6eda/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bcca1816/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bda44d04/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_dafc959b/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_1898_--phase-markers_--max_aabb2682/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_2898_--phase-markers_--max_9b59964c/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_3898_--phase-markers_--max_3a872e30/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_42_--phase-markers_--max-m_e2a0a0b0/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_4898_--phase-markers_--max_654a0822/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_5898_--phase-markers_--max_982e337f/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_6898_--phase-markers_--max_6c39ecc6/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_7898_--phase-markers_--max_08b626ed/rep001__sandbox_deepdive_01c1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_0c18fe56/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_1703d9ff/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_8eecbf6a/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_db1ee788/rep001__sandbox_deepdive_05","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4b530e9e/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4c29afa7/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_61713b71/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_1857__91ad128b/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_2857__6c41c652/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_42_--_1dfeb43e/rep001__exp-1","mem/mem_writemag_sweep_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_4c2b0b42/rep001__sandbox_deepdive_05","sandbox/sandbox_stealth_paced/files_300_--file-size-bytes_4096_--interval-ms_300_--duratio_75c35ac0/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_450_--seed_1517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_2517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_42_--phase-markers/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_300_--seed_42_--phase-marke_874e452a/rep001__sandbox_deepdive_05","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_1298_--phase-mar_b9d05d54/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_2298_--phase-mar_9f229053/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_42_--phase-marke_b11a15a7/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_1480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_2480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_42_--phase-markers/rep001__exp-1"],"min_pairs":50},"x":20,"y":120},{"id":"n2","module":"channels","params":{"chans":["hamming"]},"x":290,"y":120},{"id":"n3","module":"collapse","params":{"reduce":"changed_fraction"},"x":560,"y":120},{"id":"n4","module":"window","params":{"w":8,"h":4},"x":830,"y":120},{"id":"n5","module":"stats","params":{},"x":1100,"y":120},{"id":"n6","module":"write","params":{},"x":1370,"y":120}],"pipes":[{"from":["n1","cells"],"to":["n2","cells"]},{"from":["n2","field"],"to":["n3","in"]},{"from":["n3","out"],"to":["n4","in"]},{"from":["n4","out"],"to":["n5","in"]},{"from":["n5","out"],"to":["n6","in"]}]},"complex":{"schema":"plan10.scheme.v1","label":"complex_pi_spectral","acknowledged":[],"nodes":[{"id":"n1","module":"cells","params":{"sel":["cache/cache_cold_scan_v2/working-set-mb_320_--mode_rmw_--duration_300_--seed_42_--pha_c80d0ada/rep001__sandbox_deepdive_05","cache/cache_hot_loop_v2/buffer-kb_32_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cache/cache_stride_sweep_v2/working-set-mb_320_--stride_4096_--duration_300_--seed_42_--_f751a0d3/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_300_--table-kb_64_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_1861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_2861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_300_--block-kb_4_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_2024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_3024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_1803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_2803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_42_--phase-markers/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_30_5c645d6d/rep001__sandbox_deepdive_05","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_498b701c/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_6ee5cc96/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_e5890f3f/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_300_--backing_d01e4452/rep001__sandbox_deepdive_05","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_719e8e73/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_72a92704/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_c7ce2808/rep001__exp-1","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_1744_--phase-markers_--max-m_ce828a06/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_2744_--phase-markers_--max-m_ad01abc2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_3744_--phase-markers_--max-m_5e2f3e6c/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_42_--phase-markers_--max-mb__1df3b370/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_4744_--phase-markers_--max-m_2146876e/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_5744_--phase-markers_--max-m_f4fbee1a/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_6744_--phase-markers_--max-m_3c2c4ef2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_7744_--phase-markers_--max-m_c25f6c3f/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_171_76b98256/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_271_a6c4f8c1/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_371_1f86bcc7/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_42__ce23d749/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_471_d5507522/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_571_8e1df96b/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_671_63e9dbe0/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_771_179e1f5b/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_1548_--phase-markers_--max-m_72e293c5/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_2548_--phase-markers_--max-m_a14413a8/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_3548_--phase-markers_--max-m_862efd82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_42_--phase-markers_--max-mb__0405982c/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_4548_--phase-markers_--max-m_90ff1013/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_5548_--phase-markers_--max-m_83ad5dfa/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_6548_--phase-markers_--max-m_1a3f5f82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_7548_--phase-markers_--max-m_8b58815f/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_1044_--phase-markers_--max-mb_bd41e128/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_2044_--phase-markers_--max-mb_fb80d031/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_3044_--phase-markers_--max-mb_8d5abf33/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_4044_--phase-markers_--max-mb_fc31f04d/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_42_--phase-markers_--max-mb_5_20ac1e1e/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_5044_--phase-markers_--max-mb_f23b8f3a/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_6044_--phase-markers_--max-mb_13703bfd/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_7044_--phase-markers_--max-mb_09c60402/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_1703_--phase-marke_599e2e36/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_2703_--phase-marke_f7134e57/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_3703_--phase-marke_9341cd8a/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_42_--phase-markers_53945912/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_4703_--phase-marke_c3800832/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_5703_--phase-marke_57048d67/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_6703_--phase-marke_703d8880/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_7703_--phase-marke_38592d57/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_077eba8b/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_1488bb0f/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_18fbaaac/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_9b4148f1/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_be0fe502/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_cb7b404c/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d1b7b6d0/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d474978f/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_08c1285e/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_1f1eb342/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_25dce9cf/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_782b83f7/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_935f6eda/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bcca1816/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bda44d04/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_dafc959b/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_1898_--phase-markers_--max_aabb2682/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_2898_--phase-markers_--max_9b59964c/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_3898_--phase-markers_--max_3a872e30/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_42_--phase-markers_--max-m_e2a0a0b0/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_4898_--phase-markers_--max_654a0822/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_5898_--phase-markers_--max_982e337f/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_6898_--phase-markers_--max_6c39ecc6/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_7898_--phase-markers_--max_08b626ed/rep001__sandbox_deepdive_01c1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_0c18fe56/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_1703d9ff/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_8eecbf6a/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_db1ee788/rep001__sandbox_deepdive_05","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4b530e9e/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4c29afa7/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_61713b71/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_1857__91ad128b/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_2857__6c41c652/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_42_--_1dfeb43e/rep001__exp-1","mem/mem_writemag_sweep_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_4c2b0b42/rep001__sandbox_deepdive_05","sandbox/sandbox_stealth_paced/files_300_--file-size-bytes_4096_--interval-ms_300_--duratio_75c35ac0/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_450_--seed_1517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_2517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_42_--phase-markers/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_300_--seed_42_--phase-marke_874e452a/rep001__sandbox_deepdive_05","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_1298_--phase-mar_b9d05d54/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_2298_--phase-mar_9f229053/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_42_--phase-marke_b11a15a7/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_1480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_2480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_42_--phase-markers/rep001__exp-1"],"min_pairs":50},"x":20,"y":200},{"id":"n2","module":"channels","params":{"chans":["hamming"]},"x":290,"y":90},{"id":"n3","module":"channels","params":{"chans":["cosine"]},"x":290,"y":320},{"id":"n4","module":"complex","params":{"phase":"pi"},"x":560,"y":200},{"id":"n10","module":"collapse","params":{},"x":830,"y":200},{"id":"n5","module":"window","params":{"w":32,"h":16,"taper":"hann"},"x":1100,"y":200},{"id":"n6","module":"fft","params":{},"x":1370,"y":90},{"id":"n7","module":"cepstrum","params":{},"x":1370,"y":320},{"id":"n8","module":"concat","params":{},"x":1640,"y":200},{"id":"n9","module":"write","params":{},"x":1910,"y":200}],"pipes":[{"from":["n1","cells"],"to":["n2","cells"]},{"from":["n1","cells"],"to":["n3","cells"]},{"from":["n2","field"],"to":["n4","mag"]},{"from":["n3","field"],"to":["n4","dir"]},{"from":["n4","out"],"to":["n10","in"]},{"from":["n10","out"],"to":["n5","in"]},{"from":["n5","out"],"to":["n6","in"]},{"from":["n5","out"],"to":["n7","in"]},{"from":["n6","out"],"to":["n8","in"]},{"from":["n7","out"],"to":["n8","in"]},{"from":["n8","out"],"to":["n9","in"]}]},"plv":{"schema":"plan10.scheme.v1","label":"complex_plv_baseline","acknowledged":[],"nodes":[{"id":"n1","module":"cells","params":{"sel":["cache/cache_cold_scan_v2/working-set-mb_320_--mode_rmw_--duration_300_--seed_42_--pha_c80d0ada/rep001__sandbox_deepdive_05","cache/cache_hot_loop_v2/buffer-kb_32_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cache/cache_stride_sweep_v2/working-set-mb_320_--stride_4096_--duration_300_--seed_42_--_f751a0d3/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_300_--table-kb_64_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_1861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_2861_--phase-markers/rep001__exp-1","cpu/cpu_branch_random_v2/duration_450_--table-kb_64_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_300_--block-kb_4_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_2024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_3024_--phase-markers/rep001__exp-1","cpu/cpu_hash_loop_v2/duration_450_--block-kb_4_--seed_42_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_1803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_2803_--phase-markers/rep001__exp-1","cpu/cpu_matrix_mult_v2/dim_512_--duration_450_--seed_42_--phase-markers/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_30_5c645d6d/rep001__sandbox_deepdive_05","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_498b701c/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_6ee5cc96/rep001__exp-1","io/io_direct_write_like_v2/file-size-mb_256_--mode_seq_--block-bytes_4096_--duration_45_e5890f3f/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_300_--backing_d01e4452/rep001__sandbox_deepdive_05","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_719e8e73/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_72a92704/rep001__exp-1","io/io_read_cache_hit_v2/file-size-mb_256_--block-bytes_4096_--duration_450_--backing_c7ce2808/rep001__exp-1","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_1744_--phase-markers_--max-m_ce828a06/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_2744_--phase-markers_--max-m_ad01abc2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_3744_--phase-markers_--max-m_5e2f3e6c/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_42_--phase-markers_--max-mb__1df3b370/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_4744_--phase-markers_--max-m_2146876e/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_5744_--phase-markers_--max-m_f4fbee1a/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_6744_--phase-markers_--max-m_3c2c4ef2/rep001__sandbox_deepdive_01c","kernel/kernel_bnb_tsp_v2/cities_13_--duration_600_--seed_7744_--phase-markers_--max-m_c25f6c3f/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_171_76b98256/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_271_a6c4f8c1/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_371_1f86bcc7/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_42__ce23d749/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_471_d5507522/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_571_8e1df96b/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_671_63e9dbe0/rep001__sandbox_deepdive_01c","kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_771_179e1f5b/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_1548_--phase-markers_--max-m_72e293c5/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_2548_--phase-markers_--max-m_a14413a8/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_3548_--phase-markers_--max-m_862efd82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_42_--phase-markers_--max-mb__0405982c/rep001__sandbox_deepdive_01c","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_4548_--phase-markers_--max-m_90ff1013/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_5548_--phase-markers_--max-m_83ad5dfa/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_6548_--phase-markers_--max-m_1a3f5f82/rep001__sandbox_deepdive_01c1","kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_7548_--phase-markers_--max-m_8b58815f/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_1044_--phase-markers_--max-mb_bd41e128/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_2044_--phase-markers_--max-mb_fb80d031/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_3044_--phase-markers_--max-mb_8d5abf33/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_4044_--phase-markers_--max-mb_fc31f04d/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_42_--phase-markers_--max-mb_5_20ac1e1e/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_5044_--phase-markers_--max-mb_f23b8f3a/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_6044_--phase-markers_--max-mb_13703bfd/rep001__sandbox_deepdive_01c1","kernel/kernel_floyd_v2/dim_1024_--duration_600_--seed_7044_--phase-markers_--max-mb_09c60402/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_1703_--phase-marke_599e2e36/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_2703_--phase-marke_f7134e57/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_3703_--phase-marke_9341cd8a/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_42_--phase-markers_53945912/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_4703_--phase-marke_c3800832/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_5703_--phase-marke_57048d67/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_6703_--phase-marke_703d8880/rep001__sandbox_deepdive_01c1","kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_7703_--phase-marke_38592d57/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_077eba8b/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_1488bb0f/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_18fbaaac/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_9b4148f1/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_be0fe502/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_cb7b404c/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d1b7b6d0/rep001__sandbox_deepdive_01c1","kernel/kernel_gibbs_v2/width_1024_--height_1024_--states_2_--beta-milli_400_--durat_d474978f/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_08c1285e/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_1f1eb342/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_25dce9cf/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_782b83f7/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_935f6eda/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bcca1816/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_bda44d04/rep001__sandbox_deepdive_01c1","kernel/kernel_histogram_v2/samples_50000000_--bins_1048576_--dist_uniform_--duration_60_dafc959b/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_1898_--phase-markers_--max_aabb2682/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_2898_--phase-markers_--max_9b59964c/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_3898_--phase-markers_--max_3a872e30/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_42_--phase-markers_--max-m_e2a0a0b0/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_4898_--phase-markers_--max_654a0822/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_5898_--phase-markers_--max_982e337f/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_6898_--phase-markers_--max_6c39ecc6/rep001__sandbox_deepdive_01c1","kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_7898_--phase-markers_--max_08b626ed/rep001__sandbox_deepdive_01c1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_0c18fe56/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_1703d9ff/rep001__exp-1","mem/mem_pagefault_density_v2/variant_fault_only_--working-set-mb_256_--duration_450_--see_8eecbf6a/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_db1ee788/rep001__sandbox_deepdive_05","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4b530e9e/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_4c29afa7/rep001__exp-1","mem/mem_random_write_pages_v2/working-set-mb_256_--bytes-per-page_64_--duration_450_--seed_61713b71/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_1857__91ad128b/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_2857__6c41c652/rep001__exp-1","mem/mem_workingset_sweep_v2/working-set-mb_256_--duration_450_--stride_4096_--seed_42_--_1dfeb43e/rep001__exp-1","mem/mem_writemag_sweep_v2/working-set-mb_256_--bytes-per-page_64_--duration_300_--seed_4c2b0b42/rep001__sandbox_deepdive_05","sandbox/sandbox_stealth_paced/files_300_--file-size-bytes_4096_--interval-ms_300_--duratio_75c35ac0/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_lock_contention_v2/duration_450_--seed_1517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_2517_--phase-markers/rep001__exp-1","thread/thread_lock_contention_v2/duration_450_--seed_42_--phase-markers/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_300_--seed_42_--phase-marke_874e452a/rep001__sandbox_deepdive_05","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_1298_--phase-mar_b9d05d54/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_2298_--phase-mar_9f229053/rep001__exp-1","thread/thread_parallel_alloc_v2/min-kb_1_--max-kb_256_--duration_450_--seed_42_--phase-marke_b11a15a7/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_300_--seed_42_--phase-markers/rep001__sandbox_deepdive_05","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_1480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_2480_--phase-markers/rep001__exp-1","thread/thread_producer_consumer_v2/ring-size_1024_--duration_450_--seed_42_--phase-markers/rep001__exp-1"],"min_pairs":130},"x":20,"y":200},{"id":"n2","module":"channels","params":{"chans":["hamming"]},"x":290,"y":90},{"id":"n3","module":"channels","params":{"chans":["cosine"]},"x":290,"y":320},{"id":"n4","module":"complex","params":{"phase":"arccos"},"x":560,"y":200},{"id":"n10","module":"collapse","params":{},"x":830,"y":200},{"id":"n5","module":"window","params":{"w":128,"h":64,"taper":"hann"},"x":1100,"y":200},{"id":"n6","module":"baseline","params":{},"x":1370,"y":360},{"id":"n7","module":"plv","params":{},"x":1370,"y":120},{"id":"n8","module":"write","params":{},"x":1640,"y":120}],"pipes":[{"from":["n1","cells"],"to":["n2","cells"]},{"from":["n1","cells"],"to":["n3","cells"]},{"from":["n2","field"],"to":["n4","mag"]},{"from":["n3","field"],"to":["n4","dir"]},{"from":["n4","out"],"to":["n10","in"]},{"from":["n10","out"],"to":["n5","in"]},{"from":["n5","out"],"to":["n6","in"]},{"from":["n5","out"],"to":["n7","in"]},{"from":["n6","out"],"to":["n7","ref"]},{"from":["n7","out"],"to":["n8","in"]}]}};
-const BUILD = {"built_at":"2026-09-11T08:06:08+00:00","git_sha":"2101b1e","python":"3.10.12","template_sha256_16":"dbb042bfc643013a","roster_derivation":{"method":"parsed","names_from":"VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/mod.rs","gates_from":["VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/common.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/distributional.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/informational.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/positional.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/dist_direction.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/level.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/polarity.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/spatial_shift.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/spread.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/structure.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_c.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_d/change_location.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_d/texture.rs"],"counts_checked_against":"VM_sampler/VM_Capture/live_delta_calc_modular/src/main.rs","taxonomy_from":"VM_sampler/VM_Capture_QEMU/plan07_campaign/subset_run.py","source_sha256_16":{"VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/mod.rs":"732ea3de8e4c0a41","VM_sampler/VM_Capture/live_delta_calc_modular/src/main.rs":"211eaa4b8bc43713"}},"manifest_root":"cybersecurity.ac.upc.edu:/mnt/nfs/jeries/memory_traces/zstd_local","manifest_scanned_at":"2026-09-11T07:46:52+00:00","n_recordings":113,"issues_verified":10,"issues_unverified":["cusum_band"],"external_refs":["https://fonts.googleapis.com","https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap","https://fonts.gstatic.com"]};
+const BUILD = {"built_at":"2026-09-11T09:52:43+00:00","git_sha":"072cd9e","python":"3.10.12","template_sha256_16":"4e5cb1d0ff55575b","roster_derivation":{"method":"parsed","names_from":"VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/mod.rs","gates_from":["VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/common.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/distributional.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/informational.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_a/positional.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/dist_direction.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/level.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/polarity.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/spatial_shift.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/spread.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_b/structure.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_c.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_d/change_location.rs","VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/family_d/texture.rs"],"counts_checked_against":"VM_sampler/VM_Capture/live_delta_calc_modular/src/main.rs","taxonomy_from":"VM_sampler/VM_Capture_QEMU/plan07_campaign/subset_run.py","source_sha256_16":{"VM_sampler/VM_Capture/live_delta_calc_modular/src/metrics/mod.rs":"732ea3de8e4c0a41","VM_sampler/VM_Capture/live_delta_calc_modular/src/main.rs":"211eaa4b8bc43713"}},"manifest_root":"cybersecurity.ac.upc.edu:/mnt/nfs/jeries/memory_traces/zstd_local","manifest_scanned_at":"2026-09-11T07:46:52+00:00","n_recordings":113,"issues_verified":10,"issues_unverified":["cusum_band"],"external_refs":["https://fonts.googleapis.com","https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap","https://fonts.gstatic.com"]};
 
 /* ===== derived views over the injected data; nothing below types a channel or a recording ===== */
 const TYPES = MODULES.types, TIERS = MODULES.tiers, M = {};
@@ -403,7 +493,9 @@ CH.forEach(c => { (GROUPS[c.group] = GROUPS[c.group] || []).push(c.name); DROP_A
 const GROUP_LABEL = {amount:"A, magnitude", direction:"B, direction", content:"C, state of q", texture:"D, texture"};  /* UI labelling only */
 const TRAJ_COLS = (window.__TRAJ_COLS__ = window.__TRAJ_COLS__ || {});   // recording id -> trajectory header; the served client fills it
 let MANIFEST_CUR = MANIFEST, RECS = [], REC = {};
-function setManifest(m) { MANIFEST_CUR = m; RECS = m.recordings; REC = {}; RECS.forEach(r => REC[r.id] = r); }
+function setManifest(m) { MANIFEST_CUR = m; RECS = m.recordings; REC = {}; RECS.forEach(r => { REC[r.id] = r;
+  /* a registered recording carries its trajectory's header; no round trip needed for it */
+  if (r.has && Array.isArray(r.has.substrate_columns) && r.has.substrate_columns.length && !TRAJ_COLS[r.id]) TRAJ_COLS[r.id] = r.has.substrate_columns.slice(); }); }
 setManifest(MANIFEST);
 const FEAT_SRC = {stats: MODULES.feature_sources.simple, deep: MODULES.feature_sources.deep};
 const N_PAGES = CONFIG.n_pages_default;
@@ -653,7 +745,7 @@ function toWorld(sx, sy) { const r = canvas.getBoundingClientRect(); return [(sx
 function renderBuildbar() {
   const b = document.getElementById("buildbar"), un = BUILD.issues_unverified;
   b.innerHTML = `<span>built <b>${esc(BUILD.built_at)}</b>${BUILD.git_sha ? ` at <b>${esc(BUILD.git_sha)}</b>` : ""}</span>
-    <span>corpus <b>${MANIFEST_CUR.n_recordings}</b> recordings under <b>${esc(MANIFEST_CUR.root)}</b>, scanned ${esc(MANIFEST_CUR.scanned_at)}${window.__BRIDGE__ ? "" : " (rescan = rebuild)"}</span>
+    <span>corpus <b>${MANIFEST_CUR.n_recordings}</b> recordings under <b>${esc(MANIFEST_CUR.root)}</b>, ${(() => { const a = MANIFEST_CUR.archive_manifest; if (!a) return `walked ${esc(MANIFEST_CUR.scanned_at)}`; return `from the archive's manifest (rebuilt ${esc(a.rebuilt_at || "never")}, updated ${esc(a.updated_at || "?")}${a.registered_since_rebuild ? `, <b>${a.registered_since_rebuild}</b> registered since` : ""})`; })()}${window.__BRIDGE__ ? "" : " (rescan = rebuild)"}</span>
     <span>channels <b>${ROSTER.n_total}</b>, ${esc(ROSTER.derivation.method)} from the differ; speed assumed <b>${CONFIG.substrateSpeed}</b> (config, unrecorded per recording)</span>
     <span>issues <b>${BUILD.issues_verified}</b> recomputed${un.length ? `, <span class="warn">${un.length} not: ${esc(un.join(", "))}</span>` : ""}</span>
     ${BUILD.external_refs.length ? `<span class="warn">external: ${esc(BUILD.external_refs.map(u => u.replace(/^https?:\/\//, "").split("/")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", "))}</span>` : ""}`;
@@ -924,7 +1016,18 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     let m = (r.ok ? "ok: " : "not usable: ") + r.message;
     if (r.probe) m += ` (python ${esc(r.probe.python || "?")}, numpy ${esc(String(r.probe.numpy))}, zstd ${r.probe.zstd ? "yes" : "no"}, differ ${r.probe.differ && r.probe.differ.path ? "present" : "missing"})`;
     $("src-msg").textContent = m; } catch (e) { $("src-msg").textContent = "error: " + e.message; } };
-  $("src-scan").onclick = async () => { $("src-msg").textContent = "scanning..."; try { const m = await api("/scan", {source: spec()}); setManifest(m); renderBuildbar(); renderAll(); $("src-msg").textContent = `scanned ${m.n_recordings} recordings (${m.n_with_chain} with a chain, ${m.n_workloads} workloads) from ${m.root}; the Cells module now selects from these`; } catch (e) { $("src-msg").textContent = "scan refused: " + e.message; } };
+  const srcLoad = async (reconcile) => {
+    $("src-msg").textContent = reconcile ? "walking the archive and rewriting its manifest (minutes)..." : "reading the archive's manifest...";
+    try {
+      const m = await api("/scan", {source: spec(), reconcile});
+      setManifest(m); renderBuildbar(); renderAll();
+      const a = m.archive_manifest;
+      $("src-msg").textContent = `${reconcile ? "rebuilt" : (a ? "read" : "walked")} ${m.n_recordings} recordings (${m.n_with_chain} with a chain, ${m.n_with_substrate_csv} with a trajectory, ${m.n_workloads} workloads) from ${m.root}` +
+        (a ? `; manifest rebuilt ${a.rebuilt_at || "never"}, ${a.registered_since_rebuild || 0} registered since` : "; this archive keeps no manifest yet: Scan once to create it") + "; the Cells module now selects from these";
+    } catch (e) { $("src-msg").textContent = (reconcile ? "rebuild" : "reload") + " refused: " + e.message; }
+  };
+  $("src-scan").onclick = () => srcLoad(true);
+  const srcReload = document.getElementById("src-reload"); if (srcReload) srcReload.onclick = () => srcLoad(false);
 
   /* run */
   let current = null, timer = null;
@@ -1168,6 +1271,490 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
   }
   const _renderInspector = renderInspector;
   renderInspector = function (issues) { _renderInspector(issues); ensureTrajCols(); };
+
+  /* ===== Explore: what a run produced, drawn from the bridge's numbers; runs side by side =====
+     Every number on screen comes from /results/summary and /results/agg (results_view.py, numpy,
+     float64, 6 significant digits). The page draws and tabulates; it never aggregates rows. */
+  const XP_COLORS = ["#2f7fbf", "#e5772e", "#3fa34d", "#d3413f", "#8e5fbf", "#8c6d4f", "#d95fa8", "#6b7680", "#b5b03a", "#2fb0b8", "#e0a92e", "#5b6fd6"];
+  const xpColor = i => XP_COLORS[i % XP_COLORS.length];
+  const XP_VIEWS = [["distribution", "distribution"], ["time", "over time"], ["matrix", "matrix"], ["scatter", "scatter"], ["table", "table"]];
+  const XP_STATS = ["median", "mean", "min", "max", "std", "p5", "p25", "p75", "p95", "count"];
+  const XP_TIME_X = [["t_index", "t_index (window)"], ["seq_start", "seq_start (pair)"]];
+  const XP_GROUP_KEYS = ["family", "workload", "recording", "block", "t_index"];
+  const STAT_COLS = ["n", "n_nan", "min", "p5", "p25", "median", "p75", "p95", "max", "mean", "std"];
+  const xpState = {label: null, view: "distribution", y: "", x: "", xt: "t_index", group: null, stat: "median", scale: "linear", bins: 30, mode: "box", rows: "", cols: "t_index"};
+  const cmpState = {labels: [], view: "distribution", y: "", x: "", xt: "t_index", group: "run", stat: "median", scale: "linear", bins: 30, mode: "box", rows: "run", cols: "family"};
+  let xpSummary = null, xpRuns = [], xpResLabel = null, xpLast = null, cmpLast = null, xpTableData = null, cmpTableData = null, cmpFeats = "", xpSeq = 0, cmpSeq = 0;
+  const xpSave = () => { try { localStorage.setItem("plan10.explore", JSON.stringify({xp: xpState, cmp: cmpState})); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem("plan10.explore") || "null"); if (s) { Object.assign(xpState, s.xp || {}); Object.assign(cmpState, s.cmp || {}); } } catch (e) {}
+  if (!Array.isArray(cmpState.labels)) cmpState.labels = [];
+
+  /* numbers: 4 significant digits on axes, 6 in tables and tooltips (what the bridge sends) */
+  const fmtN = (v, sig) => { if (v == null || !isFinite(v)) return "–"; if (v === 0) return "0"; sig = sig || 4; const a = Math.abs(v); if (a >= 1e6 || a < 1e-4) return (+v).toExponential(sig - 1).replace(/\.?0+e/, "e"); return String(+(+v).toPrecision(sig)); };
+  const fmtCell = v => v == null ? "" : (Number.isInteger(v) ? String(v) : String(+(+v).toPrecision(6)));
+  const clipS = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+  const minMax = arr => { let lo = Infinity, hi = -Infinity; for (const v of arr) { if (v == null || !isFinite(v)) continue; if (v < lo) lo = v; if (v > hi) hi = v; } return [lo, hi]; };
+  const medianOf = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  function niceTicks(lo, hi, n) {
+    const span = hi - lo; if (!(span > 0)) return [lo];
+    const raw = span / (n || 6), mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw / mag;
+    const step = (r >= 5 ? 5 : r >= 2 ? 2 : 1) * mag, t = [];
+    for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-9; v += step) t.push(+v.toPrecision(12));
+    return t;
+  }
+  function logTicks(lo, hi) {
+    const a = Math.floor(Math.log10(lo)), b = Math.ceil(Math.log10(hi)), t = [], ms = (b - a) <= 3 ? [1, 2, 5] : [1];
+    for (let e = a; e <= b; e++) for (const m of ms) { const v = m * Math.pow(10, e); if (v >= lo * 0.999 && v <= hi * 1.001) t.push(v); }
+    return t.length ? t : [lo, hi];
+  }
+  function mkScale(kind, d0, d1, r0, r1, pad) {
+    if (kind === "log") {
+      d0 = d0 > 0 ? d0 : 1e-12; if (!(d1 > d0)) d1 = d0 * 10;
+      if (pad) { const k = Math.pow(d1 / d0, 0.04); d0 /= k; d1 *= k; }
+      const a = Math.log(d0), b = Math.log(d1);
+      const f = v => r0 + (Math.log(Math.max(v, d0)) - a) / (b - a) * (r1 - r0);
+      f.ticks = () => logTicks(d0, d1); f.d0 = d0; f.d1 = d1; f.log = true; f.inv = px => Math.exp(a + (px - r0) / (r1 - r0) * (b - a)); return f;
+    }
+    if (!(d1 > d0)) { const p = Math.abs(d0) * 1e-6 || 1; d0 -= p; d1 += p; }
+    if (pad) { const p = (d1 - d0) * 0.04; d0 -= p; d1 += p; }
+    const f = v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+    f.ticks = n => niceTicks(d0, d1, n); f.d0 = d0; f.d1 = d1; f.log = false; f.inv = px => d0 + (px - r0) / (r1 - r0) * (d1 - d0); return f;
+  }
+
+  const SVG_NS = document.querySelector("svg").namespaceURI;   /* the brandmark's; no namespace literal to report as an external reference */
+  const svgEl = (tag, attrs, parent) => { const e = document.createElementNS(SVG_NS, tag); for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const txt = (parent, x, y, s, attrs) => { const t = svgEl("text", Object.assign({x, y}, attrs || {}), parent); t.textContent = s; return t; };
+  function xpFrame(host, H, m) {
+    host.innerHTML = "";
+    const W = Math.max(320, host.clientWidth || 640);
+    const svg = svgEl("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, class: "xp-svg"}, host);
+    return {svg, W, H, x0: m.l, x1: W - m.r, y0: m.t, y1: H - m.b};
+  }
+  function axisX(f, sc, label, fmt) {
+    fmt = fmt || (v => fmtN(v, 3));
+    svgEl("line", {x1: f.x0, x2: f.x1, y1: f.y1, y2: f.y1, class: "axis"}, f.svg);
+    sc.ticks(Math.max(3, Math.floor((f.x1 - f.x0) / 80))).forEach(v => { const x = sc(v); svgEl("line", {x1: x, x2: x, y1: f.y0, y2: f.y1, class: "grid"}, f.svg); txt(f.svg, x, f.y1 + 14, fmt(v), {"text-anchor": "middle"}); });
+    if (label) txt(f.svg, (f.x0 + f.x1) / 2, f.H - 4, label + (sc.log ? " (log)" : ""), {"text-anchor": "middle", class: "lab"});
+  }
+  function axisY(f, sc, label, fmt) {
+    fmt = fmt || (v => fmtN(v, 3));
+    svgEl("line", {x1: f.x0, x2: f.x0, y1: f.y0, y2: f.y1, class: "axis"}, f.svg);
+    sc.ticks(Math.max(3, Math.floor((f.y1 - f.y0) / 40))).forEach(v => { const y = sc(v); svgEl("line", {x1: f.x0, x2: f.x1, y1: y, y2: y, class: "grid"}, f.svg); txt(f.svg, f.x0 - 5, y + 3.5, fmt(v), {"text-anchor": "end"}); });
+    if (label) txt(f.svg, 11, (f.y0 + f.y1) / 2, label + (sc.log ? " (log)" : ""), {"text-anchor": "middle", transform: `rotate(-90 11 ${(f.y0 + f.y1) / 2})`, class: "lab"});
+  }
+  const xpTip = document.createElement("div"); xpTip.className = "xp-tip"; document.body.appendChild(xpTip);
+  const tipShow = (ev, html) => { xpTip.innerHTML = html; xpTip.style.display = "block"; const r = xpTip.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14; if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - 10; if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - 10; xpTip.style.left = x + "px"; xpTip.style.top = y + "px"; };
+  const tipHide = () => { xpTip.style.display = "none"; };
+  const swatch = c => `<i style="background:${c}"></i>`;
+  function legend(host, items, onHover) {
+    const l = document.createElement("div"); l.className = "xp-legend";
+    items.forEach((it, i) => { const s = document.createElement("span"); s.innerHTML = `${swatch(it.color)}${esc(clipS(it.label, 44))}${it.extra ? ` <em>${esc(it.extra)}</em>` : ""}`; if (onHover) { s.onmouseenter = () => onHover(i); s.onmouseleave = () => onHover(null); } l.appendChild(s); });
+    host.appendChild(l); return l;
+  }
+  const xpEmpty = (host, msg) => { host.innerHTML = `<div class="xp-empty">${esc(msg)}</div>`; };
+
+  /* distribution as horizontal boxes: one row per group, value on x, so any number of groups reads */
+  function drawBox(host, r, st) {
+    const gs = r.groups.filter(g => g.n > 0);
+    if (!gs.length) return xpEmpty(host, "no finite values in any group");
+    const maxLab = Math.max.apply(null, gs.map(g => Math.min(g.label.length, 40)));
+    const m = {l: Math.min(290, 14 + maxLab * 6.4), r: 66, t: 8, b: 36};
+    const H = Math.max(140, 24 * gs.length + m.t + m.b);
+    const f = xpFrame(host, H, m);
+    const vals = []; gs.forEach(g => { vals.push(g.min, g.max); });
+    const [lo, hi] = minMax(st.scale === "log" ? vals.filter(v => v > 0) : vals);
+    if (!isFinite(lo)) return xpEmpty(host, "nothing positive to draw on a log axis");
+    const sc = mkScale(st.scale, lo, hi, f.x0, f.x1, true);
+    axisX(f, sc, r.y);
+    const rowH = (f.y1 - f.y0) / gs.length, bh = Math.min(14, rowH * 0.62);
+    gs.forEach((g, i) => {
+      const cy = f.y0 + rowH * (i + 0.5), col = xpColor(i), X = sc;
+      txt(f.svg, f.x0 - 6, cy + 3.5, clipS(g.label, 40), {"text-anchor": "end"});
+      svgEl("line", {x1: X(g.p5), x2: X(g.p95), y1: cy, y2: cy, stroke: col, "stroke-width": 1.2}, f.svg);
+      [g.min, g.max].forEach(v => svgEl("circle", {cx: X(v), cy, r: 2, fill: col, "fill-opacity": .55}, f.svg));
+      svgEl("rect", {x: X(g.p25), y: cy - bh / 2, width: Math.max(1, X(g.p75) - X(g.p25)), height: bh, fill: col, "fill-opacity": .22, stroke: col}, f.svg);
+      svgEl("line", {x1: X(g.median), x2: X(g.median), y1: cy - bh / 2 - 1, y2: cy + bh / 2 + 1, stroke: col, "stroke-width": 2.4}, f.svg);
+      const mx = X(g.mean); svgEl("path", {d: `M${mx} ${cy - 4}l4 4l-4 4l-4 -4z`, fill: "var(--panel)", stroke: col, "stroke-width": 1.2}, f.svg);
+      txt(f.svg, f.x1 + 6, cy + 3.5, "n=" + g.n, {class: "dim"});
+      const z = svgEl("rect", {x: f.x0, y: cy - rowH / 2, width: f.x1 - f.x0, height: rowH, fill: "transparent"}, f.svg);
+      z.onmousemove = ev => tipShow(ev, `<b>${esc(g.label)}</b><br>n ${g.n}${g.n_nan ? " · NaN " + g.n_nan : ""}<br>min ${fmtN(g.min, 6)} · p5 ${fmtN(g.p5, 6)} · p25 ${fmtN(g.p25, 6)}<br>median ${fmtN(g.median, 6)} · mean ${fmtN(g.mean, 6)}<br>p75 ${fmtN(g.p75, 6)} · p95 ${fmtN(g.p95, 6)} · max ${fmtN(g.max, 6)}<br>std ${fmtN(g.std, 6)}`);
+      z.onmouseleave = tipHide;
+    });
+  }
+
+  /* histogram: one outline per group over the edges every group shares; height = fraction of the group */
+  function drawHist(host, r, st) {
+    const e = r.edges || [], gs = r.groups.filter(g => g.n > 0);
+    if (e.length < 2 || !gs.length) return xpEmpty(host, "no finite values to bin");
+    const f = xpFrame(host, 300, {l: 58, r: 14, t: 8, b: 36});
+    const sx = mkScale(st.scale, e[0], e[e.length - 1], f.x0, f.x1, false);
+    const fr = gs.map(g => { const tot = g.counts.reduce((a, b) => a + b, 0) || 1; return g.counts.map(c => c / tot); });
+    let ymax = 0; fr.forEach(a => a.forEach(v => { if (v > ymax) ymax = v; }));
+    const sy = mkScale("linear", 0, (ymax || 1) * 1.06, f.y1, f.y0, false);
+    axisY(f, sy, "fraction of group", v => fmtN(v * 100, 3) + "%"); axisX(f, sx, r.y);
+    gs.forEach((g, i) => {
+      const col = xpColor(i); let d = `M${sx(e[0])} ${f.y1}`;
+      fr[i].forEach((v, k) => { d += ` L${sx(e[k])} ${sy(v)} L${sx(e[k + 1])} ${sy(v)}`; });
+      d += ` L${sx(e[e.length - 1])} ${f.y1} Z`;
+      svgEl("path", {d, fill: col, "fill-opacity": .13, stroke: col, "stroke-width": 1.3, "stroke-linejoin": "round"}, f.svg);
+    });
+    for (let k = 0; k < e.length - 1; k++) {
+      const z = svgEl("rect", {x: sx(e[k]), y: f.y0, width: Math.max(0.5, sx(e[k + 1]) - sx(e[k])), height: f.y1 - f.y0, fill: "transparent"}, f.svg);
+      z.onmousemove = ev => tipShow(ev, `<b>[${fmtN(e[k], 5)}, ${fmtN(e[k + 1], 5)}${k === e.length - 2 ? "]" : ")"}</b><br>` + gs.map((g, i) => `${swatch(xpColor(i))}${esc(clipS(g.label, 30))}: ${g.counts[k]} <em>(${fmtN(fr[i][k] * 100, 3)}%)</em>`).join("<br>"));
+      z.onmouseleave = tipHide;
+    }
+    legend(host, gs.map((g, i) => ({label: g.label, color: xpColor(i), extra: "n=" + g.n})));
+  }
+
+  /* over time: one line per series, p25-p75 band where several rows share an x; hover reads every series at that x */
+  function drawTime(host, r, st) {
+    const ss = r.series.filter(s => s.x.length);
+    if (!ss.length) return xpEmpty(host, "no series");
+    const f = xpFrame(host, 320, {l: 62, r: 14, t: 8, b: 38});
+    const xs = [], ys = [], take = v => { if (v != null && (st.scale !== "log" || v > 0)) ys.push(v); };
+    ss.forEach(s => { const mm = minMax(s.x); xs.push(mm[0], mm[1]); s.y.forEach(take); s.lo.forEach(take); s.hi.forEach(take); });
+    const [xlo, xhi] = minMax(xs), [ylo, yhi] = minMax(ys);
+    if (!isFinite(ylo)) return xpEmpty(host, st.scale === "log" ? "nothing positive to draw on a log axis" : "no finite values");
+    const sx = mkScale("linear", xlo, xhi, f.x0, f.x1, false), sy = mkScale(st.scale, ylo, yhi, f.y1, f.y0, true);
+    axisY(f, sy, `${r.stat} of ${r.y}`); axisX(f, sx, r.x, v => String(v));
+    const paths = [];
+    ss.forEach((s, i) => {
+      const col = xpColor(i), gl = svgEl("g", {}, f.svg); paths.push(gl);
+      let seg = [];
+      const flush = () => { if (seg.length > 1) { const up = seg.map(p => `${sx(p[0])} ${sy(p[2])}`), dn = seg.slice().reverse().map(p => `${sx(p[0])} ${sy(p[1])}`); svgEl("path", {d: "M" + up.join(" L") + " L" + dn.join(" L") + " Z", fill: col, "fill-opacity": .12, stroke: "none"}, gl); } seg = []; };
+      s.x.forEach((x, k) => { const lo = s.lo[k], hi = s.hi[k]; if (lo != null && hi != null && (st.scale !== "log" || lo > 0)) seg.push([x, lo, hi]); else flush(); }); flush();
+      let d = "", pen = false;
+      s.x.forEach((x, k) => { const v = s.y[k]; if (v == null || (st.scale === "log" && v <= 0)) { pen = false; return; } d += (pen ? " L" : " M") + sx(x) + " " + sy(v); pen = true; });
+      if (d) svgEl("path", {d, fill: "none", stroke: col, "stroke-width": 1.4, "stroke-linejoin": "round"}, gl);
+      if (s.x.length === 1 && s.y[0] != null) svgEl("circle", {cx: sx(s.x[0]), cy: sy(s.y[0]), r: 3, fill: col}, gl);
+    });
+    const ux = Array.from(new Set(ss.flatMap(s => s.x))).sort((a, b) => a - b);
+    const idxOf = ss.map(s => { const mp = new Map(); s.x.forEach((x, k) => mp.set(x, k)); return mp; });
+    const guide = svgEl("line", {x1: 0, x2: 0, y1: f.y0, y2: f.y1, class: "guide", style: "display:none"}, f.svg);
+    const z = svgEl("rect", {x: f.x0, y: f.y0, width: f.x1 - f.x0, height: f.y1 - f.y0, fill: "transparent"}, f.svg);
+    z.onmousemove = ev => {
+      const pt = f.svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; const p = pt.matrixTransform(f.svg.getScreenCTM().inverse());
+      const xv = sx.inv(p.x);
+      let lo = 0, hi = ux.length - 1; while (lo < hi) { const mid = (lo + hi) >> 1; if (ux[mid] < xv) lo = mid + 1; else hi = mid; }
+      const x = (lo > 0 && Math.abs(ux[lo - 1] - xv) < Math.abs(ux[lo] - xv)) ? ux[lo - 1] : ux[lo];
+      guide.setAttribute("x1", sx(x)); guide.setAttribute("x2", sx(x)); guide.style.display = "";
+      const rows = ss.map((s, i) => { const k = idxOf[i].get(x); return k == null ? null : {i, s, k}; }).filter(Boolean)
+        .sort((a, b) => (b.s.y[b.k] == null ? -Infinity : b.s.y[b.k]) - (a.s.y[a.k] == null ? -Infinity : a.s.y[a.k]));
+      const shown = rows.slice(0, 14);
+      tipShow(ev, `<b>${esc(r.x)} = ${x}</b><br>` + shown.map(o => `${swatch(xpColor(o.i))}${esc(clipS(o.s.label, 28))}: ${fmtN(o.s.y[o.k], 6)}${o.s.n[o.k] > 1 ? ` <em>n ${o.s.n[o.k]}, p25 ${fmtN(o.s.lo[o.k], 4)}, p75 ${fmtN(o.s.hi[o.k], 4)}</em>` : ""}`).join("<br>") + (rows.length > shown.length ? `<br><em>… ${rows.length - shown.length} more</em>` : ""));
+    };
+    z.onmouseleave = () => { guide.style.display = "none"; tipHide(); };
+    legend(host, ss.map((s, i) => ({label: s.label, color: xpColor(i), extra: `${s.x.length} pts`})), i => paths.forEach((p, k) => { p.style.opacity = (i == null || i === k) ? 1 : 0.15; }));
+  }
+
+  /* matrix: rows key x columns key, one sequential ramp, the value written in when the cell is big enough */
+  function drawMatrix(host, r, st) {
+    const R = r.row_labels.length, C = r.col_labels.length;
+    if (!R || !C) return xpEmpty(host, "empty matrix");
+    const maxRow = Math.max.apply(null, r.row_labels.map(s => Math.min(s.length, 40)));
+    const maxCol = Math.max.apply(null, r.col_labels.map(s => Math.min(s.length, 30)));
+    const rot = maxCol > 6 || C > 14;
+    const m = {l: Math.min(290, 14 + maxRow * 6.4), r: 78, t: rot ? Math.min(170, 16 + maxCol * 5.4) : 22, b: 6};
+    host.innerHTML = "";
+    const W = Math.max(320, host.clientWidth || 640);
+    const cw = Math.max(2, Math.min(64, (W - m.l - m.r) / C)), ch = R <= 16 ? 26 : R <= 40 ? 18 : R <= 100 ? 11 : 6;
+    const H = m.t + ch * R + m.b;
+    const svg = svgEl("svg", {viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, class: "xp-svg"}, host);
+    const vals = []; r.values.forEach(row => row.forEach(v => { if (v != null && (st.scale !== "log" || v > 0)) vals.push(v); }));
+    const [lo, hi] = minMax(vals);
+    const tOf = v => { if (v == null || !isFinite(v)) return null; if (st.scale === "log") { if (v <= 0) return 0; return (Math.log(v) - Math.log(lo)) / ((Math.log(hi) - Math.log(lo)) || 1); } return (v - lo) / ((hi - lo) || 1); };
+    const ramp = t => { const a = [232, 241, 251], b = [11, 61, 110], c = a.map((x, i) => Math.round(x + (b[i] - x) * t)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
+    const rstep = Math.ceil(R / 60), cstep = Math.ceil(C / 40);
+    r.row_labels.forEach((rl, i) => { if (i % rstep === 0) txt(svg, m.l - 6, m.t + ch * (i + 0.5) + 3.5, clipS(rl, 40), {"text-anchor": "end"}); });
+    r.col_labels.forEach((cl, j) => { if (j % cstep) return; const x = m.l + cw * (j + 0.5); if (rot) txt(svg, x + 3, m.t - 6, clipS(cl, 30), {"text-anchor": "start", transform: `rotate(-60 ${x + 3} ${m.t - 6})`}); else txt(svg, x, m.t - 8, clipS(cl, 8), {"text-anchor": "middle"}); });
+    r.values.forEach((row, i) => row.forEach((v, j) => {
+      const t = tOf(v), x = m.l + cw * j, y = m.t + ch * i;
+      const cell = svgEl("rect", {x, y, width: cw, height: ch, fill: t == null ? "var(--sunk)" : ramp(t), stroke: "var(--panel)", "stroke-width": cw > 6 ? 1 : 0}, svg);
+      if (t != null && cw >= 40 && ch >= 13) txt(svg, x + cw / 2, y + ch / 2 + 3.5, fmtN(v, 3), {"text-anchor": "middle", style: `fill:${t > 0.55 ? "#fff" : "#0b1119"}`});
+      cell.onmousemove = ev => tipShow(ev, `<b>${esc(r.row_labels[i])}</b> × <b>${esc(r.col_labels[j])}</b><br>${esc(r.stat)} of ${esc(r.y)}: ${fmtN(v, 6)}<br><em>n ${r.n[i][j]}</em>`);
+      cell.onmouseleave = tipHide;
+    }));
+    if (isFinite(lo)) {
+      const lx = W - m.r + 14, ly = m.t, lh = Math.min(120, Math.max(40, H - m.t - m.b));
+      for (let k = 0; k < 20; k++) svgEl("rect", {x: lx, y: ly + lh * (1 - (k + 1) / 20), width: 10, height: lh / 20 + 0.5, fill: ramp(k / 19)}, svg);
+      txt(svg, lx + 14, ly + 8, fmtN(hi, 3), {class: "dim"}); txt(svg, lx + 14, ly + lh, fmtN(lo, 3), {class: "dim"});
+    }
+  }
+
+  /* scatter: two metrics, one colour per group */
+  function drawScatter(host, r, st) {
+    const gs = r.groups.filter(g => g.points.length);
+    if (!gs.length) return xpEmpty(host, "no finite pairs");
+    const f = xpFrame(host, 340, {l: 62, r: 14, t: 8, b: 38});
+    const okp = p => st.scale !== "log" || (p[0] > 0 && p[1] > 0);
+    const xs = [], ys = []; gs.forEach(g => g.points.forEach(p => { if (okp(p)) { xs.push(p[0]); ys.push(p[1]); } }));
+    const [xlo, xhi] = minMax(xs), [ylo, yhi] = minMax(ys);
+    if (!isFinite(xlo) || !isFinite(ylo)) return xpEmpty(host, "nothing positive to draw on log axes");
+    const sx = mkScale(st.scale, xlo, xhi, f.x0, f.x1, true), sy = mkScale(st.scale, ylo, yhi, f.y1, f.y0, true);
+    axisY(f, sy, r.y); axisX(f, sx, r.x);
+    const layers = [];
+    gs.forEach((g, i) => {
+      const col = xpColor(i), gl = svgEl("g", {}, f.svg); layers.push(gl);
+      g.points.forEach(p => { if (!okp(p)) return; const c = svgEl("circle", {cx: sx(p[0]), cy: sy(p[1]), r: 3, fill: col, "fill-opacity": .7}, gl); c.onmousemove = ev => tipShow(ev, `<b>${esc(g.label)}</b><br>${esc(r.x)} ${fmtN(p[0], 6)}<br>${esc(r.y)} ${fmtN(p[1], 6)}`); c.onmouseleave = tipHide; });
+    });
+    legend(host, gs.map((g, i) => ({label: g.label, color: xpColor(i), extra: `n=${g.n}${g.n_shown < g.n ? " (" + g.n_shown + " drawn)" : ""} r=${fmtN(g.r_pearson, 3)} rho=${fmtN(g.rho_spearman, 3)}`})), i => layers.forEach((l, k) => { l.style.opacity = (i == null || i === k) ? 1 : 0.12; }));
+  }
+
+  function xpFillTable(tbl, cols, rows) {
+    tbl.innerHTML = "<thead><tr>" + cols.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+      rows.map(row => "<tr>" + row.map((c, i) => `<td class="${i && typeof c === "number" ? "num" : ""}">${esc(c == null ? "" : (typeof c === "number" ? fmtCell(c) : c))}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  }
+  const xpCSV = t => [t.cols].concat(t.rows).map(r => r.map(c => { const s = c == null ? "" : (typeof c === "number" ? fmtCell(c) : String(c)); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\n");
+
+  /* one response -> the drawing, its caption (what every mark means), and the table under it */
+  function xpRender(plotEl, capEl, tblEl, r, st) {
+    let cap = "", cols = [], rows = [];
+    plotEl.innerHTML = "";
+    const runsNote = r.runs.length > 1 ? `${r.runs.length} runs, ${r.n_rows} rows, ${r.features.length} shared metrics` : `${r.n_rows} rows`;
+    const excl = r.excluded && r.excluded.length ? ` <b>left out:</b> ${esc(r.excluded.map(e => e.label + " (no " + e.missing.join(", ") + ")").join("; "))}` : "";
+    if (r.view === "distribution") {
+      if (st.mode === "hist") { drawHist(plotEl, r, st); cap = `<b>histogram</b> of ${esc(r.y)}: ${r.bins} bins over [${fmtN(r.edges[0], 4)}, ${fmtN(r.edges[r.edges.length - 1], 4)}] shared by every group; height = fraction of the group's finite values.`; }
+      else { drawBox(plotEl, r, st); cap = `<b>box</b> p25–p75 · <b>line</b> median · <b>diamond</b> mean · <b>whiskers</b> p5–p95 · <b>dots</b> min and max · n at right.`; }
+      cap += " Percentiles: linear interpolation (numpy default); std: sample (ddof 1).";
+      if (r.n_excluded_nonpositive) cap += ` <b>log axis:</b> ${r.n_excluded_nonpositive} non-positive values are outside the histogram and sit on the axis floor.`;
+      cols = ["group"].concat(STAT_COLS); rows = r.groups.map(g => [g.label].concat(STAT_COLS.map(k => g[k])));
+    } else if (r.view === "time") {
+      drawTime(plotEl, r, st);
+      cap = `each series: <b>${esc(r.stat)}</b> of ${esc(r.y)} over the rows sharing one ${esc(r.x)}; band p25–p75 where more than one row shares it. Hover reads every series at that ${esc(r.x)}.`;
+      cols = ["series", "rows", "points", r.x + " min", r.x + " max", "y min", "y median", "y max"];
+      rows = r.series.map(s => { const ys = s.y.filter(v => v != null), [yl, yh] = minMax(ys), [xl, xh] = minMax(s.x); return [s.label, s.n_rows, s.x.length, xl, xh, yl, medianOf(ys), yh]; });
+    } else if (r.view === "matrix") {
+      drawMatrix(plotEl, r, st);
+      cap = `cell = <b>${esc(r.stat)}</b> of ${esc(r.y)} over the rows in (${esc(r.rows)}, ${esc(r.cols)}); n in the tooltip${r.n_empty ? `; ${r.n_empty} empty cells` : ""}.`;
+      cols = [r.rows + " \\ " + r.cols].concat(r.col_labels); rows = r.row_labels.map((rl, i) => [rl].concat(r.values[i]));
+    } else if (r.view === "scatter") {
+      drawScatter(plotEl, r, st);
+      cap = `${r.n} finite pairs${r.stride > 1 ? `, every ${r.stride}th drawn` : ""} · overall Pearson r ${fmtN(r.r_pearson, 4)}, Spearman rho ${fmtN(r.rho_spearman, 4)}.`;
+      cols = ["group", "n", "drawn", "Pearson r", "Spearman rho"]; rows = r.groups.map(g => [g.label, g.n, g.n_shown, g.r_pearson, g.rho_spearman]);
+    } else {
+      cap = `cell = <b>${esc(r.stat)}</b> of each metric over the rows in the group.`;
+      cols = ["group", "rows"].concat(r.features); rows = r.rows.map(g => [g.label, g.n].concat(g.values));
+    }
+    plotEl.style.minHeight = r.view === "table" ? "0" : "";
+    capEl.innerHTML = cap + ` <span class="dim">${esc(runsNote)}.</span>${excl}`;
+    xpFillTable(tblEl, cols, rows);
+    return {cols, rows};
+  }
+
+  /* controls: built from the state; every change saves, then redraws */
+  function xpSelect(id, label, opts, value, onchange) {
+    const f = document.createElement("div"); f.className = "field";
+    f.innerHTML = `<label class="fl">${esc(label)}</label><select class="f" id="${id}"></select>`;
+    const s = f.querySelector("select");
+    opts.forEach(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; const op = document.createElement("option"); op.value = v; op.textContent = l; s.appendChild(op); });
+    s.value = String(value);
+    if (s.selectedIndex < 0 && opts.length) s.selectedIndex = 0;
+    s.onchange = () => onchange(s.value);
+    return {field: f, sel: s};
+  }
+  function xpQuery(labels, st) {
+    const p = new URLSearchParams();
+    p.set("labels", labels.join(",")); p.set("view", st.view);
+    if (st.view !== "table") p.set("y", st.y || "");
+    if (st.view === "scatter") p.set("x", st.x || "");
+    if (st.view === "time") p.set("x", st.xt || "t_index");
+    if (st.view === "matrix") { p.set("rows", st.rows || ""); p.set("cols", st.cols || ""); } else p.set("group", st.group || "");
+    p.set("stat", st.stat); p.set("scale", st.scale); p.set("bins", st.bins);
+    return "/results/agg?" + p.toString();
+  }
+  function xpControls(host, st, feats, keyOpts, mkOpts, redraw) {
+    host.innerHTML = "";
+    const pfx = host.id + "-";
+    const add = (id, lab, opts, key, fallback, rebuild, cast) => {
+      const val = (st[key] == null || st[key] === "") ? fallback : st[key];
+      const w = xpSelect(pfx + id, lab, opts, val, v => { st[key] = cast ? cast(v) : v; xpSave(); if (rebuild) xpControls(host, st, feats, keyOpts, mkOpts, redraw); redraw(); });
+      host.appendChild(w.field);
+      const cur = cast ? cast(w.sel.value) : w.sel.value;
+      if (String(st[key]) !== String(cur)) st[key] = cur;
+    };
+    add("view", "view", XP_VIEWS, "view", "distribution", true);
+    const v = st.view;
+    if (v === "scatter") { add("x", "x metric", feats, "x", feats[0]); if (st.y === st.x) st.y = feats.find(n => n !== st.x) || st.x; }
+    if (v !== "table") add("y", v === "scatter" ? "y metric" : "metric", feats, "y", v === "scatter" ? (feats.find(n => n !== st.x) || feats[0]) : feats[0]);
+    if (v === "time") add("xt", "x axis", XP_TIME_X, "xt", "t_index");
+    if (v === "matrix") { add("rows", "rows", mkOpts, "rows", mkOpts[0][0]); add("cols", "columns", mkOpts, "cols", (mkOpts[1] || mkOpts[0])[0]); }
+    else add("group", "by", keyOpts, "group", keyOpts[0][0]);
+    if (v === "time" || v === "matrix" || v === "table") add("stat", "stat", XP_STATS, "stat", "median");
+    if (v !== "table") add("scale", "scale", [["linear", "linear"], ["log", "log"]], "scale", "linear");
+    if (v === "distribution") { add("mode", "draw", [["box", "box"], ["hist", "histogram"]], "mode", "box", true); if (st.mode === "hist") add("bins", "bins", ["10", "20", "30", "50", "100"], "bins", "30", false, Number); }
+  }
+  function xpKeyOpts(sum, forCmp) {
+    const o = forCmp ? [["run", "run"]] : [["", "all rows"]];
+    XP_GROUP_KEYS.forEach(k => { const info = sum && sum.keys && sum.keys[k]; if (forCmp || (info && info.n_unique > 1)) o.push([forCmp ? "run," + k : k, forCmp ? "run + " + k : k]); });
+    if (forCmp) ["family", "workload", "recording"].forEach(k => o.push([k, k + " (runs pooled)"]));
+    return o;
+  }
+  function xpMatrixOpts(sum, forCmp) {
+    const keys = XP_GROUP_KEYS.filter(k => forCmp || !sum || !sum.keys[k] || sum.keys[k].n_unique > 1);
+    return (forCmp ? [["run", "run"]] : []).concat((keys.length ? keys : XP_GROUP_KEYS).map(k => [k, k]));
+  }
+
+  /* the single-run pane */
+  function xpMark() {
+    const s = xpState;
+    [...$("xp-feats").children].forEach(b => b.classList.toggle("on", b.dataset.name === s.y || (s.view === "scatter" && b.dataset.name === s.x)));
+    [...$("xp-keys").children].forEach(b => b.classList.toggle("on", s.view === "matrix" ? (b.dataset.key === s.rows || b.dataset.key === s.cols) : s.view === "time" ? (b.dataset.key === s.xt || b.dataset.key === s.group) : b.dataset.key === s.group));
+  }
+  function xpBuild() {
+    if (!xpSummary) return;
+    const feats = xpSummary.features.map(f => f.name);
+    xpControls($("xp-ctl"), xpState, feats, xpKeyOpts(xpSummary, false), xpMatrixOpts(xpSummary, false), xpDraw);
+  }
+  async function xpDraw() {
+    const plot = $("xp-plot"), cap = $("xp-cap"), tbl = $("xp-table");
+    if (!xpState.label) return;
+    plot.innerHTML = '<div class="xp-empty">computing…</div>';
+    const seq = ++xpSeq;
+    try {
+      const r = await api(xpQuery([xpState.label], xpState));
+      if (seq !== xpSeq) return;                 /* a newer request is in flight; its answer draws */
+      xpLast = r; xpState.y = r.y || xpState.y; if (r.view === "scatter") xpState.x = r.x;
+      if (r.view !== "matrix" && !xpState.group && (r.group || []).length) { xpState.group = r.group.join(","); xpBuild(); }
+      xpTableData = xpRender(plot, cap, tbl, r, xpState);
+      $("xp-title").textContent = `${xpState.label}: ${r.view === "table" ? "table" : r.view === "scatter" ? r.x + " vs " + r.y : r.y}`;
+      xpMark();
+    } catch (e) { if (seq !== xpSeq) return; xpEmpty(plot, e.message); cap.innerHTML = ""; tbl.innerHTML = ""; xpTableData = null; }
+  }
+  async function xpLoadRun() {
+    const facts = $("xp-facts"), side = $("xp-feats"), keys = $("xp-keys"), kv = $("xp-run");
+    xpSummary = null; xpLast = null;
+    if (!xpState.label) { facts.textContent = "no run has features yet"; side.innerHTML = keys.innerHTML = kv.innerHTML = ""; $("xp-ctl").innerHTML = ""; $("xp-cap").innerHTML = ""; $("xp-table").innerHTML = ""; $("xp-title").textContent = "one run"; xpEmpty($("xp-plot"), "launch a scheme first; what it writes appears here"); return; }
+    try { xpSummary = await api("/results/summary?label=" + encodeURIComponent(xpState.label)); }
+    catch (e) { facts.textContent = e.message; xpEmpty($("xp-plot"), e.message); return; }
+    const s = xpSummary, f = s.facts || {};
+    facts.innerHTML = `${s.n_rows} rows × ${s.n_features} metrics · written ${esc(f.written_at || "?")} · speed ${f.speed == null ? "?" : f.speed}${/unrecorded/.test(f.speed_source || "") ? " (assumed)" : ""}${f.extraction_ran ? " · " + esc(f.extraction_ran) : ""}${(f.acknowledged || []).length ? " · acknowledged: " + esc(f.acknowledged.join(", ")) : ""}`;
+    side.innerHTML = "";
+    s.features.forEach(ft => {
+      const b = document.createElement("button"); b.dataset.name = ft.name;
+      b.innerHTML = `<span>${esc(ft.name)}</span><span class="n">${fmtN(ft.median, 3)}</span>`;
+      b.title = `median over all rows ${fmtN(ft.median, 6)} · n ${ft.n}${ft.n_nan ? ", NaN " + ft.n_nan : ""} · min ${fmtN(ft.min, 5)} · max ${fmtN(ft.max, 5)}`;
+      b.onclick = () => { if (xpState.view === "table") xpState.view = "distribution"; xpState.y = ft.name; xpSave(); xpBuild(); xpDraw(); };
+      side.appendChild(b);
+    });
+    keys.innerHTML = "";
+    Object.entries(s.keys).forEach(([k, info]) => {
+      const b = document.createElement("button"); b.dataset.key = k;
+      b.innerHTML = `<span>${esc(k)}</span><span class="n">${info.n_unique}${info.values ? "" : " (" + info.min + "…" + info.max + ")"}</span>`;
+      b.title = info.values ? info.values.slice(0, 12).map(v => (v.short || v.value) + " (" + v.n + ")").join(", ") + (info.values.length > 12 ? ", …" : "") : `${info.n_unique} distinct values from ${info.min} to ${info.max}`;
+      b.disabled = info.n_unique < 2 || k === "seq_start";
+      b.onclick = () => { if (xpState.view === "matrix") { if (xpState.rows === k) return; xpState.cols = xpState.rows; xpState.rows = k; } else if (xpState.view === "time" && (k === "t_index" || k === "seq_start")) xpState.xt = k; else xpState.group = k; xpSave(); xpBuild(); xpDraw(); };
+      keys.appendChild(b);
+    });
+    const src = f.source || {};
+    kv.innerHTML =
+      `<dt>source</dt><dd>${esc(src.kind || "?")}${src.host ? " — " + esc(src.user ? src.user + "@" + src.host : src.host) : ""}</dd>` +
+      `<dt>root</dt><dd class="mono">${esc(src.remote_root || src.root || "-")}</dd>` +
+      `<dt>where</dt><dd>${esc(f.extraction_ran || "-")}</dd>` +
+      `<dt>recordings</dt><dd>${f.n_recordings}</dd>` +
+      `<dt>scheme</dt><dd>${esc((f.modules || []).join(" → ") || "-")}</dd>` +
+      (f.window ? `<dt>window</dt><dd>W ${f.window.w} · H ${f.window.h}${f.window.edge ? " · " + esc(f.window.edge) : ""}</dd>` : "") +
+      `<dt>max pairs</dt><dd>${f.max_pairs == null ? "all" : f.max_pairs}</dd>` +
+      `<dt>differ</dt><dd>${esc(typeof f.differ === "object" && f.differ ? [String(f.differ.path || "").split("/").pop(), f.differ.bytes ? f.differ.bytes + " B" : "", f.differ.version || ""].filter(Boolean).join(" · ") : (f.differ || "-"))}</dd>` +
+      `<dt>numpy</dt><dd>${esc(f.numpy || "-")} / py ${esc(f.python || "-")}</dd>` +
+      `<dt>files</dt><dd class="mono" title="${esc(Object.values(f.files || {}).join("\n"))}">${esc((Object.values(f.files || {})[0] || "").replace(/\/[^/]*$/, ""))}<br>${esc(Object.keys(f.files || {}).join(" · "))}</dd>`;
+    if (xpState.group == null) xpState.group = ["family", "workload", "recording"].find(k => s.keys[k] && s.keys[k].n_unique > 1) || "";
+    if (xpState.group && !(s.keys[xpState.group] && s.keys[xpState.group].n_unique > 1)) xpState.group = "";
+    xpBuild(); await xpDraw();
+  }
+  async function xpRefreshRuns() {
+    try { const r = await api("/runs"); xpRuns = (r.runs || []).filter(x => x.has_features).slice().reverse(); } catch (e) { xpRuns = []; }
+    const sel = $("xp-pick"); sel.innerHTML = "";
+    xpRuns.forEach(x => { const o = document.createElement("option"); o.value = x.label; o.textContent = `${x.label}${x.n_rows != null ? ` (${x.n_rows} × ${x.n_features})` : ""}${x.state && x.state !== "done" ? " · " + x.state : ""}`; sel.appendChild(o); });
+    if (!xpRuns.length) sel.innerHTML = '<option value="">no run has features yet</option>';
+  }
+  async function xpOpen(label) {
+    await xpRefreshRuns();
+    const want = label || xpState.label;
+    xpState.label = xpRuns.some(x => x.label === want) ? want : ((xpRuns[0] || {}).label || null);
+    $("xp-pick").value = xpState.label || "";
+    document.documentElement.classList.add("xp-open");
+    cmpRefresh();
+    await xpLoadRun();
+    cmpDraw();
+  }
+  function xpClose() { document.documentElement.classList.remove("xp-open"); tipHide(); }
+
+  /* the comparison pane: runs added from the single pane, drawn on one axis */
+  function cmpRefresh() {
+    const chips = $("cmp-chips"); chips.innerHTML = "";
+    $("xp-body").classList.toggle("has-cmp", cmpState.labels.length > 0);
+    cmpState.labels.forEach((l, i) => {
+      const c = document.createElement("span"); c.className = "xp-chip"; const run = xpRuns.find(x => x.label === l);
+      c.innerHTML = `<i style="background:${cmpState.group === "run" ? xpColor(i) : "var(--line-2)"}"></i>${esc(l)}${run && run.n_rows != null ? ` <em>${run.n_rows}×${run.n_features}</em>` : ""}<button title="remove from the comparison">×</button>`;
+      c.querySelector("button").onclick = () => { cmpState.labels.splice(i, 1); xpSave(); cmpRefresh(); cmpDraw(); };
+      chips.appendChild(c);
+    });
+    const inCmp = !!xpState.label && cmpState.labels.includes(xpState.label);
+    $("xp-add").disabled = !xpState.label || inCmp;
+    $("xp-add").textContent = inCmp ? "in the comparison" : "Add to comparison";
+    if (!cmpState.labels.length) { $("cmp-ctl").innerHTML = ""; xpEmpty($("cmp-plot"), "add runs here with “Add to comparison”: they draw on one axis, by run, or by run and family"); $("cmp-cap").innerHTML = ""; $("cmp-table").innerHTML = ""; cmpTableData = null; cmpLast = null; cmpFeats = ""; }
+  }
+  async function cmpDraw(retry) {
+    if (!cmpState.labels.length) return;
+    const plot = $("cmp-plot"), cap = $("cmp-cap"), tbl = $("cmp-table");
+    plot.innerHTML = '<div class="xp-empty">computing…</div>';
+    const seq = ++cmpSeq;
+    try {
+      const r = await api(xpQuery(cmpState.labels, cmpState));
+      if (seq !== cmpSeq) return;
+      cmpLast = r; cmpState.y = r.y || cmpState.y; if (r.view === "scatter") cmpState.x = r.x;
+      if (r.view !== "matrix" && !cmpState.group && (r.group || []).length) { cmpState.group = r.group.join(","); cmpFeats = ""; }
+      const key = r.features.join("|") + "#" + cmpState.view + "#" + cmpState.mode;
+      if (key !== cmpFeats || !$("cmp-ctl").children.length) {
+        cmpFeats = key; xpControls($("cmp-ctl"), cmpState, r.features, xpKeyOpts(null, true), xpMatrixOpts(null, true), cmpDraw);
+        /* building the controls can correct a choice the query was sent with (a scatter of a metric against itself): draw what the controls now say */
+        if (!retry && (cmpState.y !== r.y || (r.view === "scatter" && cmpState.x !== r.x))) return cmpDraw(true);
+      }
+      cmpTableData = xpRender(plot, cap, tbl, r, cmpState);
+      cmpRefresh();
+    } catch (e) {
+      if (seq !== cmpSeq) return;
+      if (!retry && /no metric/.test(e.message) && (cmpState.y || cmpState.x)) { cmpState.y = ""; cmpState.x = ""; xpSave(); return cmpDraw(true); }
+      xpEmpty(plot, e.message); cap.innerHTML = ""; tbl.innerHTML = ""; cmpTableData = null;
+    }
+  }
+
+  /* csv: the table as drawn, to the clipboard or a file */
+  function xpCsvOut(getData, mode, noteEl, name) {
+    const t = getData(); if (!t) { noteEl.textContent = "nothing to export yet"; return; }
+    const csv = xpCSV(t);
+    if (mode === "copy") { (navigator.clipboard ? navigator.clipboard.writeText(csv) : Promise.reject(new Error("no clipboard"))).then(() => { noteEl.textContent = `copied ${t.rows.length} rows`; }, e => { noteEl.textContent = "copy failed: " + e.message; }); }
+    else { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"})); a.download = name + ".csv"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); noteEl.textContent = `saved ${a.download}`; }
+    setTimeout(() => { noteEl.textContent = ""; }, 6000);
+  }
+  const csvName = (st, labels) => `${labels.join("+")}_${st.view}${st.view !== "table" ? "_" + (st.y || "") : ""}${st.view === "scatter" ? "_vs_" + (st.x || "") : ""}`.replace(/[^A-Za-z0-9_+.-]+/g, "_");
+  $("xp-csv-copy").onclick = () => xpCsvOut(() => xpTableData, "copy", $("xp-note"), "");
+  $("xp-csv-dl").onclick = () => xpCsvOut(() => xpTableData, "file", $("xp-note"), csvName(xpState, [xpState.label]));
+  $("cmp-csv-copy").onclick = () => xpCsvOut(() => cmpTableData, "copy", $("cmp-note"), "");
+  $("cmp-csv-dl").onclick = () => xpCsvOut(() => cmpTableData, "file", $("cmp-note"), csvName(cmpState, cmpState.labels));
+  $("cmp-clear").onclick = () => { cmpState.labels = []; xpSave(); cmpRefresh(); };
+  $("xp-add").onclick = () => { if (xpState.label && !cmpState.labels.includes(xpState.label)) { cmpState.labels.push(xpState.label); xpSave(); cmpRefresh(); cmpDraw(); } };
+  $("xp-close").onclick = xpClose;
+  $("xp-pick").onchange = async e => { xpState.label = e.target.value || null; xpSave(); cmpRefresh(); await xpLoadRun(); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.documentElement.classList.contains("xp-open")) xpClose(); });
+  let xpResizeT = null;
+  window.addEventListener("resize", () => { clearTimeout(xpResizeT); xpResizeT = setTimeout(() => { if (!document.documentElement.classList.contains("xp-open")) return; if (xpLast) xpTableData = xpRender($("xp-plot"), $("xp-cap"), $("xp-table"), xpLast, xpState); if (cmpLast) cmpTableData = xpRender($("cmp-plot"), $("cmp-cap"), $("cmp-table"), cmpLast, cmpState); }, 150); });
+
+  /* entry points: the header, next to Monitor, and the Results tab's current run */
+  (function () {
+    const host = document.querySelector("header.top");
+    if (!host) return;
+    const b = document.createElement("button");
+    b.className = "bigbtn ghost"; b.id = "xp-btn"; b.textContent = "Explore";
+    b.title = "plots and tables of what a run wrote, and runs side by side";
+    b.onclick = () => xpOpen();
+    const anchor = $("mon-btn") || $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
+  const _showResult = showResult;
+  showResult = function (label) { xpResLabel = label; return _showResult(label); };
+  $("res-explore").onclick = () => xpOpen(xpResLabel || current || null);
 
   refreshRuns();
 })();

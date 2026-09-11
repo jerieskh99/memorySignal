@@ -225,10 +225,25 @@ def scan(root: Path, metrics_root: Path | None = None) -> dict:
     return m
 
 
-def scan_source(src) -> dict:
-    """Manifest over any Source (local or ssh)."""
+def scan_source(src, reconcile: bool = False) -> dict:
+    """Manifest over any Source (local or ssh).
+
+    An archive that keeps its own manifest (archive_manifest.py) is read, not walked: one file
+    instead of a stat per snapshot. `reconcile` forces the walk and rewrites that manifest from
+    what is actually there -- the Scan button. An archive without one is walked as before.
+    """
     d = src.describe()
     label = d.get("root") or f"{d.get('host')}:{d.get('remote_root')}"
+    m = None
+    if reconcile and hasattr(src, "reconcile"):
+        m = src.reconcile()
+    elif hasattr(src, "manifest"):
+        m = src.manifest()
+    if m is not None:
+        m["root"] = label
+        m["source"] = d
+        m.setdefault("archive_manifest", {})["read_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return m
     return scan_listing(src.listing(), label, None, d)
 
 

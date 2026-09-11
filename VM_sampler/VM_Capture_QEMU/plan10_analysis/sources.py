@@ -31,7 +31,8 @@ DEFAULT_CACHE = "~/.cache/plan10/chains"
 # where the capture console already puts the repo on the server (plan07_campaign/ui/console.sh)
 DEFAULT_REMOTE_REPO = "$HOME/memorySignal/VM_sampler/VM_Capture_QEMU"
 DEFAULT_REMOTE_STORE = "~/.cache/plan10/l1"
-LISTING_TIMEOUT_S = int(os.environ.get("PLAN10_LISTING_TIMEOUT", "1200"))   # a full ssh listing of the archive
+LISTING_TIMEOUT_S = int(os.environ.get("PLAN10_LISTING_TIMEOUT", "1200"))
+MANIFEST_REL = ".manifest/manifest.json"   # the archive's own inventory (archive_manifest.py)   # a full ssh listing of the archive
 _RE_SNAP = re.compile(r"^\d{6}\.zst$")
 
 
@@ -88,6 +89,16 @@ class LocalSource:
         if not self.root.is_dir():
             return False, f"not a directory: {self.root}"
         return True, f"ok: {self.root}"
+
+    def manifest(self) -> dict | None:
+        """The archive's own inventory (archive_manifest.py), if it keeps one. No walk."""
+        from plan10_analysis import archive_manifest
+        return archive_manifest.load(self.root)
+
+    def reconcile(self) -> dict:
+        """Walk the archive and rewrite its manifest from what is there: the only path that walks."""
+        from plan10_analysis import archive_manifest
+        return archive_manifest.rebuild(self.root)
 
     def listing(self) -> list[Entry]:
         if not self.root.is_dir():
@@ -279,6 +290,41 @@ class SshSource:
                 continue
             out.append(Entry(rel, int(size or 0), ty == "d"))
         return out
+
+    def manifest_cmd(self) -> str:
+        return f"cat {shlex.quote(self.remote_root + '/' + MANIFEST_REL)}"
+
+    def manifest(self) -> dict | None:
+        """Read the archive's own manifest over ssh: one small file, one round trip.
+
+        None when the archive keeps none (the caller then walks it). An unreadable one is an
+        error, not a silent fall-back to a four-minute walk.
+        """
+        r = subprocess.run(self.ssh_argv(self.manifest_cmd()), capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            if "No such file" in (r.stderr or "") or not (r.stdout or "").strip():
+                return None
+            raise SourceError(f"could not read the archive manifest (exit {r.returncode}): {r.stderr.strip()[:300]}")
+        try:
+            return json.loads(r.stdout)
+        except json.JSONDecodeError as e:
+            raise SourceError(f"archive manifest is not valid JSON: {e}")
+
+    def reconcile_cmd(self) -> str:
+        # remote_repo may hold $HOME on purpose: the remote shell expands it
+        return (f"cd {self.remote_repo} && {shlex.quote(self.remote_python)} "
+                f"plan10_analysis/archive_manifest.py rebuild {shlex.quote(self.remote_root)}")
+
+    def reconcile(self) -> dict:
+        """Rebuild the archive's manifest ON the server (the walk stays local to the files), then read it."""
+        r = subprocess.run(self.ssh_argv(self.reconcile_cmd()), capture_output=True, text=True,
+                           timeout=LISTING_TIMEOUT_S)
+        if r.returncode != 0:
+            raise SourceError(f"remote rebuild failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()[:300]}")
+        m = self.manifest()
+        if m is None:
+            raise SourceError("remote rebuild reported success but left no manifest")
+        return m
 
     def listing(self) -> list[Entry]:
         # One stat per entry over NFS: ~90k on the real corpus, 2-3 min on a quiet server and

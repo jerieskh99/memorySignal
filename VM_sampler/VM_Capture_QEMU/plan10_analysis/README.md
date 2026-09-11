@@ -33,7 +33,9 @@ Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.tx
 ## Use it
 
 1. **Source** tab (bottom drawer): local path, or host / user / key / remote root for SSH.
-   Test, then Scan. The Cells module now selects from what was found.
+   Test, then Reload: the archive's own manifest is read in one round trip and the Cells module
+   selects from it. Scan is the slow reconciliation (a full walk that rewrites that manifest);
+   it is for an archive nobody registered into, not for every session.
 2. Drop modules from the palette, pipe output ports to input ports. Ports are typed. Load an
    example from the header to start from a working graph.
 3. Fix what is red (hard), acknowledge what is amber (soft) in the inspector with a note.
@@ -41,6 +43,8 @@ Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.tx
 4. **Run** tab: differ speed (default the config's), max pairs (0 = all), progress, log,
    pause, stop. **Results** tab: every run, its rows, its sidecar. **Monitor** (header) is the
    full-screen view of the same run.
+5. **Explore** (header, or the Results tab's button): plots and tables of what a run wrote,
+   and runs side by side. See "Explore" below.
 
 Runs land under `~/.cache/plan10/runs/<label>/`: `features.npz` (`X`, `feature_names`,
 `tile_keys`), `features.csv`, `sidecar.json`, `status.json`, `run.log`. Extracted channels
@@ -51,7 +55,8 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | File | Does | Test |
 |---|---|---|
 | `channel_roster.py` | the 64 columns and the speed each dies at, parsed from the differ's Rust and reconciled with its HELP table | `test_plan10_channel_roster.py` |
-| `corpus_manifest.py` | recordings from a listing (`scan_listing`); local walk and SSH `find` produce the same manifest | `test_plan10_corpus_manifest.py` |
+| `corpus_manifest.py` | recordings from a listing (`scan_listing`); local walk and SSH `find` produce the same manifest; `scan_source` prefers the archive's manifest and walks only when there is none | `test_plan10_corpus_manifest.py` |
+| `archive_manifest.py` | the archive's own inventory at `<root>/.manifest/manifest.json`, maintained by its writers (`register`, `unregister`) under an NFS-safe lock; `rebuild` is the reconciling walk | `test_plan10_archive_manifest.py` |
 | `sources.py` | `LocalSource` / `SshSource`: listing, fetch to cache, test | `test_plan10_sources.py` |
 | `known_issues.py` | the flag registry, every number recomputed from the artifact it cites | `test_plan10_build.py` |
 | `modules.py` | module and port registry; feature lists read from the implementing code | `test_plan10_scheme.py` |
@@ -62,6 +67,7 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | `runner/trajectory.py` | read the substrate trajectory a capture already wrote: its header is what a recording can serve, its rows become the L1 without a re-diff | same |
 | `runner/stages.py` | one pure function per module kind; reuses b1_features, CepstrumStability, PLVStability, plan04_cusum, normal_profile | `test_plan10_runner_executor.py` |
 | `runner/executor.py` | order, run per recording, status, control, output, sidecar | same |
+| `results_view.py` | what a run produced, summarised and aggregated in numpy for the Explore view: per-metric statistics, the five views, several runs aligned by metric name | `test_plan10_results_view.py` |
 | `ui/analysis_bridge.py` | the local HTTP backend | `test_plan10_bridge.py` |
 | `ui/build_analysis_console.py` | injects everything above into the template; static build has no network code | `test_plan10_build.py` |
 | `ui/analysis_console.template.html` | the console; the bridge client sits between SERVED_ONLY markers | loaded in a browser |
@@ -99,6 +105,71 @@ as separate bars (the fetch reports nothing of its own; the bar sizes the cache 
 archive's byte count), every selected trace by name, counts, inputs, outputs, and the log.
 `/cache/drop` deletes fetched chains only after re-stat'ing the archive copy over ssh and matching
 snapshot count and bytes exactly; the archive is never written to, so there is nothing to send back.
+
+## The archive keeps its own manifest
+
+The archive is append-only at the file level: a snapshot is written once and never rewritten,
+so the only party that knows when a recording is complete is the tool that put it there and
+verified it. That tool registers it in `<root>/.manifest/manifest.json`, and every reader,
+the console first of all, reads that one file instead of stat-ing a hundred thousand snapshots
+over NFS (the full walk took 239 s under capture load; the manifest reads in under a second).
+A recording still arriving is not in the manifest and so cannot be selected: there is no
+stability guess.
+
+The file is a corpus manifest (`plan10.corpus_manifest.v1`, the shape `corpus_manifest.py`
+produces from a walk) so the console consumes it unchanged, plus an `archive_manifest` block
+(`rebuilt_at`, `updated_at`, `registered_since_rebuild`, `last_registered`) and, per recording,
+`has.substrate_columns`: the trajectory's header, read in place at registration. That is what
+lets the Channels module light its rings on page load without a fetch or a round trip.
+
+Who writes it: `plan07_campaign/ui/migrate_agent_server.sh` after each verified move from
+`/project` to the NFS archive, `plan07_campaign/ui/place_csv.py` after placing a trajectory
+beside its chain, and the laptop's `push_to_nfs.sh` after a verified push. Each calls
+`python3 plan10_analysis/archive_manifest.py register <root> <rel>`. Concurrent writers take a
+lock (an atomically created directory, since flock is unreliable on NFS; a lock older than
+120 s is a dead writer and is broken; release renames the directory away first, because the
+NFS client can leave a silly-renamed `.nfs*` file inside that defeats a plain rmdir), rewrite
+to a temp file and rename it over the old one, so a reader never sees a partial manifest.
+
+`rebuild <root>` walks the whole archive and rewrites the manifest from what is there. It is
+the safety net for files copied in by hand and the only path that ever walks the archive.
+A registration made while its walk runs is kept from the live manifest, not from the walk's
+stale glimpse of a directory that was still filling. In the console, **Reload** reads the
+manifest; **Scan** runs `rebuild` on the source and then reads it. The bridge's startup line
+and the header say which one the corpus came from.
+
+## Explore: what a run wrote, and runs side by side
+
+`features.npz` is tiles x metrics with six keys per row (`recording, workload, family, block,
+t_index, seq_start`). Every plot the console offers is one or two metrics, one grouping key,
+one statistic over that:
+
+| view | draws | table under it |
+|---|---|---|
+| distribution | one horizontal box per group (p25-p75, median line, mean diamond, p5-p95 whiskers, min/max dots, n), or a histogram over edges every group shares | n, n_nan, min, p5, p25, median, p75, p95, max, mean, std per group |
+| over time | one line per group of the chosen stat at each `t_index` (or `seq_start`), p25-p75 band where several rows share an x, hover reads every series at that x | rows, points, x and y ranges per series |
+| matrix | rows key x columns key, one sequential ramp, value written in when the cell is wide enough, n in the tooltip | the matrix |
+| scatter | two metrics, one colour per group, at most 5000 points by a fixed stride | n, drawn, Pearson r, Spearman rho per group |
+| table | nothing | one stat of every metric per group |
+
+The numbers are the bridge's, not the page's: `/results/summary?label=L` and
+`/results/agg?labels=A,B&view=&y=&x=&group=&stat=&scale=&bins=&rows=&cols=` call
+`results_view.py`, which computes in float64 from the float32 the run wrote, NaN-aware, and
+rounds to 6 significant digits (the precision of `features.csv`). Percentiles are numpy's
+linear interpolation; std is the sample standard deviation (ddof 1). The caption under each
+plot says what every mark means, and the header line carries the sidecar facts (written,
+speed and whether it was assumed, where extraction ran, acknowledged warnings), so a figure
+is never separated from how it was made.
+
+**Comparison.** "Add to comparison" puts the current run on the right-hand pane. Several runs
+aggregate as one frame: metric columns aligned by name (the intersection, in the first run's
+order), rows stacked, a `run` key added, so the same views group by run, by run and family,
+or by family with the runs pooled. A run lacking the chosen metric is left out and named in
+the caption. The set of runs and every control persist in the browser (localStorage), so a
+bridge restart's new URL does not lose them.
+
+"Copy table as CSV" and "Download CSV" export the table as drawn. Paper figures are not made
+here: read the same `features.npz` from a script.
 
 ## What is not implemented, and says so
 

@@ -14,7 +14,8 @@
 # Optional env:  REMOTE_DIR (server path to VM_Capture_QEMU),
 #                LPORT (port on YOUR LAPTOP, default 8765 -- 8000 is often taken),
 #                RPORT (port on the SERVER, default 8000),
-#                MIGRATE (1=auto-start the migration agent, default; 0=skip),
+#                MIGRATE (1=auto-start the LAPTOP migration agent; 0=skip, default
+#                since 2026-09-11 -- migration now runs server-side, see below),
 #                ZSTD_REMOTE_DIR (server chain store, default
 #                  /project/homes/jeries/memory_traces/zstd_local),
 #                TRACES_LOCAL_DIR (laptop dest, default $HOME/thesis_traces/zstd_local).
@@ -33,8 +34,15 @@ RPORT="${RPORT:-8000}"          # server side
 
 # Laptop-side migration agent (pulls completed chains to this machine; the server
 # can't reach a NAT'd laptop, so the copy must start here). Auto-started below and
-# controlled from the console's Data migration panel. Set MIGRATE=0 to skip it.
-MIGRATE="${MIGRATE:-1}"
+# controlled from the console's Data migration panel.
+#
+# Since 2026-09-11 the steady-state migration is SERVER-SIDE: migrate_agent_server.sh
+# runs on the capture server (screen -dmS mem_migrate_server) and moves chains from
+# /project straight onto the NFS archive mounted there, writing the same ledger
+# this console reads. The laptop agent is no longer started by default -- it would
+# race the server agent for the same chains and pull 18 GB dwarfs across the
+# campus link for no reason. Set MIGRATE=1 only to deliberately pull to the laptop.
+MIGRATE="${MIGRATE:-0}"
 ZSTD_REMOTE_DIR="${ZSTD_REMOTE_DIR:-/project/homes/jeries/memory_traces/zstd_local}"
 TRACES_LOCAL_DIR="${TRACES_LOCAL_DIR:-$HOME/thesis_traces/zstd_local}"
 

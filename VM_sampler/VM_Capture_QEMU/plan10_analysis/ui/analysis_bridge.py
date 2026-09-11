@@ -17,6 +17,9 @@ It serves the built console and exposes:
   POST /control        {label, command: stop|pause|run}
   GET  /runs                         every run under the output directory
   GET  /results?label=L&rows=N       sidecar + the first N feature rows
+  GET  /results/summary?label=L      what a run holds: per-metric stats, keys, sidecar facts (Explore)
+  GET  /results/agg?labels=A,B&view=V&y=F&x=F|key&group=k1,k2&stat=S&scale=linear|log&bins=N&rows=k&cols=k
+                                     one view over one run or several, aggregated in numpy (results_view.py)
 
 Sources are {"kind":"local","root":...} or {"kind":"ssh","host":...,"user":...,"key":...,
 "remote_root":...,"port":22}. The executor runs as a subprocess so a run outlives a page
@@ -48,6 +51,7 @@ QEMU_DIR = PKG.parent
 sys.path.insert(0, str(QEMU_DIR))
 
 from plan10_analysis import channel_roster, corpus_manifest, scheme as S   # noqa: E402
+from plan10_analysis import results_view as RV                            # noqa: E402
 from plan10_analysis.runner import trajectory, extract                     # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
@@ -123,9 +127,11 @@ def ep_source_test(_q, body):
 
 
 def ep_scan(_q, body):
+    """Read the archive's own manifest (default: one file, instant), or with reconcile=true walk
+    the archive and rewrite that manifest from what is actually there (the Scan button)."""
     try:
         src = make_source(body.get("source") or ST.source)
-        m = corpus_manifest.scan_source(src)
+        m = corpus_manifest.scan_source(src, reconcile=bool(body.get("reconcile")))
     except (SourceError, corpus_manifest.CorpusMissing) as e:
         return {"error": str(e)}, 400
     with ST.lock:
@@ -507,8 +513,14 @@ def ep_runs(_q, _b):
         for d in sorted(ST.out_dir.iterdir()):
             if d.is_dir() and (d / "scheme.json").exists():
                 s = _status_of(d)
-                out.append({"label": d.name, "state": s.get("state"), "updated_at": s.get("updated_at"), "message": s.get("message"),
-                            "has_features": (d / "features.npz").exists()})
+                item = {"label": d.name, "state": s.get("state"), "updated_at": s.get("updated_at"), "message": s.get("message"),
+                        "has_features": (d / "features.npz").exists()}
+                try:
+                    side = json.loads((d / "sidecar.json").read_text()) if (d / "sidecar.json").exists() else {}
+                    item.update(n_rows=side.get("n_rows"), n_features=side.get("n_features"), written_at=side.get("written_at"))
+                except (json.JSONDecodeError, OSError):
+                    pass
+                out.append(item)
     return {"runs": out}
 
 
@@ -526,7 +538,57 @@ def ep_results(q, _b):
             "files": {k: str(run_dir / k) for k in ("features.npz", "features.csv", "sidecar.json") if (run_dir / k).exists()}}
 
 
+def _run_dir_of(label: str):
+    if not label or not LABEL_OK.match(label):
+        return None
+    d = ST.out_dir / label
+    return d if d.is_dir() else None
+
+
+def ep_results_summary(q, _b):
+    """What one run holds, for the Explore view: every metric's statistics over all rows, the
+    keys and their cardinalities, and the sidecar facts a figure must not be separated from."""
+    label = (q.get("label") or [""])[0]
+    run_dir = _run_dir_of(label)
+    if run_dir is None:
+        return {"error": "unknown run"}, 404
+    try:
+        return RV.summary(RV.get_run(run_dir))
+    except RV.ViewError as e:
+        return {"error": str(e)}, 400
+
+
+def ep_results_agg(q, _b):
+    """One view over one run or several, computed in numpy from features.npz. The page draws
+    what comes back; it never aggregates rows itself. Unknown metric, key, view or stat is a 400
+    that names what exists."""
+    g = lambda k, d="": (q.get(k) or [d])[0]
+    labels = [x for x in g("labels").split(",") if x]
+    if not labels:
+        return {"error": "labels required"}, 400
+    runs = []
+    for lab in labels:
+        d = _run_dir_of(lab)
+        if d is None:
+            return {"error": f"unknown run {lab!r}"}, 404
+        try:
+            runs.append(RV.get_run(d))
+        except RV.ViewError as e:
+            return {"error": str(e)}, 400
+    try:
+        bins = int(g("bins", "30"))
+    except ValueError:
+        return {"error": "bins must be an integer"}, 400
+    try:
+        return RV.aggregate(runs, g("view", "distribution"), y=g("y") or None, x=g("x") or None,
+                            group=[k for k in g("group").split(",") if k], stat=g("stat", "median"),
+                            scale=g("scale", "linear"), bins=bins, rows=g("rows") or None, cols=g("cols") or None)
+    except RV.ViewError as e:
+        return {"error": str(e)}, 400
+
+
 ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
+               "/results/summary": ep_results_summary, "/results/agg": ep_results_agg,
                "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,
                "/cache/status": ep_cache_status}
 ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
@@ -599,7 +661,10 @@ def serve(port: int, source: dict, out_dir: Path, store: Path | None, open_brows
         src = make_source(source)
         ST.manifest = corpus_manifest.scan_source(src)
         ST.source = src.describe()
-        print(f"[bridge] scanned {ST.manifest['n_recordings']} recordings from {ST.source.get('root') or ST.source.get('host')}")
+        am = ST.manifest.get("archive_manifest") or {}
+        how = (f"archive manifest (rebuilt {am.get('rebuilt_at')}, updated {am.get('updated_at')}, "
+               f"{am.get('registered_since_rebuild', 0)} registered since)" if am else "full walk")
+        print(f"[bridge] {ST.manifest['n_recordings']} recordings from {ST.source.get('root') or ST.source.get('host')} via {how}")
     except (SourceError, corpus_manifest.CorpusMissing) as e:
         print(f"[bridge] no manifest at start: {e} (scan from the console)")
     if build:

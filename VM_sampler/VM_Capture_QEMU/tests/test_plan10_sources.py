@@ -151,6 +151,39 @@ def test_trajectory_fetch_is_its_own_narrow_rsync():
         assert loc.fetch_trajectory("mem/wl/var/rep001__x").name.endswith("substrate_trajectory.csv")
 
 
+def test_sources_read_and_rebuild_the_archive_manifest():
+    """A local source hands over the archive's own manifest when one exists and walks when
+    not; reconcile always walks and leaves a manifest behind. The ssh commands are the
+    same two operations spelled for a remote shell."""
+    import json, tempfile
+    from plan10_analysis import corpus_manifest as cm
+    from plan10_analysis.sources import SshSource, make_source
+    from plan10_analysis.testing import synth
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "zstd_local"
+        synth.make_corpus(root, n_snapshots=4, workloads=(("mem", "mem_synth_a_v2", 1),))
+        loc = make_source({"kind": "local", "root": str(root)})
+        assert loc.manifest() is None                                  # no manifest yet: caller walks
+        walked = cm.scan_source(loc)
+        assert "archive_manifest" not in walked and walked["n_recordings"] == 1
+        rebuilt = cm.scan_source(loc, reconcile=True)                  # the walk that writes
+        assert rebuilt["archive_manifest"]["rebuilt_at"] and (root / ".manifest" / "manifest.json").is_file()
+        read = cm.scan_source(loc)                                     # now read, not walked
+        assert read["archive_manifest"]["read_at"] and read["n_recordings"] == 1
+        assert read["source"] == loc.describe() and read["root"] == str(root)
+        # a registration by a writer shows up on the next read with no walk
+        from plan10_analysis import archive_manifest as am
+        rid = read["recordings"][0]["id"]
+        (root / rid / "run_matrix_test1_mem_synth_a_v2.npy.substrate_trajectory.csv").write_text("seq,page_index,hamming\n0,1,2\n")
+        am.register(root, rid)
+        again = cm.scan_source(loc)
+        assert again["n_with_substrate_csv"] == 1 and again["recordings"][0]["has"]["substrate_columns"] == ["hamming"]
+        assert again["archive_manifest"]["registered_since_rebuild"] == 1
+    s = SshSource("srv.example", "/project/zstd", user="jeries", remote_repo="$HOME/repo", remote_python="python3")
+    assert s.manifest_cmd() == "cat /project/zstd/.manifest/manifest.json"
+    assert s.reconcile_cmd() == "cd $HOME/repo && python3 plan10_analysis/archive_manifest.py rebuild /project/zstd"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
