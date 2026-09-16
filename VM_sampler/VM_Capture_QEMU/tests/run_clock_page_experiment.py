@@ -11,9 +11,19 @@ Steps, all from the host:
   5. unless --keep-writer-in-guest, remove the writer and its heartbeat from the guest
   6. write <workdir>/RUN_RECORD.json: every command, path, and script checksum used
 
-The writer and reader stay in the repository; the guest only ever holds a copy. Dumps are
-kept in the dump directory by default so the reader can be re-run; --delete-dumps-after
-removes this run's dumps once the reader has finished.
+The writer and reader stay in the repository; the guest only ever holds a copy.
+
+Where the dumps go. With useDomainDir true in the config (the AppArmor workaround: the
+domain's libvirt-generated profile grants only /var/lib/libvirt/qemu/domain-<id>-<name>/),
+the producer resolves that directory itself at startup via `virsh domid`. So this driver
+does not trust the config's imageDir: it takes the dump paths from the image_path field
+of this run's snapshot_timings.jsonl, which is the producer's own record. libvirt deletes
+the per-domain directory when the domain shuts down, so the reader runs immediately and
+the domain is resumed, never stopped, by this script. --delete-dumps-after removes this
+run's dumps once the reader has finished.
+
+If the timing driver's producer stop lands during a suspend the domain is left paused;
+this script checks `virsh domstate` after the run and resumes it before touching the guest.
 
 Environment, same conventions as run_files_controlled.py: SSH_KEY, SSH_PASS, SSH_OPTS.
 
@@ -140,21 +150,52 @@ def main() -> int:
         driver_cmd += ["--image-dir", str(dump_dir)]
     run(driver_cmd, cmds, cwd=str(QEMU_DIR))
 
-    # 3. heartbeat back from the guest (best effort)
-    run(scp + [f"{a.ssh_target}:{a.guest_heartbeat}", str(workdir / "guest_heartbeat.jsonl")], cmds, check=False)
+    # 3. the producer's stop can land mid-suspend and leave the domain paused: resume it
+    domain = cfg.get("domain", "")
+    uri = cfg.get("virshUri", "qemu:///system")
+    st = run(["virsh", "-c", uri, "domstate", domain], cmds, check=False, capture_output=True)
+    state = (st.stdout or "").strip().lower()
+    record["domstate_after_run"] = state
+    if "paused" in state:
+        run(["virsh", "-c", uri, "resume", domain], cmds, check=False)
+        time.sleep(2)
+        st = run(["virsh", "-c", uri, "domstate", domain], cmds, check=False, capture_output=True)
+        record["domstate_after_resume"] = (st.stdout or "").strip().lower()
+        print(f"[clock-page-exp] domain was left paused by the producer stop; resumed -> {record['domstate_after_resume']}")
 
-    # 4. read exactly this run's dumps
-    dumps = sorted(p for p in dump_dir.glob("memory_dump-*.raw") if p.stat().st_mtime >= run_start - 1)
+    # 4. heartbeat back from the guest (best effort; the guest needs a moment after a resume)
+    for attempt in range(6):
+        p = run(scp + [f"{a.ssh_target}:{a.guest_heartbeat}", str(workdir / "guest_heartbeat.jsonl")], cmds, check=False)
+        if p.returncode == 0:
+            break
+        time.sleep(5)
+
+    # 5. read exactly this run's dumps: the paths the producer itself recorded
+    dumps = []
+    jsonl = workdir / "snapshot_timings.jsonl"
+    if jsonl.exists():
+        for line in jsonl.read_text().splitlines():
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("seq", -1) >= 0 and d.get("image_path"):
+                dumps.append(Path(d["image_path"]))
+    dumps = [p for p in dumps if p.exists()]
+    if not dumps:  # fallback: anything new in the configured dir
+        dumps = sorted(p for p in dump_dir.glob("memory_dump-*.raw") if p.stat().st_mtime >= run_start - 1)
     record["n_dumps_this_run"] = len(dumps)
     record["dumps"] = [str(p) for p in dumps]
+    record["dump_dir_actual"] = str(dumps[0].parent) if dumps else None
     if not dumps:
-        print(f"[clock-page-exp] no dumps newer than run start in {dump_dir}; check timing_experiment.json and producer.log", file=sys.stderr)
+        print(f"[clock-page-exp] no dumps found via snapshot_timings.jsonl image_path nor in {dump_dir}; check producer.log", file=sys.stderr)
     else:
+        print(f"[clock-page-exp] {len(dumps)} dumps for this run under {dumps[0].parent}")
         run([sys.executable, str(READER), *map(str, dumps),
              "--timings", str(workdir / "snapshot_timings.jsonl"),
              "--out", str(workdir / "clock_page")], cmds, check=False)
 
-    # 5. tidy the guest
+    # 6. tidy the guest
     if not a.keep_writer_in_guest:
         run(ssh + [a.ssh_target, f"rm -f {a.guest_path} {a.guest_heartbeat}"], cmds, check=False)
         record["writer_removed_from_guest"] = True
