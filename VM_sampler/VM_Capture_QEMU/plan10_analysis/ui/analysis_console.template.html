@@ -118,6 +118,8 @@ button{font:inherit; cursor:pointer} input,select{font:inherit; color:inherit}
 .node{position:absolute; width:214px; background:var(--panel); border:1.5px solid var(--line-2); border-radius:12px; box-shadow:var(--shadow); user-select:none}
 .node.sel{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft), var(--shadow)}
 .node.hard{border-color:var(--bad)} .node.soft{border-color:var(--warn)}
+.node{cursor:grab}
+.node:active{cursor:grabbing}
 .node-h{display:flex; align-items:center; gap:7px; padding:8px 10px 7px; border-bottom:1px solid var(--line); cursor:grab; border-radius:12px 12px 0 0; background:var(--panel-2)}
 .node-h .ico{width:18px;height:18px; border-radius:5px; flex:none; display:grid; place-items:center; font-family:"IBM Plex Mono",monospace; font-size:9.5px; font-weight:700; color:#fff}
 .node-h .t{font-size:12.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -190,6 +192,9 @@ input:focus,select.f:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(
 .famfilter{display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px}
 .famfilter button{font-family:"IBM Plex Mono",monospace; font-size:10px; padding:2px 7px; border-radius:5px; border:1px solid var(--line-2); background:var(--panel); color:var(--ink-2)}
 .famfilter button.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.famfilter button.part{border-style:dashed; border-color:var(--accent); color:var(--accent)}
+.famfilter button i{font-style:normal; opacity:.65; margin-left:4px}
+.famfilter.wl{margin-bottom:8px}
 
 .cons{display:flex; flex-direction:column; gap:6px; margin-top:10px}
 .cons-item{border-radius:8px; padding:7px 10px; font-size:11.5px; line-height:1.42; display:flex; gap:7px; align-items:flex-start}
@@ -342,7 +347,7 @@ html.xp-open{overflow:hidden}
   <section class="canvas" id="canvas">
     <div class="world" id="world"><svg class="edges" id="edges"></svg><div id="nodes"></div></div>
     <div class="canvas-hint"><span><b>drag</b> a module from the left</span><span><b>drag</b> output to input to pipe</span><span><b>wheel</b> zoom, <b>drag background</b> pan</span><span><b>Del</b> removes selection</span></div>
-    <div class="zoomctl"><button id="zin">+</button><button id="zout">&minus;</button><button id="zfit" title="fit">&#8982;</button></div>
+    <div class="zoomctl"><button id="zin">+</button><button id="zout">&minus;</button><button id="zfit" title="fit">&#8982;</button><button id="ztidy" title="tidy: arrange by depth, left to right; nothing is disconnected">&#8677;</button></div>
   </section>
 <!--@@SERVED_ONLY_START@@-->
   <section class="drawer" id="drawer">
@@ -852,6 +857,15 @@ function drawEdges(temp) {
 
 let famFilter = null;
 function renderInspector(issues) {
+  /* re-rendering replaces the panel's HTML, which used to throw away where the recordings
+     table was scrolled to: ticking one recording sent the list back to the top */
+  const host = document.getElementById("insp");
+  const keep = {host: host.scrollTop, wraps: [...host.querySelectorAll(".tblwrap")].map(w => w.scrollTop)};
+  renderInspectorInner(issues);
+  host.scrollTop = keep.host;
+  [...host.querySelectorAll(".tblwrap")].forEach((w, i) => { if (keep.wraps[i] != null) w.scrollTop = keep.wraps[i]; });
+}
+function renderInspectorInner(issues) {
   const host = document.getElementById("insp"), n = byId(G.sel);
   if (!n) {
     if (G.selEdge) { const e = G.edges.find(x => x.id === G.selEdge); host.innerHTML = `<div class="sec-h"><span class="idx">PIPE</span><h2>${esc(M[byId(e.from).mod].name)} to ${esc(M[byId(e.to).mod].name)}</h2></div><div class="subnote">${TYPES[portType(e.from, e.fp, true).t].label} into <b>${esc(e.tp)}</b>. Press Delete to remove.</div><div class="danger"><button class="del" id="del-edge">remove pipe</button></div>`;
@@ -887,8 +901,11 @@ function renderInspector(issues) {
       const key = q.k, picked = n.p[key] || [];
       const fams = [...new Set(RECS.map(r => r.family))].sort();
       const shown = RECS.filter(r => !famFilter || r.family === famFilter);
+      const wlMap = new Map(); shown.forEach(r => { if (!wlMap.has(r.workload)) wlMap.set(r.workload, []); wlMap.get(r.workload).push(r); });
+      const wls = [...wlMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
       h += `<div class="field"><label class="fl">${esc(q.lab || "recordings")}, ${picked.length} of ${RECS.filter(usable).length} usable selected</label>
-        <div class="famfilter"><button data-fam="" class="${famFilter ? "" : "on"}">all</button>${fams.map(f => `<button data-fam="${esc(f)}" class="${famFilter === f ? "on" : ""}">${esc(f)}</button>`).join("")}<button data-selall="${key}" style="margin-left:auto">select usable</button><button data-selnone="${key}">none</button></div>
+        <div class="famfilter"><button data-fam="" class="${famFilter ? "" : "on"}">all</button>${fams.map(f => `<button data-fam="${esc(f)}" class="${famFilter === f ? "on" : ""}">${esc(f)}</button>`).join("")}<button data-selshown="${key}" style="margin-left:auto">select all ${esc(famFilter || "usable")}</button><button data-clrshown="${key}">clear ${esc(famFilter || "all")}</button></div>
+        <div class="famfilter wl">${wls.map(([w, rs]) => { const ok = rs.filter(r => usable(r) && r.n_pairs >= (n.p.min_pairs || 0)); const on = ok.filter(r => picked.includes(r.id)).length; return `<button data-selwl="${esc(w)}" data-cellkey="${esc(key)}" class="${on && on === ok.length ? "on" : on ? "part" : ""}" title="${on} of ${ok.length} usable selected; click to select every usable one, again to clear them">${esc(w.replace(/_v2$/, ""))}<i>${on}/${ok.length}</i></button>`; }).join("")}</div>
         <div class="tblwrap"><table class="tbl"><thead><tr><th></th><th>workload</th><th>rep</th><th>pairs</th><th>dur</th><th>has</th></tr></thead><tbody>` +
         shown.map(r => `<tr class="${usable(r) && picked.includes(r.id) ? "" : "off"}"><td><input type="checkbox" class="cb" data-cell="${esc(r.id)}" data-cellkey="${esc(key)}" ${picked.includes(r.id) ? "checked" : ""} ${usable(r) ? "" : "disabled"}></td><td title="${esc(r.id)}">${esc(r.workload)}<br><span class="pill">${esc(r.family)}</span> <span class="pill">${esc(r.run_label || "")}</span></td><td>${r.rep}</td><td>${r.n_pairs}</td><td>${r.variant.duration_s != null ? r.variant.duration_s : "?"}</td><td>${r.has.chain ? '<span class="pill have">chain</span>' : `<span class="pill none">${esc(r.status)}</span>`} ${r.has.substrate_csv ? '<span class="pill have">substrate csv</span>' : '<span class="pill warn">no csv</span>'}</td></tr>`).join("") + `</tbody></table></div>
         <div class="subnote">Speed and interval are unrecorded per recording (see the build bar). A recording without a chain is not selectable. The substrate CSV is what Channels reads; without it the runner would have to re-diff the chain.</div></div>`;
@@ -914,8 +931,10 @@ function renderInspector(issues) {
   host.querySelectorAll("[data-grp]").forEach(b => b.onclick = () => { const cols = GROUPS[b.dataset.grp]; const recs = d ? d.recs : []; const sp = recs.length ? Math.max(...recs.map(r => recSpeed(r)[0])) : CONFIG.substrateSpeed; n.p.chans = n.p.chans.filter(c => !cols.includes(c)); if (b.dataset.m === "all") n.p.chans.push(...cols.filter(c => !deadFor(c, sp))); renderAll(); });
   host.querySelectorAll("[data-cell]").forEach(cb => cb.onchange = () => { const k = cb.dataset.cellkey; n.p[k] = n.p[k] || []; cb.checked ? n.p[k].push(cb.dataset.cell) : (n.p[k] = n.p[k].filter(w => w !== cb.dataset.cell)); renderAll(); });
   host.querySelectorAll("[data-fam]").forEach(b => b.onclick = () => { famFilter = b.dataset.fam || null; renderAll(); });
-  const sa = host.querySelector("[data-selall]"); if (sa) sa.onclick = () => { n.p[sa.dataset.selall] = RECS.filter(r => usable(r) && r.n_pairs >= (n.p.min_pairs || 0)).map(r => r.id); renderAll(); };
-  const sn = host.querySelector("[data-selnone]"); if (sn) sn.onclick = () => { n.p[sn.dataset.selnone] = []; renderAll(); };
+  const okRec = r => usable(r) && r.n_pairs >= (n.p.min_pairs || 0);
+  const ss = host.querySelector("[data-selshown]"); if (ss) ss.onclick = () => { const k = ss.dataset.selshown; const cur = new Set(n.p[k] || []); RECS.filter(r => (!famFilter || r.family === famFilter) && okRec(r)).forEach(r => cur.add(r.id)); n.p[k] = [...cur]; renderAll(); };
+  const cs = host.querySelector("[data-clrshown]"); if (cs) cs.onclick = () => { const k = cs.dataset.clrshown; n.p[k] = (n.p[k] || []).filter(id => famFilter && REC[id] && REC[id].family !== famFilter); renderAll(); };
+  host.querySelectorAll("[data-selwl]").forEach(b => b.onclick = () => { const k = b.dataset.cellkey, w = b.dataset.selwl; const ids = RECS.filter(r => r.workload === w && okRec(r)).map(r => r.id); const cur = new Set(n.p[k] || []); const all = ids.length && ids.every(id => cur.has(id)); ids.forEach(id => all ? cur.delete(id) : cur.add(id)); n.p[k] = [...cur]; renderAll(); });
   host.querySelectorAll("[data-ack]").forEach(cb => cb.onchange = () => { cb.checked ? G.acks.set(cb.dataset.ack, {at: new Date().toISOString(), note: ""}) : G.acks.delete(cb.dataset.ack); renderAll(); });
   host.querySelectorAll("[data-acknote]").forEach(inp => inp.addEventListener("change", () => { const a = G.acks.get(inp.dataset.acknote); if (a) a.note = inp.value; renderReadout(validate()); }));
   host.querySelectorAll("[data-fix]").forEach(b => b.onclick = () => { mine[+b.dataset.fix].fix.run(); renderAll(); });
@@ -955,8 +974,14 @@ canvas.addEventListener("pointerdown", e => {
   const port = e.target.closest(".port"), head = e.target.closest(".node-h"), node = e.target.closest(".node"), edge = e.target.closest("path[data-edge]");
   if (port && port.dataset.dir === "out") { drag = {kind: "edge", from: port.dataset.node, fp: port.dataset.port, fromPt: portCenter(port.dataset.node, port.dataset.port, "out")};
     nodesHost.querySelectorAll(".port[data-dir='in']").forEach(p => p.classList.add(accepts(drag.from, drag.fp, p.dataset.node, p.dataset.port).ok ? "can" : "cant")); canvas.setPointerCapture(e.pointerId); e.preventDefault(); return; }
-  if (head) { const n = byId(node.dataset.id); const [wx, wy] = toWorld(e.clientX, e.clientY); drag = {kind: "node", id: n.id, ox: wx - n.x, oy: wy - n.y}; G.sel = n.id; G.selEdge = null; renderAll(); canvas.setPointerCapture(e.pointerId); return; }
-  if (node) { G.sel = node.dataset.id; G.selEdge = null; renderAll(); return; }
+  /* the whole node is the handle, not only its header. The pipes follow because they are drawn
+     from the ports' live positions. Selection is marked in place rather than re-rendering, so the
+     element under the pointer survives the press; the full re-render happens on release. */
+  if (node && !e.target.closest("input,select,button,textarea,a,label")) {
+    const n = byId(node.dataset.id); const [wx, wy] = toWorld(e.clientX, e.clientY);
+    drag = {kind: "node", id: n.id, ox: wx - n.x, oy: wy - n.y}; G.sel = n.id; G.selEdge = null;
+    nodesHost.querySelectorAll(".node.sel").forEach(x => x.classList.remove("sel")); node.classList.add("sel"); svg.querySelectorAll("path.sel").forEach(x => x.classList.remove("sel"));
+    canvas.setPointerCapture(e.pointerId); e.preventDefault(); return; }
   if (edge) { G.selEdge = edge.dataset.edge; G.sel = null; renderAll(); return; }
   drag = {kind: "pan", sx: e.clientX, sy: e.clientY, vx: VIEW.x, vy: VIEW.y, moved: false}; canvas.classList.add("panning"); canvas.setPointerCapture(e.pointerId);
 });
@@ -978,6 +1003,29 @@ canvas.addEventListener("wheel", e => { e.preventDefault(); const r = canvas.get
 document.getElementById("zin").onclick = () => { VIEW.z = Math.min(2, VIEW.z * 1.15); applyView(); drawEdges(); };
 document.getElementById("zout").onclick = () => { VIEW.z = Math.max(0.4, VIEW.z / 1.15); applyView(); drawEdges(); };
 document.getElementById("zfit").onclick = fit;
+document.getElementById("ztidy").onclick = tidy;
+function tidy() {
+  /* columns by the longest path from a source; within a column, the order of what feeds each node.
+     Positions change, pipes do not: they are drawn from the ports wherever the nodes are. */
+  if (!G.nodes.length) return;
+  const ins = id => G.edges.filter(e => e.to === id).map(e => e.from);
+  const depth = {};
+  const d = id => { if (depth[id] != null) return depth[id]; depth[id] = 0; const up = ins(id); depth[id] = up.length ? Math.max(...up.map(d)) + 1 : 0; return depth[id]; };
+  G.nodes.forEach(n => d(n.id));
+  const cols = {}; G.nodes.forEach(n => (cols[depth[n.id]] = cols[depth[n.id]] || []).push(n));
+  const row = {};
+  Object.keys(cols).map(Number).sort((a, b) => a - b).forEach(c => {
+    const list = cols[c].map(n => { const up = ins(n.id).map(i => row[i]).filter(r => r != null); return {n, key: up.length ? up.reduce((a, b) => a + b, 0) / up.length : n.y}; });
+    list.sort((a, b) => a.key - b.key).forEach((x, i) => { row[x.n.id] = i; x.n.x = 40 + c * 270; x.n.y = 40 + i * 180; });
+  });
+  renderAll(); fit();
+}
+function fit() {
+  if (!G.nodes.length) { VIEW = {x: 40, y: 30, z: 1}; applyView(); return; }
+  const xs = G.nodes.map(n => n.x), ys = G.nodes.map(n => n.y); const minx = Math.min(...xs) - 30, miny = Math.min(...ys) - 30, maxx = Math.max(...xs) + 250, maxy = Math.max(...ys) + 170;
+  const r = canvas.getBoundingClientRect(); const z = Math.min(1.2, Math.max(0.4, Math.min(r.width / (maxx - minx), r.height / (maxy - miny))));
+  VIEW = {z, x: (r.width - (maxx - minx) * z) / 2 - minx * z, y: (r.height - (maxy - miny) * z) / 2 - miny * z}; applyView(); drawEdges();
+}
 function fit() {
   if (!G.nodes.length) { VIEW = {x: 40, y: 30, z: 1}; applyView(); return; }
   const xs = G.nodes.map(n => n.x), ys = G.nodes.map(n => n.y); const minx = Math.min(...xs) - 30, miny = Math.min(...ys) - 30, maxx = Math.max(...xs) + 250, maxy = Math.max(...ys) + 170;

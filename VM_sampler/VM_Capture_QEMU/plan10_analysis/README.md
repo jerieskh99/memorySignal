@@ -34,10 +34,12 @@ Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.tx
 
 1. **Source** tab (bottom drawer): local path, or host / user / key / remote root for SSH.
    Test, then Reload: the archive's own manifest is read in one round trip and the Cells module
-   selects from it. Scan is the slow reconciliation (a full walk that rewrites that manifest);
+   selects from it. Its picker filters by family, and a chip per workload selects or clears
+   every usable seed of that workload; ticking one row keeps the list where it was scrolled. Scan is the slow reconciliation (a full walk that rewrites that manifest);
    it is for an archive nobody registered into, not for every session.
 2. Drop modules from the palette, pipe output ports to input ports. Ports are typed. Load an
-   example from the header to start from a working graph.
+   example from the header to start from a working graph. Drag a node anywhere on it to move
+   it; the pipes follow. The tidy button beside the zoom controls lays the graph out by depth.
 3. Fix what is red (hard), acknowledge what is amber (soft) in the inspector with a note.
    Save scheme writes the JSON; Launch runs it.
 4. **Run** tab: differ speed (default the config's), max pairs (0 = all), progress, log,
