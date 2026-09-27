@@ -202,6 +202,11 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
     elif mod == "collapse":
         u = up("in")
         d = dict(u, type="series", axis="collapsed") if u else None
+    elif mod == "persistence":
+        u = up("in")
+        lag_ = max(int(p.get("lag") or 1), 0)
+        d = dict(u, type="series", axis="collapsed", channels=[p.get("measure") or "jaccard"], complex=False,
+                 nmin=max(u["nmin"] - (lag_ if p.get("edge") == "drop" else 0), 0)) if u else None
     elif mod == "block":
         u = up("in")
         # n_blocks rides along so it survives the Collapse that must follow: the tile count
@@ -357,6 +362,21 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                                   "runner/stages.py ratios"))
         if any(x.endswith(RATIO_SEP + RATIO_PAGE) for x in specs) and int(p.get("page_bytes") or 0) <= 0:
             out.append(_issue(nid, "hard", "page size must be positive", "runner/stages.py ratios"))
+
+    elif mod == "persistence":
+        u = up("in")
+        lag_ = int(p.get("lag") or 0)
+        if lag_ < 1:
+            out.append(_issue(nid, "hard", "lag must be at least 1", "runner/stages.py persistence"))
+        elif u and u.get("nmin") and lag_ >= u["nmin"]:
+            out.append(_issue(nid, "hard", f"lag {lag_} leaves no pair with a partner in the shortest connected recording ({u['nmin']} pairs)",
+                              "runner/stages.py persistence"))
+        if p.get("edge", "replicate") != "drop" and lag_ >= 1:
+            out.append(_issue(nid, "note", f"the last {lag_} value(s) have no partner and are {'repeated' if p.get('edge', 'replicate') == 'replicate' else 'zero'}, "
+                              f"so the series keeps its length and its tiles share keys with the other readings, which Concat needs; edge=drop shortens it instead",
+                              "runner/stages.py persistence"))
+        if u and u.get("complex"):
+            out.append(_issue(nid, "note", "only which pages changed is read; the complex values are ignored", "runner/stages.py persistence"))
 
     elif mod == "complex":
         a, b = up("mag"), up("dir")

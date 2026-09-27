@@ -160,6 +160,26 @@ def test_ratios_rules():
     assert any(i["sev"] == "hard" and i["msg"] == "no ratio chosen" for i in S.validate(s, ctx))
 
 
+def test_persistence_rules():
+    ctx = _ctx(substrate=True)
+    s = copy.deepcopy(S.make_examples(ctx.manifest)["b1"])
+    col = next(n for n in s["nodes"] if n["module"] == "collapse")
+    col["module"] = "persistence"; col["params"] = {"measure": "jaccard", "lag": 1, "edge": "replicate", "empty": "zero"}
+    issues = S.validate(s, ctx)
+    assert not [i for i in issues if i["sev"] == "hard"], issues
+    assert any(i["sev"] == "note" and i["node"] == col["id"] and "Concat" in i["msg"] for i in issues)
+    g = S.Graph(s, ctx)
+    d = S.descriptor(g, col["id"], {})
+    assert d["type"] == "series" and d["channels"] == ["jaccard"] and d["complex"] is False and d["nmin"] == 690
+    col["params"].update(lag=5, edge="drop")
+    assert S.descriptor(S.Graph(s, ctx), col["id"], {})["nmin"] == 685
+    assert not any(i["sev"] == "note" and "Concat" in i["msg"] for i in S.validate(s, ctx))
+    col["params"]["lag"] = 0
+    assert any(i["sev"] == "hard" and i["msg"] == "lag must be at least 1" for i in S.validate(s, ctx))
+    col["params"]["lag"] = 690
+    assert any(i["sev"] == "hard" and "no pair with a partner" in i["msg"] for i in S.validate(s, ctx))
+
+
 def test_soft_rules_and_acknowledgment():
     ctx = _ctx(substrate=True)
 

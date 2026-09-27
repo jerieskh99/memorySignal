@@ -144,6 +144,60 @@ def test_ratios_end_to_end_on_the_synthetic_corpus():
         assert (lo > 0).all() and (lo <= 1).all()
 
 
+def test_persistence_on_known_inputs():
+    f = {"seq": np.array([1, 1, 1, 2, 2, 3, 3, 3], dtype=np.int32),
+         "page_index": np.array([3, 4, 5, 3, 9, 3, 9, 7], dtype=np.int32),
+         "cols": {"hamming": np.ones(8, dtype=np.float32)}, "z": None, "channels": ["hamming"], "n_pairs": 3, "n_pages": 100, "block": None}
+    # sets: {3,4,5}, {3,9}, {3,9,7}
+    j = stages.persistence(f, "jaccard")
+    assert j["channels"] == ["jaccard"] and np.allclose(j["values"], [1 / 4, 2 / 3, 2 / 3])       # last one repeated
+    assert np.allclose(stages.persistence(f, "jaccard", edge="drop")["values"], [1 / 4, 2 / 3])
+    assert np.allclose(stages.persistence(f, "jaccard", edge="zero")["values"], [1 / 4, 2 / 3, 0])
+    assert np.allclose(stages.persistence(f, "forward")["values"], [1 / 3, 1, 1])
+    assert np.allclose(stages.persistence(f, "overlap")["values"], [1 / 2, 1, 1])
+    assert np.allclose(stages.persistence(f, "jaccard", lag=2, edge="drop")["values"], [1 / 5])
+    # a complex field gives the same sets: the values are never read
+    zf = dict(f, cols=None, z=np.ones(8, dtype=np.complex64))
+    assert np.allclose(stages.persistence(zf)["values"], j["values"]) and stages.persistence(zf)["complex"] is False
+    # empty denominators: pairs 4 and 5 have no rows
+    g = dict(f, n_pairs=5)
+    e0 = stages.persistence(g, "jaccard", edge="drop"); e1 = stages.persistence(g, "jaccard", edge="drop", empty="one")
+    assert np.allclose(e0["values"], [1 / 4, 2 / 3, 0, 0]) and np.allclose(e1["values"], [1 / 4, 2 / 3, 0, 1])
+    # a blocked field: one series per block, sets restricted to the block
+    b = dict(f, block=np.array([0, 0, 0, 0, 1, 0, 1, 1], dtype=np.int32), block_w=8, block_h=8, n_blocks=2)
+    bl = stages.persistence(b, "jaccard", edge="drop")
+    assert [x["block"] for x in bl] == [0, 1] and np.allclose(bl[0]["values"], [1 / 3, 1]) and np.allclose(bl[1]["values"], [0, 1 / 2])
+    for bad in (dict(lag=0), dict(lag=3), dict(measure="dice"), dict(edge="reflect")):
+        try:
+            stages.persistence(f, **bad)
+            assert False, bad
+        except ValueError:
+            pass
+
+
+def test_persistence_end_to_end_on_the_synthetic_corpus():
+    """The b1 example with Persistence in place of Collapse: one series per recording, the
+    statistics of a value in [0, 1], the same tile count as APF so Concat could join them."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        s = _example(manifest, "b1")
+        col = next(n for n in s["nodes"] if n["module"] == "collapse")
+        col["module"] = "persistence"; col["params"] = {"measure": "jaccard", "lag": 1, "edge": "replicate", "empty": "zero"}
+        next(n for n in s["nodes"] if n["module"] == "window")["params"].update(w=4, h=2)
+        s["label"] = "b1_persistence"
+        sp = td / "b1_persistence.json"; sp.write_text(json.dumps(s))
+        rc = executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp)
+        assert rc == 0, (td / "out" / s["label"] / "run.log").read_text()
+        z = np.load(td / "out" / s["label"] / "features.npz")
+        names = z["feature_names"].tolist(); X = z["X"]
+        assert names == ["mean", "std", "cov", "median", "max", "p95", "peak2med", "duty"]
+        assert X.shape == (3 * ((9 - 4) // 2 + 1), 8) and np.isfinite(X).all()
+        assert (X[:, 0] >= 0).all() and (X[:, 0] <= 1).all() and (X[:, 4] <= 1).all()
+
+
 def test_blocks_overlapping_tiling_and_gapped():
     """Membership against brute force, row replication, and one block count everywhere."""
     pages = np.array([0, 3, 4, 7, 8, 11, 15, 19], dtype=np.int32)

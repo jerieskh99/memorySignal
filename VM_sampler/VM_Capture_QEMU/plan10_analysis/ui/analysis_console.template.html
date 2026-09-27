@@ -557,6 +557,7 @@ function descOf(id, memo = {}) {
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
       d = {type: "complex", complex: true, axis: "page", phase: p.phase, channels: [...(a ? a.channels : []), ...(b ? b.channels : [])], mag: a, dir: b, recs: base.recs, nmin: Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), workloads: base.workloads}; break; }
     case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}) : null; break; }
+    case "persistence": { const u = up("in"); const lg = Math.max(+p.lag || 1, 0); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed", channels: [p.measure || "jaccard"], complex: false, nmin: Math.max((u.nmin || 0) - (p.edge === "drop" ? lg : 0), 0)}) : null; break; }
     /* n_blocks rides along so it survives the Collapse that must follow: tiles = windows x blocks.
        N_PAGES is the config default because no recording records its own. */
     case "block": { const u = up("in"); const wp_ = +p.wp, hp_ = +p.hp;
@@ -619,6 +620,13 @@ function nodeConstraints(n, memo) {
         if (unused.length) I("note", `${unused.join(", ")} feed no ratio and do not pass through; only the ratios leave this module`, "runner/stages.py ratios");
       }
       if (specs.some(s => s.endsWith("/page")) && !(+p.page_bytes > 0)) I("hard", "page size must be positive", "runner/stages.py ratios");
+      break; }
+    case "persistence": {
+      const u = up("in"), lg = +p.lag || 0;
+      if (lg < 1) I("hard", "lag must be at least 1", "runner/stages.py persistence");
+      else if (u && u.nmin && lg >= u.nmin) I("hard", `lag ${lg} leaves no pair with a partner in the shortest connected recording (${u.nmin} pairs)`, "runner/stages.py persistence");
+      if ((p.edge || "replicate") !== "drop" && lg >= 1) I("note", `the last ${lg} value(s) have no partner and are ${(p.edge || "replicate") === "replicate" ? "repeated" : "zero"}, so the series keeps its length and its tiles share keys with the other readings, which Concat needs; edge=drop shortens it instead`, "runner/stages.py persistence");
+      if (u && u.complex) I("note", "only which pages changed is read; the complex values are ignored", "runner/stages.py persistence");
       break; }
     case "complex": {
       [[up("mag"), "magnitude", "amount"], [up("dir"), "direction", "direction"]].forEach(([d, lab, want]) => {
@@ -786,6 +794,7 @@ const SUMMARY = {
   ratios: p => (p.ratios || []).length ? esc(p.ratios.slice(0, 3).join(", ")) + (p.ratios.length > 3 ? ` +${p.ratios.length - 3}` : "") : "<span class=k>none</span>",
   complex: p => `phase: ${p.phase ? esc(p.phase) : "<span class=k>not chosen</span>"}`,
   collapse: p => p.reduce === "changed_fraction" ? "K/N per pair (APF)" : `mean, unchanged = ${esc(p.unchanged)}`,
+  persistence: p => `${esc(p.measure)}, lag ${p.lag}, ${esc(p.edge)}`,
   block: p => `W_p ${p.wp}, H_p ${p.hp}, ${Math.max(0, Math.floor((N_PAGES - p.wp) / Math.max(1, p.hp)) + 1)} blocks`,
   window: p => `W ${p.w}, H ${p.h}, ${esc(p.edge)}, ${esc(p.taper)}`,
   stats: p => `${p.feats.length} features`, deep: p => `${p.feats.length} features${p.feats.includes("tau") ? ", tau" : ""}`,

@@ -197,6 +197,19 @@ gives 0, never NaN, and the count of such rows rides on the field as `zero_denom
 Products and per-channel gating, the rest of the combiner family, remain the palette's dashed
 "designed, unbuilt" entry.
 
+## Persistence: overlap along time
+
+`Persistence` is a Divide module beside Collapse: it reduces the address axis by set overlap
+instead of averaging. For each pair it takes the set of pages that changed and compares it
+with the set `lag` pairs later: `jaccard` (shared over either), `forward` (the fraction of this
+pair's pages that change again) or `overlap` (shared over the smaller set). Only which pages
+changed is read, so a complex field works and the channel values never matter. The output is
+one series per recording (one per block for a blocked field), named after the measure. The
+last `lag` pairs have no partner: by default the final value is repeated so the series keeps
+its length and its tiles share keys with the other readings, which Concat requires; `zero`
+pads with 0, `drop` shortens the series by `lag`. An empty denominator gives 0, or 1 with
+`empty=one`.
+
 ## To add a module
 
 1. `modules.py`: its ports, params, flags.

@@ -410,6 +410,8 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
         return stages.block(up("in"), int(p["wp"]), int(p["hp"]))
     if mod == "collapse":
         return stages.collapse(up("in"), p.get("unchanged", "zero"), p.get("reduce", "mean"))
+    if mod == "persistence":
+        return stages.persistence(up("in"), p.get("measure", "jaccard"), int(p.get("lag") or 1), p.get("edge", "replicate"), p.get("empty", "zero"))
     if mod == "window":
         s = up("in")
         if isinstance(s, dict) and "page_index" in s:

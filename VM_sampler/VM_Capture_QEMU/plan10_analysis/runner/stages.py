@@ -245,6 +245,60 @@ def collapse(field: dict, unchanged: str = "zero", reduce: str = "mean") -> dict
 # divide tier
 # ---------------------------------------------------------------------------
 
+def persistence(field: dict, measure: str = "jaccard", lag: int = 1, edge: str = "replicate",
+                empty: str = "zero") -> dict | list[dict]:
+    """Overlap of the changed-page sets of pairs t and t+lag, one value per pair: a Series.
+
+    Only which pages changed is read (a row exists per changed page per pair); the channel
+    values, real or complex, are ignored. measure: jaccard |A&B|/|A|B|, forward |A&B|/|A|,
+    overlap |A&B|/min(|A|,|B|). The last lag pairs have no partner: replicate the final value
+    (default, so the series keeps its length and its tiles share keys with the other readings,
+    which Concat requires), zero-pad, or drop them. An empty denominator gives 0, or 1 with
+    empty="one". A blocked field gives one Series per block, as Collapse does.
+    """
+    if measure not in ("jaccard", "forward", "overlap"):
+        raise ValueError(f"unknown measure {measure!r}")
+    if edge not in ("replicate", "zero", "drop"):
+        raise ValueError(f"unknown edge {edge!r}")
+    T = int(field["n_pairs"])
+    lag = int(lag)
+    if lag < 1:
+        raise ValueError("lag must be at least 1")
+    if lag >= T:
+        raise ValueError(f"lag {lag} leaves no pair with a partner in {T} pairs")
+    seq_all, pg_all, blocks = field["seq"], field["page_index"], field.get("block")
+
+    def series_for(mask: np.ndarray) -> np.ndarray:
+        s, pg = seq_all[mask], pg_all[mask]
+        order = np.lexsort((pg, s))
+        s, pg = s[order], pg[order]
+        bounds = np.searchsorted(s, np.arange(1, T + 2))          # rows of pair t: [bounds[t-1], bounds[t])
+        sets = [np.unique(pg[bounds[t]:bounds[t + 1]]) for t in range(T)]
+        n = T - lag
+        vals = np.zeros(n, dtype=np.float32)
+        for t in range(n):
+            a, b = sets[t], sets[t + lag]
+            inter = np.intersect1d(a, b, assume_unique=True).size
+            if measure == "jaccard":
+                den = a.size + b.size - inter
+            elif measure == "forward":
+                den = a.size
+            else:
+                den = min(a.size, b.size)
+            vals[t] = inter / den if den else (1.0 if empty == "one" else 0.0)
+        if edge == "drop":
+            return vals
+        pad = np.full(lag, vals[-1] if edge == "replicate" and n else 0.0, dtype=np.float32)
+        return np.concatenate([vals, pad])
+
+    base = {"channels": [measure], "complex": False, "n_pages": field["n_pages"], "lag": lag}
+    if blocks is None:
+        return dict(base, values=series_for(np.ones(len(seq_all), dtype=bool)), block=None)
+    bw, bh = field["block_w"], field.get("block_h", field["block_w"])
+    nb = field.get("n_blocks") or n_blocks(field["n_pages"], bw, bh)
+    return [dict(base, values=series_for(blocks == b), block=b) for b in range(nb)]
+
+
 def _taper(w: int, kind: str) -> np.ndarray:
     if kind == "rectangular":
         return np.ones(w)
