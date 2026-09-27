@@ -183,6 +183,20 @@ Window's `edge=drop` uses in time. The block count the console shows assumes the
 config's pages-per-dump, since no recording records its own; the runner uses each recording's
 actual page count.
 
+## Ratios: the content-change family
+
+`Ratios` is a Compose module: per changed page, one amount channel over another, or over the
+page size. Its options are read from the roster's amount group, so the list follows the differ;
+the default is the encoding paper's three: `l0/page` (bytes changed over the page size),
+`l1/l0` and `hamming/l0` (magnitude and bit count per changed byte). Only the ratios leave the
+module, named `l1_over_l0` and so on, so the lenses' per-channel suffixes read as
+`mean:l1_over_l0`. The upstream Channels module must carry every channel a chosen ratio uses;
+the validator refuses otherwise and notes any channel that feeds no ratio. A zero denominator
+gives 0, never NaN, and the count of such rows rides on the field as `zero_denominators`.
+
+Products and per-channel gating, the rest of the combiner family, remain the palette's dashed
+"designed, unbuilt" entry.
+
 ## To add a module
 
 1. `modules.py`: its ports, params, flags.

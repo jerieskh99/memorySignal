@@ -84,6 +84,66 @@ def test_stages_on_known_inputs():
     assert np.isclose(np.angle(z2["z"][1]), 0.0, atol=1e-6)   # the collision: distance 1 lands on angle 0
 
 
+def test_ratios_on_known_inputs():
+    seq = np.array([1, 1, 2, 2, 3], dtype=np.int32)
+    field = {"seq": seq, "page_index": np.array([3, 4, 3, 9, 7], dtype=np.int32),
+             "cols": {"l0": np.array([8, 0, 2, 4, 4096], dtype=np.float32),
+                      "l1": np.array([16, 5, 1, 8, 4096], dtype=np.float32),
+                      "hamming": np.array([2, 3, 2, 2, 100], dtype=np.float32)},
+             "z": None, "channels": ["l0", "l1", "hamming"], "n_pairs": 3, "n_pages": 100, "block": None}
+    r = stages.ratios(field, ["l1/l0", "hamming/l0", "l0/page", "l1/l0"], 4096)
+    assert r["channels"] == ["l1_over_l0", "hamming_over_l0", "l0_over_page"]      # a repeat is not a second column
+    assert np.allclose(r["cols"]["l1_over_l0"], [2, 0, 0.5, 2, 1])                   # the zero denominator gives 0
+    assert np.allclose(r["cols"]["hamming_over_l0"], [0.25, 0, 1, 0.5, 100 / 4096])
+    assert np.allclose(r["cols"]["l0_over_page"], [8 / 4096, 0, 2 / 4096, 4 / 4096, 1])
+    assert r["zero_denominators"] == 2 and r["seq"] is field["seq"] and r["n_pairs"] == 3
+    # the ratio field collapses like any field: excluded-mean over the changed pages of each pair
+    m = stages.collapse(r, "excluded", "mean")
+    assert m["channels"] == r["channels"] and np.allclose(m["values"][:, 0], [1, 1.25, 1])
+    for bad, err in ((["l2/l0"], KeyError), (["l1/nope"], KeyError), (["l1"], ValueError), ([], ValueError)):
+        try:
+            stages.ratios(field, bad)
+            assert False, bad
+        except err:
+            pass
+    try:
+        stages.ratios(dict(field, z=np.zeros(5, np.complex64), cols=None), ["l1/l0"])
+        assert False
+    except ValueError:
+        pass
+
+
+def test_ratios_end_to_end_on_the_synthetic_corpus():
+    """The b1 example with a Ratios module between Channels and Collapse: the run writes one
+    feature block per ratio, suffixed by the ratio's channel name, all finite."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        s = _example(manifest, "b1")
+        ch = next(n for n in s["nodes"] if n["module"] == "channels")
+        ch["params"]["chans"] = ["l0", "l1", "hamming"]
+        col = next(n for n in s["nodes"] if n["module"] == "collapse")
+        col["params"].update(reduce="mean", unchanged="excluded")
+        next(n for n in s["nodes"] if n["module"] == "window")["params"].update(w=4, h=2)
+        s["nodes"].append(dict(col, id="n_r", module="ratios", params={"ratios": ["l0/page", "l1/l0", "hamming/l0"], "page_bytes": 4096}))
+        pipe = next(pp for pp in s["pipes"] if pp["from"][0] == ch["id"])
+        pipe["from"] = ["n_r", "out"]
+        s["pipes"].append({"from": [ch["id"], "field"], "to": ["n_r", "in"]})
+        s["label"] = "b1_ratios"
+        sp = td / "b1_ratios.json"
+        sp.write_text(json.dumps(s))
+        rc = executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp)
+        assert rc == 0, (td / "out" / s["label"] / "run.log").read_text()
+        z = np.load(td / "out" / s["label"] / "features.npz")
+        names = z["feature_names"].tolist()
+        assert [n for n in names if n.endswith(":l1_over_l0")] and [n for n in names if n.endswith(":hamming_over_l0")] and [n for n in names if n.endswith(":l0_over_page")]
+        assert len(names) == 3 * 8 and np.isfinite(z["X"]).all()
+        lo = z["X"][:, names.index("mean:l0_over_page")]
+        assert (lo > 0).all() and (lo <= 1).all()
+
+
 def test_blocks_overlapping_tiling_and_gapped():
     """Membership against brute force, row replication, and one block count everywhere."""
     pages = np.array([0, 3, 4, 7, 8, 11, 15, 19], dtype=np.int32)

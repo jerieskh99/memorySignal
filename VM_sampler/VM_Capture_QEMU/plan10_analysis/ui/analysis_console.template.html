@@ -553,6 +553,7 @@ function descOf(id, memo = {}) {
       d = {type: "cells", recs: kept, dropped: recs.length - kept.length, max_pairs: mp, nmin: kept.length ? Math.min(...kept.map(r => mp ? Math.min(r.n_pairs, mp) : r.n_pairs)) : 0, workloads: [...new Set(kept.map(r => r.workload))]}; break; }
     case "channels": { const u = up("cells"); d = {type: "field", channels: p.chans.slice(), complex: false, axis: "page", recs: u ? u.recs : [], nmin: u ? u.nmin : 0, workloads: u ? u.workloads : []}; break; }
     case "single": case "vectorize": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field"}) : null; break; }
+    case "ratios": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field", channels: (p.ratios || []).map(s => s.replace("/", "_over_"))}) : null; break; }
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
       d = {type: "complex", complex: true, axis: "page", phase: p.phase, channels: [...(a ? a.channels : []), ...(b ? b.channels : [])], mag: a, dir: b, recs: base.recs, nmin: Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), workloads: base.workloads}; break; }
     case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}) : null; break; }
@@ -606,6 +607,19 @@ function nodeConstraints(n, memo) {
       break; }
     case "single": { const u = up("in"); if (u && u.channels.length !== 1) I("hard", `Single needs exactly one channel upstream; got ${u.channels.length}`, "the mode is defined by it"); break; }
     case "vectorize": { const u = up("in"); if (u && u.channels.length > 8) I("soft", `${u.channels.length} channels per page; payload and the effective-n gap both scale with this`, "ANALYSIS_PIPELINE_METHODOLOGY.md section 6.4", "wide_vector"); break; }
+    case "ratios": {
+      const u = up("in"), specs = p.ratios || [];
+      if (!specs.length) I("hard", "no ratio chosen", "nothing to compute");
+      if (u && u.complex) I("hard", "Ratios needs real channels; the upstream field is complex", "runner/stages.py ratios");
+      else if (u) {
+        const have = new Set(u.channels || []), need = [...new Set(specs.flatMap(s => s.split("/")).filter(c => c !== "page"))].sort();
+        const missing = need.filter(c => !have.has(c));
+        if (missing.length) I("hard", `Ratios needs ${missing.join(", ")} in the upstream Channels module; it carries ${[...have].sort().join(", ") || "nothing"}`, "the ratio is computed per changed page from the differ's columns");
+        const unused = [...have].filter(c => !need.includes(c)).sort();
+        if (unused.length) I("note", `${unused.join(", ")} feed no ratio and do not pass through; only the ratios leave this module`, "runner/stages.py ratios");
+      }
+      if (specs.some(s => s.endsWith("/page")) && !(+p.page_bytes > 0)) I("hard", "page size must be positive", "runner/stages.py ratios");
+      break; }
     case "complex": {
       [[up("mag"), "magnitude", "amount"], [up("dir"), "direction", "direction"]].forEach(([d, lab, want]) => {
         if (!d) return;
@@ -769,6 +783,7 @@ const SUMMARY = {
   channels: p => p.chans.length ? esc(p.chans.slice(0, 4).join(", ")) + (p.chans.length > 4 ? ` +${p.chans.length - 4}` : "") : "<span class=k>none</span>",
   single: (p, d) => d ? (d.channels.length === 1 ? esc(d.channels[0]) : `${d.channels.length} channels, needs 1`) : "",
   vectorize: (p, d) => d ? `${d.channels.length} channels, kept apart` : "",
+  ratios: p => (p.ratios || []).length ? esc(p.ratios.slice(0, 3).join(", ")) + (p.ratios.length > 3 ? ` +${p.ratios.length - 3}` : "") : "<span class=k>none</span>",
   complex: p => `phase: ${p.phase ? esc(p.phase) : "<span class=k>not chosen</span>"}`,
   collapse: p => p.reduce === "changed_fraction" ? "K/N per pair (APF)" : `mean, unchanged = ${esc(p.unchanged)}`,
   block: p => `W_p ${p.wp}, H_p ${p.hp}, ${Math.max(0, Math.floor((N_PAGES - p.wp) / Math.max(1, p.hp)) + 1)} blocks`,

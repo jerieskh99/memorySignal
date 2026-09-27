@@ -136,6 +136,30 @@ def test_hard_rules():
     assert any(i["sev"] == "hard" and "Write" in i["msg"] for i in iss)
 
 
+def test_ratios_rules():
+    """Ratios: refuses a missing input channel, an empty choice, and a complex input; passes when
+    the Channels module carries what every chosen ratio needs; emits the ratio channels downstream."""
+    ctx = _ctx(substrate=True)
+    s = copy.deepcopy(S.make_examples(ctx.manifest)["b1"])
+    ch = next(n for n in s["nodes"] if n["module"] == "channels")
+    col = next(n for n in s["nodes"] if n["module"] == "collapse")
+    s["nodes"].append(dict(col, id="n_r", module="ratios", params={"ratios": ["l1/l0", "hamming/l0"], "page_bytes": 4096}))
+    pipe = next(pp for pp in s["pipes"] if pp["from"][0] == ch["id"])
+    pipe["from"] = ["n_r", "out"]
+    s["pipes"].append({"from": [ch["id"], "field"], "to": ["n_r", "in"]})
+    ch["params"]["chans"] = ["l1"]
+    hard = [i for i in S.validate(s, ctx) if i["sev"] == "hard" and i["node"] == "n_r"]
+    assert len(hard) == 1 and "l0" in hard[0]["msg"] and "hamming" in hard[0]["msg"], hard
+    ch["params"]["chans"] = ["l0", "l1", "hamming", "l2"]
+    issues = S.validate(s, ctx)
+    assert not [i for i in issues if i["sev"] == "hard"], issues
+    assert any(i["sev"] == "note" and i["node"] == "n_r" and "l2" in i["msg"] for i in issues)
+    d = S.descriptor(S.Graph(s, ctx), "n_r", {})
+    assert d["type"] == "field" and d["channels"] == ["l1_over_l0", "hamming_over_l0"]
+    next(n for n in s["nodes"] if n["id"] == "n_r")["params"]["ratios"] = []
+    assert any(i["sev"] == "hard" and i["msg"] == "no ratio chosen" for i in S.validate(s, ctx))
+
+
 def test_soft_rules_and_acknowledgment():
     ctx = _ctx(substrate=True)
 

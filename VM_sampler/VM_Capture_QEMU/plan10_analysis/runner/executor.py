@@ -402,6 +402,8 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
         return stages.single(up("in"))
     if mod == "vectorize":
         return stages.vectorize(up("in"))
+    if mod == "ratios":
+        return stages.ratios(up("in"), list(p.get("ratios", [])), int(p.get("page_bytes") or 4096))
     if mod == "complex":
         return stages.complex_field(up("mag"), up("dir"), p.get("phase", ""))
     if mod == "block":

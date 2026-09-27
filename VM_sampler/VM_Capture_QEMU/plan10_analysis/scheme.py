@@ -39,6 +39,12 @@ from plan10_analysis import channel_roster, corpus_manifest  # noqa: E402
 from plan10_analysis.modules import build_modules  # noqa: E402
 
 
+try:
+    from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE
+except ImportError:                                   # run as a script from plan10_analysis/
+    from modules import ratio_name, RATIO_SEP, RATIO_PAGE
+
+
 def stages_wavelet_max_level(fam: str, w: int) -> int:
     """runner.stages.wavelet_max_level, imported lazily: scheme.py must stay numpy-free."""
     try:
@@ -183,6 +189,9 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
     elif mod in ("single", "vectorize"):
         u = up("in")
         d = dict(u, type="field") if u else None
+    elif mod == "ratios":
+        u = up("in")
+        d = dict(u, type="field", channels=[ratio_name(x) for x in p.get("ratios", [])]) if u else None
     elif mod == "complex":
         a, b = up("mag"), up("dir")
         base = a or b or {"recs": [], "nmin": 0, "workloads": []}
@@ -327,6 +336,27 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         if u and len(u["channels"]) > 8:
             out.append(_issue(nid, "soft", f"{len(u['channels'])} channels per page; payload and the effective-n gap both scale with this",
                               "ANALYSIS_PIPELINE_METHODOLOGY.md section 6.4", id="wide_vector"))
+
+    elif mod == "ratios":
+        u = up("in")
+        specs = list(p.get("ratios", []))
+        if not specs:
+            out.append(_issue(nid, "hard", "no ratio chosen", "nothing to compute"))
+        if u and u.get("complex"):
+            out.append(_issue(nid, "hard", "Ratios needs real channels; the upstream field is complex", "runner/stages.py ratios"))
+        elif u:
+            have = set(u.get("channels", []))
+            need = sorted({c for x in specs for c in x.split(RATIO_SEP) if c != RATIO_PAGE})
+            missing = [c for c in need if c not in have]
+            if missing:
+                out.append(_issue(nid, "hard", f"Ratios needs {missing} in the upstream Channels module; it carries {sorted(have) or 'nothing'}",
+                                  "the ratio is computed per changed page from the differ's columns"))
+            unused = sorted(have - set(need))
+            if unused:
+                out.append(_issue(nid, "note", f"{unused} feed no ratio and do not pass through; only the ratios leave this module",
+                                  "runner/stages.py ratios"))
+        if any(x.endswith(RATIO_SEP + RATIO_PAGE) for x in specs) and int(p.get("page_bytes") or 0) <= 0:
+            out.append(_issue(nid, "hard", "page size must be positive", "runner/stages.py ratios"))
 
     elif mod == "complex":
         a, b = up("mag"), up("dir")

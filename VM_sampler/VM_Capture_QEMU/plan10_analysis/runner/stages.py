@@ -41,6 +41,7 @@ from b1_features import features as b1_features                          # noqa:
 from coherence_temp_spec_stability.cepstrum_stability import CepstrumStability  # noqa: E402
 from coherence_temp_spec_stability.plv_calcolator import PLVStability           # noqa: E402
 import plan04_cusum                                                           # noqa: E402
+from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE   # noqa: E402
 
 
 class NotImplementedStage(RuntimeError):
@@ -89,6 +90,47 @@ def complex_field(mag: dict, dirn: dict, phase: str) -> dict:
     z = (m * np.exp(1j * ang)).astype(np.complex64)
     return {"seq": mag["seq"], "page_index": mag["page_index"], "cols": None, "z": z,
             "channels": [mag["channels"][0], dirn["channels"][0]], "n_pairs": mag["n_pairs"], "n_pages": mag["n_pages"], "block": None}
+
+
+def ratios(field: dict, which: list[str], page_bytes: int = 4096) -> dict:
+    """Per changed page, one channel over another ("l1/l0") or over the page size ("l0/page").
+
+    The rows are the input's rows (same seq and page_index); only the columns change, and only
+    the ratios leave. A zero denominator gives 0, never NaN, so a Collapse mean downstream stays
+    finite; how many rows that touched is returned as `zero_denominators` and the run log says.
+    """
+    if field["z"] is not None:
+        raise ValueError("Ratios needs real channels, not a complex field")
+    if not which:
+        raise ValueError("Ratios: no ratio chosen")
+    cols: dict[str, np.ndarray] = {}
+    names: list[str] = []
+    zeros = 0
+    for spec in which:
+        num, _, den = spec.partition(RATIO_SEP)
+        if not num or not den:
+            raise ValueError(f"Ratios: malformed ratio {spec!r}; expected numerator{RATIO_SEP}denominator")
+        name = ratio_name(spec)
+        if name in cols:
+            continue
+        if num not in field["cols"]:
+            raise KeyError(f"Ratios: {spec}: {num!r} is not in the upstream field {field['channels']}")
+        a = field["cols"][num].astype(np.float64)
+        if den == RATIO_PAGE:
+            if page_bytes <= 0:
+                raise ValueError("Ratios: page size must be positive")
+            b = np.full_like(a, float(page_bytes))
+        elif den in field["cols"]:
+            b = field["cols"][den].astype(np.float64)
+        else:
+            raise KeyError(f"Ratios: {spec}: {den!r} is not in the upstream field {field['channels']}")
+        out = np.zeros_like(a)
+        nz = b != 0
+        np.divide(a, b, out=out, where=nz)
+        zeros += int((~nz).sum())
+        cols[name] = out.astype(np.float32)
+        names.append(name)
+    return dict(field, cols=cols, channels=names, z=None, zero_denominators=zeros)
 
 
 def n_blocks(n_pages: int, wp: int, hp: int) -> int:

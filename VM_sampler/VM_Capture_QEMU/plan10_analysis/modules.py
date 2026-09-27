@@ -124,6 +124,38 @@ def scattering_limits() -> dict:
     return {"available": True, "source": f"kymatio {kymatio.__version__} numpy frontend, measured", "max_J": grid}
 
 
+RATIO_SEP = "/"
+RATIO_PAGE = "page"          # the constant denominator: the page size in bytes, a parameter of the module
+
+
+def ratio_name(spec: str) -> str:
+    """The channel a ratio produces: 'l1/l0' -> 'l1_over_l0'. One definition; stages.py and scheme.py import it."""
+    return spec.replace(RATIO_SEP, "_over_")
+
+
+def ratio_options() -> tuple[list[dict], list[str]]:
+    """The content-change family: an amount channel over the bytes changed in the page (the
+    differ's l0), or over the page size. Numerators are read from the roster's amount group so
+    no channel list is written here; only the denominator and the default selection name
+    channels, because they are the definition of this family (the encoding paper's r_l0,
+    r_l1l0, r_haml0)."""
+    from plan10_analysis.channel_roster import build_roster
+    amount = [c["name"] for c in build_roster()["channels"] if c.get("group") == "amount"]
+    den_bytes = "l0"
+    assert den_bytes in amount, "the roster no longer carries l0; the content-change family needs it"
+    opts = []
+    for den, what in ((RATIO_PAGE, "the page size in bytes"), (den_bytes, f"{den_bytes}, the bytes changed in the page")):
+        for num in amount:
+            if num == den:
+                continue
+            opts.append({"name": f"{num}{RATIO_SEP}{den}", "source": f"{num} over {what}, per changed page",
+                         "num": num, "den": den})
+    default = [f"l0{RATIO_SEP}{RATIO_PAGE}", f"l1{RATIO_SEP}{den_bytes}", f"hamming{RATIO_SEP}{den_bytes}"]
+    names = {o["name"] for o in opts}
+    assert all(d in names for d in default), default
+    return opts, default
+
+
 def build_modules() -> dict:
     simple = simple_features()
     deep = deep_features()
@@ -132,6 +164,7 @@ def build_modules() -> dict:
     simple_default = [f["name"] for f in simple if "flag" not in f]
     deep_default = [f["name"] for f in deep if "flag" not in f]
     wav_opts = [[w, w] for w in wav["families"]]
+    ratio_opts, ratio_default = ratio_options()
 
     def mod(id, tier, name, ico, desc, inputs=(), outputs=(), params=(), flags=(), spectral=False, impl=None):
         return {"id": id, "tier": tier, "name": name, "ico": ico, "desc": desc,
@@ -173,6 +206,12 @@ def build_modules() -> dict:
             inputs=[inp("mag", ["field"], lab="magnitude"), inp("dir", ["field"], lab="direction")],
             outputs=[outp("out", "complex")],
             params=[sel("phase", "phase convention", [["", "choose"], ["2pi", "2 pi x distance"], ["pi", "pi x distance"], ["arccos", "arccos(similarity)"]], "")]),
+        mod("ratios", "compose", "Ratios", "\u00f7",
+            "one amount channel over another, per changed page: the content-change family (bytes changed over the page size, "
+            "l1 over l0, hamming over l0). Only the ratios leave; a zero denominator gives 0 and is counted",
+            inputs=[inp("in", ["field"])], outputs=[outp("out", "field", "field[ratios]")],
+            params=[multi("ratios", "ratios: numerator over denominator", ratio_opts, ratio_default),
+                    num("page_bytes", "page size, for the 'over page' ratios (bytes)", 4096)]),
         mod("collapse", "divide", "Collapse pages", "S",
             "average the page axis away: what every result to date does (APF is this)",
             inputs=[inp("in", ["field", "complex"])], outputs=[outp("out", "series")],
@@ -250,8 +289,8 @@ def build_modules() -> dict:
             inputs=[inp("in", ["features"], multi=True)],
             params=[sel("fmt", "format", [["npz+csv", "npz + csv twin"], ["npz", "npz only"], ["parquet+csv", "parquet + csv twin"]], "npz+csv")]),
     ]
-    unbuilt = [{"tier": "compose", "name": "Other combiners, gates",
-                "desc": "ratios, products, per-channel gating: designed, unbuilt (Entry 13 figure)"}]
+    unbuilt = [{"tier": "compose", "name": "Products, gates",
+                "desc": "products and per-channel gating: designed, unbuilt (Entry 13 figure); ratios are the Ratios module"}]
     return {"schema": "plan10.modules.v1", "types": TYPES, "tiers": TIERS, "modules": M, "unbuilt": unbuilt,
             "feature_sources": {"simple": simple, "deep": deep, "wavelet": wav, "scattering": scat}}
 
