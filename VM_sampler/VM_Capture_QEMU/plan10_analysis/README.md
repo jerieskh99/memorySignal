@@ -210,6 +210,25 @@ its length and its tiles share keys with the other readings, which Concat requir
 pads with 0, `drop` shortens the series by `lag`. An empty denominator gives 0, or 1 with
 `empty=one`.
 
+## Concat, and the encoding paper's five readings
+
+A lens's feature block now records which channel it read. `Concat features` joins blocks on
+identical tile keys and refuses duplicate names, since a single-channel block names its
+statistics plainly (`mean`, `std`, ...): two such branches, APF and persistence say, would
+collide. Its `prefix=channel` option suffixes those plain names with the block's channel
+(`mean:changed_fraction`, `mean:jaccard`), the form a multi-channel block already carries
+(`mean:l1_over_l0`), so every column of a combined run says what it is a statistic of. The
+validator predicts the names and refuses the collision before the run; a Write fed by several
+blocks directly is checked the same way and points at Concat.
+
+The five readings of the encoding paper are one scheme: one Cells; a Channels block carrying
+`hamming` feeding APF (Collapse, changed_fraction), wAPF (Collapse, mean, unchanged = zero) and
+persistence (Persistence, jaccard); a second Channels block carrying `l0`, `l1`, `hamming`
+feeding Ratios then Collapse (mean, unchanged = excluded: an unchanged page has no ratio); each
+branch through its own Window and Simple statistics; one Concat with `prefix=channel`; one
+Write. 48 columns per tile, none duplicated. `tests/test_plan10_runner_executor.py`
+`_five_readings_scheme` builds it.
+
 ## To add a module
 
 1. `modules.py`: its ports, params, flags.

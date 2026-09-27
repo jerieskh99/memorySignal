@@ -161,6 +161,32 @@ class Graph:
 # descriptor propagation: what flows through each pipe
 # ---------------------------------------------------------------------------
 
+def block_names(desc: dict | None, prefix: str = "none") -> list[str]:
+    """The feature names a features descriptor will produce, as Concat and Write see them:
+    a multi-channel block is suffixed per channel by the lens itself (mean:l1_over_l0); a
+    page-resolution block carries _median; a single-channel block is plain unless Concat's
+    prefix=channel suffixes it (mean:jaccard). Mirrors runner/stages.py _per_channel + concat."""
+    if not desc:
+        return []
+    names = list(desc.get("names") or [])
+    if desc.get("names_final"):
+        return names
+    up = desc.get("up") or {}
+    chans = list(up.get("channels") or [])
+    if up.get("page_axis"):
+        names = [n + "_median" for n in names]
+        chans = chans[:1]
+    if len(chans) > 1 and not up.get("complex"):
+        return [f"{n}:{c}" for c in chans for n in names]
+    if prefix == "channel" and chans:
+        return [n if ":" in n else f"{n}:{'+'.join(chans)}" for n in names]
+    return names
+
+
+def _duplicates(names: list[str]) -> list[str]:
+    return sorted({n for n in names if names.count(n) > 1})
+
+
 def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
     if nid in memo:
         return memo[nid]
@@ -201,7 +227,9 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
              "workloads": base["workloads"]}
     elif mod == "collapse":
         u = up("in")
-        d = dict(u, type="series", axis="collapsed") if u else None
+        # K/N is one real channel named changed_fraction, whatever fed it; mean keeps the channels
+        d = (dict(u, type="series", axis="collapsed", channels=["changed_fraction"], complex=False)
+             if p.get("reduce", "mean") == "changed_fraction" else dict(u, type="series", axis="collapsed")) if u else None
     elif mod == "persistence":
         u = up("in")
         lag_ = max(int(p.get("lag") or 1), 0)
@@ -232,7 +260,9 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
              "up": u, "w": (u or {}).get("w")}
     elif mod == "concat":
         es = g.in_pipes(nid, "in")
-        d = {"type": "features", "n": len(es)}
+        pre = p.get("prefix", "none")
+        names = [x for e in es for x in block_names(descriptor(g, e["from"][0], memo), pre)]
+        d = {"type": "features", "n": len(es), "names": names, "names_final": True, "up": None, "w": None}
     elif mod == "write":
         d = {"type": "sink"}
     else:  # lenses
@@ -586,9 +616,26 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
             elif src[f].get("flag"):
                 out.append(_issue(nid, "soft", f"{f} is flagged in the known-issue registry ({src[f]['flag']})", "known_issues.py", id=f"feat:{f}"))
 
+    elif mod == "concat":
+        es = g.in_pipes(nid, "in")
+        dups = _duplicates((descriptor(g, nid, memo) or {}).get("names") or [])
+        if dups:
+            hint = ("set prefix=channel so single-channel blocks carry their channel name" if p.get("prefix", "none") == "none"
+                    else "the branches share channel names too; give them distinct channels")
+            out.append(_issue(nid, "hard", f"duplicate feature names across the inputs: {dups[:6]}{' ...' if len(dups) > 6 else ''}; {hint}",
+                              "runner/stages.py concat"))
+        elif len(es) == 1:
+            out.append(_issue(nid, "note", "one input: nothing to join", "runner/stages.py concat"))
+
     elif mod == "write":
-        if not g.in_pipes(nid, "in"):
+        es = g.in_pipes(nid, "in")
+        if not es:
             out.append(_issue(nid, "hard", "nothing to write", "required port"))
+        elif len(es) > 1:
+            dups = _duplicates([x for e in es for x in block_names(descriptor(g, e["from"][0], memo), "none")])
+            if dups:
+                out.append(_issue(nid, "hard", f"duplicate feature names across the inputs: {dups[:6]}{' ...' if len(dups) > 6 else ''}; "
+                                  "join them through a Concat with prefix=channel", "runner/stages.py concat"))
 
     return out
 

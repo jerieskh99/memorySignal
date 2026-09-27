@@ -198,6 +198,89 @@ def test_persistence_end_to_end_on_the_synthetic_corpus():
         assert (X[:, 0] >= 0).all() and (X[:, 0] <= 1).all() and (X[:, 4] <= 1).all()
 
 
+def test_concat_prefix_and_duplicate_refusal():
+    t = stages.window({"values": np.arange(10, dtype=np.float32), "channels": ["changed_fraction"], "complex": False, "block": None, "n_pages": 1}, 4, 2)
+    a = stages.run_lens(t, lambda x: stages.stats(x, ["mean", "max"]))
+    assert a["channels"] == ["changed_fraction"] and a["names"] == ["mean", "max"]      # a lens now says which channel it read
+    b = stages.run_lens(dict(t, channels=["jaccard"]), lambda x: stages.stats(x, ["mean", "max"]))
+    try:
+        stages.concat([a, b])
+        assert False
+    except ValueError as e:
+        assert "duplicate" in str(e) and "prefix=channel" in str(e)
+    c = stages.concat([a, b], "channel")
+    assert c["names"] == ["mean:changed_fraction", "max:changed_fraction", "mean:jaccard", "max:jaccard"] and c["rows"].shape == (4, 4)
+    tm = stages.window({"values": np.ones((10, 2), np.float32), "channels": ["x", "y"], "complex": False, "block": None, "n_pages": 1}, 4, 2)
+    m = stages.run_lens(tm, lambda x: stages.stats(x, ["mean"]))
+    assert stages.concat([m, a], "channel")["names"] == ["mean:x", "mean:y", "mean:changed_fraction", "max:changed_fraction"]   # already suffixed: untouched
+    try:
+        stages.concat([a, a], "channel")
+        assert False
+    except ValueError as e:
+        assert "distinct channels" in str(e)
+    try:
+        stages.concat([a, dict(b, keys=b["keys"][:-1] + [(None, 9, 9)])], "channel")
+        assert False
+    except ValueError as e:
+        assert "keys" in str(e)
+
+
+def _five_readings_scheme(manifest, prefix):
+    """The encoding paper's reading 5: APF, wAPF, persistence and the three ratios, one
+    Concat, one Write. Two Channels blocks on one Cells: the ratios need l0 and l1."""
+    s = _example(manifest, "b1")
+    cells = next(n for n in s["nodes"] if n["module"] == "cells")
+    ch = next(n for n in s["nodes"] if n["module"] == "channels"); ch["params"]["chans"] = ["hamming"]
+    col = next(n for n in s["nodes"] if n["module"] == "collapse")
+    win = next(n for n in s["nodes"] if n["module"] == "window"); win["params"].update(w=4, h=2)
+    st = next(n for n in s["nodes"] if n["module"] == "stats")
+    wr = next(n for n in s["nodes"] if n["module"] == "write")
+    nodes = [cells, ch, dict(ch, id="ch2", params={"chans": ["l0", "l1", "hamming"]}), wr,
+             dict(col, id="cat", module="concat", params={"prefix": prefix})]
+    pipes = [{"from": [cells["id"], "cells"], "to": [ch["id"], "cells"]}, {"from": [cells["id"], "cells"], "to": ["ch2", "cells"]},
+             {"from": ["cat", "out"], "to": [wr["id"], "in"]}]
+    branches = [("A", ch["id"], [("collapse", {"reduce": "changed_fraction", "unchanged": "zero"})]),
+                ("B", ch["id"], [("collapse", {"reduce": "mean", "unchanged": "zero"})]),
+                ("C", ch["id"], [("persistence", {"measure": "jaccard", "lag": 1, "edge": "replicate", "empty": "zero"})]),
+                ("D", "ch2", [("ratios", {"ratios": ["l0/page", "l1/l0", "hamming/l0"], "page_bytes": 4096}),
+                              ("collapse", {"reduce": "mean", "unchanged": "excluded"})])]
+    for tag, src, chain in branches:
+        prev, port = src, "field"
+        for i, (mod, params) in enumerate(chain + [("window", dict(win["params"])), ("stats", dict(st["params"]))]):
+            nid = f"{tag}{i}"
+            nodes.append(dict(col, id=nid, module=mod, params=params))
+            pipes.append({"from": [prev, port], "to": [nid, "in"]}); prev, port = nid, "out"
+        pipes.append({"from": [prev, "out"], "to": ["cat", "in"]})
+    s["nodes"], s["pipes"], s["label"] = nodes, pipes, f"five_readings_{prefix}"
+    return s
+
+
+def test_five_readings_concat_end_to_end():
+    """Reading 5: without the prefix the plain names collide and the scheme is refused; with
+    prefix=channel one run writes APF, wAPF, persistence and the ratios side by side."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        src = {"kind": "local", "root": str(root)}
+        s = _five_readings_scheme(manifest, "none")
+        sp = td / "none.json"; sp.write_text(json.dumps(s))
+        assert executor.run(sp, td / "out", src, td / "l1", speed=2, manifest_path=mp) != 0
+        assert "duplicate feature names" in (td / "out" / s["label"] / "run.log").read_text()
+        s = _five_readings_scheme(manifest, "channel")
+        sp = td / "channel.json"; sp.write_text(json.dumps(s))
+        rc = executor.run(sp, td / "out", src, td / "l1", speed=2, manifest_path=mp)
+        assert rc == 0, (td / "out" / s["label"] / "run.log").read_text()
+        z = np.load(td / "out" / s["label"] / "features.npz"); names = z["feature_names"].tolist(); X = z["X"]
+        feats = ["mean", "std", "cov", "median", "max", "p95", "peak2med", "duty"]
+        want = [f"{f}:{c}" for c in ("changed_fraction", "hamming", "jaccard") for f in feats] + \
+               [f"{f}:{c}" for c in ("l0_over_page", "l1_over_l0", "hamming_over_l0") for f in feats]
+        assert names == want, names
+        assert X.shape == (3 * 3, 48) and np.isfinite(X).all() and len(set(names)) == 48
+        assert np.allclose(X[:, names.index("mean:changed_fraction")], 7 / 1024)     # APF, the fixture's constant
+
+
 def test_blocks_overlapping_tiling_and_gapped():
     """Membership against brute force, row replication, and one block count everywhere."""
     pages = np.array([0, 3, 4, 7, 8, 11, 15, 19], dtype=np.int32)

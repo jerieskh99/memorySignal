@@ -376,7 +376,9 @@ def run_lens(tiles: dict, fn):
     through here, because their code takes [T, N] and aggregates the page axis itself.
     """
     if not tiles.get("page_axis"):
-        return fn(tiles)
+        f = fn(tiles)
+        f.setdefault("channels", list(tiles["channels"]))     # so Concat can name a single-channel block after it
+        return f
     X = tiles["X"]
     outs = []
     for j in range(X.shape[2]):
@@ -388,7 +390,8 @@ def run_lens(tiles: dict, fn):
     if not outs:
         return {"names": [], "rows": np.zeros((X.shape[0], 0), np.float32), "keys": tiles["keys"]}
     rows = np.median(np.stack([o["rows"] for o in outs], axis=2), axis=2)
-    return {"names": [n + "_median" for n in outs[0]["names"]], "rows": rows.astype(np.float32), "keys": tiles["keys"]}
+    return {"names": [n + "_median" for n in outs[0]["names"]], "rows": rows.astype(np.float32), "keys": tiles["keys"],
+            "channels": list(tiles["channels"])}
 
 
 def window(series: dict, w: int, h: int, edge: str = "drop", taper: str = "rectangular",
@@ -923,11 +926,28 @@ def plv(tiles: dict, ref: dict, drop: float, normal: float) -> dict:
 # output tier
 # ---------------------------------------------------------------------------
 
-def concat(blocks: list[dict]) -> dict:
+def concat(blocks: list[dict], prefix: str = "none") -> dict:
+    """Join feature blocks side by side. The blocks must share tile keys, and the joined names
+    must be distinct: two single-channel branches (APF and persistence, say) both name their
+    statistics plainly (mean, std, ...), so prefix="channel" suffixes such names with the
+    block's channel (mean:changed_fraction, mean:jaccard), the form a multi-channel block
+    already uses. A duplicate that survives is refused, never written twice."""
+    if prefix not in ("none", "channel"):
+        raise ValueError(f"concat: unknown prefix {prefix!r}")
     if not blocks:
-        return {"names": [], "rows": np.zeros((0, 0), np.float32), "keys": []}
+        return {"names": [], "rows": np.zeros((0, 0), np.float32), "keys": [], "channels": []}
     keys = blocks[0]["keys"]
-    for b in blocks[1:]:
+    names: list[str] = []
+    for b in blocks:
         if b["keys"] != keys:
             raise ValueError("concat: feature blocks do not share tile keys")
-    return {"names": [n for b in blocks for n in b["names"]], "rows": np.concatenate([b["rows"] for b in blocks], axis=1), "keys": keys}
+        ns = list(b["names"])
+        tag = "+".join(b.get("channels") or [])
+        if prefix == "channel" and tag:
+            ns = [n if ":" in n else f"{n}:{tag}" for n in ns]
+        names += ns
+    dups = sorted({n for n in names if names.count(n) > 1})
+    if dups:
+        hint = "set prefix=channel so single-channel blocks carry their channel name" if prefix == "none" else "the branches share channel names too; give them distinct channels"
+        raise ValueError(f"concat: duplicate feature names {dups}; {hint}")
+    return {"names": names, "rows": np.concatenate([b["rows"] for b in blocks], axis=1), "keys": keys, "channels": []}

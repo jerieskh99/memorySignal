@@ -543,6 +543,17 @@ function accepts(fromNode, fp, toNode, tp) {
 function reaches(a, b) { const seen = new Set(), st = [a]; while (st.length) { const x = st.pop(); if (x === b) return true; if (seen.has(x)) continue; seen.add(x); outEdges(x).forEach(e => st.push(e.to)); } return false; }
 
 /* ===== descriptor propagation (mirror of scheme.py descriptor) ===== */
+function blockNames(d, prefix) {           /* mirror of scheme.py block_names */
+  if (!d) return [];
+  let names = (d.names || []).slice();
+  if (d.names_final) return names;
+  const u = d.up || {}; let chans = (u.channels || []).slice();
+  if (u.page_axis) { names = names.map(n => n + "_median"); chans = chans.slice(0, 1); }
+  if (chans.length > 1 && !u.complex) return chans.flatMap(c => names.map(n => `${n}:${c}`));
+  if (prefix === "channel" && chans.length) return names.map(n => n.includes(":") ? n : `${n}:${chans.join("+")}`);
+  return names;
+}
+const dupNames = names => [...new Set(names.filter((n, i) => names.indexOf(n) !== i))].sort();
 function descOf(id, memo = {}) {
   if (memo[id]) return memo[id];
   const n = byId(id), p = n.p;
@@ -556,7 +567,7 @@ function descOf(id, memo = {}) {
     case "ratios": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field", channels: (p.ratios || []).map(s => s.replace("/", "_over_"))}) : null; break; }
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
       d = {type: "complex", complex: true, axis: "page", phase: p.phase, channels: [...(a ? a.channels : []), ...(b ? b.channels : [])], mag: a, dir: b, recs: base.recs, nmin: Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), workloads: base.workloads}; break; }
-    case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}) : null; break; }
+    case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}, p.reduce === "changed_fraction" ? {channels: ["changed_fraction"], complex: false} : {}) : null; break; }
     case "persistence": { const u = up("in"); const lg = Math.max(+p.lag || 1, 0); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed", channels: [p.measure || "jaccard"], complex: false, nmin: Math.max((u.nmin || 0) - (p.edge === "drop" ? lg : 0), 0)}) : null; break; }
     /* n_blocks rides along so it survives the Collapse that must follow: tiles = windows x blocks.
        N_PAGES is the config default because no recording records its own. */
@@ -567,7 +578,7 @@ function descOf(id, memo = {}) {
     case "baseline": { const u = up("in"); d = {type: "reference", mode: p.mode, fitted: !!u, kind: p.mode === "benign" ? "envelope" : "plv",
       src: u ? u.type : null, complex: u ? !!u.complex : false, names: u ? u.names : null}; break; }
     case "deviation": { const u = up("in"); d = {type: "features", names: ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"], up: u, w: u ? u.w : null}; break; }
-    case "concat": d = {type: "features", n: inEdges(id, "in").length}; break;
+    case "concat": { const es = inEdges(id, "in"); const names = es.flatMap(e => blockNames(descOf(e.from, memo), p.prefix || "none")); d = {type: "features", n: es.length, names, names_final: true, up: null, w: null}; break; }
     case "write": d = {type: "sink"}; break;
     default: { const u = up("in"); d = {type: "features", names: (n.mod === "stats" || n.mod === "deep") ? p.feats : [n.mod], up: u, w: u ? u.w : null}; }
   }
@@ -727,7 +738,13 @@ function nodeConstraints(n, memo) {
       const src = {}; FEAT_SRC[n.mod].forEach(f => src[f.name] = f);
       p.feats.forEach(f => { if (!src[f]) I("hard", `not a known feature for this lens: ${f}`, "modules.py feature_sources"); else if (src[f].flag) I("soft", `${f} is flagged in the known-issue registry (${src[f].flag})`, "known_issues.py", "feat:" + f); });
       break; }
-    case "write": { if (!inEdges(n.id, "in").length) I("hard", "nothing to write", "required port"); break; }
+    case "concat": { const es = inEdges(n.id, "in"); const dups = dupNames((descOf(n.id, memo) || {}).names || []);
+      if (dups.length) I("hard", `duplicate feature names across the inputs: ${dups.slice(0, 6).join(", ")}${dups.length > 6 ? " ..." : ""}; ${(p.prefix || "none") === "none" ? "set prefix=channel so single-channel blocks carry their channel name" : "the branches share channel names too; give them distinct channels"}`, "runner/stages.py concat");
+      else if (es.length === 1) I("note", "one input: nothing to join", "runner/stages.py concat");
+      break; }
+    case "write": { const es = inEdges(n.id, "in"); if (!es.length) I("hard", "nothing to write", "required port");
+      else if (es.length > 1) { const dups = dupNames(es.flatMap(e => blockNames(descOf(e.from, memo), "none"))); if (dups.length) I("hard", `duplicate feature names across the inputs: ${dups.slice(0, 6).join(", ")}${dups.length > 6 ? " ..." : ""}; join them through a Concat with prefix=channel`, "runner/stages.py concat"); }
+      break; }
   }
   return out;
 }
@@ -801,7 +818,7 @@ const SUMMARY = {
   fft: (p, d) => `${esc(p.out)}${d && d.w ? `, ${Math.floor(d.w / 2)} bins` : ""}`, cepstrum: () => "peak_idx, snr_db",
   wavelet: p => `${esc(p.fam || "family?")}, ${p.levels} levels`, scattering: p => `J ${p.J}, Q ${p.Q}`, msc: p => `welch ${p.iw}/${p.ih}`,
   plv: p => `drop ${p.drop}, normal ${p.normal}`, cusum: p => `k ${p.k}, h ${p.h}`, baseline: p => esc(p.mode),
-  concat: (p, d) => d ? `${d.n || 0} blocks` : "", write: p => `${esc(p.fmt)}, sidecar`,
+  concat: (p, d) => d ? `${d.n || 0} blocks${p.prefix === "channel" ? ", channel-suffixed" : ""}${d.names ? `, ${d.names.length} features` : ""}` : "" write: p => `${esc(p.fmt)}, sidecar`,
 };
 
 function renderNodes(issues) {

@@ -349,7 +349,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             cross_out[n] = {rid: stages.plv(t, ref, float(p["drop"]), float(p["normal"])) for rid, t in tiles_map.items()}
         elif mod == "concat":
             maps = [fetch(s) for s in multi_ins]
-            cross_out[n] = {rid: stages.concat([m[rid] for m in maps]) for rid in rec_ids if all(rid in m for m in maps)}
+            cross_out[n] = {rid: stages.concat([m[rid] for m in maps], p.get("prefix", "none")) for rid in rec_ids if all(rid in m for m in maps)}
         elif mod == "write":
             maps = [fetch(s) for s in multi_ins]
             written = _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs,
@@ -442,7 +442,7 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "msc":
         return stages.run_lens(up("in"), lambda t: stages.msc(t, int(p["iw"]), int(p["ih"]), p.get("method", "welch"), p.get("detrend", "mean")))
     if mod == "concat":
-        return stages.concat([memo[s] for s in multi_ins])
+        return stages.concat([memo[s] for s in multi_ins], p.get("prefix", "none"))
     raise ValueError(f"module {mod} cannot be evaluated per recording")
 
 

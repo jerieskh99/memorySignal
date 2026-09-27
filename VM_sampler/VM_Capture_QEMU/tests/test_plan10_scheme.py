@@ -180,6 +180,35 @@ def test_persistence_rules():
     assert any(i["sev"] == "hard" and "no pair with a partner" in i["msg"] for i in S.validate(s, ctx))
 
 
+def test_concat_names_and_duplicate_rules():
+    ctx = _ctx(substrate=True)
+    s = copy.deepcopy(S.make_examples(ctx.manifest)["b1"])
+    col = next(n for n in s["nodes"] if n["module"] == "collapse"); st = next(n for n in s["nodes"] if n["module"] == "stats")
+    wr = next(n for n in s["nodes"] if n["module"] == "write"); win = next(n for n in s["nodes"] if n["module"] == "window")
+    # a second branch, persistence, into the same Write: plain names collide
+    s["nodes"] += [dict(col, id="c1", module="persistence", params={"measure": "jaccard", "lag": 1, "edge": "replicate", "empty": "zero"}),
+                   dict(win, id="w1"), dict(st, id="s1")]
+    ch = next(n for n in s["nodes"] if n["module"] == "channels")
+    s["pipes"] += [{"from": [ch["id"], "field"], "to": ["c1", "in"]}, {"from": ["c1", "out"], "to": ["w1", "in"]},
+                   {"from": ["w1", "out"], "to": ["s1", "in"]}, {"from": ["s1", "out"], "to": [wr["id"], "in"]}]
+    hard = [i for i in S.validate(s, ctx) if i["sev"] == "hard"]
+    assert len(hard) == 1 and hard[0]["node"] == wr["id"] and "duplicate" in hard[0]["msg"] and "Concat" in hard[0]["msg"], hard
+    # through a Concat without the prefix: still refused, on the Concat, with the fix named
+    for pp in s["pipes"]:
+        if pp["to"] == [wr["id"], "in"]:
+            pp["to"] = ["cat", "in"]
+    s["nodes"].append(dict(col, id="cat", module="concat", params={"prefix": "none"}))
+    s["pipes"].append({"from": ["cat", "out"], "to": [wr["id"], "in"]})
+    hard = [i for i in S.validate(s, ctx) if i["sev"] == "hard"]
+    assert len(hard) == 1 and hard[0]["node"] == "cat" and "prefix=channel" in hard[0]["msg"], hard
+    next(n for n in s["nodes"] if n["id"] == "cat")["params"]["prefix"] = "channel"
+    assert not [i for i in S.validate(s, ctx) if i["sev"] == "hard"]
+    g = S.Graph(s, ctx)
+    d = S.descriptor(g, "cat", {})
+    feats = g.params(st["id"])["feats"]          # the example leaves the lens on its defaults
+    assert d["names"] == [f"{f}:changed_fraction" for f in feats] + [f"{f}:jaccard" for f in feats] and d["names_final"]
+
+
 def test_soft_rules_and_acknowledgment():
     ctx = _ctx(substrate=True)
 
