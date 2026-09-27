@@ -185,6 +185,8 @@ def ep_run(_q, body):
         argv += ["--speed", str(int(body["speed"]))]
     if body.get("max_pairs"):
         argv += ["--max-pairs", str(int(body["max_pairs"]))]
+    if body.get("keep_fetched"):
+        argv += ["--keep-fetched"]
     log = (run_dir / "bridge.log").open("a")
     env = dict(os.environ, PYTHONUNBUFFERED="1")
     p = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, cwd=str(QEMU_DIR), env=env)

@@ -108,6 +108,49 @@ archive's byte count), every selected trace by name, counts, inputs, outputs, an
 `/cache/drop` deletes fetched chains only after re-stat'ing the archive copy over ssh and matching
 snapshot count and bytes exactly; the archive is never written to, so there is nothing to send back.
 
+The executor does the same for itself, per recording, in ssh fetch mode: once a recording's L1
+store is complete (written, or reused), its fetched files, the trajectory or the chain members,
+leave the cache. Before any deletion one read-only ssh round trip checks that the server still
+holds an identical copy of every file about to go: present at the path it was fetched from, same
+size, same sha256 (`wc -c`, `sha256sum`; nothing is written). If any file fails any check, or the
+server cannot be reached, nothing of that recording is deleted, the files stay and the log says
+which check failed; the analysis itself is never stopped by it. Only paths under the cache are ever
+removed; the L1 stores stay. A later scheme that needs a column the store lacks fetches again.
+`--keep-fetched` (the Run tab's "keep fetched files") turns it off. The sidecar records the setting
+and, per recording, verified or not and which check failed, deleted or kept, and MB freed.
+
+## The archive keeps its own manifest
+
+The archive is append-only at the file level: a snapshot is written once and never rewritten,
+so the only party that knows when a recording is complete is the tool that put it there and
+verified it. That tool registers it in `<root>/.manifest/manifest.json`, and every reader,
+the console first of all, reads that one file instead of stat-ing a hundred thousand snapshots
+over NFS (the full walk took 239 s under capture load; the manifest reads in under a second).
+A recording still arriving is not in the manifest and so cannot be selected: there is no
+stability guess.
+
+The file is a corpus manifest (`plan10.corpus_manifest.v1`, the shape `corpus_manifest.py`
+produces from a walk) so the console consumes it unchanged, plus an `archive_manifest` block
+(`rebuilt_at`, `updated_at`, `registered_since_rebuild`, `last_registered`) and, per recording,
+`has.substrate_columns`: the trajectory's header, read in place at registration. That is what
+lets the Channels module light its rings on page load without a fetch or a round trip.
+
+Who writes it: `plan07_campaign/ui/migrate_agent_server.sh` after each verified move from
+`/project` to the NFS archive, `plan07_campaign/ui/place_csv.py` after placing a trajectory
+beside its chain, and the laptop's `push_to_nfs.sh` after a verified push. Each calls
+`python3 plan10_analysis/archive_manifest.py register <root> <rel>`. Concurrent writers take a
+lock (an atomically created directory, since flock is unreliable on NFS; a lock older than
+120 s is a dead writer and is broken; release renames the directory away first, because the
+NFS client can leave a silly-renamed `.nfs*` file inside that defeats a plain rmdir), rewrite
+to a temp file and rename it over the old one, so a reader never sees a partial manifest.
+
+`rebuild <root>` walks the whole archive and rewrites the manifest from what is there. It is
+the safety net for files copied in by hand and the only path that ever walks the archive.
+A registration made while its walk runs is kept from the live manifest, not from the walk's
+stale glimpse of a directory that was still filling. In the console, **Reload** reads the
+manifest; **Scan** runs `rebuild` on the source and then reads it. The bridge's startup line
+and the header say which one the corpus came from.
+
 ## The archive keeps its own manifest
 
 The archive is append-only at the file level: a snapshot is written once and never rewritten,

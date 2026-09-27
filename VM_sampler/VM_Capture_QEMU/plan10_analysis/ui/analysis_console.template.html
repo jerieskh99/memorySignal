@@ -373,6 +373,7 @@ html.xp-open{overflow:hidden}
       <div class="row" style="align-items:flex-end;flex-wrap:wrap">
         <div class="field" style="flex:0 0 120px"><label class="fl">differ speed</label><input type="number" id="run-speed" min="0" max="4"></div>
         <div class="field" style="flex:0 0 150px"><label class="fl">max pairs (0 = all)</label><input type="number" id="run-maxpairs" value="0" min="0"></div>
+        <div class="field" style="flex:0 0 190px"><label class="fl" for="run-keep" title="ssh fetch mode: by default a recording's fetched trajectory or chain leaves the cache once its store is complete, after the server is verified to hold an identical copy (size and sha256); tick to keep the files">keep fetched files</label><input type="checkbox" id="run-keep"></div>
         <div class="field" style="flex:0 0 auto"><button class="bigbtn" id="run-launch">Launch run</button> <button class="bigbtn ghost" id="run-pause">Pause</button> <button class="bigbtn ghost" id="run-stop">Stop</button></div>
         <div class="field" style="flex:1"><div class="runstat" id="run-stat">no run launched from this page yet</div></div>
       </div>
@@ -1123,8 +1124,8 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
   const doLaunch = async () => {
     const s = scheme(); const mp = +$("run-maxpairs").value || 0; const sp = +$("run-speed").value;
     $("run-stat").textContent = "launching...";
-    try { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined}); current = r.label; drawer.querySelector('[data-tab="run"]').click(); poll(); }
-    catch (e) { $("run-stat").innerHTML = `<b style="color:var(--bad)">refused</b>: ${esc(e.message)}`; if (/already exists/.test(e.message) && confirm(e.message + "\n\nOverwrite it?")) { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined, force: true}); current = r.label; poll(); } }
+    try { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined, keep_fetched: $("run-keep").checked || undefined}); current = r.label; drawer.querySelector('[data-tab="run"]').click(); poll(); }
+    catch (e) { $("run-stat").innerHTML = `<b style="color:var(--bad)">refused</b>: ${esc(e.message)}`; if (/already exists/.test(e.message) && confirm(e.message + "\n\nOverwrite it?")) { const r = await api("/run", {scheme: s, speed: sp, max_pairs: mp || undefined, keep_fetched: $("run-keep").checked || undefined, force: true}); current = r.label; poll(); } }
   };
   launch.onclick = doLaunch; $("run-launch").onclick = doLaunch;
   $("run-stop").onclick = () => current && api("/control", {label: current, command: "stop"});

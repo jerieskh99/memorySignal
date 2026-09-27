@@ -149,14 +149,14 @@ def cross_set(nodes: dict, pipes: list[dict]) -> set[str]:
 
 def run(scheme_path: Path, out_dir: Path, source_spec: dict | None = None, store: Path | None = None,
         speed: int | None = None, max_pairs: int | None = None, acknowledge_all: bool = False,
-        manifest_path: Path | None = None) -> int:
+        manifest_path: Path | None = None, keep_fetched: bool = False) -> int:
     scheme_path = Path(scheme_path)
     sch = json.loads(scheme_path.read_text())
     out_dir = Path(out_dir) / sch.get("label", "scheme")
     out_dir.mkdir(parents=True, exist_ok=True)
     st = Status(out_dir, sch.get("label", "scheme"))
     try:
-        return _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, acknowledge_all, manifest_path)
+        return _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, acknowledge_all, manifest_path, keep_fetched)
     except Stop:
         st.write(state="stopped", message="stopped by control.json")
         st.logline("stopped")
@@ -171,7 +171,7 @@ def run(scheme_path: Path, out_dir: Path, source_spec: dict | None = None, store
         return 1
 
 
-def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, acknowledge_all, manifest_path) -> int:
+def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, acknowledge_all, manifest_path, keep_fetched=False) -> int:
     t0 = time.time()
     # ---- context: roster, manifest (from the source), modules, config
     src = make_source(source_spec or {"kind": "local", "root": str(corpus_manifest.default_root())})
@@ -231,6 +231,24 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
 
     # ---- phase 1: extract (L1)
     stores: dict[str, Path] = {}
+    # In ssh fetch mode the cache would otherwise keep every trajectory and chain for good. Once a
+    # recording's store is complete its fetched files go, but only after the server is shown to
+    # hold identical copies (present, same size, same sha256); any failed check keeps them. A
+    # local source is the author's own files and is never touched. Recorded in the sidecar.
+    cleanup_on = bool(src.kind == "ssh" and getattr(src, "mode", "fetch") == "fetch" and not keep_fetched)
+    st.d["fetch_cleanup"] = {"enabled": cleanup_on,
+                             "setting": "keep_fetched" if keep_fetched else ("delete fetched files after a complete store, each verified identical on the server" if src.kind == "ssh" else "not applicable: local source")}
+
+    def _cleanup(rid: str, i: int) -> None:
+        if not cleanup_on:
+            return
+        try:
+            rec = src.cleanup_fetched(rid)
+        except Exception as e:                              # noqa: BLE001  never stops the analysis
+            rec = {"verified": False, "deleted": False, "failed_check": f"error: {type(e).__name__}: {str(e)[:160]}",
+                   "freed_mb": 0.0, "reason": f"kept: cleanup failed: {type(e).__name__}: {str(e)[:160]}"}
+        st.d["per_recording"].setdefault(rid, {})["cleanup"] = rec
+        st.logline(f"[{i}/{len(rec_ids)}] {rid}: fetched files {rec['reason']}")
     for i, rid in enumerate(rec_ids, 1):
         st.check_control()
         st.write(phase="extract", recording=rid, recording_index=i, pair=0, n_pairs=min(recs[rid]["n_pairs"], max_pairs or 10 ** 9))
@@ -242,6 +260,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             # run that reuses everything otherwise finishes with every trace still "queued"
             st.d["per_recording"][rid] = {"extracted": True, "where": "reused",
                                           "n_pairs": extract.load(hit)["n_pairs"]}
+            _cleanup(rid, i)
             continue
         if getattr(src, "mode", None) == "remote":
             # the chain never crosses the network: the differ runs on the server and only
@@ -275,6 +294,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
                     n_pages=ctx.config["n_pages_default"], progress=tprog)
                 st.d["per_recording"][rid] = {"extracted": True, "where": "trajectory", "source": "substrate_csv",
                                               "n_pairs": extract.load(stores[rid])["n_pairs"]}
+                _cleanup(rid, i)
                 continue
             if avail:
                 st.logline(f"[{i}/{len(rec_ids)}] {rid}: trajectory lacks {lacking}; re-diffing the chain")
@@ -287,6 +307,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
 
         stores[rid] = extract.extract(rid, local, speed, sorted(union), store_dir, max_pairs=max_pairs, progress=prog, work_dir=out_dir / "work")
         st.d["per_recording"][rid] = {"extracted": True, "n_pairs": extract.load(stores[rid])["n_pairs"]}
+        _cleanup(rid, i)
 
     # ---- phase 2: per recording
     per_rec: dict[str, dict[str, object]] = {}   # node -> rid -> output
@@ -482,6 +503,8 @@ def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, c
         "differ": dv.get("differ"),
         "differ_per_recording": dv["per_recording"] if not dv["same_for_all"] else None,
         "extraction_ran": src.describe().get("mode", "local" if src.kind == "local" else "fetch"),
+        "fetch_cleanup": dict(st.d.get("fetch_cleanup") or {"enabled": False},
+                              per_recording={r: (st.d.get("per_recording", {}).get(r) or {}).get("cleanup") for r in rec_ids}),
         "roster_sha": roster["derivation"]["source_sha256_16"],
         "python": platform.python_version(), "numpy": np.__version__,
         "written_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -505,9 +528,10 @@ def main() -> int:
     r.add_argument("--speed", type=int, default=None)
     r.add_argument("--max-pairs", type=int, default=None)
     r.add_argument("--acknowledge-all", action="store_true")
+    r.add_argument("--keep-fetched", action="store_true", help="ssh fetch mode: keep the fetched trajectory/chain in the cache after the store is complete (default: delete it once the server is verified to hold an identical copy)")
     a = ap.parse_args()
     spec = json.loads(a.source_json) if a.source_json else None
-    return run(a.scheme, a.out_dir, spec, a.store, a.speed, a.max_pairs, a.acknowledge_all, a.manifest)
+    return run(a.scheme, a.out_dir, spec, a.store, a.speed, a.max_pairs, a.acknowledge_all, a.manifest, a.keep_fetched)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ never executes analysis remotely. Pure stdlib.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -34,6 +35,18 @@ DEFAULT_REMOTE_STORE = "~/.cache/plan10/l1"
 LISTING_TIMEOUT_S = int(os.environ.get("PLAN10_LISTING_TIMEOUT", "1200"))
 MANIFEST_REL = ".manifest/manifest.json"   # the archive's own inventory (archive_manifest.py)   # a full ssh listing of the archive
 _RE_SNAP = re.compile(r"^\d{6}\.zst$")
+# what fetch() and fetch_trajectory() put in the cache: chain members and the trajectory. Nothing
+# derived lives there (the trajectory is streamed through zstd, a chain is rebuilt under the run's
+# work dir), so these are the only files cleanup may ever remove.
+_RE_FETCHED = re.compile(r"^(\d{6}\.zst|.*substrate_trajectory.*)$")
+
+
+def sha256_file(path: Path, chunk: int = 1 << 20) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(chunk), b""):
+            h.update(block)
+    return h.hexdigest()
 
 
 class SshTransport:
@@ -204,6 +217,102 @@ class SshSource:
         ssh_cmd = "ssh " + " ".join(shlex.quote(o) for o in self._ssh_opts())
         return ["rsync", "-a", "--partial", "--include=*.zst", "--exclude=*", "-e", ssh_cmd,
                 f"{self.target}:{shlex.quote(self.remote_root + '/' + rec_rel)}/", str(dest) + "/"]
+
+    # ---------------- the fetched files leave the cache once the store is complete ----------------
+
+    def fetched_files(self, rec_rel: str) -> list[Path]:
+        """This recording's fetched files in the cache: chain members and the trajectory, nothing else."""
+        d = self.cache / rec_rel
+        if not d.is_dir():
+            return []
+        return sorted(p for p in d.iterdir() if p.is_file() and _RE_FETCHED.match(p.name))
+
+    def verify_cmd(self, rec_rel: str, names: list[str]) -> str:
+        """One round trip, read-only: size and sha256 of each named file in the recording's
+        directory on the server, MISSING for one that is not there, __NODIR__ if the directory
+        itself is gone. wc and sha256sum only; nothing is written."""
+        d = shlex.quote(self.remote_root + "/" + rec_rel)
+        ns = " ".join(shlex.quote(n) for n in names)
+        return (f"cd {d} 2>/dev/null || {{ echo __NODIR__; exit 0; }}; for f in {ns}; do "
+                f"if [ -f \"$f\" ]; then s=$(wc -c < \"$f\" | tr -d ' '); h=$(sha256sum -- \"$f\" | cut -d' ' -f1); "
+                f"printf '%s %s %s\\n' \"$s\" \"$h\" \"$f\"; else printf 'MISSING - %s\\n' \"$f\"; fi; done")
+
+    @staticmethod
+    def parse_verify(text: str) -> dict[str, tuple[int | None, str | None]]:
+        out: dict[str, tuple[int | None, str | None]] = {}
+        for line in text.splitlines():
+            parts = line.strip().split(" ", 2)
+            if len(parts) != 3:
+                continue
+            size, sha, name = parts
+            out[name] = (None, None) if size == "MISSING" else (int(size), sha)
+        return out
+
+    def verify_remote_copies(self, rec_rel: str, files: list[Path]) -> dict:
+        """Does the server hold an identical copy of every one of these files: present at the
+        path it was fetched from, same size, same sha256? Returns {"ok", "reason", "files"}.
+        A server that cannot be reached is a failed check, never an error."""
+        names = [f.name for f in files]
+        res: dict = {"ok": False, "reason": None, "files": {}}
+        if not names:
+            res.update(ok=True, reason="nothing fetched")
+            return res
+        try:
+            rc, out, err = self.transport.run(self.verify_cmd(rec_rel, names), timeout=3600)
+        except Exception as e:                              # noqa: BLE001  ssh missing, timeout, refused
+            res["reason"] = f"unreachable: {type(e).__name__}: {str(e)[:160]}"
+            return res
+        if rc != 0:
+            res["reason"] = f"unreachable: ssh exit {rc}: {err.strip()[:160]}"
+            return res
+        if out.strip() == "__NODIR__":
+            res["reason"] = f"missing: {rec_rel} is not on the server"
+            return res
+        remote = self.parse_verify(out)
+        ok = True
+        for f in files:
+            lsize, lsha = f.stat().st_size, sha256_file(f)
+            rsize, rsha = remote.get(f.name, (None, None))
+            entry = {"local_size": lsize, "remote_size": rsize, "local_sha256": lsha, "remote_sha256": rsha}
+            entry["status"] = ("missing" if rsize is None else "size" if rsize != lsize else "sha256" if rsha != lsha else "verified")
+            res["files"][f.name] = entry
+            if entry["status"] != "verified" and ok:
+                ok = False
+                res["reason"] = (f"{entry['status']}: {f.name} (local {lsize} B {lsha[:12]}, "
+                                 f"server {'absent' if rsize is None else f'{rsize} B {str(rsha)[:12]}'})")
+        res["ok"] = ok
+        return res
+
+    def cleanup_fetched(self, rec_rel: str) -> dict:
+        """After a complete L1 store: remove this recording's fetched files from the cache, but
+        only once every one of them is verified identical on the server. Any failed check, or a
+        server that cannot be reached, keeps them all and says which check failed. Only paths
+        under the cache are ever removed, and the server is never written to."""
+        files = self.fetched_files(rec_rel)
+        rec: dict = {"files": len(files), "bytes": sum(f.stat().st_size for f in files),
+                     "verified": False, "deleted": False, "failed_check": None, "freed_mb": 0.0, "reason": ""}
+        if not files:
+            rec.update(verified=True, reason="nothing fetched in the cache")
+            return rec
+        root = self.cache.resolve()
+        for f in files:
+            assert f.resolve().is_relative_to(root), f"refusing to delete outside the cache: {f}"
+        v = self.verify_remote_copies(rec_rel, files)
+        rec["checks"] = {n: e["status"] for n, e in v["files"].items()}
+        if not v["ok"]:
+            rec.update(failed_check=v["reason"], reason=f"kept: {v['reason']}")
+            return rec
+        freed = 0
+        for f in files:
+            freed += f.stat().st_size
+            f.unlink()
+        d = (self.cache / rec_rel).resolve()
+        while d != root and d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+            d = d.parent
+        rec.update(verified=True, deleted=True, freed_mb=round(freed / 1e6, 1),
+                   reason=f"deleted {len(files)} file(s), {freed / 1e6:.0f} MB freed; every one verified identical on the server")
+        return rec
 
     def describe(self) -> dict:
         return {"kind": "ssh", "host": self.host, "user": self.user, "port": self.port,
