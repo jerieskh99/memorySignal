@@ -219,7 +219,17 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
         mp = int(p.get("max_pairs") or 0)
         if mp:
             max_pairs = min(max_pairs or mp, mp)
+        # head drop: one number for every cell, applied once upstream of every branch (below,
+        # where the store is loaded), so every reading drops the same pairs and tiles stay aligned
+        hd_on = p.get("head_drop") == "on"
+        hd_pairs = int(p.get("head_drop_pairs") or 0)
+        head_drop = {"on": hd_on, "pairs": hd_pairs, "applied": hd_pairs if hd_on else 0}
     rec_ids = sorted(recs)
+    if not cells_nodes:
+        head_drop = {"on": False, "pairs": 0, "applied": 0}
+    st.d["head_drop"] = head_drop
+    if head_drop["applied"]:
+        st.logline(f"head drop: the first {head_drop['applied']} pairs of every recording are dropped before any branch; pairs renumber from 1")
     union: set[str] = set()
     for n in order:
         if mod_of[n] == "channels":
@@ -314,7 +324,9 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
     for i, rid in enumerate(rec_ids, 1):
         st.check_control()
         st.write(phase="analyse", recording=rid, recording_index=i)
-        store_d = extract.load(stores[rid])
+        store_d = apply_head_drop(extract.load(stores[rid]), head_drop["applied"])
+        if head_drop["applied"]:
+            st.d["per_recording"].setdefault(rid, {})["pairs_after_head_drop"] = store_d["n_pairs"]
         memo: dict[str, object] = {}
         for n in order:
             if n in cross:
@@ -381,6 +393,29 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
              message=f"{written['n_rows']} rows, {written['n_features']} features in {time.time() - t0:.1f}s" if written else "no Write module reached")
     st.logline(st.d["message"])
     return 0
+
+
+def apply_head_drop(store: dict, n: int) -> dict:
+    """Drop the first n pairs of a loaded L1 store, once, before any branch reads it: the rows of
+    pairs 1..n go, the pairs after them are renumbered from 1, n_pairs shrinks by n. Every
+    per-row array (seq, page_index, each channel) is cut on the same mask; scalars and the
+    column list pass through. The same meaning as plan11's inputs/head_drop.csv head_drop_pairs."""
+    n = int(n or 0)
+    if n <= 0:
+        return store
+    seq = store["seq"]
+    if n >= int(store["n_pairs"]):
+        raise ValueError(f"head drop of {n} pairs leaves nothing of a recording with {int(store['n_pairs'])} pairs")
+    mask = seq > n
+    out = {}
+    for k, v in store.items():
+        if isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] == seq.shape[0] and v.dtype.kind not in "USO":
+            out[k] = v[mask]
+        else:
+            out[k] = v
+    out["seq"] = (seq[mask] - n).astype(seq.dtype)
+    out["n_pairs"] = int(store["n_pairs"]) - n
+    return out
 
 
 def _extraction_provenance(stores: dict, st) -> dict:
@@ -499,6 +534,7 @@ def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, c
         "recordings": [{"id": r, "n_pairs": ctx.rec_by_id[r]["n_pairs"], "workload": ctx.rec_by_id[r]["workload"]} for r in rec_ids],
         "speed": speed, "speed_source": "run parameter (config default when unset); unrecorded per recording",
         "max_pairs": max_pairs,
+        "head_drop": st.d.get("head_drop") or {"on": False, "pairs": 0, "applied": 0},
         "n_pages_default": ctx.config["n_pages_default"],
         "differ": dv.get("differ"),
         "differ_per_recording": dv["per_recording"] if not dv["same_for_all"] else None,

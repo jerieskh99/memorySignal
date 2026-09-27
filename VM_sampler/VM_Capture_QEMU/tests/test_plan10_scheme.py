@@ -209,6 +209,29 @@ def test_concat_names_and_duplicate_rules():
     assert d["names"] == [f"{f}:changed_fraction" for f in feats] + [f"{f}:jaccard" for f in feats] and d["names_final"]
 
 
+def test_head_drop_rules():
+    ctx = _ctx(substrate=True)                                     # recordings of 700, 700, 690 pairs
+    s = copy.deepcopy(S.make_examples(ctx.manifest)["b1"])
+    cells = next(n for n in s["nodes"] if n["module"] == "cells")
+    def hard(sch): return [i["msg"] for i in S.validate(sch, ctx) if i["sev"] == "hard"]
+    cells["params"].update(head_drop="off", head_drop_pairs=5000)
+    assert hard(s) == [] and S.descriptor(S.Graph(s, ctx), cells["id"], {})["nmin"] == 690      # off: the count is ignored
+    cells["params"].update(head_drop="on", head_drop_pairs=0)
+    assert any("drops no pairs" in m for m in hard(s))
+    cells["params"].update(head_drop_pairs=690)
+    assert any("leaves nothing of the shortest" in m for m in hard(s))
+    cells["params"].update(head_drop_pairs=32)
+    assert hard(s) == []
+    d = S.descriptor(S.Graph(s, ctx), cells["id"], {})
+    assert d["nmin"] == 658 and d["head_drop"] == 32
+    assert any(i["sev"] == "note" and "renumber from 1" in i["msg"] for i in S.validate(s, ctx))
+    cells["params"].update(head_drop_pairs=685)                    # leaves 5 pairs: fewer than the window
+    assert any("exceeds the shortest connected recording" in m for m in hard(s))
+    cells["params"].update(head_drop_pairs=32)
+    s["nodes"].append(dict(cells, id="c2", params=dict(cells["params"], head_drop="off")))
+    assert any("every Cells module must carry the same head drop" in m for m in hard(s))
+
+
 def test_soft_rules_and_acknowledgment():
     ctx = _ctx(substrate=True)
 

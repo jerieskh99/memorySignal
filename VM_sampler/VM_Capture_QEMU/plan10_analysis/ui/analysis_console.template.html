@@ -567,7 +567,8 @@ function descOf(id, memo = {}) {
   let d = null;
   switch (n.mod) {
     case "cells": { const recs = p.sel.map(i => REC[i]).filter(Boolean); const kept = recs.filter(r => r.n_pairs >= p.min_pairs); const mp = +p.max_pairs || null;
-      d = {type: "cells", recs: kept, dropped: recs.length - kept.length, max_pairs: mp, nmin: kept.length ? Math.min(...kept.map(r => mp ? Math.min(r.n_pairs, mp) : r.n_pairs)) : 0, workloads: [...new Set(kept.map(r => r.workload))]}; break; }
+      d = {type: "cells", recs: kept, dropped: recs.length - kept.length, max_pairs: mp, nmin: kept.length ? Math.min(...kept.map(r => mp ? Math.min(r.n_pairs, mp) : r.n_pairs)) : 0, workloads: [...new Set(kept.map(r => r.workload))]};
+      const hd = p.head_drop === "on" ? Math.max(+p.head_drop_pairs || 0, 0) : 0; d.head_drop = hd; d.nmin = Math.max(d.nmin - hd, 0); break; }
     case "channels": { const u = up("cells"); d = {type: "field", channels: p.chans.slice(), complex: false, axis: "page", recs: u ? u.recs : [], nmin: u ? u.nmin : 0, workloads: u ? u.workloads : []}; break; }
     case "single": case "vectorize": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field"}) : null; break; }
     case "ratios": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field", channels: (p.ratios || []).map(s => s.replace("/", "_over_"))}) : null; break; }
@@ -609,6 +610,12 @@ function nodeConstraints(n, memo) {
       const ivs = new Set(kept.filter(r => r.iv_ms != null).map(r => r.iv_ms));
       if (ivs.size > 1) I("soft", `selected recordings mix sampling intervals (${[...ivs].join(", ")} ms); one window then spans different wall-clock times across them`, "plan10 UX section 11.2", "mixed_iv", {label: "keep the config interval only", run: () => { p.sel = p.sel.filter(i => !REC[i] || REC[i].iv_ms == null || REC[i].iv_ms === CONFIG.intervalMsec); }});
       if (kept.length && kept.every(r => r.iv_ms == null)) I("note", `sampling interval is unrecorded per recording; the time-span readout assumes config intervalMsec=${CONFIG.intervalMsec}`, "corpus_manifest.py iv_source");
+      if (p.head_drop === "on") {
+        const hd = +p.head_drop_pairs || 0, mp_ = +p.max_pairs || null, shortest = kept.length ? Math.min(...kept.map(r => mp_ ? Math.min(r.n_pairs, mp_) : r.n_pairs)) : 0;
+        if (hd < 1) I("hard", "head drop is on but drops no pairs; set the count to at least 1 or turn it off", "runner/executor.py apply_head_drop");
+        else if (kept.length && hd >= shortest) I("hard", `a head drop of ${hd} pairs leaves nothing of the shortest selected recording (${shortest} pairs)`, "runner/executor.py apply_head_drop");
+        else I("note", `the first ${hd} pairs of every recording are dropped before any branch, kernels and idle alike; pairs renumber from 1 and the shortest recording keeps ${shortest - hd}`, "runner/executor.py apply_head_drop");
+      }
       break; }
     case "channels": {
       const u = up("cells"); const recs = u ? u.recs : [];
@@ -759,6 +766,8 @@ function validate() {
   G.nodes.forEach(n => list = list.concat(nodeConstraints(n, memo)));
   if (!G.nodes.some(n => n.mod === "write")) list.push({sev: "hard", msg: "no Write module: the scheme produces nothing", src: "plan10 UX section 7"});
   if (!G.nodes.some(n => n.mod === "cells")) list.push({sev: "hard", msg: "no Cells module: nothing is read", src: "plan10 UX section 3"});
+  { const hds = new Set(G.nodes.filter(n => n.mod === "cells").map(n => n.p.head_drop === "on" ? "on:" + (+n.p.head_drop_pairs || 0) : "off"));
+    if (hds.size > 1) list.push({sev: "hard", msg: "every Cells module must carry the same head drop: it applies once, upstream of every branch, so the tiles stay aligned", src: "runner/executor.py apply_head_drop"}); }
   G.nodes.forEach(n => { if (G.nodes.length > 1 && !inEdges(n.id).length && !outEdges(n.id).length) list.push({node: n.id, sev: "note", msg: `${M[n.mod].name} is not connected to anything`, src: "orphan"}); });
   return list;
 }
@@ -810,7 +819,7 @@ function renderPalette() {
 }
 
 const SUMMARY = {
-  cells: (p, d) => `${p.sel.length} selected${d && d.dropped ? `, ${d.dropped} below min_pairs` : ""}${d ? ` <span class=k>/ ${d.workloads.length} workloads</span>` : ""}`,
+  cells: (p, d) => `${p.sel.length} selected${d && d.dropped ? `, ${d.dropped} below min_pairs` : ""}, head drop: ${p.head_drop === "on" ? `${+p.head_drop_pairs || 0} pairs` : "off"}${d ? ` <span class=k>/ ${d.workloads.length} workloads</span>` : ""}`,
   channels: p => p.chans.length ? esc(p.chans.slice(0, 4).join(", ")) + (p.chans.length > 4 ? ` +${p.chans.length - 4}` : "") : "<span class=k>none</span>",
   single: (p, d) => d ? (d.channels.length === 1 ? esc(d.channels[0]) : `${d.channels.length} channels, needs 1`) : "",
   vectorize: (p, d) => d ? `${d.channels.length} channels, kept apart` : "",

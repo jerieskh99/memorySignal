@@ -204,9 +204,10 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
         recs = [ctx.rec_by_id[r] for r in p.get("sel", []) if r in ctx.rec_by_id]
         kept = [r for r in recs if r["n_pairs"] >= int(p.get("min_pairs", 0))]
         mp = int(p.get("max_pairs") or 0) or None
+        hd = max(int(p.get("head_drop_pairs") or 0), 0) if p.get("head_drop") == "on" else 0
         d = {"type": "cells", "recs": kept, "dropped_short": len(recs) - len(kept),
-             "nmin": min((min(r["n_pairs"], mp) if mp else r["n_pairs"] for r in kept), default=0),
-             "max_pairs": mp, "workloads": sorted({r["workload"] for r in kept})}
+             "nmin": max(min((min(r["n_pairs"], mp) if mp else r["n_pairs"] for r in kept), default=0) - hd, 0),
+             "max_pairs": mp, "head_drop": hd, "workloads": sorted({r["workload"] for r in kept})}
     elif mod == "channels":
         u = up("cells")
         d = {"type": "field", "channels": list(p.get("chans", [])), "complex": False, "axis": "page",
@@ -326,6 +327,18 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
         if kept and all(r.get("iv_ms") is None for r in kept):
             out.append(_issue(nid, "note", f"sampling interval is unrecorded per recording; the time-span readout assumes config intervalMsec={ctx.config['intervalMsec']}",
                               "corpus_manifest.py iv_source"))
+        if p.get("head_drop") == "on":
+            hd = int(p.get("head_drop_pairs") or 0)
+            mp_ = int(p.get("max_pairs") or 0) or None
+            shortest = min((min(r["n_pairs"], mp_) if mp_ else r["n_pairs"] for r in kept), default=0)
+            if hd < 1:
+                out.append(_issue(nid, "hard", "head drop is on but drops no pairs; set the count to at least 1 or turn it off", "runner/executor.py apply_head_drop"))
+            elif kept and hd >= shortest:
+                out.append(_issue(nid, "hard", f"a head drop of {hd} pairs leaves nothing of the shortest selected recording ({shortest} pairs)", "runner/executor.py apply_head_drop"))
+            else:
+                out.append(_issue(nid, "note", f"the first {hd} pairs of every recording are dropped before any branch, kernels and idle alike; pairs renumber from 1 and the shortest recording keeps {shortest - hd}",
+                                  "runner/executor.py apply_head_drop"))
+
 
     elif mod == "channels":
         chans = list(p.get("chans", []))
@@ -682,6 +695,11 @@ def validate(scheme: dict, ctx: Context) -> list[dict]:
         issues.append(_issue(None, "hard", "no Write module: the scheme produces nothing", "plan10 UX section 7"))
     if not any(n["module"] == "cells" for n in g.nodes.values()):
         issues.append(_issue(None, "hard", "no Cells module: nothing is read", "plan10 UX section 3"))
+    # the head drop is applied once, upstream of every branch: several Cells modules must agree
+    hds = {(g.params(nid).get("head_drop") == "on", int(g.params(nid).get("head_drop_pairs") or 0) if g.params(nid).get("head_drop") == "on" else 0)
+           for nid, n in g.nodes.items() if n["module"] == "cells"}
+    if len(hds) > 1:
+        issues.append(_issue(None, "hard", "every Cells module must carry the same head drop: it applies once, upstream of every branch, so the tiles stay aligned", "runner/executor.py apply_head_drop"))
     for nid, n in g.nodes.items():
         if len(g.nodes) > 1 and not g.in_pipes(nid) and not g.out_pipes(nid):
             issues.append(_issue(nid, "note", f"{ctx.mod_by_id[n['module']]['name']} is not connected to anything", "orphan"))

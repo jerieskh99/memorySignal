@@ -228,6 +228,17 @@ Window's `edge=drop` uses in time. The block count the console shows assumes the
 config's pages-per-dump, since no recording records its own; the runner uses each recording's
 actual page count.
 
+## Head drop
+
+The Cells module can drop the first pairs of every recording, off by default, 32 pairs when on.
+It applies once, where the store is loaded, upstream of every branch, so every reading drops the
+same pairs and the tiles stay aligned for Concat; the pairs after the drop renumber from 1 and the
+pair count and the shortest-recording count shrink. When on the count must be at least 1 and must
+leave the Window enough pairs; several Cells modules must agree. The Cells card says "head drop:
+off" or "head drop: 32 pairs", and the sidecar records the toggle, the count and what was applied
+on every run. Same meaning as plan11's `inputs/head_drop.csv` `head_drop_pairs`, so the canvas and
+the toolkit can be given one number.
+
 ## Ratios: the content-change family
 
 `Ratios` is a Compose module: per changed page, one amount channel over another, or over the

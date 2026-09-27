@@ -281,6 +281,51 @@ def test_five_readings_concat_end_to_end():
         assert np.allclose(X[:, names.index("mean:changed_fraction")], 7 / 1024)     # APF, the fixture's constant
 
 
+def test_head_drop_cuts_the_store_once_and_renumbers():
+    seq = np.array([1, 1, 2, 3, 3, 4, 5], dtype=np.int32)
+    store = {"seq": seq, "page_index": np.array([3, 4, 3, 9, 7, 3, 3], dtype=np.int32),
+             "hamming": np.array([1, 2, 3, 4, 5, 6, 7], dtype=np.float32), "n_pairs": 5, "n_pages": 100,
+             "columns": np.array(["hamming"], dtype="U16")}
+    d = executor.apply_head_drop(store, 2)
+    assert d["seq"].tolist() == [1, 1, 2, 3] and d["page_index"].tolist() == [9, 7, 3, 3] and d["hamming"].tolist() == [4, 5, 6, 7]
+    assert d["n_pairs"] == 3 and d["columns"].tolist() == ["hamming"] and store["n_pairs"] == 5      # the input is untouched
+    assert executor.apply_head_drop(store, 0) is store
+    try:
+        executor.apply_head_drop(store, 5)
+        assert False
+    except ValueError as e:
+        assert "leaves nothing" in str(e)
+
+
+def test_head_drop_end_to_end_applies_upstream_of_every_branch():
+    """b1 with a head drop of 3 on the 9-pair synthetic recordings: 6 pairs remain, 2 windows of
+    4 stepped by 2, tile keys renumbered from 1, and the sidecar carries the toggle and count
+    on and off."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        src = {"kind": "local", "root": str(root)}
+        for label, on, n in (("hd_on", "on", 3), ("hd_off", "off", 3)):
+            s = _example(manifest, "b1")
+            next(x for x in s["nodes"] if x["module"] == "cells")["params"].update(head_drop=on, head_drop_pairs=n)
+            next(x for x in s["nodes"] if x["module"] == "window")["params"].update(w=4, h=2)
+            s["label"] = label
+            sp = td / f"{label}.json"; sp.write_text(json.dumps(s))
+            rc = executor.run(sp, td / "out", src, td / "l1", speed=2, manifest_path=mp)
+            assert rc == 0, (td / "out" / label / "run.log").read_text()
+            z = np.load(td / "out" / label / "features.npz"); side = json.loads((td / "out" / label / "sidecar.json").read_text())
+            if on == "on":
+                assert z["X"].shape == (3 * 2, 8) and sorted(set(z["tile_keys"]["seq_start"].tolist())) == [1, 3]
+                assert side["head_drop"] == {"on": True, "pairs": 3, "applied": 3}
+                assert "head drop: the first 3 pairs" in (td / "out" / label / "run.log").read_text()
+            else:
+                assert z["X"].shape == (3 * 3, 8) and sorted(set(z["tile_keys"]["seq_start"].tolist())) == [1, 3, 5]
+                assert side["head_drop"] == {"on": False, "pairs": 3, "applied": 0}
+            assert np.allclose(z["X"][:, 0], 7 / 1024)                                   # APF is unchanged by where the window starts
+
+
 def test_blocks_overlapping_tiling_and_gapped():
     """Membership against brute force, row replication, and one block count everywhere."""
     pages = np.array([0, 3, 4, 7, 8, 11, 15, 19], dtype=np.int32)
