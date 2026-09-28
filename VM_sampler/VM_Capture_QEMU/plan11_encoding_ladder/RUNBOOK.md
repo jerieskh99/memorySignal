@@ -93,6 +93,7 @@ above expect G-ORD to take the better part of an hour per rung in one process.
 cd VM_sampler/VM_Capture_QEMU
 python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
     --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
     --n-jobs 4 --null-perm 500 --null-splits loko,loro,within_trace
 python3 -m plan11_encoding_ladder.run_moves status --out <out>      # the ledger
 python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --moves 6-7   # print, do not run
@@ -136,6 +137,12 @@ python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --mov
   `--assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell"` (the
   text is stored in `params` and should be stated once in Limitations), or give the recorded
   counts with `--failed-counts <csv>` (columns `cell_id, failed_count, source`).
+- `--keep-first-pairs <csv>` (AA A8; SPEC_epoch2 Part 4 item 26): the declared "keep only the
+  first N pairs" file, passed to move 1. `plan11_encoding_ladder/declared/keep_first_pairs.csv`
+  lists the three runs whose recording holds an unplanned second run (gemm 940, fem_assembly 895,
+  fft 926 pairs). The path is relative to the driver's cwd (`VM_sampler/VM_Capture_QEMU`); the
+  driver declares the file as an input of move 1, so its sha256 is in the ledger and a change
+  makes move 1 stale.
 - Cost: extract about 1 to 3 minutes per cell of four million rows (2 to 5 hours for 96 cells at
   `--jobs 4`); the temporal grid minutes per rung; the split nulls hours, LORO's null the longest
   (about 48,000 forest fits per rung at 500 permutations, `loro_mode = "cell"`). If LORO's null
@@ -166,11 +173,25 @@ yours to resolve by editing `cells.csv`. Every later stage reads this file, neve
 ### Move 1: the per-cell extract (the longest step)
 
 ```
-python3 -m plan11_encoding_ladder.extract all --cells-csv <out>/cells.csv --out <out> --jobs 4
+python3 -m plan11_encoding_ladder.extract all --cells-csv <out>/cells.csv --out <out> --jobs 4 \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv
 ```
 
 Writes `<out>/extract/<cell_id>/extract.csv` (one row per `seq`, 58 columns, SPEC 2.2) and
-`sidecar.json` (SPEC 2.3). A cell whose sidecar says `status = ok` is skipped on re-run.
+`sidecar.json` (SPEC 2.3). A cell whose sidecar says `status = ok` under the same cut is skipped
+on re-run.
+
+`--keep-first-pairs <csv>` (AA A8; SPEC_epoch2 Part 4 item 26) has the columns `path,
+keep_first_pairs, reason`; `path` is the cell directory relative to the retention root
+(`family/workload/variant/rep`). For a listed cell the extract keeps the first N pairs of the
+file in seq order, every row with `seq <= seq_first + N - 1` (a seq gap counts as a pair), and
+ignores the later rows; unlisted cells are unchanged, and nothing under the retention root is
+written. The sidecar records `keep_first_pairs`, `keep_first_reason`, the file's own extent
+(`file_n_pairs`, `file_seq_last`, `n_rows_after_cut`), and `n_pairs` and `dt_est_s` are computed
+on the kept pairs only. A row that matches no cell of `cells.csv` or more than one, or an N larger
+than the file's pair count, stops the command and names the row. A sidecar written under another
+cut (or none) is not `ok` for this cut: the cell is re-extracted, not skipped. The same flag on
+`extract cell` cuts a single cell.
 
 Look at the sidecars: `n_pairs` in 890 to 945, `header_ncols = 66`, `n_rows_skipped = 0`,
 `n_seq_gaps` (a gap is a K = 0 snapshot, not a failed job; SPEC 2.1), `status = ok`,

@@ -1,0 +1,4 @@
+path,keep_first_pairs,reason
+kernel/kernel_gemm_v2/dim_1024_--block_64_--duration_600_--seed_7703_--phase-marke_38592d57/rep001__sandbox_deepdive_01c1,940,"unplanned second run from pair 941 (sustain-loop relaunch, guest clock stepped back); P2_AUTHOR_ANSWERS A8"
+kernel/kernel_fem_assembly_v2/nodes_2048_--elements_8192_--npe_4_--duration_600_--seed_271_a6c4f8c1/rep001__sandbox_deepdive_01c,895,"unplanned second run from pair 896 (sustain-loop relaunch, guest clock stepped back); P2_AUTHOR_ANSWERS A8"
+kernel/kernel_fft_v2/n_1048576_--duration_600_--seed_7548_--phase-markers_--max-m_8b58815f/rep001__sandbox_deepdive_01c1,926,"unplanned second run from pair 927 (sustain-loop relaunch, guest clock stepped back); P2_AUTHOR_ANSWERS A8"

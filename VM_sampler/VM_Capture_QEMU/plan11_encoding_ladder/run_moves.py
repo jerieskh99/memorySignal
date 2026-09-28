@@ -156,11 +156,19 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
         a += ["--persist-side", o.persist_side]
     if o.failed_counts:
         a += ["--failed-counts", o.failed_counts]
+    # AA A8 (2026-09-28; SPEC_epoch2 Part 4 item 26): the declared "keep only the first N pairs" file,
+    # passed as given so a shell launch and a console launch build the same argv; declared as an input
+    # by its resolved path so its sha256 is in the ledger and a change makes move 1 stale
+    m1_inputs = ["cells.csv", "inputs/failed_counts.csv"]
+    if getattr(o, "keep_first_pairs", None):
+        a += ["--keep-first-pairs", o.keep_first_pairs]
+        kfp = Path(o.keep_first_pairs)
+        m1_inputs.append(str(kfp if kfp.is_absolute() else (_HERE.parent / kfp).resolve()))
     # SPEC_epoch2 B12: every cell's declared duration (600 on the real corpus; the smoke corpus passes n_pairs x 0.644);
     # passed only when it departs from the extractor's default, so a default run's argv is stable across resumes
     if float(getattr(o, "duration_s", 600) or 600) != 600:
         a += ["--duration-s", getattr(o, "duration_s")]
-    P.append(_cmd(1, "extract all", "extract", "all", a, outputs=["extract"], inputs=["cells.csv", "inputs/failed_counts.csv"]))
+    P.append(_cmd(1, "extract all", "extract", "all", a, outputs=["extract"], inputs=m1_inputs))
     # ---- move 2: preconditions, the templates, G-P (al-Kindi review 6)
     a = [*O]
     if o.assume_failed_zero:
@@ -769,6 +777,8 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
                     help="comma-separated module names to run (tables,figures,latex_skeleton,driver,...); the others are recorded as not run")
     ap.add_argument("--persist-side", default=None, choices=[None, "t", "t+1"])
     ap.add_argument("--failed-counts", default=None)
+    ap.add_argument("--keep-first-pairs", default=None,
+                    help="CSV path, keep_first_pairs, reason (AA A8): move 1 reads only the first N pairs of each listed cell")
     ap.add_argument("--table8-rung", default="combined", choices=list(RUNGS))
     ap.add_argument("--piano-cell", default=None)
     ap.add_argument("--piano-stride", type=int, default=16)

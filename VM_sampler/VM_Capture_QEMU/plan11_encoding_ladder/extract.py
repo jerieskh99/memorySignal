@@ -14,6 +14,7 @@ Subcommands (SPEC 2.5, 7.1):
   extract.py cell  --cell-dir D --out O [--persist-side t|t+1] [--failed-count N | --failed-dir D]
                    [--role kernel|idle] [--cell-id ID] [--force]
   extract.py all   --cells-csv CSV --out O [--jobs 1] [--only REGEX] [--failed-counts CSV]
+                   [--keep-first-pairs CSV]
                    [--persist-side t|t+1] [--force]
 
 Exit codes (SPEC 7.1): 0 on success (a written refusal is a success), 2 when an input file is
@@ -137,6 +138,52 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------------
 # Snapshots
 # ---------------------------------------------------------------------------
+class KeepFirstError(RuntimeError):
+    """A `--keep-first-pairs` row that cannot be honoured: it matches no cell or several, or asks
+    for more pairs than the file holds. Stops the command (never a per-cell refusal)."""
+
+
+def _load_keep_first_pairs(path) -> list[dict]:
+    """`--keep-first-pairs CSV` with columns `path, keep_first_pairs, reason` (AA A8; SPEC_epoch2
+    Part 4 item 26). `path` is the cell directory relative to the retention root. Every row must
+    carry a path and a count of at least 1; a bad row stops the command by number."""
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(str(p))
+    out: list[dict] = []
+    with open(p, newline="") as fh:
+        for i, row in enumerate(csv.DictReader(fh), 2):
+            cpath = (row.get("path") or "").strip().strip("/")
+            n_raw = (row.get("keep_first_pairs") or "").strip()
+            if not cpath and not n_raw:
+                continue
+            try:
+                n = int(n_raw)
+            except ValueError:
+                raise KeepFirstError(f"{p.name} row {i}: keep_first_pairs {n_raw!r} is not an integer")
+            if not cpath or n < 1:
+                raise KeepFirstError(f"{p.name} row {i}: needs a path and keep_first_pairs >= 1")
+            out.append({"row": i, "path": cpath, "keep_first_pairs": n,
+                        "reason": (row.get("reason") or "").strip(), "source": f"--keep-first-pairs {p.name} row {i}"})
+    return out
+
+
+def _cell_tail(cell_dir) -> str:
+    """A cell directory as the declared file names it: its last four components
+    (family/workload/variant/rep), the same rule `_override_for` uses."""
+    parts = Path(cell_dir).parts
+    return "/".join(parts[-4:]) if len(parts) >= 4 else str(cell_dir)
+
+
+def _keep_first_for(cell_dir, rows: list[dict]) -> dict | None:
+    """The declared row for this cell, by its relative path; None when the cell is not listed;
+    KeepFirstError when several rows name it."""
+    hits = [r for r in rows if r["path"] == _cell_tail(cell_dir) or str(cell_dir).rstrip("/").endswith("/" + r["path"])]
+    if len(hits) > 1:
+        raise KeepFirstError(f"cell {_cell_tail(cell_dir)} is named by several --keep-first-pairs rows: {[h['row'] for h in hits]}")
+    return hits[0] if hits else None
+
+
 class Snapshot:
     """One finished snapshot (SPEC 2.4): `pages` sorted ascending as int64 with the three
     channel arrays permuted into the same order. Every live instance is tracked in
@@ -249,17 +296,27 @@ def row_values(prev: Snapshot, cur, *, n_pages: int, quantiles, persist_side: st
 # ---------------------------------------------------------------------------
 # The streaming pass (SPEC 2.4)
 # ---------------------------------------------------------------------------
-def _stream(traj_path: Path, writer, *, n_pages: int, quantiles, persist_side: str, page_size: int) -> dict:
+def _stream(traj_path: Path, writer, *, n_pages: int, quantiles, persist_side: str, page_size: int,
+            keep_first_pairs: int | None = None) -> dict:
     """One pass over the trajectory. Writes one row per seq through `writer`; returns the
     counters of the sidecar (SPEC 2.3). Raises `Refusal` on a non-monotone seq, a missing
     column, or a file without data rows. Memory: two Snapshot objects plus the row buffer of
-    the snapshot being read, never more (SPEC 2.4)."""
+    the snapshot being read, never more (SPEC 2.4).
+
+    `keep_first_pairs = N` (AA A8): only the first N pairs of the file in seq order are read,
+    every seq from `seq_first` to `seq_first + N - 1` inclusive (a gap counts as a pair); the
+    last kept seq is emitted with blank pair columns as the file's last seq would be. Later
+    rows are only counted (`n_rows_after_cut`, `file_seq_last`), never built into snapshots.
+    A file holding fewer pairs than N raises `KeepFirstError`."""
     stats = {
         "n_rows_in": 0, "n_rows_skipped": 0, "n_rows_dup_page": 0,
         "n_rows_zero_hamming": 0, "n_rows_zero_l0": 0,
         "seq_first": None, "seq_last": None, "n_seq_present": 0, "gap_seqs": [], "n_seq_gaps": 0,
         "K_list": [],
+        "cut_at_seq": None, "file_seq_last": None, "n_rows_after_cut": 0,
     }
+    bound = None            # the last seq kept, once seq_first is known
+    cut_done = False
     with open_text(str(traj_path)) as fin:
         reader = csv.reader(fin)
         try:
@@ -305,11 +362,40 @@ def _stream(traj_path: Path, writer, *, n_pages: int, quantiles, persist_side: s
 
         for row in reader:
             stats["n_rows_in"] += 1
+            if cut_done:
+                # past the cut: only the seq is read, to know the file's own extent
+                try:
+                    s = int(row[i_seq])
+                except (ValueError, IndexError):
+                    stats["n_rows_skipped"] += 1
+                    continue
+                if s < stats["file_seq_last"]:
+                    raise Refusal(f"seq not monotone at row {stats['n_rows_in']}")
+                stats["file_seq_last"] = s
+                stats["n_rows_after_cut"] += 1
+                continue
             try:
                 s = int(row[i_seq]); pg = int(row[i_pg]); h = int(row[i_ham])
                 a = int(row[i_l0]); b = int(row[i_l1])
             except (ValueError, IndexError):
                 stats["n_rows_skipped"] += 1
+                continue
+            if bound is not None and s > bound:
+                # the first row past the cut: close the kept range exactly at `bound`
+                snap, n_dup = finalize_buffer(cur_seq, buf_pages, buf_ham, buf_l0, buf_l1)
+                stats["n_rows_dup_page"] += n_dup
+                buf_pages.clear(); buf_ham.clear(); buf_l0.clear(); buf_l1.clear()
+                prev = advance(prev, snap)
+                del snap
+                for g in range(cur_seq + 1, bound + 1):
+                    gaps.append(g)
+                    prev = advance(prev, empty_snapshot(g))
+                emit(prev, None)
+                stats["seq_last"] = bound
+                stats["cut_at_seq"] = bound
+                stats["file_seq_last"] = s
+                stats["n_rows_after_cut"] = 1
+                cut_done = True
                 continue
             if h == 0:
                 stats["n_rows_zero_hamming"] += 1
@@ -319,6 +405,8 @@ def _stream(traj_path: Path, writer, *, n_pages: int, quantiles, persist_side: s
                 cur_seq = s
                 stats["seq_first"] = s
                 n_present = 1
+                if keep_first_pairs is not None:
+                    bound = s + int(keep_first_pairs) - 1
             elif s != cur_seq:
                 if s < cur_seq:
                     raise Refusal(f"seq not monotone at row {stats['n_rows_in']}")
@@ -336,14 +424,21 @@ def _stream(traj_path: Path, writer, *, n_pages: int, quantiles, persist_side: s
 
         if cur_seq is None:
             raise Refusal("no data rows")
-        snap, n_dup = finalize_buffer(cur_seq, buf_pages, buf_ham, buf_l0, buf_l1)
-        stats["n_rows_dup_page"] += n_dup
-        buf_pages.clear(); buf_ham.clear(); buf_l0.clear(); buf_l1.clear()
-        prev = advance(prev, snap)
-        del snap
-        emit(prev, None)
-        stats["seq_last"] = cur_seq
-        stats["n_seq_present"] = n_present
+        if cut_done:
+            stats["n_seq_present"] = n_present
+        else:
+            snap, n_dup = finalize_buffer(cur_seq, buf_pages, buf_ham, buf_l0, buf_l1)
+            stats["n_rows_dup_page"] += n_dup
+            buf_pages.clear(); buf_ham.clear(); buf_l0.clear(); buf_l1.clear()
+            prev = advance(prev, snap)
+            del snap
+            emit(prev, None)
+            stats["seq_last"] = cur_seq
+            stats["n_seq_present"] = n_present
+            stats["file_seq_last"] = cur_seq
+            if bound is not None and cur_seq < bound:
+                raise KeepFirstError(f"keep_first_pairs = {int(keep_first_pairs)} but the file holds "
+                                     f"{cur_seq - stats['seq_first'] + 1} pairs (seq {stats['seq_first']} to {cur_seq})")
     stats["n_seq_gaps"] = len(gaps)
     return stats
 
@@ -393,8 +488,12 @@ def extract_cell(cell_dir, out_dir, *,
                  rep: int | None = None,
                  archetype_predicted: str | None = None,
                  idle_markers: tuple[str, ...] = schema.IDLE_MARKERS_DEFAULT,
-                 extra_inputs_sha256: dict | None = None) -> dict:
-    """Extract one cell (SPEC 2.2 to 2.5; K2 move 1). `cell_dir` is the cell directory (or the
+                 extra_inputs_sha256: dict | None = None,
+                 keep_first_pairs: int | None = None, keep_first_reason: str | None = None,
+                 keep_first_source: str | None = None) -> dict:
+    """Extract one cell (SPEC 2.2 to 2.5; K2 move 1). `keep_first_pairs` (AA A8; SPEC_epoch2 Part 4
+    item 26) reads only the first N pairs of the file in seq order and records the cut, the reason
+    and the file's own pair count; `n_pairs` and `dt_est_s` are then over the kept pairs only. `cell_dir` is the cell directory (or the
     trajectory file itself); `out_dir` is the `--out` root: the outputs are
     `<out_dir>/extract/<cell_id>/extract.csv` and `sidecar.json`. Returns the sidecar dict.
 
@@ -449,6 +548,8 @@ def extract_cell(cell_dir, out_dir, *,
         "n_pages": int(n_pages), "page_size": int(page_size), "quantiles": list(quantiles),
         "persist_side": persist_side, "duration_s": float(duration_s),
         "failed_count": fc, "failed_count_source": fc_src,
+        "keep_first_pairs": (int(keep_first_pairs) if keep_first_pairs is not None else None),
+        "keep_first_source": keep_first_source,
         "idle_markers": list(idle_markers), "role_override": role, "archetype_override": archetype_predicted,
         "cell_id_override": cell_id_given,
         "inputs_sha256": dict(extra_inputs_sha256 or {}),
@@ -473,6 +574,10 @@ def extract_cell(cell_dir, out_dir, *,
         "dt_est_s": None, "dt_bracket_s": list(schema.DT_BRACKET_S),
         "K_median": None, "K_max": None, "apf_max": None,
         "failed_count": fc, "failed_count_source": fc_src,
+        # AA A8: the declared cut, when any; the file's own extent is filled in after the pass
+        "keep_first_pairs": (int(keep_first_pairs) if keep_first_pairs is not None else None),
+        "keep_first_reason": keep_first_reason, "keep_first_source": keep_first_source,
+        "file_n_pairs": None, "file_seq_last": None, "n_rows_after_cut": 0,
         "status": "ok",
         "started_at": started, "finished_at": None, "elapsed_s": None,
         "params": params,
@@ -502,13 +607,19 @@ def extract_cell(cell_dir, out_dir, *,
             writer = csv.writer(fh)
             writer.writerow(schema.EXTRACT_COLUMNS)
             stats = _stream(traj, writer, n_pages=n_pages, quantiles=quantiles,
-                            persist_side=persist_side, page_size=page_size)
+                            persist_side=persist_side, page_size=page_size,
+                            keep_first_pairs=keep_first_pairs)
     except Refusal as exc:
         if tmp_path.exists():
             tmp_path.unlink()
         if extract_path.exists():
             extract_path.unlink()
         return _finish(f"refused: {exc}")
+    except KeepFirstError as exc:
+        # AA A8: a declared cut the file cannot honour stops the command, naming the row and the cell
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise KeepFirstError(f"{keep_first_source or 'keep_first_pairs'} ({sidecar['cell_id']}): {exc}") from None
     except BaseException:
         if tmp_path.exists():
             tmp_path.unlink()
@@ -530,6 +641,9 @@ def extract_cell(cell_dir, out_dir, *,
         "dt_est_s": float(duration_s) / n_pairs,
         "K_median": float(np.median(K_arr)), "K_max": int(K_arr.max()),
         "apf_max": float(K_arr.max()) / float(n_pages),
+        "file_seq_last": int(stats["file_seq_last"]) if stats.get("file_seq_last") is not None else int(stats["seq_last"]),
+        "file_n_pairs": int((stats.get("file_seq_last") if stats.get("file_seq_last") is not None else stats["seq_last"]) - stats["seq_first"] + 1),
+        "n_rows_after_cut": int(stats.get("n_rows_after_cut") or 0),
     })
     return _finish("ok")
 
@@ -686,15 +800,19 @@ def read_cells_csv(path) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Batch mode (SPEC 2.5 `all`)
 # ---------------------------------------------------------------------------
-def _sidecar_ok(out_root: Path, cell_id: str) -> bool:
+def _sidecar_ok(out_root: Path, cell_id: str, keep_first_pairs: int | None = None) -> bool:
+    """A finished sidecar for this cell under the SAME cut: a sidecar written under another
+    `keep_first_pairs` (or none) is not ok, so the cell is re-extracted, not skipped (AA A8)."""
     p = out_root / "extract" / cell_id / "sidecar.json"
     if not p.is_file():
         return False
     try:
         with open(p) as fh:
-            return json.load(fh).get("status") == "ok"
+            sc = json.load(fh)
     except (OSError, ValueError):
         return False
+    want = int(keep_first_pairs) if keep_first_pairs is not None else None
+    return sc.get("status") == "ok" and sc.get("keep_first_pairs") == want
 
 
 def _worker(job: dict) -> dict:
@@ -702,7 +820,10 @@ def _worker(job: dict) -> dict:
     try:
         sc = extract_cell(**job)
         return {"cell_id": sc["cell_id"], "status": sc["status"], "n_pairs": sc.get("n_pairs"),
-                "n_seq_gaps": sc.get("n_seq_gaps"), "elapsed_s": sc.get("elapsed_s")}
+                "n_seq_gaps": sc.get("n_seq_gaps"), "elapsed_s": sc.get("elapsed_s"),
+                "keep_first_pairs": sc.get("keep_first_pairs")}
+    except KeepFirstError:
+        raise                   # a declared cut that cannot be honoured stops the command (AA A8)
     except Exception as exc:  # an internal error is reported per cell, not swallowed
         return {"cell_id": job.get("cell_id"), "status": f"error: {type(exc).__name__}: {exc}",
                 "traceback": traceback.format_exc()}
@@ -728,7 +849,7 @@ def _load_failed_counts(path) -> dict[str, tuple[int, str]]:
 
 def extract_all(cells_csv, out_dir, *, jobs: int = 1, only: str | None = None,
                 failed_counts=None, persist_side: str = "t", force: bool = False,
-                duration_s: float = schema.DURATION_S) -> dict:
+                duration_s: float = schema.DURATION_S, keep_first_pairs=None) -> dict:
     """Run `extract_cell` for every `status == ok` row of `cells.csv` (SPEC 2.5), skipping a
     cell whose sidecar exists with `status == "ok"` unless `force`. `jobs > 1` uses
     multiprocessing (one process per cell at a time). Writes `<out>/extract/extract_all.json`
@@ -743,6 +864,15 @@ def extract_all(cells_csv, out_dir, *, jobs: int = 1, only: str | None = None,
     inputs_sha = {cells_csv.name: sha256_file(cells_csv)}
     if failed_counts:
         inputs_sha[Path(failed_counts).name] = sha256_file(failed_counts)
+    kfp_rows = _load_keep_first_pairs(keep_first_pairs) if keep_first_pairs else []
+    if keep_first_pairs:
+        inputs_sha[Path(keep_first_pairs).name] = sha256_file(keep_first_pairs)
+        # every declared row names exactly one cell of the index, or the command stops (AA A8)
+        for kr in kfp_rows:
+            hits = [r["cell_id"] for r in rows if _cell_tail(r["path"]) == kr["path"] or str(r["path"]).rstrip("/").endswith("/" + kr["path"])]
+            if len(hits) != 1:
+                raise KeepFirstError(f"{Path(keep_first_pairs).name} row {kr['row']} ({kr['path']}) matches "
+                                     f"{'no cell' if not hits else str(len(hits)) + ' cells: ' + ', '.join(hits)} in {cells_csv.name}")
     jobs_list: list[dict] = []
     skipped: list[dict] = []
     for r in rows:
@@ -752,13 +882,16 @@ def extract_all(cells_csv, out_dir, *, jobs: int = 1, only: str | None = None,
         if r["status"] != schema.STATUS_OK:
             skipped.append({"cell_id": cid, "reason": f"cells.csv status: {r['status']}"})
             continue
-        if not force and _sidecar_ok(out_root, cid):
+        kf = _keep_first_for(r["path"], kfp_rows)
+        if not force and _sidecar_ok(out_root, cid, kf["keep_first_pairs"] if kf else None):
             skipped.append({"cell_id": cid, "reason": "sidecar ok (use --force to redo)"})
             continue
         fc, fsrc = fcs.get(cid, (None, None))
         jobs_list.append({
             "cell_dir": r["path"], "out_dir": str(out_root), "persist_side": persist_side,
             "failed_count": fc, "failed_count_source": fsrc,
+            "keep_first_pairs": kf["keep_first_pairs"] if kf else None,
+            "keep_first_reason": kf["reason"] if kf else None, "keep_first_source": kf["source"] if kf else None,
             "role": r["role"] or None, "cell_id": cid, "rep": r["rep"],
             "archetype_predicted": r.get("archetype_predicted") or None,
             "extra_inputs_sha256": inputs_sha, "duration_s": float(duration_s),
@@ -781,6 +914,8 @@ def extract_all(cells_csv, out_dir, *, jobs: int = 1, only: str | None = None,
         "schema": "plan11.extract_all.v1",
         "params": {"cells_csv": str(cells_csv), "out": str(out_root), "jobs": int(jobs), "only": only,
                    "failed_counts": str(failed_counts) if failed_counts else None,
+                   "keep_first_pairs": str(keep_first_pairs) if keep_first_pairs else None,
+                   "keep_first_pairs_rows": [{"row": k["row"], "path": k["path"], "keep_first_pairs": k["keep_first_pairs"]} for k in kfp_rows],
                    "persist_side": persist_side, "force": bool(force), "duration_s": float(duration_s), "inputs_sha256": inputs_sha},
         "citation": CITATION_EXTRACT,
         "n_cells_in_csv": len(rows), "n_run": len(results), "n_skipped": len(skipped),
@@ -822,6 +957,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cell.add_argument("--force", action="store_true")
     p_cell.add_argument("--duration-s", type=float, default=schema.DURATION_S,
                         help="the cell's declared guest-running seconds (sidecar duration_s_declared; SPEC_epoch2 B12)")
+    p_cell.add_argument("--keep-first-pairs", default=None,
+                        help="CSV path, keep_first_pairs, reason (AA A8): read only the first N pairs of a listed cell")
 
     p_all = sub.add_parser("all", help="extract every ok cell of cells.csv (SPEC 2.5)")
     p_all.add_argument("--cells-csv", required=True)
@@ -829,6 +966,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--jobs", type=int, default=1)
     p_all.add_argument("--only", default=None, help="regex on cell_id")
     p_all.add_argument("--failed-counts", default=None, help="CSV cell_id, failed_count, source")
+    p_all.add_argument("--keep-first-pairs", default=None,
+                       help="CSV path, keep_first_pairs, reason (AA A8): read only the first N pairs of each listed cell; a row naming no cell or several stops the command")
     p_all.add_argument("--persist-side", choices=("t", "t+1"), default="t")
     p_all.add_argument("--force", action="store_true")
     p_all.add_argument("--duration-s", type=float, default=schema.DURATION_S,
@@ -851,21 +990,28 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "cell":
             out = Path(args.out)
+            _, cdir = find_trajectory(Path(args.cell_dir))
+            kf = _keep_first_for(cdir, _load_keep_first_pairs(args.keep_first_pairs)) if args.keep_first_pairs else None
             if not args.force:
                 cid = args.cell_id or derive_cell_id(args.cell_dir, role=args.role, rep=args.rep)
-                if _sidecar_ok(out, cid):
+                if _sidecar_ok(out, cid, kf["keep_first_pairs"] if kf else None):
                     print(f"[cell] {cid}: sidecar ok, skipped (use --force)")
                     return 0
+            extra = {Path(args.keep_first_pairs).name: sha256_file(args.keep_first_pairs)} if args.keep_first_pairs else None
             sc = extract_cell(args.cell_dir, out, persist_side=args.persist_side,
                               failed_count=args.failed_count, failed_dir=args.failed_dir,
-                              role=args.role, cell_id=args.cell_id, rep=args.rep, duration_s=args.duration_s)
+                              role=args.role, cell_id=args.cell_id, rep=args.rep, duration_s=args.duration_s,
+                              keep_first_pairs=kf["keep_first_pairs"] if kf else None,
+                              keep_first_reason=kf["reason"] if kf else None, keep_first_source=kf["source"] if kf else None,
+                              extra_inputs_sha256=extra)
             print(f"[cell] {sc['cell_id']}: {sc['status']} (n_pairs={sc.get('n_pairs')}, "
-                  f"gaps={sc.get('n_seq_gaps')}, {sc.get('elapsed_s')} s)")
+                  f"gaps={sc.get('n_seq_gaps')}, {sc.get('elapsed_s')} s"
+                  + (f", keep_first_pairs={sc['keep_first_pairs']} of {sc.get('file_n_pairs')}" if sc.get("keep_first_pairs") else "") + ")")
             return 0
         if args.cmd == "all":
             summary = extract_all(args.cells_csv, args.out, jobs=args.jobs, only=args.only,
                                   failed_counts=args.failed_counts, persist_side=args.persist_side,
-                                  force=args.force, duration_s=args.duration_s)
+                                  force=args.force, duration_s=args.duration_s, keep_first_pairs=args.keep_first_pairs)
             print(f"[all] ran {summary['n_run']} cells, skipped {summary['n_skipped']}: "
                   f"{summary['status_counts']}")
             return 0
@@ -873,6 +1019,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except FileNotFoundError as exc:
         print(f"missing input: {exc}", file=sys.stderr)
+        return 2
+    except KeepFirstError as exc:
+        print(f"keep-first-pairs: {exc}", file=sys.stderr)
         return 2
     except Exception:
         traceback.print_exc()
