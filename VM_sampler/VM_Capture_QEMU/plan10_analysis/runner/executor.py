@@ -284,6 +284,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
         # beside the chain, one row per changed page per pair. Read it when it carries every
         # requested column; otherwise fetch the chain and re-diff, and say why.
         traj = src.fetch_trajectory(rid) if hasattr(src, "fetch_trajectory") else None
+        traj_err = None
         if traj is not None:
             try:
                 avail = trajectory.columns(traj)
@@ -299,14 +300,21 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
                     st.write(pair=d, n_pairs=n or recs[_rid]["n_pairs"])
                     st.check_control()
 
-                stores[rid] = extract.extract_from_trajectory(
-                    rid, traj, speed, sorted(union), store_dir, max_pairs=max_pairs,
-                    n_pages=ctx.config["n_pages_default"], progress=tprog)
-                st.d["per_recording"][rid] = {"extracted": True, "where": "trajectory", "source": "substrate_csv",
-                                              "n_pairs": extract.load(stores[rid])["n_pairs"]}
-                _cleanup(rid, i)
-                continue
-            if avail:
+                try:
+                    stores[rid] = extract.extract_from_trajectory(
+                        rid, traj, speed, sorted(union), store_dir, max_pairs=max_pairs,
+                        n_pages=ctx.config["n_pages_default"], progress=tprog)
+                except trajectory.TrajectoryError as e:
+                    # a header that reads over a body that does not (a truncated or damaged file)
+                    # must not end a run of many recordings: this one is re-diffed from its chain
+                    traj_err = str(e)[:300]
+                    st.logline(f"[{i}/{len(rec_ids)}] {rid}: trajectory unreadable past its header ({traj_err}); re-diffing the chain")
+                else:
+                    st.d["per_recording"][rid] = {"extracted": True, "where": "trajectory", "source": "substrate_csv",
+                                                  "n_pairs": extract.load(stores[rid])["n_pairs"]}
+                    _cleanup(rid, i)
+                    continue
+            if avail and lacking:
                 st.logline(f"[{i}/{len(rec_ids)}] {rid}: trajectory lacks {lacking}; re-diffing the chain")
         local = src.fetch(rid)
         st.logline(f"[{i}/{len(rec_ids)}] {rid}: extracting ({'fetched' if src.kind == 'ssh' else 'local'})")
@@ -317,6 +325,8 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
 
         stores[rid] = extract.extract(rid, local, speed, sorted(union), store_dir, max_pairs=max_pairs, progress=prog, work_dir=out_dir / "work")
         st.d["per_recording"][rid] = {"extracted": True, "n_pairs": extract.load(stores[rid])["n_pairs"]}
+        if traj_err:
+            st.d["per_recording"][rid]["trajectory_error"] = traj_err
         _cleanup(rid, i)
 
     # ---- phase 2: per recording

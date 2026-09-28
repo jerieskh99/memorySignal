@@ -91,7 +91,11 @@ So the executor tries the trajectory first. `corpus_manifest` reports it from th
 local-only. `SshSource.fetch_trajectory` pulls the CSV alone. When it carries every requested
 column, `extract.extract_from_trajectory` writes the same L1 store as `extract.extract` (same key,
 same arrays) and the run log says so; otherwise the chain is fetched and re-diffed, and the log
-names the missing columns. The Channels module shows the same fact per channel: a green ring is in
+names the missing columns. A trajectory whose header reads but whose body does not, a truncated
+or damaged file, is re-diffed from its chain the same way, logged and recorded as
+`trajectory_error`, rather than ending the run. The fetch always lets rsync check a cached
+trajectory, so a transfer interrupted earlier is finished rather than read as it stands.
+The Channels module shows the same fact per channel: a green ring is in
 every selected trajectory (read directly), amber in some, dimmed in none; headers are read on the
 server in one round trip via `/trajectory_columns`, never fetched.
 

@@ -151,6 +151,41 @@ def test_trajectory_fetch_is_its_own_narrow_rsync():
         assert loc.fetch_trajectory("mem/wl/var/rep001__x").name.endswith("substrate_trajectory.csv")
 
 
+def test_trajectory_fetch_finishes_a_partial_file_instead_of_trusting_it():
+    """A file already in the cache is not taken on trust: rsync runs anyway, so an interrupted
+    transfer (kept under the final name by --partial) is finished before it is read."""
+    import shutil
+    import subprocess as sp
+    import tempfile
+    from plan10_analysis import sources as S
+    with tempfile.TemporaryDirectory() as td:
+        remote, cache = Path(td) / "remote", Path(td) / "cache"
+        rel = "kernel/wl/var/rep001__x"
+        name = "run_matrix_test2_wl.npy.substrate_trajectory.csv.zst"
+        (remote / rel).mkdir(parents=True)
+        full = bytes(range(256)) * 400
+        (remote / rel / name).write_bytes(full)
+        (cache / rel).mkdir(parents=True)
+        (cache / rel / name).write_bytes(full[: len(full) // 3])            # the Sep 11 leftover: 31%
+        calls = []
+        real = S.subprocess.run
+
+        def fake_run(argv, **kw):                                           # rsync, without the network
+            if argv and argv[0] == "rsync":
+                calls.append(argv)
+                shutil.copy2(remote / rel / name, cache / rel / name)
+                return sp.CompletedProcess(argv, 0, "", "")
+            return real(argv, **kw)
+
+        S.subprocess.run = fake_run
+        try:
+            got = S.SshSource("srv", str(remote), cache=cache).fetch_trajectory(rel)
+        finally:
+            S.subprocess.run = real
+        assert len(calls) == 1 and "--partial" in calls[0]
+        assert got.name == name and got.read_bytes() == full
+
+
 def test_sources_read_and_rebuild_the_archive_manifest():
     """A local source hands over the archive's own manifest when one exists and walks when
     not; reconcile always walks and leaves a manifest behind. The ssh commands are the

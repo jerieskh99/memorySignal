@@ -201,13 +201,15 @@ class SshSource:
 
         Reading it replaces the whole chain fetch and the re-diff, so it is tried first. The
         rsync filter matches nothing when the capture wrote no trajectory, which is not an error.
+
+        rsync runs even when a file is already in the cache. A complete copy costs one round trip
+        (same size and time, nothing sent); a partial one is finished. --partial keeps an
+        interrupted transfer under the final name, and trusting any file found there once fed a
+        31% trajectory to a 104-recording run, which died on it at recording 18.
         """
         from plan10_analysis.runner import trajectory
         dest = self.cache / rec_rel
         dest.mkdir(parents=True, exist_ok=True)
-        hit = trajectory.find(dest)
-        if hit is not None:
-            return hit
         r = subprocess.run(self.rsync_trajectory_argv(rec_rel, dest), capture_output=True, text=True)
         if r.returncode != 0:
             raise SourceError(f"rsync of the trajectory failed for {rec_rel} (exit {r.returncode}): {r.stderr.strip()[:300]}")

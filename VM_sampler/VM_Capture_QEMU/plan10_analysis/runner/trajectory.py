@@ -113,10 +113,17 @@ def read(path: Path, want: list[str], max_pairs: int | None = None,
         seqs, pages = array("i"), array("i")
         vals = [array("f") for _ in want]
         last_seq, n_pairs = -1, 0
-        for row in rd:
+        for nrow, row in enumerate(rd, 2):
             if not row:
                 continue
-            s = int(row[0])
+            try:
+                s = int(row[0])
+                page = int(row[1])
+                vs = [float(row[i]) for i in take]
+            except (ValueError, IndexError) as e:
+                # a stream cut mid-line (a truncated file) ends in a partial row: the same fault
+                # as zstd's premature end, so it is reported the same way
+                raise TrajectoryError(f"{path}: row {nrow} unreadable ({e}); the file is truncated or damaged")
             if s != last_seq:
                 last_seq = s
                 n_pairs += 1
@@ -127,9 +134,9 @@ def read(path: Path, want: list[str], max_pairs: int | None = None,
             if stop:
                 break
             seqs.append(s + 1)                 # trajectory counts pairs from 0, walk_chain from 1
-            pages.append(int(row[1]))
-            for j, i in enumerate(take):
-                vals[j].append(float(row[i]))
+            pages.append(page)
+            for j, v in enumerate(vs):
+                vals[j].append(v)
         ok = True
     finally:
         _close(fh, proc, early=(stop or not ok))

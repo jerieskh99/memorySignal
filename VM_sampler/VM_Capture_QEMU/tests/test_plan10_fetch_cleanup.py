@@ -233,6 +233,55 @@ def test_executor_cleans_after_extraction_and_refetches_a_missing_column():
             executor.make_source = real_make
 
 
+def test_a_trajectory_unreadable_past_its_header_is_re_diffed_not_fatal():
+    """The fft seed 2548 case: a header that reads over a truncated body. The run completes,
+    that recording is re-diffed from its chain (so its values are the true ones), and the log
+    and the sidecar say why."""
+    if not _have_tools():
+        return
+    import random
+    import subprocess as sp
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, changes = _corpus(td, n_snapshots=10)
+        rid = sorted(changes)[0]
+        rng = random.Random(7)
+        lines = ["seq,page_index,hamming"] + [f"{i // 1000},{rng.randrange(262144)},{rng.randrange(4096)}" for i in range(40000)]
+        csv_path = td / "t.csv"
+        csv_path.write_text("\n".join(lines) + "\n")
+        sp.run(["zstd", "-q", "-f", str(csv_path), "-o", str(td / "t.csv.zst")], check=True)
+        blob = (td / "t.csv.zst").read_bytes()
+        bad = root / rid / "run_matrix_test1_x.npy.substrate_trajectory.csv.zst"
+        bad.write_bytes(blob[: len(blob) // 2])
+        from plan10_analysis.runner import trajectory as T
+        assert T.columns(bad) == ["hamming"]                                  # the header reads...
+        try:
+            T.read(bad, ["hamming"])
+            assert False, "...the body must not"
+        except T.TrajectoryError:
+            pass
+        s = _example(manifest, "b1")
+        next(n for n in s["nodes"] if n["module"] == "window")["params"].update(w=4, h=2)
+        sp_ = td / "b1.json"
+        sp_.write_text(json.dumps(s))
+        rc = executor.run(sp_, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp)
+        out = td / "out" / s["label"]
+        assert rc == 0, (out / "run.log").read_text()
+        log = (out / "run.log").read_text()
+        assert "trajectory unreadable past its header" in log and "re-diffing the chain" in log
+        st = json.loads((out / "status.json").read_text())
+        err = st["per_recording"][rid]["trajectory_error"]
+        assert "zstd exited" in err or "truncated or damaged" in err, err
+        z = import_np().load(out / "features.npz")
+        assert z["X"].shape[0] == 3 * ((9 - 4) // 2 + 1)
+        assert import_np().allclose(z["X"][:, 0], 7 / 1024)                  # the re-diffed values are the true ones
+
+
+def import_np():
+    import numpy
+    return numpy
+
+
 def test_local_source_is_never_touched():
     if not _have_tools():
         return
