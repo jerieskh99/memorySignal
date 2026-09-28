@@ -26,6 +26,8 @@ Options:
     --root DIR       VM_Capture_QEMU checkout (default: this file's directory)
     --runs-dir DIR   run records (default: <root>/plan07_campaign/runs)
     --only L1,L2,..  restrict to these run labels (typed on the server; not printed on screen)
+    --zstd-dir DIR   where the chains live NOW, overriding each record's launch-line ZSTD_DIR (the
+                     corpus moved to the NFS archive on 2026-09-09/10, same folder layout)
     --guest USER@IP  also read the guest's OS/kernel over SSH (only if the VM is already running;
                      this script never starts, stops or suspends anything)
 """
@@ -75,6 +77,7 @@ def main():
     ap.add_argument('--runs-dir', default=None)
     ap.add_argument('--only', default=None)
     ap.add_argument('--guest', default=None)
+    ap.add_argument('--zstd-dir', default=None)
     a = ap.parse_args()
     root = os.path.abspath(a.root)
     runs_dir = a.runs_dir or os.path.join(root, 'plan07_campaign', 'runs')
@@ -98,6 +101,26 @@ def main():
     say('host CPU:       ' + sh("lscpu | grep -E '^(Model name|Socket\\(s\\)|Core\\(s\\) per socket|Thread\\(s\\) per core)' | tr -s ' ' | paste -sd ';'"))
     say('host RAM:       ' + sh("grep MemTotal /proc/meminfo"))
     say('virsh version:  ' + sh('virsh -c qemu:///system version | paste -sd ";"').replace('\n', '; '))
+    try:
+        bt = int(next(l for l in open('/proc/stat') if l.startswith('btime')).split()[1])
+        say(f'host booted:    {datetime.fromtimestamp(bt, timezone.utc):%Y-%m-%d %H:%M} UTC (the kernel above has run since then)')
+    except Exception as e:  # noqa: BLE001
+        say(f'host booted:    ERROR {e}')
+    import gzip
+    pk = re.compile(r'^(\S+ \S+) (install|upgrade) (qemu-system-x86|qemu-system-x86-64|libvirt-daemon|libvirt-daemon-system|libvirt0)[:\s]')
+    hist = []
+    for lp in sorted(glob.glob('/var/log/dpkg.log*')):
+        try:
+            fh = gzip.open(lp, 'rt', errors='replace') if lp.endswith('.gz') else open(lp, errors='replace')
+            hist += [m.groups() for m in (pk.match(l) for l in fh) if m]
+        except Exception:  # noqa: BLE001
+            pass
+    hist.sort()
+    if hist:
+        for when, act, pkg in hist[-6:]:
+            say(f'package log:    {when} {act} {pkg}')
+    else:
+        say('package log:    no install/upgrade lines for qemu/libvirt in /var/log/dpkg.log* (rotated away or unreadable)')
     cfg_path = os.path.join(root, 'config_qemu_upc.json')
     try:
         cfg = json.load(open(cfg_path))
@@ -158,12 +181,14 @@ def main():
         else:
             sfi = 'MISSING'
         env = launch_env(r.get('launch_line', ''))
-        run_zdir[rid] = (env.get('ZSTD_DIR', ''), env.get('ZSTD_RUN_ID', r['label']))
+        run_zdir[rid] = (a.zstd_dir or env.get('ZSTD_DIR', ''), env.get('ZSTD_RUN_ID', r['label']))
         say(f"{rid:<3} | {r.get('created_at', '')[:19]:<20} | {str(r.get('git_sha'))[:7]:<7} | {r.get('cells'):>5} | "
             f"{r.get('reps'):>4} | {str(r.get('curated')):<7} | {sfi}")
         note(f"{rid} = label {r['label']}; steps_file {sf}; ZSTD_DIR {env.get('ZSTD_DIR', '')}; "
              f"retention {r.get('config', {}).get('retention')}; launch_line: {r.get('launch_line', '')}")
     say('(label for each R is in the detail file)')
+    if a.zstd_dir:
+        say(f'chains are looked up under --zstd-dir {a.zstd_dir} for every run')
 
     # ---- 3 and 4. replicate indices and chain contiguity ---------------------------------------------
     say('\n## 3. Replicate indices   ## 4. Chain check')
@@ -208,6 +233,10 @@ def main():
     say('\n## 5. consumer.log')
     clog = os.path.join(root, 'consumer.log')
     if os.path.isfile(clog):
+        st = os.stat(clog)
+        ok_lines = sum(1 for l in open(clog, encoding='utf-8', errors='replace') if 'ZSTD delta ->' in l or 'ZSTD base  ->' in l)
+        say(f'consumer.log: {st.st_size / 2**20:.1f} MiB, last written {datetime.fromtimestamp(st.st_mtime, timezone.utc):%Y-%m-%d %H:%M} UTC; '
+            f'successful archive writes logged: {ok_lines} (if this is small, the log does not cover the campaign)')
         pats = {'zstd base write failed': 0, 'zstd delta write failed': 0, 'zstd delta did not succeed': 0}
         hits = []
         with open(clog, encoding='utf-8', errors='replace') as f:
@@ -246,7 +275,13 @@ def main():
     say('\n## 7. libvirt per-domain folder (optional check)')
     ds = glob.glob('/var/lib/libvirt/qemu/domain-*')
     state = sh(['virsh', '-c', 'qemu:///system', 'domstate', domain]) if domain else 'unknown'
-    say(f'VM state now: {state}; per-domain folders present: {len(ds)}')
+    ours = [d for d in ds if domain and d.endswith('-' + domain)]
+    say(f'VM state now: {state}; per-domain folders present: {len(ds)} ({len(ours)} for this VM, {len(ds) - len(ours)} for other VMs)')
+    for d in sorted(ours, key=os.path.getmtime):
+        say(f'  this VM: folder id {os.path.basename(d).split("-")[1]}, last modified '
+            f'{datetime.fromtimestamp(os.path.getmtime(d), timezone.utc):%Y-%m-%d %H:%M} UTC')
+    running = sh(['virsh', '-c', 'qemu:///system', 'list', '--name'])
+    say(f'running domains visible to this user: {len([x for x in running.splitlines() if x.strip()]) if not running.startswith("ERROR") else running}')
     say('(run once with the VM up and once after it stops: expect >=1 then 0)')
 
     detail.close()
