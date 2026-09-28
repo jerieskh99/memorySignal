@@ -202,6 +202,21 @@ def load_extract(out: Path, cell_id: str) -> dict:
 _EXTRACT_CACHE: dict = {}
 
 
+def extract_succeeded(out: Path, cell_id: str) -> bool:
+    """Whether move 1 finished this cell: ``extract/<cell_id>/sidecar.json`` present with
+    ``status == "ok"`` (SPEC 2.3). A missing or unreadable sidecar, or any other status, is False."""
+    p = sidecar_path(out, cell_id)
+    if not p.is_file():
+        return False
+    try:
+        return read_json(p).get("status") == "ok"
+    except (OSError, ValueError):
+        return False
+
+
+_SKIP_REPORTED: set = set()      # (out, cell_id) already reported as skipped by build_features
+
+
 def load_extract_cached(out: Path, cell_id: str) -> dict:
     key = (str(out), cell_id)
     if key not in _EXTRACT_CACHE:
@@ -612,6 +627,14 @@ def build_features(out: Path, cells_csv: Path | None, rung: str, W, H, normalize
                                      "win_start", "n_series_cell")}
     n_dropped = 0
     for c in cells:
+        if not extract_succeeded(out, c["cell_id"]):
+            # `ok` in cells.csv means the trajectory file was present, not that move 1 read it
+            # (P2_AUTHOR_ANSWERS A14 correction, 2026-09-29): a cell without a successful extract is
+            # skipped, once per process, instead of raising on its missing extract.csv
+            if (str(out), c["cell_id"]) not in _SKIP_REPORTED:
+                _SKIP_REPORTED.add((str(out), c["cell_id"]))
+                print(f"[features] {c['cell_id']}: skipped, no successful extract", file=sys.stderr)
+            continue
         ex = load_extract_cached(out, c["cell_id"])
         idle = c.get("role") == "idle"
         hd = head_drop_for(head_drop, c["kernel"], c.get("role"))
