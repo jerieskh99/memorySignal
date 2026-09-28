@@ -1,0 +1,5 @@
+kind,rung,kernel,pair_or_set,feature,n,slope,intercept,r2,dt_min,dt_max,verdict
+g3_peak,apf,gemm,,ceps_peak_freq_cyc_per_pair,8,0.01,0.04,0.1,0.635,0.674,does not move with the interval
+table6_feature,apf,floyd,A:floyd-histogram,apf.k_over_med.std,8,0.0,0.1,0.05,0.635,0.674,does not move with the interval
+table6_feature,apf,histogram,A:floyd-histogram,apf.k_over_med.std,8,2.0,-1.0,0.8,0.635,0.674,moves with the interval
+g3_peak,apf,fft,,ceps_peak_freq_cyc_per_pair,8,0.0,0.0,0.0,0.635,0.674,does not move with the interval

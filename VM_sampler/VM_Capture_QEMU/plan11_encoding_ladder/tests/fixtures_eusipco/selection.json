@@ -1,0 +1,9 @@
+{
+  "schema": "plan11.selection.v1",
+  "params": {"grid_rollup": "all_kernels", "rollup_kernel_refusals": "not_applicable", "fixture": "tests/fixtures_eusipco (builder 2, epoch 2); persist has no entry on purpose"},
+  "citation": "SPEC 3.5.7",
+  "apf": {"grid_id": "W16_H8", "W": 16, "H": 8, "passes_acceptance": true, "selected_by": "plan03_rule", "gates_passed": "3 of 3", "refusal": ""},
+  "content": {"grid_id": "W8_H4", "W": 8, "H": 4, "passes_acceptance": true, "selected_by": "plan03_rule", "gates_passed": "3 of 3", "refusal": ""},
+  "wapf": {"grid_id": "W16_H8", "W": 16, "H": 8, "passes_acceptance": true, "selected_by": "plan03_rule", "gates_passed": "3 of 3", "refusal": ""},
+  "combined": {"grid_id": "W16_H8", "W": 16, "H": 8, "passes_acceptance": true, "selected_by": "plan03_rule", "gates_passed": "3 of 3", "refusal": ""}
+}

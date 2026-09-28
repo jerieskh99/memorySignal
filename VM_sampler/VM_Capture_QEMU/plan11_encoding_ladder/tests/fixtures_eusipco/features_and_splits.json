@@ -1,0 +1,500 @@
+{
+ "archetype": {
+  "floyd": "WORKING-SET",
+  "histogram": "SCATTER",
+  "nbody": "WORKING-SET",
+  "fft": "SCATTER",
+  "gemm": "WORKING-SET"
+ },
+ "features": {
+  "apf": {
+   "grid_id": "W16_H8",
+   "feature_names": [
+    "apf.k_over_med.mean",
+    "apf.k_over_med.std"
+   ],
+   "rows": {
+    "floyd": [
+     [
+      1.0,
+      0.1
+     ],
+     [
+      1.02,
+      0.12
+     ],
+     [
+      1.04,
+      0.11
+     ]
+    ],
+    "histogram": [
+     [
+      1.01,
+      0.11
+     ],
+     [
+      1.03,
+      0.1
+     ],
+     [
+      1.05,
+      0.12
+     ]
+    ],
+    "nbody": [
+     [
+      1.0,
+      0.12
+     ],
+     [
+      1.03,
+      0.11
+     ],
+     [
+      1.06,
+      0.1
+     ]
+    ],
+    "fft": [
+     [
+      1.0,
+      0.1
+     ],
+     [
+      1.02,
+      0.11
+     ],
+     [
+      1.04,
+      0.12
+     ]
+    ],
+    "gemm": [
+     [
+      1.01,
+      0.1
+     ],
+     [
+      1.03,
+      0.12
+     ],
+     [
+      1.05,
+      0.11
+     ]
+    ]
+   }
+  },
+  "content": {
+   "grid_id": "W8_H4",
+   "feature_names": [
+    "content.r_l0.mean",
+    "content.r_l0.std"
+   ],
+   "rows": {
+    "floyd": [
+     [
+      0.3,
+      0.05
+     ],
+     [
+      0.31,
+      0.06
+     ],
+     [
+      0.32,
+      0.05
+     ]
+    ],
+    "histogram": [
+     [
+      0.1,
+      0.05
+     ],
+     [
+      0.11,
+      0.06
+     ],
+     [
+      0.12,
+      0.05
+     ]
+    ],
+    "nbody": [
+     [
+      0.3,
+      0.05
+     ],
+     [
+      0.31,
+      0.06
+     ],
+     [
+      0.33,
+      0.05
+     ]
+    ],
+    "fft": [
+     [
+      0.4,
+      0.05
+     ],
+     [
+      0.41,
+      0.06
+     ],
+     [
+      0.42,
+      0.05
+     ]
+    ],
+    "gemm": [
+     [
+      0.6,
+      0.05
+     ],
+     [
+      0.61,
+      0.06
+     ],
+     [
+      0.62,
+      0.05
+     ]
+    ]
+   }
+  },
+  "persist": {
+   "grid_id": "W16_H8",
+   "feature_names": [
+    "persist.j_excess.mean",
+    "persist.j_excess.std"
+   ],
+   "rows": {
+    "floyd": [
+     [
+      0.8,
+      0.02
+     ],
+     [
+      0.81,
+      0.03
+     ],
+     [
+      0.82,
+      0.02
+     ]
+    ],
+    "histogram": [
+     [
+      0.8,
+      0.02
+     ],
+     [
+      0.82,
+      0.03
+     ],
+     [
+      0.83,
+      0.02
+     ]
+    ],
+    "nbody": [
+     [
+      0.79,
+      0.02
+     ],
+     [
+      0.81,
+      0.03
+     ],
+     [
+      0.84,
+      0.02
+     ]
+    ],
+    "fft": [
+     [
+      0.95,
+      0.01
+     ],
+     [
+      0.96,
+      0.01
+     ],
+     [
+      0.97,
+      0.01
+     ]
+    ],
+    "gemm": [
+     [
+      0.5,
+      0.05
+     ],
+     [
+      0.52,
+      0.06
+     ],
+     [
+      0.55,
+      0.05
+     ]
+    ]
+   }
+  },
+  "dhodapkar_smith": {
+   "grid_id": "Wall_Hall",
+   "feature_names": [
+    "dhodapkar_smith.n_boundaries",
+    "dhodapkar_smith.stability",
+    "dhodapkar_smith.mean_phase_len"
+   ],
+   "rows": {
+    "floyd": [
+     [
+      10,
+      0.8,
+      5.0
+     ],
+     [
+      11,
+      0.79,
+      4.8
+     ],
+     [
+      12,
+      0.78,
+      4.6
+     ]
+    ],
+    "histogram": [
+     [
+      2,
+      0.8,
+      5.0
+     ],
+     [
+      3,
+      0.79,
+      4.8
+     ],
+     [
+      2,
+      0.78,
+      4.6
+     ]
+    ],
+    "nbody": [
+     [
+      10,
+      0.8,
+      5.0
+     ],
+     [
+      11,
+      0.79,
+      4.9
+     ],
+     [
+      12,
+      0.78,
+      4.7
+     ]
+    ],
+    "fft": [
+     [
+      10,
+      0.8,
+      5.0
+     ],
+     [
+      11,
+      0.79,
+      4.9
+     ],
+     [
+      12,
+      0.78,
+      4.7
+     ]
+    ],
+    "gemm": [
+     [
+      10,
+      0.8,
+      5.0
+     ],
+     [
+      11,
+      0.79,
+      4.8
+     ],
+     [
+      12,
+      0.78,
+      4.6
+     ]
+    ]
+   }
+  }
+ },
+ "splits": {
+  "apf": {
+   "recall_per_kernel": {
+    "floyd": 0.33,
+    "histogram": 0.33,
+    "nbody": 0.33,
+    "fft": 0.5,
+    "gemm": 0.5
+   },
+   "y_pred": {
+    "floyd": [
+     "floyd",
+     "histogram",
+     "nbody"
+    ],
+    "histogram": [
+     "histogram",
+     "floyd",
+     "nbody"
+    ],
+    "nbody": [
+     "nbody",
+     "floyd",
+     "histogram"
+    ],
+    "fft": [
+     "fft",
+     "gemm",
+     "spmm"
+    ],
+    "gemm": [
+     "gemm",
+     "fft",
+     "fft"
+    ]
+   }
+  },
+  "content": {
+   "recall_per_kernel": {
+    "floyd": 1.0,
+    "histogram": 0.66,
+    "nbody": 0.5,
+    "fft": 0.9,
+    "gemm": 0.8
+   },
+   "y_pred": {
+    "floyd": [
+     "floyd",
+     "floyd",
+     "floyd"
+    ],
+    "histogram": [
+     "histogram",
+     "histogram",
+     "floyd"
+    ],
+    "nbody": [
+     "nbody",
+     "floyd",
+     null
+    ],
+    "fft": [
+     "fft",
+     "fft",
+     "gemm"
+    ],
+    "gemm": [
+     "gemm",
+     "gemm",
+     "gemm"
+    ]
+   }
+  },
+  "persist": {
+   "recall_per_kernel": {
+    "floyd": 0.4,
+    "histogram": 0.4,
+    "nbody": 0.4,
+    "fft": 1.0,
+    "gemm": 1.0
+   },
+   "y_pred": {
+    "floyd": [
+     "floyd",
+     "nbody",
+     "histogram"
+    ],
+    "histogram": [
+     "histogram",
+     "floyd",
+     "nbody"
+    ],
+    "nbody": [
+     "nbody",
+     "floyd",
+     "histogram"
+    ],
+    "fft": [
+     "fft",
+     "fft",
+     "fft"
+    ],
+    "gemm": [
+     "gemm",
+     "gemm",
+     "gemm"
+    ]
+   }
+  },
+  "dhodapkar_smith": {
+   "quarantine": [
+    "dhodapkar_smith.n_boundaries"
+   ],
+   "recall_per_kernel_full": {
+    "floyd": 0.9,
+    "histogram": 0.9,
+    "nbody": 0.9,
+    "fft": 0.9,
+    "gemm": 0.9
+   },
+   "recall_per_kernel": {
+    "floyd": 0.6,
+    "histogram": 1.0,
+    "nbody": 0.5,
+    "fft": 0.3,
+    "gemm": 0.3
+   },
+   "y_pred": {
+    "floyd": [
+     "floyd",
+     "floyd",
+     "nbody"
+    ],
+    "histogram": [
+     "histogram",
+     "histogram",
+     "histogram"
+    ],
+    "nbody": [
+     "nbody",
+     "floyd",
+     "floyd"
+    ],
+    "fft": [
+     "fft",
+     "gemm",
+     "gemm"
+    ],
+    "gemm": [
+     "gemm",
+     "fft",
+     "fft"
+    ]
+   }
+  }
+ },
+ "note": "fixed arrays for tests/test_eusipco.py (builder 2, epoch 2): set A has one separating feature under content and none under apf; dhodapkar_smith at Wall_Hall has one; expected_table3.csv is derived from these by hand"
+}

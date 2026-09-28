@@ -1,0 +1,11 @@
+kernel,cell_id,n_pairs,passes_per_600s,source_kind,T_seconds,T_pairs,dt_est_s,verdict_pairs,rhythm_verdict,within_pass_verdict,verdict_dt_0500,verdict_dt_0644
+gemm,gemm__rep00__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep01__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep02__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep03__01c,930,24000,declared,0.025,0.03875,0.645,marginal,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep04__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep05__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep06__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+gemm,gemm__rep07__01c,930,24000,declared,0.025,0.03875,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+nbody,nbody__rep00__01c,930,6147,declared,0.0976,0.151,0.645,aliased by design at this size,admitted,pass aliased,aliased by design at this size,aliased by design at this size
+floyd,floyd__rep00__01c,930,,undeclared,,,0.645,undeclared,undeclared,undeclared,undeclared,undeclared

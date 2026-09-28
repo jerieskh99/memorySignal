@@ -1,0 +1,8 @@
+reduction,feature count,LOKO accuracy,LOKO macro recall (headline archetypes),LOKO null p95,LOKO majority,LORO accuracy,margin vs APF (LOKO)
+APF,8,0.42,0.40,0.62,0.5,0.55,--
+wAPF,8,0.45,0.43,0.62,0.5,0.58,"difference with margin (diff 0.03 <= spread 0.04; 5 up, 3 down)"
+content-change,36,0.83,0.81,0.62,0.5,0.90,"beats (diff 0.41 > spread 0.04; 8 up, 0 down)"
+persistence,8,0.67,0.65,0.62,0.5,0.72,"beats (diff 0.25 > spread 0.04; 7 up, 1 down)"
+combined,60,0.88,0.86,0.62,0.5,0.93,"beats (diff 0.46 > spread 0.04; 8 up, 0 down)"
+Savoldi 2010,2,0.38,0.35,0.60,0.5,0.50,"difference with margin (diff -0.04 <= spread 0.04; 4 up, 4 down)"
+Dhodapkar-Smith 2003,3,0.61,0.58,0.60,0.5,0.66,"beats (diff 0.19 > spread 0.04; 7 up, 1 down)"

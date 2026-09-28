@@ -1,0 +1,8 @@
+# plan11_encoding_ladder (SPEC section 1, builder 3). Python 3.10+.
+numpy>=1.21
+scikit-learn>=1.0
+matplotlib>=3.4
+# optional (a stdlib or numpy fallback exists where cheap):
+# scipy
+# zstandard    (only when the `zstd` binary is not on PATH; .csv.zst is read through `zstd -dc -q` first)
+# pytest       REQUIRED to run the tests: unittest discovers 96 of the 159 (the 63 gate tests are pytest-style); python3 -m pip install --user pytest
