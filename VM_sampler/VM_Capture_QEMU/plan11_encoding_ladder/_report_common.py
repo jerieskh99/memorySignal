@@ -71,13 +71,22 @@ KERNELS = _sattr("KERNELS", (
     ("bnb_tsp", "FRONTIER-CHURN"),
 ))
 ARCHETYPES = _sattr("ARCHETYPES", ("IDLE", "WORKING-SET", "SCATTER", "SEQUENTIAL-GROW", "FRONTIER-CHURN"))
-LEVEL_MATCHED_SETS = _sattr("LEVEL_MATCHED_SETS", (("floyd", "histogram", "nbody"), ("fft", "gemm")))
+LEVEL_MATCHED_SETS = _sattr("LEVEL_MATCHED_SETS", (("floyd", "histogram", "nbody"), ("fft", "gemm"), ("fft", "stencil_jacobi")))
+LEVEL_MATCHED_ADDED = _sattr("LEVEL_MATCHED_ADDED", {2: "2026-09-28"})     # AA A12: set index -> the date it was added
+LEVEL_MATCHED_LETTERS = tuple(chr(ord("A") + i) for i in range(len(LEVEL_MATCHED_SETS)))   # A, B, C
+
+
+def level_matched_status(i: int) -> str:
+    """"declared", or "added <date>" for a set listed in LEVEL_MATCHED_ADDED (AA A12); as schema."""
+    return f"added {LEVEL_MATCHED_ADDED[i]}" if i in LEVEL_MATCHED_ADDED else "declared"
+
+
 KERNEL_NAMES = tuple(k for k, _ in KERNELS)
 ARCHETYPE_OF = dict(KERNELS)
-LEVEL_SET_OF = {}
+LEVEL_SET_OF = {}        # kernel -> its set letters joined by ", " (fft is in B and C since AA A12)
 for _i, _set in enumerate(LEVEL_MATCHED_SETS):
     for _k in _set:
-        LEVEL_SET_OF[_k] = "AB"[_i] if _i < 2 else str(_i)
+        LEVEL_SET_OF[_k] = f"{LEVEL_SET_OF[_k]}, {LEVEL_MATCHED_LETTERS[_i]}" if _k in LEVEL_SET_OF else LEVEL_MATCHED_LETTERS[_i]
 
 EXTRACT_COLUMNS = _sattr("EXTRACT_COLUMNS", tuple(
     ["seq", "K", "n_persist", "n_union", "J", "J_null_inter", "J_null"]

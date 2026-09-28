@@ -42,8 +42,8 @@ from collections import defaultdict
 import numpy as np
 
 from plan11_encoding_ladder._report_common import (  # noqa: E402
-    GDEC_DECAY, GRID_IDS, KERNEL_NAMES, LEVEL_MATCHED_SETS, N_PAGES, PACKAGE_VERSION, RUNGS,
-    RUNG_DISPLAY, get_open_text, grid_label, inputs_sha256, load_cells, not_run, now_iso,
+    GDEC_DECAY, GRID_IDS, KERNEL_NAMES, LEVEL_MATCHED_LETTERS, LEVEL_MATCHED_SETS, N_PAGES, PACKAGE_VERSION, RUNGS,
+    RUNG_DISPLAY, get_open_text, grid_label, inputs_sha256, level_matched_status, load_cells, not_run, now_iso,
     ok_cells, read_csv, read_json, result_json, to_float, write_json,
 )
 
@@ -187,8 +187,9 @@ def fig_apf_per_kernel(out: Path, cells: list[dict], ex: dict) -> dict:
 
 def fig_level_matched(out: Path, cells: list[dict], ex: dict) -> dict:
     """`fig_level_matched`: the level-matched sets side by side, panel A floyd, histogram,
-    nbody; panel B fft, gemm; all reps thin, one median line per kernel (the median over reps
-    at each seq, over the common length) (SPEC 6.7; P2 Sec. 2, Sec. VI; K2 move 5)."""
+    nbody; panel B fft, gemm; panel C fft, stencil_jacobi (added 2026-09-28, AA A12; every panel
+    title carries the set's status); all reps thin, one median line per kernel (the median over
+    reps at each seq, over the common length) (SPEC 6.7; P2 Sec. 2, Sec. VI; K2 move 5)."""
     import matplotlib.pyplot as plt
     byk, _ = _by_kernel(cells)
     colors = _colors(plt.matplotlib)
@@ -212,7 +213,7 @@ def fig_level_matched(out: Path, cells: list[dict], ex: dict) -> dict:
             else:
                 ax.plot([], [], color=col, label=f"{k} (no extract)")
         ax.set_yscale("log")
-        ax.set_title(f"panel {'AB'[pi] if pi < 2 else pi}: " + ", ".join(kset), fontsize=9)
+        ax.set_title(f"panel {LEVEL_MATCHED_LETTERS[pi]} ({level_matched_status(pi)}): " + ", ".join(kset), fontsize=9)
         ax.set_xlabel("seq (pair index)", fontsize=8)
         ax.set_ylabel("APF = K / N", fontsize=8)
         ax.legend(fontsize=7)

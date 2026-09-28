@@ -245,17 +245,17 @@ class TestTable3(_Base):
         self.assertEqual(list(rows[0].keys()), TE.EUSIPCO_TABLE3_CSV_COLUMNS)
         self.assertEqual(rows, exp)
         md = _read(paths["md"])
-        self.assertIn("| A | floyd, histogram, nbody | none; LORO 0.33; conf 0.67 | 1/2 sep; LORO 0.72; conf 0.25 | "
+        self.assertIn("| A | floyd, histogram, nbody | declared | none; LORO 0.33; conf 0.67 | 1/2 sep; LORO 0.72; conf 0.25 | "
                       "not run: no selection for persist | 1/3 sep; LORO 0.70; conf 0.33 | "
                       "does not move with the interval; moves with the interval | -- |", md)
-        self.assertIn("| B | fft, gemm | none; LORO 0.50; conf 0.50 | 1/2 sep; LORO 0.85; conf 0.17 | "
+        self.assertIn("| B | fft, gemm | declared | none; LORO 0.50; conf 0.50 | 1/2 sep; LORO 0.85; conf 0.17 | "
                       "not run: no selection for persist | none; LORO 0.30; conf 0.67 | -- | "
                       "not resolved; within pass: no |", md)
         tex = _read(paths["tex"])
         self.assertIn("\\label{tab:p2e_table3}", tex)
         self.assertIn("\\begin{table*}", tex)
         self.assertEqual(latex_skeleton.prose_lines(tex), [])
-        self.assertEqual(tex.count("&"), 3 * (len(TE.EUSIPCO_TABLE3_COLUMNS) - 1))   # header + two rows
+        self.assertEqual(tex.count("&"), 4 * (len(TE.EUSIPCO_TABLE3_COLUMNS) - 1))   # header + three rows (C added, AA A12)
         pj = json.loads(_read(out / "report" / "tables" / "eusipco_table3.params.json"))
         self.assertEqual(pj["schema"], "plan11.eusipco_table3.v1")
         self.assertEqual(pj["params"]["ds_id"], "dhodapkar_smith")

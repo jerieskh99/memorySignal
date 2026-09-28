@@ -414,14 +414,16 @@ def alias_falsifier(feature_per_cell: dict, dt_per_cell: dict, *, r2_threshold: 
             "dt_max": float(x.max()), "verdict": V.ALIAS_MOVES if r2 > r2_threshold else V.ALIAS_STAYS}
 
 
-ALIAS_COLUMNS = ("kind", "rung", "kernel", "pair_or_set", "feature", "n", "slope", "intercept", "r2", "dt_min", "dt_max", "verdict")
+ALIAS_COLUMNS = ("kind", "rung", "kernel", "pair_or_set", "feature", "n", "slope", "intercept", "r2", "dt_min", "dt_max", "verdict",
+                 "set_status")      # AA A12: declared / added <date> of the row's level-matched set (blank for g3_peak rows)
 
 
 def separating_features(out: Path, rung: str = "apf", grid_id: str | None = None) -> list[dict]:
     """Alias falsifier (b), operational definition (SPEC_review_al_kindi.md item 5): at the rung's
     selected point, per cell the window mean of each normalized feature; a feature separates a
     level-matched pair when the two kernels' cell means have disjoint ranges (no threshold).
-    Returns [{set, kernel_a, kernel_b, feature, means_a, means_b}]."""
+    Returns [{set, status, kernel_a, kernel_b, feature, means_a, means_b}]; `set` is the letter
+    (A, B, C) and `status` declared or added <date> (AA A12)."""
     out = Path(out)
     gid = grid_id or S.selected_grid_id(out, rung, None)[0]
     if gid is None:
@@ -447,7 +449,8 @@ def separating_features(out: Path, rung: str = "apf", grid_id: str | None = None
                     if np.any(np.isnan(a)) or np.any(np.isnan(b)):
                         continue
                     if a.max() < b.min() or b.max() < a.min():
-                        res.append({"set": "AB"[si] if si < 2 else str(si), "kernel_a": ka, "kernel_b": kb, "feature": name,
+                        res.append({"set": schema.LEVEL_MATCHED_LETTERS[si], "status": schema.level_matched_status(si),
+                                    "kernel_a": ka, "kernel_b": kb, "feature": name,
                                     "means_a": {c: float(v[f]) for c, v in means[ka].items()},
                                     "means_b": {c: float(v[f]) for c, v in means[kb].items()}})
     return res
@@ -476,7 +479,8 @@ def run_alias(out: Path, *, r2_threshold: float = ALIAS_R2_THRESHOLD, rung_for_t
         for k, means in ((sep["kernel_a"], sep["means_a"]), (sep["kernel_b"], sep["means_b"])):
             res = alias_falsifier(means, dt, r2_threshold=r2_threshold)
             rows.append({"kind": "table6_feature", "rung": rung_for_table6, "kernel": k,
-                         "pair_or_set": f"{sep['set']}:{sep['kernel_a']}-{sep['kernel_b']}", "feature": sep["feature"], **res})
+                         "pair_or_set": f"{sep['set']}:{sep['kernel_a']}-{sep['kernel_b']}", "feature": sep["feature"],
+                         "set_status": sep["status"], **res})
     p = S.write_csv(out / "gates" / "alias.csv", ALIAS_COLUMNS, rows)
     S.write_params(p, "plan11.alias.v1", {"r2_threshold": r2_threshold, "rung_for_table6": rung_for_table6,
                                           "separation_rule": "disjoint ranges of the per-cell window means (al-Kindi item 5)",

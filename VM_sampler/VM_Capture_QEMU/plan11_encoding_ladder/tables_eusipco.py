@@ -72,8 +72,8 @@ from collections import Counter
 from plan11_encoding_ladder import verdicts as V  # noqa: E402  (A-B3: the display mapping below)
 from plan11_encoding_ladder import series as S  # noqa: E402  (builder 2's readers; called, never edited)
 from plan11_encoding_ladder._report_common import (  # noqa: E402
-    LEVEL_MATCHED_SETS, PACKAGE_VERSION, SPLIT_DISPLAY, cell_text, effective_scores, fmt_num,
-    inputs_sha256, latex_escape, load_scores, md_table, not_run, now_iso, read_csv, read_json,
+    LEVEL_MATCHED_LETTERS, LEVEL_MATCHED_SETS, PACKAGE_VERSION, SPLIT_DISPLAY, cell_text, effective_scores, fmt_num,
+    inputs_sha256, latex_escape, level_matched_status, load_scores, md_table, not_run, now_iso, read_csv, read_json,
     selected_grid, split_dir, to_float, write_csv, write_json,
 )
 from plan11_encoding_ladder.gates_calibration import separating_features  # noqa: E402  (al-Kindi item 5)
@@ -135,13 +135,16 @@ GP_DISPLAY = {
     V.GP_PASS_ALIASED: "no",                  # within_pass_verdict
 }
 
-EUSIPCO_TABLE3_COLUMNS = ["set", "kernels"] + [disp for _, disp in TABLE3_READINGS] + ["alias check (APF)", "gemm pass period"]
-EUSIPCO_TABLE3_CSV_COLUMNS = (["set", "kernels"] + [f"{disp}: {sub}" for _, disp in TABLE3_READINGS for sub in TABLE3_SUBCOLS]
+# AA A12 (2026-09-28): `status` says whether the set was declared or added, in every form of the table
+EUSIPCO_TABLE3_COLUMNS = ["set", "kernels", "status"] + [disp for _, disp in TABLE3_READINGS] + ["alias check (APF)", "gemm pass period"]
+EUSIPCO_TABLE3_CSV_COLUMNS = (["set", "kernels", "status"] + [f"{disp}: {sub}" for _, disp in TABLE3_READINGS for sub in TABLE3_SUBCOLS]
                               + ["alias check (APF)", "gemm pass period"])
 DS_IDS = COMPARATOR_IDS["dhodapkar2003comparing"]   # ("dhodapkar_smith", "cmp_dhodapkar"): resolved from disk, (A) first
 DS_GRID_ID = "Wall_Hall"                            # one vector per cell, by definition (both addenda)
 TABLE3_FEATURE_VARIANT = "norm"                     # al-Kindi item 5: the per-cell means of the normalized features
-SET_LETTERS = tuple("AB"[i] if i < 2 else str(i) for i in range(len(LEVEL_MATCHED_SETS)))
+SET_LETTERS = LEVEL_MATCHED_LETTERS                 # A, B, C (AA A12: C is the added set)
+TABLE3_ADDED_MARK = "$^{\\dagger}$"                 # the `.tex` label marker of an added row
+TABLE3_ADDED_NOTE = ("\\slot{note: C added 2026-09-28, after the declared sets; wording by the author}")
 
 
 def _tables_dir(out: Path) -> Path:
@@ -159,16 +162,20 @@ def _params(out: Path, extra: dict) -> dict:
 # ----------------------------------------------------------------------------------------------
 def tex_table_cite(columns: list[str], rows: list[dict], *, label: str, cite_col: str | None = None,
                    cite_keys: dict | None = None, columns_comment: str = "", note_comment: str = "",
-                   wide: bool | None = None, size: str = "footnotesize") -> str:
+                   wide: bool | None = None, size: str = "footnotesize",
+                   mark_rows: dict | None = None, table_note: str = "") -> str:
     """A booktabs `tabular` in a `table` / `table*` environment with `\\caption{}` and `\\label{}`
     empty of prose and a `% columns:` line: exactly the shape of `_report_common.tex_table`
     (modelled on it, 2026-09-17), with one difference: the `cite_col` cell of a row whose text is
     a key of `cite_keys` is emitted as `<escaped display>~\\cite{<bib key>}` (P2E sec. 3.IV: the
     external comparator is a named method in the same table). Every other cell passes through
-    `latex_escape`."""
+    `latex_escape`. `mark_rows` maps a first-column text to the raw LaTeX that replaces it (AA A12:
+    the added row's label carries a marker) and `table_note` is a raw line placed after the
+    `tabular`, inside the table environment (the marker's note, a `\\slot` for the author)."""
     if wide is None:
         wide = len(columns) > 7
     cite_keys = cite_keys or {}
+    mark_rows = mark_rows or {}
     env = "table*" if wide else "table"
     lines = [f"% columns: {columns_comment or ', '.join(columns)}"]
     if note_comment:
@@ -183,19 +190,28 @@ def tex_table_cite(columns: list[str], rows: list[dict], *, label: str, cite_col
             txt = cell_text(r.get(c))
             if c == cite_col and txt in cite_keys:
                 cells.append(f"{latex_escape(txt)}~\\cite{{{cite_keys[txt]}}}")
+            elif c == columns[0] and txt in mark_rows:
+                cells.append(mark_rows[txt])
             else:
                 cells.append(latex_escape(txt))
         lines.append(" & ".join(cells) + " \\\\")
     if not rows:
         lines.append(" & ".join([""] * len(columns)) + " \\\\")
-    lines += ["\\bottomrule", "\\end{tabular}", f"\\end{{{env}}}"]
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    if table_note:
+        # `\\slot` is the author's note macro (p2e_skeleton.tex); provided here so the table also
+        # compiles inside the toolkit's own skeleton, which does not define it
+        lines += ["\\providecommand{\\slot}[1]{[N: #1]}", table_note]
+    lines += [f"\\end{{{env}}}"]
     return "\n".join(lines) + "\n"
 
 
 def _write_three(out: Path, name: str, columns: list[str], rows: list[dict], *, label: str, tex_columns=None,
-                 tex_rows=None, cite_col=None, cite_keys=None, note_comment: str = "", wide: bool = True) -> dict:
+                 tex_rows=None, cite_col=None, cite_keys=None, note_comment: str = "", wide: bool = True,
+                 tex_mark_rows: dict | None = None, tex_note: str = "") -> dict:
     """`<out>/report/tables/<name>.csv` (the full columns), `.md` and `.tex` (the display columns
-    when they differ, as Table 3's compact cells do)."""
+    when they differ, as Table 3's compact cells do); `tex_mark_rows` and `tex_note` as in
+    `tex_table_cite` (the `.tex` only)."""
     d = _tables_dir(out)
     d.mkdir(parents=True, exist_ok=True)
     tex_columns = tex_columns or columns
@@ -205,7 +221,8 @@ def _write_three(out: Path, name: str, columns: list[str], rows: list[dict], *, 
     md_p.write_text(md_table(tex_columns, tex_rows), encoding="utf-8")
     tex_p = d / f"{name}.tex"
     tex_p.write_text(tex_table_cite(tex_columns, tex_rows, label=label, cite_col=cite_col, cite_keys=cite_keys,
-                                    note_comment=note_comment, wide=wide, size=TABLE_SIZE), encoding="utf-8")
+                                    note_comment=note_comment, wide=wide, size=TABLE_SIZE,
+                                    mark_rows=tex_mark_rows, table_note=tex_note), encoding="utf-8")
     return {"csv": csv_p, "md": md_p, "tex": tex_p}
 
 
@@ -469,7 +486,9 @@ def _num_or_text(x) -> str:
 def table3(out: Path, *, ds_id: str | None = None) -> dict:
     """EUSIPCO Table 3, the level-matched test (P2E sec. 3.IV; P2 Sec. 2 falsifier (2), Sec. VI).
     One row per level-matched set (`schema.LEVEL_MATCHED_SETS`: A = floyd, histogram, nbody; B =
-    fft, gemm). Under each of the four readings `TABLE3_READINGS` (APF, content-change,
+    fft, gemm; C = fft, stencil_jacobi, added 2026-09-28 by AA A12 and printed with `status`
+    `added 2026-09-28`; A and B print `declared`; the `.tex` marks the added row's label and
+    carries a `\\slot` note for the author's wording). Under each of the four readings `TABLE3_READINGS` (APF, content-change,
     persistence at their selected grid point from `gates/selection.json`; Dhodapkar-Smith 2003 at
     `Wall_Hall`): `k` the separating-feature count (al-Kindi item 5 through
     `gates_calibration.separating_features`), `d` the feature file's width, `r` the set-mean LORO
@@ -483,10 +502,11 @@ def table3(out: Path, *, ds_id: str | None = None) -> dict:
     rid_ds = _resolve_ds_id(out, ds_id)
     inputs: list = [Path(out) / "gates" / "selection.json"]
     csv_rows, disp_rows, readings, n_used = [], [], {}, {}
-    for letter, kernels in zip(SET_LETTERS, LEVEL_MATCHED_SETS):
+    for si, (letter, kernels) in enumerate(zip(SET_LETTERS, LEVEL_MATCHED_SETS)):
         kernels = tuple(kernels)
-        crow = {"set": letter, "kernels": ", ".join(kernels)}
-        drow = {"set": letter, "kernels": ", ".join(kernels)}
+        status = level_matched_status(si)
+        crow = {"set": letter, "kernels": ", ".join(kernels), "status": status}
+        drow = {"set": letter, "kernels": ", ".join(kernels), "status": status}
         for R, disp in TABLE3_READINGS:
             rid = rid_ds if R == "dhodapkar_smith" else R
             gid = DS_GRID_ID if R == "dhodapkar_smith" else selected_grid(out, R)
@@ -509,9 +529,13 @@ def table3(out: Path, *, ds_id: str | None = None) -> dict:
         disp_rows.append(drow)
     note = ("EUSIPCO Table 3 (P2E sec. 3.IV), the level-matched test: per reading `k/d sep` (features separating a pair "
             "of the set under the envelope rule, al-Kindi item 5; `none` when k = 0), `LORO r` (set-mean LORO kernel "
-            "recall), `conf c` (within-set confusion); readings, no verdict; the CSV carries the four columns per reading")
+            "recall), `conf c` (within-set confusion); readings, no verdict; the CSV carries the four columns per reading\n"
+            "`status`: declared, or added <date> (AA A12: C = fft, stencil_jacobi added 2026-09-28; the added row's label "
+            "carries the marker of the note below the table)")
+    added = {SET_LETTERS[i]: f"{SET_LETTERS[i]}{TABLE3_ADDED_MARK}" for i in range(len(SET_LETTERS)) if level_matched_status(i) != "declared"}
     paths = _write_three(out, "eusipco_table3", EUSIPCO_TABLE3_CSV_COLUMNS, csv_rows, label="tab:p2e_table3",
-                         tex_columns=EUSIPCO_TABLE3_COLUMNS, tex_rows=disp_rows, note_comment=note, wide=True)
+                         tex_columns=EUSIPCO_TABLE3_COLUMNS, tex_rows=disp_rows, note_comment=note, wide=True,
+                         tex_mark_rows=added, tex_note=(f"\\par\\noindent{TABLE3_ADDED_MARK}\\,{TABLE3_ADDED_NOTE}" if added else ""))
     ds_record = _ds_threshold_record(out, rid_ds, inputs)
     seen, uniq = set(), []
     for p in inputs:
@@ -524,6 +548,7 @@ def table3(out: Path, *, ds_id: str | None = None) -> dict:
                                 "ds_threshold_record": ds_record, "feature_variant": TABLE3_FEATURE_VARIANT,
                                 "feature_variant_reason": "SPEC_review_al_kindi.md item 5: the per-cell means of the normalized features",
                                 "sets": {l: list(k) for l, k in zip(SET_LETTERS, LEVEL_MATCHED_SETS)},
+                                "set_status": {l: level_matched_status(i) for i, l in enumerate(SET_LETTERS)},
                                 "n_kernels_used": n_used, "csv_columns": EUSIPCO_TABLE3_CSV_COLUMNS,
                                 "display_columns": EUSIPCO_TABLE3_COLUMNS, "inputs_sha256": inputs_sha256(uniq)}),
         "citation": CITATION_TABLE3, "n_rows": len(csv_rows)})

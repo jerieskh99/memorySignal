@@ -350,7 +350,7 @@ refused run's numbers stay printed with the G-L refusal beside them, and the run
 not citable while the refusal stands (SPEC_epoch2 B10).
 
 Look at: LOKO norm inside the null (the measured blind spot); LORO collapsing after
-normalization; the level-matched sets (`level set` column A and B) at chance; G-X `pooling
+normalization; the level-matched sets (`level set` column A, B and C; C added 2026-09-28, AA A12) at chance; G-X `pooling
 stands`; every row's rank `rank r of 500`; a `near_unfalsifiable` split prints that string in
 every score cell of the split (its score is never printed). If a level-matched pair separates
 on variance or duty, read `alias.csv` (`table6_feature` rows) before reading it as workload.
@@ -571,7 +571,9 @@ LOKO accuracy, LOKO macro recall over the headline archetypes, LOKO null p95, LO
 accuracy, the G-M margin against APF; every cell copied verbatim from Table 7's LOKO/archetype and
 LORO/kernel rows, refusals printed as words; the `.tex` cites each comparator through `\cite`);
 `report/tables/eusipco_table3.{csv,md,tex}` and `eusipco_table3.params.json` (the level-matched
-sets A = floyd, histogram, nbody and B = fft, gemm under APF, content-change, persistence and
+sets A = floyd, histogram, nbody and B = fft, gemm, declared, and C = fft, stencil_jacobi, added
+2026-09-28 (AA A12; `status` column in every form, the `.tex` marks the added row and carries a
+`\slot` note for the author), under APF, content-change, persistence and
 Dhodapkar-Smith 2003: the number of features separating a pair of the set under the envelope rule
 of `gates_calibration.separating_features`, the feature count, the set-mean LORO kernel recall,
 the within-set confusion, then the alias verdicts of `gates/alias.csv` for APF and gemm's G-P line

@@ -84,7 +84,7 @@ class TestKernels(unittest.TestCase):
             counts[a] = counts.get(a, 0) + 1
         self.assertEqual(counts, {"WORKING-SET": 6, "SCATTER": 3, "SEQUENTIAL-GROW": 2, "FRONTIER-CHURN": 1})
         self.assertEqual(schema.ARCHETYPES, ("IDLE", "WORKING-SET", "SCATTER", "SEQUENTIAL-GROW", "FRONTIER-CHURN"))
-        self.assertEqual(schema.LEVEL_MATCHED_SETS, (("floyd", "histogram", "nbody"), ("fft", "gemm")))
+        self.assertEqual(schema.LEVEL_MATCHED_SETS, (("floyd", "histogram", "nbody"), ("fft", "gemm"), ("fft", "stencil_jacobi")))
         self.assertEqual(schema.ARCHETYPE_OF["gemm"], "WORKING-SET")
         self.assertEqual(schema.ARCHETYPE_OF["fft"], "SCATTER")
         self.assertEqual(schema.ARCHETYPE_OF["lexer"], "SEQUENTIAL-GROW")

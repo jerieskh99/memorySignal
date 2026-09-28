@@ -127,7 +127,7 @@ BULLETS = {  # abbreviated from P2E_STRUCTURE.md sections 2 and 3; comments only
     ],
     "results": [
         "Table 2, reductions compared: rows APF, wAPF, content-change, persistence, combined, the comparators; columns feature count, LOKO accuracy and macro recall over qualifying archetypes, LORO accuracy, the null's 95th percentile, the majority baseline, the paired margin against APF; refusals printed as words (generated: tables/eusipco_table2.tex).",
-        "Table 3, the level-matched test: rows the 2,048-page set (floyd, histogram, nbody) and the 4,096-page pair (fft, gemm); columns separable under APF (no), under content-change, under persistence, under Dhodapkar-Smith 2003, with the pass-period status of gemm stated (generated: tables/eusipco_table3.tex).",
+        "Table 3, the level-matched test: rows the 2,048-page set (floyd, histogram, nbody), the 4,096-page pair (fft, gemm) and the added 4,096-page pair (fft, stencil_jacobi; added 2026-09-28, AA A12, marked as added); columns separable under APF (no), under content-change, under persistence, under Dhodapkar-Smith 2003, with the pass-period status of gemm stated (generated: tables/eusipco_table3.tex).",
         "Figure 2 (optional if space): the store-predicted versus state-measured assignment, compact.",
         "Text: the blind spot in two sentences; which axis separates which pair, with the physical reason; the floor kernels reported at floor; the comparator's row read honestly (better, worse, or within margin); the cost comparison in one sentence.",
         "Caveats in the text, not a section: one interval, twelve kernels, two archetypes under-supported, pass period declared for one kernel.",

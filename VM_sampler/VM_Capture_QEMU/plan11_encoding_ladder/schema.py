@@ -96,7 +96,18 @@ KERNEL_NAMES: tuple[str, ...] = tuple(k for k, _ in KERNELS)
 ARCHETYPE_OF: dict[str, str] = dict(KERNELS)
 ARCHETYPES = ("IDLE", "WORKING-SET", "SCATTER", "SEQUENTIAL-GROW", "FRONTIER-CHURN")
 # P2 Sec. 2 and Sec. VI; AA A7: floyd, histogram, nbody at 2,048 pages; fft and gemm at 4,096.
-LEVEL_MATCHED_SETS = (("floyd", "histogram", "nbody"), ("fft", "gemm"))
+# AA A12 (2026-09-28; SPEC_epoch2 Part 4 item 27): C = fft, stencil_jacobi (4,096 pages by source)
+# is ADDED after the declared sets and marked as added wherever a set is listed; A and B stay
+# exactly as declared (B is kept on purpose: the declared expectation was that the count cannot
+# separate fft and gemm, and the row reports what the data say). Nothing is removed.
+LEVEL_MATCHED_SETS = (("floyd", "histogram", "nbody"), ("fft", "gemm"), ("fft", "stencil_jacobi"))
+LEVEL_MATCHED_ADDED: dict[int, str] = {2: "2026-09-28"}      # set index -> the date it was added
+LEVEL_MATCHED_LETTERS = tuple(chr(ord("A") + i) for i in range(len(LEVEL_MATCHED_SETS)))   # A, B, C
+
+
+def level_matched_status(i: int) -> str:
+    """"declared", or "added <date>" for a set listed in LEVEL_MATCHED_ADDED (AA A12)."""
+    return f"added {LEVEL_MATCHED_ADDED[i]}" if i in LEVEL_MATCHED_ADDED else "declared"
 
 # The paper's rep index (P2 Sec. VI; AA A4): rep 0 is seed 42; reps 1..7 ascend by seed.
 REP0_SEED = 42

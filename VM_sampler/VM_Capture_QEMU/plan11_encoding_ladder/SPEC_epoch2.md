@@ -1251,3 +1251,31 @@ default runs unless the author says otherwise.
 25. The two one-token amendments of `tests/test_driver.py` (Part 1.7): the move bound moves from
     13 to 14 and the two assertions that 14 is out of range become assertions that 15 is. No other
     existing test changes.
+26. Amendment of 2026-09-28 (AA A8). Three recordings hold an unplanned second run after the
+    sustain loop relaunched the workload and the guest clock stepped back: gemm seed 7703 (first
+    run pairs 1 to 940), fem_assembly seed 2714 (1 to 895; its folder name truncates the seed to
+    `271`) and fft seed 7548 (1 to 926); fem_assembly from the `sandbox_deepdive_01c` launch, gemm
+    and fft from `sandbox_deepdive_01c1`. The extract (move 1) takes `--keep-first-pairs <csv>`
+    (columns `path, keep_first_pairs, reason`; the declared file is
+    `declared/keep_first_pairs.csv`) and, for a listed cell, reads only the first N pairs of the
+    file in seq order: every row with `seq <= seq_first + N - 1`, a gap counting as a pair; later
+    rows are ignored and nothing under the retention root is written. The sidecar records the
+    cut, the reason and the file's own pair count; `n_pairs` and `dt_est_s` are over the kept
+    pairs. A row that matches no cell or several, or an N above the file's pair count, stops the
+    command. A sidecar written under another cut is re-extracted. The driver passes the flag to
+    move 1 and declares the file as an input, so its sha256 is in the ledger and a change makes
+    move 1 stale. This changes which pairs are read, not any gate: G-P, G-D, G-ORD, G-X and G-F
+    are unchanged and read the cut extract as they read any other.
+27. Amendment of 2026-09-28 (AA A12). `LEVEL_MATCHED_SETS` gains a third set, C = fft,
+    stencil_jacobi (4,096 pages by source), after the two declared sets, which stay exactly as
+    declared and in the same order: A = floyd, histogram, nbody; B = fft, gemm. B is kept on
+    purpose: the declared expectation was that the count cannot separate fft and gemm, and the
+    row reports what the data say. `LEVEL_MATCHED_ADDED` records, per set index, the date it was
+    added, and every output that lists sets carries a status of `declared` or `added 2026-09-28`:
+    Table 3's csv, md, tex and params (`status` column, `params.set_status`), the level-matched
+    figure's panel titles, and `gates_calibration.separating_features` rows (`status`) with
+    `gates/alias.csv` (`set_status`). Set letters are A, B, C. In Table 3's `.tex` the added row's
+    label carries a marker and a note below the table reads
+    `\slot{note: C added 2026-09-28, after the declared sets; wording by the author}`; the
+    wording is the author's. The per-kernel `level set` column lists every set a kernel is in
+    (fft: `B, C`). This adds a row; it removes nothing and changes no gate.
