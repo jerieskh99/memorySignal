@@ -94,6 +94,7 @@ cd VM_sampler/VM_Capture_QEMU
 python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
     --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
     --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
     --n-jobs 4 --null-perm 500 --null-splits loko,loro,within_trace
 python3 -m plan11_encoding_ladder.run_moves status --out <out>      # the ledger
 python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --moves 6-7   # print, do not run
@@ -143,6 +144,12 @@ python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --mov
   fft 926 pairs). The path is relative to the driver's cwd (`VM_sampler/VM_Capture_QEMU`); the
   driver declares the file as an input of move 1, so its sha256 is in the ledger and a change
   makes move 1 stale.
+- `--seed-map <csv>` (SPEC_epoch2 Part 4 item 28): the declared seed map, passed to move 0.
+  `plan11_encoding_ladder/declared/seed_map.csv` (96 rows: `path, seed, source`, made by
+  `declared/make_seed_map.py`) gives each kernel cell's true seed, because the campaign cuts
+  folder names at 60 characters and the cut falls before the seed (gibbs, histogram, rmat_gen,
+  spmm) or inside it (fem_assembly). Declared as an input of move 0, so its sha256 is in the
+  ledger and a change re-runs the index.
 - Cost: extract about 1 to 3 minutes per cell of four million rows (2 to 5 hours for 96 cells at
   `--jobs 4`); the temporal grid minutes per rung; the split nulls hours, LORO's null the longest
   (about 48,000 forest fits per rung at 500 permutations, `loro_mode = "cell"`). If LORO's null
@@ -158,17 +165,32 @@ python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --mov
 ### Move 0: the cell index
 
 ```
-python3 -m plan11_encoding_ladder.extract index --root <root> --out <out>
+python3 -m plan11_encoding_ladder.extract index --root <root> --out <out> \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv
 ```
 
 Writes `<out>/cells.csv` (one row per cell directory: `cell_id, kernel, role,
 archetype_predicted, seed, rep, rep_dir, label, campaign, path, traj_file, status`).
 
+`--seed-map <csv>` (SPEC_epoch2 Part 4 item 28; columns `path, seed, source`, `path` relative to
+the retention root): a kernel cell listed there takes its seed from the map instead of the folder
+name. The campaign cuts folder names at 60 characters and appends an 8-hex fingerprint, so for
+gibbs, histogram, rmat_gen and spmm the name shows no seed and for fem_assembly a truncated one
+(2714 reads as 271). When the name shows a seed it must be a leading-digit prefix of the map's
+seed, or the command stops naming the cell. `cells.index.json` lists the cells that took their
+seed from the map (`seed_from_map`, `seed_map_name_truncated`) and the map rows that matched no
+cell. A kernel cell with no seed from either source is `refused: seed unknown` and is never
+numbered as a rep by default (rep 0 is the seed-42 cell and nothing else); idle cells keep
+`rep = rep_dir - 1`. Every copy of a `cell_id` that appears more than once is
+`refused: duplicate cell_id` (appended to an earlier refusal), so move 1 can never write two runs
+to one folder.
+
 Look at: 96 kernel rows (plus idle rows once captured) with `status = ok`; the roles and the
 predicted archetypes right (Table 3); `rep 0` is the seed-42 cell of every kernel; any
 `refused: trajectory file count != 1` (the stencil_jacobi cells until their trajectories are
-filed, P2_AUTHOR_ANSWERS.md S3), `refused: duplicate seed` or `refused: unknown kernel` row is
-yours to resolve by editing `cells.csv`. Every later stage reads this file, never the paths.
+filed, P2_AUTHOR_ANSWERS.md S3), `refused: duplicate seed`, `refused: unknown kernel`,
+`refused: seed unknown` or `refused: duplicate cell_id` row is yours to resolve by editing
+`cells.csv` (or the seed map). Every later stage reads this file, never the paths.
 
 ### Move 1: the per-cell extract (the longest step)
 

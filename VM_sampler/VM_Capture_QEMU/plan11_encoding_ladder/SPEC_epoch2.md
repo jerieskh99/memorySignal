@@ -1279,3 +1279,22 @@ default runs unless the author says otherwise.
     `\slot{note: C added 2026-09-28, after the declared sets; wording by the author}`; the
     wording is the author's. The per-kernel `level set` column lists every set a kernel is in
     (fft: `B, C`). This adds a row; it removes nothing and changes no gate.
+28. Amendment of 2026-09-28 (verified that day by running `extract index` on an empty copy of
+    the real corpus layout). The campaign names a cell folder by the retention signature of its
+    command, cut at 60 characters plus an 8-hex sha1 fingerprint (`plan07_campaign/ui/place_csv.py`
+    `signature`). For gibbs, histogram, rmat_gen and spmm the cut falls before the seed, so the
+    name shows none; for fem_assembly it falls inside the seed (2714 reads as 271). The index
+    (move 0) read the seed from the name, gave every seedless cell rep 0 and one shared `cell_id`,
+    and reported them `ok`; move 1 would have collapsed the eight runs of each such kernel into
+    one folder without an error. Now `extract index` takes `--seed-map <csv>` (`path, seed,
+    source`; the declared file is `declared/seed_map.csv`, 96 rows made by
+    `declared/make_seed_map.py`, which rebuilds each folder name from the corpus settings for
+    every seed 0 to 99,999 and keeps the unique exact match). A listed kernel cell takes its seed
+    from the map; a seed the name also shows must be a leading-digit prefix of the map's seed
+    (truncation), else the command stops naming the cell. `cells.index.json` records which cells
+    took their seed from the map. A kernel cell with no seed from either source is listed as
+    `refused: seed unknown` and is never given rep 0 by default; idle cells keep
+    `rep = rep_dir - 1`. Every copy of a `cell_id` that appears more than once is refused
+    (`refused: duplicate cell_id`), so move 1 can never write two runs to one folder. The driver
+    passes `--seed-map` to move 0 and declares the file as an input (sha256 in the ledger). This
+    changes where the seed is read from, not any gate.

@@ -11,6 +11,7 @@ al-Kindi's review section 3 item 3: nothing in this paper reads it).
 
 Subcommands (SPEC 2.5, 7.1):
   extract.py index --root R --out O [--idle-marker M ...] [--role-overrides CSV]
+                   [--seed-map CSV]
   extract.py cell  --cell-dir D --out O [--persist-side t|t+1] [--failed-count N | --failed-dir D]
                    [--role kernel|idle] [--cell-id ID] [--force]
   extract.py all   --cells-csv CSV --out O [--jobs 1] [--only REGEX] [--failed-counts CSV]
@@ -138,6 +139,60 @@ def _utc_now() -> str:
 # ---------------------------------------------------------------------------
 # Snapshots
 # ---------------------------------------------------------------------------
+class SeedMapError(RuntimeError):
+    """`--seed-map CSV` cannot be honoured: a bad row, or a cell whose folder name shows a seed that
+    is not a leading-digit prefix of the map's seed. Stops the command (AA 2026-09-28; SPEC_epoch2
+    Part 4 item 28)."""
+
+
+def _load_seed_map(path) -> dict[str, dict]:
+    """`--seed-map CSV` with columns `path, seed[, source]`: `path` is the kernel cell directory
+    relative to the retention root (`family/test_label/param_sig/rep`), `seed` its true seed as
+    `declared/make_seed_map.py` recovered it from the campaign's cut folder name. A row without a
+    path or with a non-integer seed, or a path listed twice, stops the command by row number."""
+    if path is None:
+        return {}
+    p = Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(str(p))
+    out: dict[str, dict] = {}
+    with open(p, newline="") as fh:
+        for i, row in enumerate(csv.DictReader(fh), 2):
+            key = (row.get("path") or "").strip().strip("/")
+            raw = (row.get("seed") or "").strip()
+            if not key and not raw:
+                continue
+            if not key:
+                raise SeedMapError(f"{p.name} row {i}: no path")
+            try:
+                seed = int(raw)
+            except ValueError:
+                raise SeedMapError(f"{p.name} row {i}: seed {raw!r} is not an integer") from None
+            if seed < 0:
+                raise SeedMapError(f"{p.name} row {i}: seed {seed} is negative")
+            if key in out:
+                raise SeedMapError(f"{p.name} row {i}: path listed twice (first at row {out[key]['row']}): {key}")
+            out[key] = {"seed": seed, "source": (row.get("source") or "").strip(), "row": i}
+    return out
+
+
+def _seed_map_for(cell_dir: Path, root: Path, smap: dict[str, dict]) -> tuple[dict | None, str | None]:
+    """The seed-map row of a cell directory: by its path relative to `root`, else by its last four
+    components (the rule of `_override_for`). Returns (row, key) or (None, None)."""
+    if not smap:
+        return None, None
+    keys = []
+    try:
+        keys.append(cell_dir.relative_to(root).as_posix())
+    except ValueError:
+        pass
+    keys.append(_cell_tail(cell_dir))
+    for k in keys:
+        if k in smap:
+            return smap[k], k
+    return None, None
+
+
 class KeepFirstError(RuntimeError):
     """A `--keep-first-pairs` row that cannot be honoured: it matches no cell or several, or asks
     for more pairs than the file holds. Stops the command (never a per-cell refusal)."""
@@ -681,29 +736,57 @@ def _override_for(cell_dir: Path, overrides: dict[str, dict]) -> dict | None:
 
 
 def build_index(root, out_csv, *, idle_markers: tuple[str, ...] = schema.IDLE_MARKERS_DEFAULT,
-                role_overrides=None) -> list[dict]:
+                role_overrides=None, seed_map=None) -> list[dict]:
     """The cell index `cells.csv` (SPEC 2.7): one row per directory `rep*__*` under `root`
     (found by `root.rglob("rep*__*")`, directories kept), with the identity of SPEC 2.6 and a
-    status of `ok`, `refused: trajectory file count != 1`, `refused: duplicate seed`, or
-    `refused: unknown kernel`. A directory with no trajectory file (or more than one) is listed
-    with its refusal rather than dropped, so the author sees it.
+    status of `ok`, `refused: trajectory file count != 1`, `refused: duplicate seed`,
+    `refused: unknown kernel`, `refused: seed unknown` or `refused: duplicate cell_id` (the last
+    two since AA 2026-09-28, SPEC_epoch2 Part 4 item 28). A directory with no trajectory file (or
+    more than one) is listed with its refusal rather than dropped, so the author sees it.
+
+    The seed of a kernel cell: from `seed_map` (a CSV `path, seed[, source]`, path relative to
+    the root; `declared/seed_map.csv`) when the cell is listed there, else from the folder name
+    (`seed_(\\d+)`). The campaign cuts folder names at 60 characters, so a name may show no seed
+    or a truncated one: a name seed must then be a leading-digit prefix of the map's seed, or the
+    command stops naming the cell. A kernel cell with no seed from either source is listed as
+    `refused: seed unknown` and never numbered as a rep by default. Idle cells are not looked up
+    and keep `rep = rep_dir - 1`.
 
     The paper's rep index (SPEC 2.6; P2 Sec. VI; AA A4): within one (role, kernel) group the
     cell with seed 42 is rep 0 and the remaining cells are numbered 1 upward by ascending seed
-    (ties by path, both kept and flagged `refused: duplicate seed`); a cell without a parsed
-    seed takes `rep = rep_dir - 1`. Roles come from the idle markers, then `role_overrides`
-    (a CSV `path, role[, archetype_predicted]`); the author may also edit `cells.csv` by hand.
-    Writes `cells.csv` and `cells.index.json` (the params block) next to it. Returns the rows."""
+    (ties by path, both kept and flagged `refused: duplicate seed`); a cell without a seed takes
+    `rep = rep_dir - 1`. Every copy of a cell_id that appears more than once is refused
+    (`refused: duplicate cell_id`, appended to an earlier refusal), so move 1 can never write two
+    runs to one folder. Roles come from the idle markers, then `role_overrides` (a CSV
+    `path, role[, archetype_predicted]`); the author may also edit `cells.csv` by hand.
+    Writes `cells.csv` and `cells.index.json` (the params block, which names the cells that took
+    their seed from the map) next to it. Returns the rows."""
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(str(root))
     overrides = _load_role_overrides(role_overrides)
+    smap = _load_seed_map(seed_map)
+    seed_from_map: list[str] = []
+    name_truncated: list[dict] = []
+    unmatched = set(smap)
     rows: list[dict] = []
     for d in sorted(p for p in root.rglob("rep*__*") if p.is_dir()):
         try:
             ident = schema.parse_cell_path(d, idle_markers=idle_markers)
         except ValueError:
             continue
+        if ident["role"] == "kernel":
+            entry, key = _seed_map_for(d, root, smap)
+            if entry is not None:
+                unmatched.discard(key)
+                if ident["seed"] is not None and not str(entry["seed"]).startswith(str(ident["seed"])):
+                    raise SeedMapError(f"cell {_cell_tail(d)}: the folder name shows seed {ident['seed']} but "
+                                       f"{Path(seed_map).name} row {entry['row']} says {entry['seed']}, which is not a "
+                                       f"truncation of it; the command stops")
+                if ident["seed"] is not None and ident["seed"] != entry["seed"]:
+                    name_truncated.append({"path": _cell_tail(d), "name_seed": ident["seed"], "seed": entry["seed"]})
+                ident["seed"] = entry["seed"]
+                seed_from_map.append(_cell_tail(d))
         ov = _override_for(d, overrides)
         if ov:
             if ov.get("role"):
@@ -720,6 +803,8 @@ def build_index(root, out_csv, *, idle_markers: tuple[str, ...] = schema.IDLE_MA
             status = schema.STATUS_TRAJ_COUNT
         elif ident["role"] == "unknown":
             status = schema.STATUS_UNKNOWN_KERNEL
+        elif ident["role"] == "kernel" and ident["seed"] is None:
+            status = schema.STATUS_SEED_UNKNOWN
         rows.append({
             **ident,
             "path": str(d),
@@ -735,7 +820,9 @@ def build_index(root, out_csv, *, idle_markers: tuple[str, ...] = schema.IDLE_MA
         seeded = [m for m in members if m["seed"] is not None]
         unseeded = [m for m in members if m["seed"] is None]
         for m in unseeded:
-            m["rep"] = (m["rep_dir"] - 1) if m["rep_dir"] is not None else 0
+            # the folder's own rep counter (idle cells); a kernel cell here is `refused: seed unknown`
+            # and is never given rep 0 by default: no rep_dir, no rep
+            m["rep"] = (m["rep_dir"] - 1) if m["rep_dir"] is not None else None
         rep0 = sorted((m for m in seeded if m["seed"] == schema.REP0_SEED), key=lambda m: m["path"])
         rest = sorted((m for m in seeded if m["seed"] != schema.REP0_SEED), key=lambda m: (m["seed"], m["path"]))
         ordered = rep0 + rest
@@ -748,7 +835,16 @@ def build_index(root, out_csv, *, idle_markers: tuple[str, ...] = schema.IDLE_MA
             if seen[m["seed"]] > 1 and m["status"] == schema.STATUS_OK:
                 m["status"] = schema.STATUS_DUP_SEED
     for r in rows:
-        r["cell_id"] = schema.cell_id_of(r["kernel"], r["role"], r["rep"], r["campaign"])
+        if r["rep"] is None:
+            r["cell_id"] = f"{'idle' if r['role'] == 'idle' else r['kernel']}__repNA__{r['campaign']}"
+        else:
+            r["cell_id"] = schema.cell_id_of(r["kernel"], r["role"], r["rep"], r["campaign"])
+    # every copy of a repeated cell_id is refused, whatever its status so far (AA 2026-09-28)
+    n_ids = _count_by(rows, "cell_id")
+    for r in rows:
+        if n_ids[r["cell_id"]] > 1:
+            r["status"] = (schema.STATUS_DUP_CELL_ID if r["status"] == schema.STATUS_OK
+                           else f"{r['status']}; {schema.STATUS_DUP_CELL_ID}")
 
     out_csv = Path(out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -763,8 +859,15 @@ def build_index(root, out_csv, *, idle_markers: tuple[str, ...] = schema.IDLE_MA
         "schema": schema.CELLS_SCHEMA,
         "params": {"root": str(root), "idle_markers": list(idle_markers),
                    "role_overrides": str(role_overrides) if role_overrides else None,
+                   "seed_map": str(seed_map) if seed_map else None,
+                   "seed_source_rule": "seed map for a listed kernel cell, else the folder name (seed_<n>); a name seed must be a "
+                                       "leading-digit prefix of the map's seed (AA 2026-09-28; SPEC_epoch2 Part 4 item 28)",
+                   "seed_from_map": seed_from_map, "n_seed_from_map": len(seed_from_map),
+                   "seed_map_name_truncated": name_truncated,
+                   "seed_map_rows_unmatched": sorted(unmatched),
                    "rep0_seed": schema.REP0_SEED, "traj_glob": schema.TRAJ_GLOB,
-                   "inputs_sha256": ({str(role_overrides): sha256_file(role_overrides)} if role_overrides else {})},
+                   "inputs_sha256": {**({str(role_overrides): sha256_file(role_overrides)} if role_overrides else {}),
+                                     **({str(seed_map): sha256_file(seed_map)} if seed_map else {})}},
         "citation": CITATION_INDEX,
         "n_rows": len(rows),
         "n_ok": sum(1 for r in rows if r["status"] == schema.STATUS_OK),
@@ -943,6 +1046,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_idx.add_argument("--idle-marker", action="append", default=None,
                        help="substring of the test label that marks an idle cell (default: sleep, idle)")
     p_idx.add_argument("--role-overrides", default=None, help="CSV path, role[, archetype_predicted]")
+    p_idx.add_argument("--seed-map", default=None,
+                       help="CSV path, seed[, source] (declared/seed_map.csv): the seed of each listed kernel cell, instead of the cut folder name")
 
     p_cell = sub.add_parser("cell", help="extract one cell directory or trajectory file (SPEC 2.5)")
     p_cell.add_argument("--cell-dir", required=True, help="cell directory (or the trajectory file)")
@@ -984,9 +1089,17 @@ def main(argv: list[str] | None = None) -> int:
             out = Path(args.out)
             out.mkdir(parents=True, exist_ok=True)
             rows = build_index(args.root, out / "cells.csv", idle_markers=markers,
-                               role_overrides=args.role_overrides)
+                               role_overrides=args.role_overrides, seed_map=args.seed_map)
             n_ok = sum(1 for r in rows if r["status"] == schema.STATUS_OK)
             print(f"[index] {len(rows)} cells listed, {n_ok} ok -> {out / 'cells.csv'}")
+            refusals = {k: v for k, v in _count_by(rows, "status").items() if k != schema.STATUS_OK}
+            if refusals:
+                print("[index] refused: " + "; ".join(f"{v} x {k}" for k, v in sorted(refusals.items())))
+            if args.seed_map:
+                with open(out / "cells.index.json") as fh:
+                    pr = json.load(fh)["params"]
+                print(f"[index] seeds from {Path(args.seed_map).name}: {pr['n_seed_from_map']} cells "
+                      f"({len(pr['seed_map_name_truncated'])} with a truncated name seed); map rows unmatched: {len(pr['seed_map_rows_unmatched'])}")
             return 0
         if args.cmd == "cell":
             out = Path(args.out)
@@ -1022,6 +1135,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except KeepFirstError as exc:
         print(f"keep-first-pairs: {exc}", file=sys.stderr)
+        return 2
+    except SeedMapError as exc:
+        print(f"seed-map: {exc}", file=sys.stderr)
         return 2
     except Exception:
         traceback.print_exc()

@@ -149,7 +149,14 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
     P = []
     # ---- move 0: the cell index (pip install is a runbook instruction, not a driver command)
     idx_args = ["--root", o.root or "<root required>", *O]
-    P.append(_cmd(0, "extract index", "extract", "index", idx_args, outputs=["cells.csv"]))
+    # AA 2026-09-28 (SPEC_epoch2 Part 4 item 28): the declared seed map, passed as given and declared
+    # as an input by its resolved path, so its sha256 is in the ledger and a change re-runs move 0
+    m0_inputs = []
+    if getattr(o, "seed_map", None):
+        idx_args += ["--seed-map", o.seed_map]
+        smp = Path(o.seed_map)
+        m0_inputs.append(str(smp if smp.is_absolute() else (_HERE.parent / smp).resolve()))
+    P.append(_cmd(0, "extract index", "extract", "index", idx_args, outputs=["cells.csv"], inputs=m0_inputs))
     # ---- move 1: the per-cell extracts
     a = ["--cells-csv", cells, *O, "--jobs", o.n_jobs]
     if o.persist_side:
@@ -779,6 +786,8 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--failed-counts", default=None)
     ap.add_argument("--keep-first-pairs", default=None,
                     help="CSV path, keep_first_pairs, reason (AA A8): move 1 reads only the first N pairs of each listed cell")
+    ap.add_argument("--seed-map", default=None,
+                    help="CSV path, seed[, source] (declared/seed_map.csv): move 0 takes each listed kernel cell's seed from it, not the cut folder name")
     ap.add_argument("--table8-rung", default="combined", choices=list(RUNGS))
     ap.add_argument("--piano-cell", default=None)
     ap.add_argument("--piano-stride", type=int, default=16)

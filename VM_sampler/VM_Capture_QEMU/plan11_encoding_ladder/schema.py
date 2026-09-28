@@ -266,6 +266,11 @@ STATUS_OK = "ok"
 STATUS_TRAJ_COUNT = "refused: trajectory file count != 1"
 STATUS_DUP_SEED = "refused: duplicate seed"
 STATUS_UNKNOWN_KERNEL = "refused: unknown kernel"
+# AA 2026-09-28 (SPEC_epoch2 Part 4 item 28): a kernel cell whose seed comes neither from the folder
+# name nor from the declared seed map is never given a rep by default; every copy of a cell_id that
+# appears more than once is refused, so move 1 can never write two runs to one folder
+STATUS_SEED_UNKNOWN = "refused: seed unknown"
+STATUS_DUP_CELL_ID = "refused: duplicate cell_id"
 
 
 def format_value(name: str, value) -> str:
