@@ -113,7 +113,9 @@ GL2_SHOT_NOISE = "refused: shot noise explains CV"      # verdicts.GL_SHOT_NOISE
 ADMISSIBILITY = "gates/preconditions.json"
 INPUT_FILES = ("cells.csv", "inputs/pass_table.csv", "inputs/gk0_source.csv", "inputs/head_drop.csv",
                "inputs/failed_counts.csv", "inputs/idle_admissibility.json", "inputs/cell_order.csv")
-MAX_MOVE = 14      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7)
+MAX_MOVE = 15      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
+                   # luck checks (SPEC_epoch2 Part 4 item 29), never in the default --moves 0-14
+LORO_FULL_NULL_SPLITS = "loko,loro,within_trace"   # the paper value; move 15 restores LORO's null under it
 
 
 def parse_moves(spec: str, max_move: int = MAX_MOVE) -> list[int]:
@@ -357,6 +359,49 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                   outputs=["report/figures/fig_dhodapkar_sweep.pdf|report/figures/SKIPPED.txt"],
                   inputs=["gates/comparators/dhodapkar_sweep.csv", ADMISSIBILITY]))
     P.append(_cmd(14, "tables manifest (after comparators)", "tables", None, [*O, "--only", "manifest"],
+                  outputs=["report/manifest.json"], inputs=["gates/comparators/verdicts.csv", ADMISSIBILITY]))
+    # ---- move 15 (optional; SPEC_epoch2 Part 4 item 29, 2026-09-29): the LORO luck checks that a run under the
+    # runbook's fallback `--null-splits loko,within_trace` skipped. LORO's split stage is re-run with its null for
+    # every rung at the rung's selected point (the same command as moves 7 and 9 to 12, `--split loro` and
+    # `--null-splits loro`; same seeds, so the scores are the same and only the null is added), then every step
+    # whose own LORO null follows the flag (G-DIM, the comparators) under the full paper value, then the readers
+    # and tables that print them. Only run when selected (`--moves 15`); the default `--moves 0-14` leaves it out.
+    for rung in ("apf", "persist", "content", "wapf", "combined"):
+        P.append(_cmd(15, f"loro luck check {rung}", "models", "splits",
+                      [*O, "--rung", rung, "--split", "loro", "--labelspace", "all",
+                       "--raw-and-norm" if rung == "apf" else "--norm", "--null-perm", o.null_perm, "--null-splits", "loro"],
+                      outputs=[f"gates/splits/{rung}"],
+                      inputs=["cells.csv", "inputs/head_drop.csv", f"json:gates/selection.json:{rung}", "gates/gk0.csv", ADMISSIBILITY]))
+    P.append(_cmd(15, "gdim (with LORO luck check)", "gates_comparison", "gdim",
+                  [*O, "--null-perm", o.null_perm, "--null-splits", LORO_FULL_NULL_SPLITS],
+                  outputs=["gates/gdim.csv"], inputs=["cells.csv", "gates/selection.json", ADMISSIBILITY]))
+    cmp_full = [*O, "--null-perm", o.null_perm, "--null-splits", LORO_FULL_NULL_SPLITS, "--n-jobs", o.n_jobs,
+                "--n-estimators", getattr(o, "n_estimators", 300), "--seed-offset", getattr(o, "seed_offset", 0)]
+    P.append(_cmd(15, "comparators savoldi (with LORO luck check)", "comparators", "savoldi",
+                  cmp_full + ["--rows", getattr(o, "savoldi_rows", "all_after_head_drop")],
+                  outputs=["gates/comparators/savoldi.csv"], inputs=cmp_inputs))
+    P.append(_cmd(15, "comparators dhodapkar (with LORO luck check)", "comparators", "dhodapkar",
+                  cmp_full + ["--delta-th-default", getattr(o, "delta_th_default", 0.04)],
+                  outputs=["gates/comparators/dhodapkar_sweep.csv"], inputs=cmp_inputs))
+    P.append(_cmd(15, "comparators law (with LORO luck check)", "comparators", "law",
+                  cmp_full + ["--x-default", getattr(o, "law_x_default", 4),
+                              "--jobs", getattr(o, "comparator_jobs", None) or o.n_jobs],
+                  outputs=["gates/comparators/law_sweep.csv"], inputs=cmp_inputs))
+    P.append(_cmd(15, "comparators gates (with LORO luck check)", "comparators", "gates", cmp_full,
+                  outputs=["gates/comparators/gm.csv", "gates/comparators/verdicts.csv"],
+                  inputs=cmp_inputs + ["gates/comparators/savoldi.csv", "gates/comparators/dhodapkar.csv", "gates/comparators/law.csv"]))
+    P.append(_cmd(15, "gl (after LORO luck checks)", "gates_comparison", "gl", [*O], outputs=["gates/gl.csv"],
+                  inputs=["cells.csv", "gates/selection.json", ADMISSIBILITY]))
+    P.append(_cmd(15, "gm (after LORO luck checks)", "gates_comparison", "gm", [*O], outputs=["gates/gm.csv"],
+                  inputs=["cells.csv", "gates/selection.json", ADMISSIBILITY]))
+    P.append(_cmd(15, "tables (all, after LORO luck checks)", "tables", None, [*O, "--table8-rung", o.table8_rung],
+                  outputs=["report/tables/table5.csv", "report/tables/table7.csv", "report/tables/table8.csv", "report/tables/tablegv.csv"],
+                  inputs=["cells.csv", "gates/selection.json", ADMISSIBILITY]))
+    P.append(_cmd(15, "tables table7_comparators,table_comparators (after LORO luck checks)", "tables", None,
+                  [*O, "--only", "table7_comparators,table_comparators"],
+                  outputs=["report/tables/table7_comparators.csv", "report/tables/table_comparators.csv"],
+                  inputs=cmp_inputs + ["gates/comparators/verdicts.csv"]))
+    P.append(_cmd(15, "tables manifest (after LORO luck checks)", "tables", None, [*O, "--only", "manifest"],
                   outputs=["report/manifest.json"], inputs=["gates/comparators/verdicts.csv", ADMISSIBILITY]))
     # seed offsets and n-jobs on the commands that take them (SPEC 7.1)
     for c in P:
@@ -764,7 +809,8 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--root", default=None, help="the retention root (required when move 0 runs)")
     ap.add_argument("--cells-csv", default=None)
-    ap.add_argument("--moves", default="0-14")
+    ap.add_argument("--moves", default="0-14",
+                    help="moves to run (default 0-14); move 15, the optional LORO luck checks, runs only when named")
     # epoch 2, move 14 (SPEC_epoch2.md Part 1.7 (b); builder A): the comparators' declared defaults and the Law pass's job count
     ap.add_argument("--delta-th-default", type=float, default=0.04, help="Dhodapkar-Smith delta_th default (AA 2026-09-17: 0.04)")
     ap.add_argument("--law-x-default", type=int, default=4, help="Law 2010 X default (SPEC_epoch2 Part 4 item 6)")

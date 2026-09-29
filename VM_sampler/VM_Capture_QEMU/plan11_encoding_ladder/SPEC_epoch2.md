@@ -1298,3 +1298,16 @@ default runs unless the author says otherwise.
     (`refused: duplicate cell_id`), so move 1 can never write two runs to one folder. The driver
     passes `--seed-map` to move 0 and declares the file as an input (sha256 in the ledger). This
     changes where the seed is read from, not any gate.
+29. Amendment of 2026-09-29 (the author's decision during the paper run `eusipco_run_20260928`).
+    On the 4-core server, LORO's 500-permutation null measured about 33 hours for one (rung,
+    label space, variant), so a run with every LORO null would take about three weeks. The paper run
+    therefore uses the fallback the runbook already names (SPEC section 8 item 25):
+    `--null-splits loko,within_trace`. LORO's accuracy is still computed and reported; its null
+    column reads `not run`. The skipped nulls become move 15, an optional move after move 14 that
+    the default `--moves 0-14` never runs (`MAX_MOVE = 15`): LORO's split stage with its null for
+    every rung at its selected point (same seeds, so the scores are unchanged and only the null is
+    added), then G-DIM and the comparators under the full `loko,loro,within_trace`, then G-L, G-M
+    and the tables. Move 15 is meant for a many-core machine. This changes when LORO's null is
+    computed, not any gate or its rule; a table built before move 15 prints `not run` in LORO's
+    null cells and says why. `tests/test_driver.py` changes in two tokens and
+    `tests/test_comparators.py` in one: the out-of-range move in their three bound checks becomes 16.

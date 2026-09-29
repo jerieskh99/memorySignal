@@ -95,7 +95,13 @@ python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
     --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
     --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
     --seed-map plan11_encoding_ladder/declared/seed_map.csv \
-    --n-jobs 4 --null-perm 500 --null-splits loko,loro,within_trace
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace
+# optional, later (move 15, the LORO luck checks; the same flags plus --moves 15):
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace --moves 15
 python3 -m plan11_encoding_ladder.run_moves status --out <out>      # the ledger
 python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --moves 6-7   # print, do not run
 ```
@@ -155,6 +161,10 @@ python3 -m plan11_encoding_ladder.run_moves plan --out <out> --root <root> --mov
   (about 48,000 forest fits per rung at 500 permutations, `loro_mode = "cell"`). If LORO's null
   is too expensive, run `--null-splits loko,within_trace` and LORO's null column reads
   `not run` (SPEC section 8 item 25).
+- The paper run uses that fallback (SPEC_epoch2 Part 4 item 29, 2026-09-29): on the 4-core server
+  one LORO null measured about 33 hours and a run with every LORO null about three weeks. LORO's
+  accuracy is still computed; only its null waits for move 15, an optional move after move 14
+  that is never in the default `--moves 0-14` (section "Move 15" below).
 - Every move below is also runnable by hand with the command shown; the driver's `plan`
   subcommand prints the exact argument lists.
 
@@ -552,6 +562,29 @@ a rung's does at the whole-cell point (one row per cell; within-trace is not app
 A declared default that is not a grid point is refused (exit 2); `--off-grid-default append`
 adds it to the grid and records `default_appended_to_grid`. The G-M cells read `not run:
 gates/gm.params.json missing (move 12)` until move 12 has measured APF's five-seed spread.
+
+### Move 15: the LORO luck checks the fallback skipped (optional)
+
+```
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace --moves 15
+```
+
+Only when named; the default `--moves 0-14` never runs it (SPEC_epoch2 Part 4 item 29). It re-runs
+LORO's split stage with its 500-permutation null for every rung at the rung's selected point
+(`models splits --split loro --labelspace all --null-splits loro`; APF raw and normalized, the other
+rungs normalized, as in moves 7 and 9 to 12). The seeds are the same, so LORO's scores come out as
+before and only the null is added. It then re-runs the steps whose own LORO null follows
+`--null-splits` under the full value `loko,loro,within_trace`: G-DIM and the three comparators
+with their gate step (the Law pass reuses its cached per-cell results; only its split stage
+recomputes). Last, G-L and G-M and the tables that print the nulls: `tables` (all), the comparator
+tables and the manifest. Re-run the EUSIPCO row afterwards. Cost: about 47,600 forest fits per
+LORO null, four LORO nulls per rung on APF and two on each other rung; about three weeks on the
+4-core server, so run it on a many-core machine. A G-L (ii) feature-drop re-run
+(`gates/splits_gl2drop/`) is not repeated here.
 
 ### The EUSIPCO outputs (build epoch 2): Table 2, Table 3, the five-page skeleton
 
