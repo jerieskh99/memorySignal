@@ -1,0 +1,13 @@
+kernel,steady_state_changes_content,source
+gemm,yes,P2_STRUCTURE.md Table 3 column 5
+floyd,yes,P2_STRUCTURE.md Table 3 column 5
+gibbs,yes,P2_STRUCTURE.md Table 3 column 5
+nbody,yes,P2_STRUCTURE.md Table 3 column 5
+spmm,yes,kernel_spmm_v2.c lines 195-207: every pass re-seeds A and B with fresh random values and clears then rewrites all of C (filled 2026-09-29 from source; Table 3 said unstated)
+stencil_jacobi,yes,P2_STRUCTURE.md Table 3 column 5
+fft,yes,P2_STRUCTURE.md Table 3 column 5
+histogram,only through pass phase,P2_STRUCTURE.md Table 3 column 5
+fem_assembly,yes,P2_STRUCTURE.md Table 3 column 5
+lexer,no (after the first pass),P2_STRUCTURE.md Table 3 column 5
+rmat_gen,yes,kernel_rmat_gen_v2.c lines 217-218: every pass re-seeds the generator (seed + passes + 1) and regenerates every edge into src_arr/dst_arr (filled 2026-09-29 from source; Table 3 said unstated)
+bnb_tsp,yes,P2_STRUCTURE.md Table 3 column 5
