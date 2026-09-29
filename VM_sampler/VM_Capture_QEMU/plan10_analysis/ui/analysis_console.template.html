@@ -262,7 +262,7 @@ html.mon-open{overflow:hidden}
 
 /* Explore: what a run produced, and runs side by side. Numbers come from the bridge (results_view.py). */
 .xp{display:none; position:fixed; inset:0; z-index:61; background:var(--bg); flex-direction:column; overflow:hidden}
-.mon-top select{background:var(--sunk); color:var(--ink); border:1px solid var(--line-2); border-radius:8px; padding:6px 9px; font-size:12.5px; max-width:340px}
+.mon-top select,.ln-status select{background:var(--sunk); color:var(--ink); border:1px solid var(--line-2); border-radius:8px; padding:6px 9px; font-size:12.5px; max-width:340px}
 html.xp-open .xp{display:flex}
 html.xp-open{overflow:hidden}
 .xp-body{flex:1; min-height:0; display:grid; grid-template-columns:232px minmax(0,1fr) 250px; gap:12px; padding:12px 16px; overflow:auto}
@@ -311,6 +311,142 @@ html.xp-open{overflow:hidden}
 .xp-pane .tbl td:first-child{white-space:nowrap}
 .xp-side .mon-kv{font-size:11.5px}
 @media (max-width:1180px){.xp-body,.xp-body.has-cmp{grid-template-columns:232px minmax(0,1fr)} .xp-cmp{grid-column:1 / -1}}
+
+/* Learn: pipelines over what runs wrote, sweeps, deeper scores, the views. Numbers from the bridge (learn/). */
+.ln{display:none; position:fixed; inset:0; z-index:62; background:var(--bg); flex-direction:column; overflow:hidden}
+html.ln-open .ln{display:flex}
+html.ln-open{overflow:hidden}
+.ln-top .tabs{display:flex; gap:4px}
+.ln-top .tabs button{border:none; background:none; color:var(--ink-2); padding:5px 11px; border-radius:6px; font-size:12px; font-weight:600}
+.ln-top .tabs button.on{background:var(--accent); color:var(--accent-ink)}
+.ln-body{flex:1; min-height:0; display:grid; grid-template-columns:220px minmax(0,1fr) 340px; gap:12px; padding:12px 16px; overflow:hidden}
+.ln-body>*{min-height:0; overflow:auto}
+.ln-body[hidden],.ln-res[hidden]{display:none}
+.ln-pal{display:flex; flex-direction:column; gap:10px}
+.ln-tier{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 10px}
+.ln-tier>h3{margin:0 0 6px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); display:flex; gap:6px; align-items:center}
+.ln-tier>h3 i{width:8px; height:8px; border-radius:2px; display:inline-block}
+.ln-mod{display:flex; align-items:center; gap:7px; padding:4px 6px; border-radius:6px; cursor:pointer; font-size:11.5px; color:var(--ink-2); border:1px solid transparent}
+.ln-mod:hover{border-color:var(--accent); color:var(--ink)}
+.ln-mod .ico{font-family:"IBM Plex Mono",monospace; font-size:10px; font-weight:600; color:var(--accent); min-width:26px; text-align:center; background:var(--accent-soft); border-radius:4px; padding:1px 3px}
+.ln-mod.off{opacity:.5; cursor:not-allowed} .ln-mod.off .ico{color:var(--ink-3); background:var(--sunk)}
+.ln-mod .kind{margin-left:auto; font-size:9.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.05em}
+.ln-board{display:flex; gap:10px; align-items:flex-start; padding-bottom:12px; min-height:100%}
+.ln-slot{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-width:230px; max-width:300px; flex:0 0 auto; display:flex; flex-direction:column; gap:8px}
+.ln-slot-h{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-3)} .ln-slot-h b{color:var(--ink); font-size:12px}
+.ln-slot-h .idx{font-family:"IBM Plex Mono",monospace; font-size:10px} .ln-slot-h .ln-x{margin-left:auto; color:var(--accent); font-weight:700}
+.ln-slot-h .ln-opt{margin-left:auto; display:inline-flex; gap:4px; align-items:center; font-size:10.5px} .ln-slot-h .ln-opt input{margin:0}
+.ln-slot-h .ln-del{border:none; background:none; color:var(--ink-3); font-size:14px; padding:0 2px} .ln-slot-h .ln-del:hover{color:var(--bad)}
+.ln-card{border:1px solid var(--line-2); border-radius:8px; padding:6px 8px; background:var(--panel-2); font-size:11.5px}
+.ln-card.off{border-style:dashed; opacity:.7}
+.ln-card-h{display:flex; align-items:center; gap:6px; margin-bottom:4px} .ln-card-h b{color:var(--ink); font-size:12px}
+.ln-card-h .kind{font-size:9.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.05em}
+.ln-card-h .rm{margin-left:auto; border:none; background:none; color:var(--ink-3); font-size:14px; padding:0 2px; line-height:1} .ln-card-h .rm:hover{color:var(--bad)}
+.ln-p{display:grid; grid-template-columns:1fr auto; gap:3px 8px; align-items:center; font-size:11px; color:var(--ink-2)}
+.ln-p input[type=number],.ln-p select{width:118px; padding:3px 6px; font-size:11px; background:var(--sunk); border:1px solid var(--line-2); border-radius:6px; color:inherit}
+.ln-p input[type=checkbox]{accent-color:var(--accent)}
+.ln-p .lab{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px}
+.ln-issues{margin-top:4px; display:flex; flex-direction:column; gap:3px}
+.ln-issue{font-size:10.5px; line-height:1.4; padding:3px 6px; border-radius:6px; border:1px solid var(--line)}
+.ln-issue.hard{background:var(--bad-soft); color:var(--bad); border-color:var(--bad)}
+.ln-issue.soft{background:var(--warn-soft); color:var(--warn); border-color:var(--warn)}
+.ln-issue.note{color:var(--ink-3)}
+.ln-issue button{margin-left:6px; font-size:10px; padding:1px 6px; border-radius:5px; border:1px solid currentColor; background:none; color:inherit}
+.ln-add{font-size:10.5px; color:var(--ink-3); text-align:center; padding:4px; border:1px dashed var(--line-2); border-radius:6px}
+.ln-plus{align-self:center; flex:0 0 auto; border:1px dashed var(--line-2); border-radius:8px; padding:6px 8px; font-size:11px; color:var(--ink-3); background:none; cursor:pointer}
+.ln-plus:hover{color:var(--accent); border-color:var(--accent)}
+.ln-side{display:flex; flex-direction:column; gap:12px}
+.ln-side .field+.field{margin-top:8px}
+.ln-splits{display:flex; flex-direction:column; gap:3px; font-size:11.5px} .ln-splits label{display:flex; gap:6px; align-items:center} .ln-splits input{accent-color:var(--accent); margin:0}
+.ln-verdict{font-size:11.5px; line-height:1.5}
+.ln-verdict .v{font-weight:700; padding:4px 8px; border-radius:6px; display:inline-block; margin-bottom:6px}
+.ln-verdict .v.ok{background:var(--ok-soft); color:var(--ok)} .ln-verdict .v.warn{background:var(--warn-soft); color:var(--warn)} .ln-verdict .v.bad{background:var(--bad-soft); color:var(--bad)}
+.ln-confs{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2); max-height:160px; overflow:auto; line-height:1.5}
+.ln-res{display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); gap:12px; padding:12px 16px; flex:1; min-height:0; overflow:hidden}
+.ln-res-top{display:flex; flex-direction:column; gap:8px}
+.ln-status{display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:12px}
+.ln-status .bar{flex:1; min-width:140px; height:8px; border-radius:999px; background:var(--sunk); overflow:hidden} .ln-status .bar i{display:block; height:100%; background:var(--accent)}
+.ln-log{margin:0; max-height:96px; overflow:auto; font-size:10.5px; line-height:1.5; background:var(--sunk); border:1px solid var(--line); border-radius:8px; padding:6px 10px; white-space:pre-wrap; color:var(--ink-2)}
+.ln-res-body{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr); gap:12px; min-height:0}
+.ln-res-body>.mon-card{min-height:0; display:flex; flex-direction:column}
+.ln-res-body .tblwrap{flex:1; min-height:120px; max-height:none}
+.ln-sum tr{cursor:pointer} .ln-sum tr.on td{background:var(--accent-soft)}
+.ln-view-ctl{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:flex-end; margin-bottom:8px}
+.ln-view-ctl .field{flex:0 0 auto; min-width:84px} .ln-view-ctl .field+.field{margin-top:0} .ln-view-ctl select.f{padding:5px 8px; font-size:12px}
+.ln-detail .xp-plot{min-height:120px}
+@media (max-width:1180px){.ln-body{grid-template-columns:200px minmax(0,1fr)} .ln-side{grid-column:1 / -1} .ln-res-body{grid-template-columns:1fr}}
+
+/* Encoding paper: the plan11 toolkit launched one move at a time and its files shown as they are. Numbers never recomputed here. */
+.ep{display:none; position:fixed; inset:0; z-index:63; background:var(--bg); flex-direction:column; overflow:hidden}
+html.ep-open .ep{display:flex}
+html.ep-open{overflow:hidden}
+.ep-top .tabs{display:flex; gap:4px}
+.ep-top .tabs button{border:none; background:none; color:var(--ink-2); padding:5px 11px; border-radius:6px; font-size:12px; font-weight:600}
+.ep-top .tabs button.on{background:var(--accent); color:var(--accent-ink)}
+.ep-cfg{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:flex-end; padding:8px 16px; border-bottom:1px solid var(--line); background:var(--panel-2); font-size:11.5px}
+.ep-cfg .field{flex:0 0 auto} .ep-cfg .field+.field{margin-top:0}
+.ep-cfg input[type=text]{width:360px; padding:5px 8px; font-size:11.5px}
+.ep-cfg select.f{padding:5px 8px; font-size:11.5px}
+.ep-cfg .tk{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-3); line-height:1.5; flex:1; min-width:260px}
+.ep-cfg .tk b{color:var(--ink-2); font-weight:600} .ep-cfg .tk .bad{color:var(--bad)} .ep-cfg .tk .ok{color:var(--ok)}
+.ep-body{flex:1; min-height:0; overflow:auto; padding:12px 16px}
+.ep-body[hidden]{display:none}
+.ep-two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:12px; min-height:0}
+.ep-two>.mon-card{min-width:0}
+.ep-sum{font-size:11.5px; color:var(--ink-2); margin:0 0 8px; line-height:1.5} .ep-sum b{color:var(--ink)}
+.ep-path{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-3); overflow-wrap:anywhere}
+.ep-path a{color:var(--accent); text-decoration:none} .ep-path a:hover{text-decoration:underline}
+.ep-state{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:999px; border:1px solid var(--line-2); color:var(--ink-2); white-space:nowrap; display:inline-block}
+.ep-state.done{background:var(--ok-soft); color:var(--ok); border-color:var(--ok)}
+.ep-state.running{background:var(--accent-soft); color:var(--accent); border-color:var(--accent)}
+.ep-state.failed,.ep-state.refused{background:var(--bad-soft); color:var(--bad); border-color:var(--bad)}
+.ep-state.partial,.ep-state.other{background:var(--warn-soft); color:var(--warn); border-color:var(--warn)}
+.ep-state.queued{border-style:dashed; color:var(--accent); border-color:var(--accent)}
+.ep-live{margin:3px 0 0; font-size:11px; color:var(--accent)}
+.ep-moves tr{cursor:pointer} .ep-moves tr.on td{background:var(--accent-soft)}
+.ep-moves td.num{text-align:right}
+.ep-moves .bigbtn{padding:3px 8px; font-size:10.5px}
+.ep-cmd{border-top:1px solid var(--line); padding:6px 0; font-size:11px}
+.ep-cmd .line{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink); overflow-wrap:anywhere; white-space:pre-wrap}
+.ep-cmd .st{font-family:"IBM Plex Mono",monospace; font-size:10.5px; color:var(--ink-2); margin-top:3px}
+.ep-cmd .st.refused,.ep-cmd .st.failed{color:var(--bad)} .ep-cmd .st.done{color:var(--ok)}
+.ep-cmd .err{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--bad); white-space:pre-wrap; margin-top:3px; max-height:120px; overflow:auto}
+.ep-pre{margin:0; font-size:11px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--sunk); border:1px solid var(--line); border-radius:8px; padding:8px 10px; max-height:420px; overflow:auto; color:var(--ink-2)}
+.ep-pre.log{font-family:"IBM Plex Mono",monospace; font-size:10.5px; max-height:none; min-height:200px}
+.ep-views{display:flex; flex-direction:column; gap:2px}
+.ep-views button{text-align:left; border:1px solid transparent; background:none; color:var(--ink-2); border-radius:6px; padding:4px 7px; font-size:11.5px; display:flex; gap:8px; align-items:baseline}
+.ep-views button:hover{border-color:var(--line-2)} .ep-views button.on{border-color:var(--accent); background:var(--accent-soft); color:var(--accent)}
+.ep-views button .n{margin-left:auto; color:var(--ink-3); font-size:10px; white-space:nowrap}
+.ep-views button.none{opacity:.55}
+.ep-file{margin-bottom:14px}
+.ep-file>h4{margin:0 0 4px; font-size:11.5px; font-weight:600; color:var(--ink); display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+.ep-file>h4 .ep-path{font-weight:400}
+.ep-file img{max-width:100%; height:auto; border:1px solid var(--line); border-radius:8px; background:#fff; display:block}
+.ep-file .tblwrap{max-height:460px}
+.ep-file td.refusal{color:var(--warn)} .ep-file td.refused{color:var(--bad)} .ep-file td.sel{background:var(--accent-soft); font-weight:600}
+.ep-file td.num{text-align:right; white-space:nowrap}
+.ep-file td{max-width:340px}
+.ep-file td.empty{color:var(--ink-3); font-style:italic}
+.ep-missing{font-size:11px; color:var(--ink-3); border:1px dashed var(--line-2); border-radius:8px; padding:8px 10px}
+.ep-crumbs{font-family:"IBM Plex Mono",monospace; font-size:11px; margin-bottom:6px} .ep-crumbs a{color:var(--accent); cursor:pointer}
+.ep-ls{font-family:"IBM Plex Mono",monospace; font-size:11px; display:grid; grid-template-columns:1fr auto auto; gap:2px 14px}
+.ep-ls a{color:var(--accent); cursor:pointer} .ep-ls .dim{color:var(--ink-3)}
+.ep-flags{width:100%; border-collapse:collapse; font-size:11px}
+.ep-flags th{text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:600; padding:4px 5px; border-bottom:1px solid var(--line)}
+.ep-flags td{padding:3px 5px; border-bottom:1px solid var(--line); vertical-align:top}
+.ep-flags td.help{color:var(--ink-3); font-size:10.5px; max-width:420px}
+.ep-flags input[type=text],.ep-flags input[type=number],.ep-flags select{width:180px; padding:3px 6px; font-size:11px; background:var(--sunk); border:1px solid var(--line-2); border-radius:6px; color:inherit}
+.ep-flags input[type=checkbox]{accent-color:var(--accent)}
+.ep-flags td.mono{font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+.ep-note{font-size:11px; color:var(--ink-3); line-height:1.5; margin:6px 0}
+.ep-note b{color:var(--ink-2)}
+.ep-kv{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:11.5px} .ep-kv dt{color:var(--ink-3)} .ep-kv dd{margin:0; overflow-wrap:anywhere; font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+.ep-block{border:1px solid var(--line); border-radius:8px; margin-bottom:8px}
+.ep-block>summary{cursor:pointer; padding:6px 10px; font-size:11.5px; font-family:"IBM Plex Mono",monospace; color:var(--ink-2)}
+.ep-block>summary b{color:var(--ink)}
+.ep-block .ep-kv{padding:4px 10px 8px}
+.ep-filter{width:260px; padding:5px 8px; font-size:11.5px; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; color:inherit; margin-left:8px}
+@media (max-width:1180px){.ep-two{grid-template-columns:1fr}}
 
 /* channel availability in the capture's own trajectory */
 .col.traj-all{box-shadow:inset 0 0 0 2px var(--ok)}
@@ -474,6 +610,143 @@ html.xp-open{overflow:hidden}
       </div>
     </div>
   </section>
+  <section class="ln" id="ln" aria-label="learn">
+    <div class="mon-top ln-top">
+      <h2>Learn</h2>
+      <div class="tabs"><button data-mode="compose" class="on">Compose</button><button data-mode="results">Results</button></div>
+      <span class="subnote" id="ln-facts" style="margin:0"></span>
+      <span class="sp"></span>
+      <select id="ln-examples" aria-label="load a worked pipeline"><option value="">load example</option></select>
+      <label class="bigbtn ghost" style="cursor:pointer">open pipeline<input type="file" id="ln-open" accept="application/json" hidden></label>
+      <button class="bigbtn ghost" id="ln-save">Save pipeline</button>
+      <button class="bigbtn ghost" id="ln-validate">Validate</button>
+      <button class="bigbtn" id="ln-launch">Launch</button>
+      <button class="bigbtn" id="ln-close">Close</button>
+    </div>
+    <div class="ln-body" id="ln-compose">
+      <aside class="ln-pal" id="ln-pal"></aside>
+      <div class="ln-board" id="ln-board"></div>
+      <aside class="ln-side">
+        <div class="mon-card">
+          <h3>run</h3>
+          <div class="field"><label class="fl">label</label><input type="text" id="ln-label" class="mono" spellcheck="false"></div>
+          <div class="field"><label class="fl">splits</label><div class="ln-splits" id="ln-splits"></div></div>
+          <div class="row" style="gap:8px">
+            <div class="field" style="flex:1"><label class="fl">seeds (comma)</label><input type="text" id="ln-seeds" class="mono" spellcheck="false"></div>
+            <div class="field" style="flex:0 0 90px"><label class="fl">test frac</label><input type="number" id="ln-tf" min="0.05" max="0.9" step="0.05"></div>
+            <div class="field" style="flex:0 0 110px"><label class="fl">target</label><select class="f" id="ln-target"><option value="family">family</option><option value="workload">workload</option><option value="archetype">archetype (plan11 schema)</option></select></div>
+          </div>
+        </div>
+        <div class="mon-card"><h3>verdict</h3><div class="ln-verdict" id="ln-verdict">not validated yet</div></div>
+        <div class="mon-card"><h3>configurations</h3><div class="ln-confs" id="ln-confs"></div></div>
+      </aside>
+    </div>
+    <div class="ln-res" id="ln-results" hidden>
+      <div class="ln-res-top">
+        <div class="ln-status">
+          <select id="ln-pick" aria-label="which Learn run"></select>
+          <span class="mon-state" id="ln-state">-</span>
+          <span id="ln-phase" class="subnote" style="margin:0"></span>
+          <div class="bar"><i id="ln-fill" style="width:0"></i></div>
+          <span id="ln-fits" class="subnote" style="margin:0"></span>
+          <button class="bigbtn ghost" id="ln-pause">Pause</button>
+          <button class="bigbtn ghost" id="ln-stop">Stop</button>
+        </div>
+        <pre class="ln-log" id="ln-log"></pre>
+      </div>
+      <div class="ln-res-body">
+        <div class="mon-card">
+          <h3>every configuration, every split</h3>
+          <div class="subnote" id="ln-sum-note" style="margin:0 0 6px"></div>
+          <div class="tblwrap"><table class="tbl ln-sum" id="ln-sum"></table></div>
+        </div>
+        <div class="mon-card ln-detail">
+          <div class="ln-view-ctl" id="ln-view-ctl"></div>
+          <div class="xp-plot" id="ln-plot"></div>
+          <div class="xp-cap" id="ln-cap"></div>
+          <div class="tblwrap" style="max-height:260px"><table class="tbl" id="ln-table"></table></div>
+          <div class="xp-foot"><button class="bigbtn ghost" id="ln-csv-copy">Copy table as CSV</button><button class="bigbtn ghost" id="ln-csv-dl">Download CSV</button><span class="subnote" id="ln-note" style="margin:0"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="ep" id="ep" aria-label="encoding paper">
+    <div class="mon-top ep-top">
+      <h2>Encoding paper</h2>
+      <div class="tabs"><button data-tab="cells" class="on">Cells</button><button data-tab="moves">Moves</button><button data-tab="look">Look at</button><button data-tab="log">Log</button><button data-tab="author">For the author</button></div>
+      <span class="subnote" id="ep-facts" style="margin:0"></span>
+      <span class="sp"></span>
+      <button class="bigbtn ghost" id="ep-refresh">Refresh</button>
+      <button class="bigbtn" id="ep-close">Close</button>
+    </div>
+    <div class="ep-cfg">
+      <div class="field"><label class="fl">output root &lt;out&gt;</label><input type="text" id="ep-out" class="mono" spellcheck="false" placeholder="/path/to/out"></div>
+      <div class="field"><label class="fl">retention root &lt;root&gt;</label><input type="text" id="ep-root" class="mono" spellcheck="false" placeholder="/path/to/zstd_local"></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">preset</label><select class="f" id="ep-preset"></select></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">&nbsp;</label><div><button class="bigbtn ghost" id="ep-flags-btn">driver flags</button> <button class="bigbtn" id="ep-apply">Apply</button></div></div>
+      <div class="tk" id="ep-tk"></div>
+    </div>
+    <div class="ep-body" id="ep-tab-cells">
+      <div class="mon-card">
+        <h3>the cells the toolkit will read <input type="text" id="ep-cells-filter" class="ep-filter" placeholder="filter rows"></h3>
+        <div class="ep-sum" id="ep-cells-sum"></div>
+        <div class="tblwrap" style="max-height:calc(100vh - 300px)"><table class="tbl" id="ep-cells-tbl"></table></div>
+        <div class="ep-note" id="ep-cells-note"></div>
+      </div>
+    </div>
+    <div class="ep-body" id="ep-tab-moves" hidden>
+      <div class="ep-two">
+        <div class="mon-card">
+          <h3>the moves, in the runbook's order</h3>
+          <div class="ep-sum" id="ep-moves-sum"></div>
+          <div class="tblwrap" style="max-height:calc(100vh - 330px)"><table class="tbl ep-moves" id="ep-moves-tbl"></table></div>
+          <div class="ep-note">Run launches the driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. A move waits for the one before it, the runbook's order. One toolkit process at a time.</div>
+          <div class="ep-note" id="ep-batch-ctl">run moves <input type="number" id="ep-batch-from" min="0" max="15" style="width:52px"> to <input type="number" id="ep-batch-to" min="0" max="15" style="width:52px">
+            <button class="bigbtn" id="ep-batch-run" style="padding:3px 10px">Run batch</button>
+            <span class="subnote">one driver run with <span class="mono">--moves N-M</span>: it runs them in order and stops at the first failure; the first move waits for the one before it, as a single Run does</span></div>
+        </div>
+        <div class="mon-card" id="ep-move-detail">
+          <h3 id="ep-move-title">pick a move</h3>
+          <div id="ep-move-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="ep-tab-look" hidden>
+      <div class="ep-two" style="grid-template-columns:280px minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>look at</h3>
+          <div class="ep-views" id="ep-views"></div>
+          <h3 style="margin-top:12px">browse &lt;out&gt;</h3>
+          <div class="ep-crumbs" id="ep-crumbs"></div>
+          <div class="ep-ls" id="ep-ls"></div>
+        </div>
+        <div class="mon-card">
+          <h3 id="ep-look-title">the toolkit's files, as written</h3>
+          <div class="ep-note" id="ep-look-note"></div>
+          <div id="ep-look-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="ep-tab-log" hidden>
+      <div class="ep-two" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>the running move's output <select id="ep-log-pick" style="margin-left:8px"></select> <button class="bigbtn ghost" id="ep-stop" style="margin-left:8px;padding:3px 8px;font-size:10.5px">Stop</button></h3>
+          <pre class="ep-pre log" id="ep-log"></pre>
+        </div>
+        <div class="mon-card">
+          <h3>the launch record</h3>
+          <div id="ep-launch"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="ep-tab-author" hidden>
+      <div class="mon-card">
+        <h3>for the author: the declared parameters, as the toolkit recorded them (read-only)</h3>
+        <div class="ep-note" id="ep-author-note"></div>
+        <div id="ep-author-body"></div>
+      </div>
+    </div>
+  </section>
 <!--@@SERVED_ONLY_END@@-->
   </div>
   <aside class="right"><div class="insp" id="insp"></div><div class="readout" id="readout"></div></aside>
@@ -523,6 +796,14 @@ function maxLevelFor(fam, w) {
 const G = {nodes: [], edges: [], sel: null, selEdge: null, acks: new Map(), nextId: 1};
 let VIEW = {x: 40, y: 30, z: 1};
 const byId = id => G.nodes.find(n => n.id === id);
+/* modules.quantile_tag and modules.collapsed_channel_names, mirrored: one rule on both sides */
+const qTag = q => "q" + String(Math.floor(+q * 100 + 0.5)).padStart(2, "0");
+function collapsedNames(chans, reduce, q, persistent) {
+  const qq = reduce === "median" ? 0.5 : +(q ?? 0.5);
+  const names = reduce === "changed_fraction" ? ["changed_fraction"]
+    : (reduce === "median" || reduce === "quantile") ? chans.map(c => `${c}_${qTag(qq)}`) : chans.slice();
+  return persistent ? names.map(n => n + "_per") : names;
+}
 function defaults(m) { const p = {}; (m.params || []).forEach(q => p[q.k] = Array.isArray(q.default) ? q.default.slice() : q.default); return p; }
 function addNode(mod, x, y, params, id) {
   const m = M[mod]; const n = {id: id || ("n" + (G.nextId++)), mod, x, y, p: Object.assign(defaults(m), params || {})};
@@ -574,7 +855,11 @@ function descOf(id, memo = {}) {
     case "ratios": { const u = up("in"); d = u ? Object.assign({}, u, {type: "field", channels: (p.ratios || []).map(s => s.replace("/", "_over_"))}) : null; break; }
     case "complex": { const a = up("mag"), b = up("dir"), base = a || b || {recs: [], nmin: 0, workloads: []};
       d = {type: "complex", complex: true, axis: "page", phase: p.phase, channels: [...(a ? a.channels : []), ...(b ? b.channels : [])], mag: a, dir: b, recs: base.recs, nmin: Math.min(a ? a.nmin : 1e9, b ? b.nmin : 1e9), workloads: base.workloads}; break; }
-    case "collapse": { const u = up("in"); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed"}, p.reduce === "changed_fraction" ? {channels: ["changed_fraction"], complex: false} : {}) : null; break; }
+    /* channel names mirror modules.collapsed_channel_names: K/N is one channel, mean keeps the names,
+       a quantile names itself (q50), a persistent field says so (_per) */
+    case "collapse": { const u = up("in"), red = p.reduce || "mean";
+      d = u ? Object.assign({}, u, {type: "series", axis: "collapsed", channels: collapsedNames(u.channels || [], red, p.q, !!u.persistent)}, red !== "mean" ? {complex: false} : {}) : null; break; }
+    case "persist_pages": { const u = up("in"); d = u ? Object.assign({}, u, {persistent: true}) : null; break; }
     case "persistence": { const u = up("in"); const lg = Math.max(+p.lag || 1, 0); d = u ? Object.assign({}, u, {type: "series", axis: "collapsed", channels: [p.measure || "jaccard"], complex: false, nmin: Math.max((u.nmin || 0) - (p.edge === "drop" ? lg : 0), 0)}) : null; break; }
     /* n_blocks rides along so it survives the Collapse that must follow: tiles = windows x blocks.
        N_PAGES is the config default because no recording records its own. */
@@ -586,7 +871,7 @@ function descOf(id, memo = {}) {
       src: u ? u.type : null, complex: u ? !!u.complex : false, names: u ? u.names : null}; break; }
     case "deviation": { const u = up("in"); d = {type: "features", names: ["dev_n_outside", "dev_frac_outside", "dev_max_excess", "dev_total_excess"], up: u, w: u ? u.w : null}; break; }
     case "concat": { const es = inEdges(id, "in"); const names = es.flatMap(e => blockNames(descOf(e.from, memo), p.prefix || "none")); d = {type: "features", n: es.length, names, names_final: true, up: null, w: null}; break; }
-    case "write": d = {type: "sink"}; break;
+    case "write": case "write_tiles": d = {type: "sink"}; break;
     default: { const u = up("in"); d = {type: "features", names: (n.mod === "stats" || n.mod === "deep") ? p.feats : [n.mod], up: u, w: u ? u.w : null}; }
   }
   memo[id] = d; return d;
@@ -644,6 +929,22 @@ function nodeConstraints(n, memo) {
         if (unused.length) I("note", `${unused.join(", ")} feed no ratio and do not pass through; only the ratios leave this module`, "runner/stages.py ratios");
       }
       if (specs.some(s => s.endsWith("/page")) && !(+p.page_bytes > 0)) I("hard", "page size must be positive", "runner/stages.py ratios");
+      break; }
+    case "collapse": {
+      const u = up("in"), red = p.reduce || "mean";
+      if (red === "median" || red === "quantile") {
+        const q_ = red === "median" ? 0.5 : +(p.q ?? 0.5);
+        if (u && u.complex) I("hard", "a quantile of complex values is undefined; Collapse by mean, or feed real channels", "runner/stages.py collapse");
+        if (!(q_ >= 0 && q_ <= 1)) I("hard", `quantile q must be between 0 and 1; got ${q_}`, "runner/stages.py collapse");
+        else if ((p.unchanged || "zero") === "zero") I("note", `unchanged pages count as zero, so the ${qTag(q_)} is over every page of the dump: for a sparse delta it is 0 unless more than ${Math.round((1 - q_) * 100)}% of the pages changed. The content-change reading takes it over the changed pages (unchanged = excluded)`, "runner/stages.py collapse");
+      }
+      if (u && u.persistent && red === "changed_fraction") I("note", "K/N of a persistent field counts the pages in S_t & S_{t+lag}, not the pages changed: this is not APF", "runner/stages.py persistent_pages");
+      break; }
+    case "persist_pages": {
+      const u = up("in"), lg = +p.lag || 0;
+      if (lg < 1) I("hard", "lag must be at least 1", "runner/stages.py persistent_pages");
+      else if (u && u.nmin && lg >= u.nmin) I("hard", `lag ${lg} leaves no pair with a partner in the shortest connected recording (${u.nmin} pairs)`, "runner/stages.py persistent_pages");
+      if (lg >= 1) I("note", `the last ${lg} pair(s) have no partner and ${(p.edge || "replicate") === "replicate" ? "take the last partnered pair's rows, so every reduction repeats its last value and the series keeps its length" : "keep no rows, so a reduction under unchanged = excluded gives 0 there"}; plan11 leaves them blank`, "runner/stages.py persistent_pages");
       break; }
     case "persistence": {
       const u = up("in"), lg = +p.lag || 0;
@@ -758,13 +1059,18 @@ function nodeConstraints(n, memo) {
     case "write": { const es = inEdges(n.id, "in"); if (!es.length) I("hard", "nothing to write", "required port");
       else if (es.length > 1) { const dups = dupNames(es.flatMap(e => blockNames(descOf(e.from, memo), "none"))); if (dups.length) I("hard", `duplicate feature names across the inputs: ${dups.slice(0, 6).join(", ")}${dups.length > 6 ? " ..." : ""}; join them through a Concat with prefix=channel`, "runner/stages.py concat"); }
       break; }
+    case "write_tiles": { const e = inEdges(n.id, "in"); if (!e.length) { I("hard", "nothing to write", "required port"); break; }
+      const u = descOf(e[0].from, memo);
+      if (u && u.page_axis) I("note", "page-resolution tiles: the image is written dense, under Window's budget and this module's", "write_tiles");
+      else if (u && u.axis === "blocked") I("note", `blocked tiles are written as paths: one tile per window, frames x ${u.n_blocks || "?"} blocks (block count assumes the config's pages per dump)`, "write_tiles");
+      break; }
   }
   return out;
 }
 function validate() {
   const memo = {}; let list = [];
   G.nodes.forEach(n => list = list.concat(nodeConstraints(n, memo)));
-  if (!G.nodes.some(n => n.mod === "write")) list.push({sev: "hard", msg: "no Write module: the scheme produces nothing", src: "plan10 UX section 7"});
+  if (!G.nodes.some(n => n.mod === "write" || n.mod === "write_tiles")) list.push({sev: "hard", msg: "no Write module: the scheme produces nothing", src: "plan10 UX section 7"});
   if (!G.nodes.some(n => n.mod === "cells")) list.push({sev: "hard", msg: "no Cells module: nothing is read", src: "plan10 UX section 3"});
   { const hds = new Set(G.nodes.filter(n => n.mod === "cells").map(n => n.p.head_drop === "on" ? "on:" + (+n.p.head_drop_pairs || 0) : "off"));
     if (hds.size > 1) list.push({sev: "hard", msg: "every Cells module must carry the same head drop: it applies once, upstream of every branch, so the tiles stay aligned", src: "runner/executor.py apply_head_drop"}); }
@@ -825,7 +1131,11 @@ const SUMMARY = {
   vectorize: (p, d) => d ? `${d.channels.length} channels, kept apart` : "",
   ratios: p => (p.ratios || []).length ? esc(p.ratios.slice(0, 3).join(", ")) + (p.ratios.length > 3 ? ` +${p.ratios.length - 3}` : "") : "<span class=k>none</span>",
   complex: p => `phase: ${p.phase ? esc(p.phase) : "<span class=k>not chosen</span>"}`,
-  collapse: p => p.reduce === "changed_fraction" ? "K/N per pair (APF)" : `mean, unchanged = ${esc(p.unchanged)}`,
+  collapse: p => p.reduce === "changed_fraction" ? "K/N per pair (APF)"
+    : p.reduce === "median" ? `median, unchanged = ${esc(p.unchanged)}`
+    : p.reduce === "quantile" ? `quantile ${esc(p.q)}, unchanged = ${esc(p.unchanged)}`
+    : `mean, unchanged = ${esc(p.unchanged)}`,
+  persist_pages: p => `S_t \u2229 S_t+${esc(p.lag)}, values at ${esc(p.side)}, ${esc(p.edge)}`,
   persistence: p => `${esc(p.measure)}, lag ${p.lag}, ${esc(p.edge)}`,
   block: p => `W_p ${p.wp}, H_p ${p.hp}, ${Math.max(0, Math.floor((N_PAGES - p.wp) / Math.max(1, p.hp)) + 1)} blocks`,
   window: p => `W ${p.w}, H ${p.h}, ${esc(p.edge)}, ${esc(p.taper)}`,
@@ -833,7 +1143,7 @@ const SUMMARY = {
   fft: (p, d) => `${esc(p.out)}${d && d.w ? `, ${Math.floor(d.w / 2)} bins` : ""}`, cepstrum: () => "peak_idx, snr_db",
   wavelet: p => `${esc(p.fam || "family?")}, ${p.levels} levels`, scattering: p => `J ${p.J}, Q ${p.Q}`, msc: p => `welch ${p.iw}/${p.ih}`,
   plv: p => `drop ${p.drop}, normal ${p.normal}`, cusum: p => `k ${p.k}, h ${p.h}`, baseline: p => esc(p.mode),
-  concat: (p, d) => d ? `${d.n || 0} blocks${p.prefix === "channel" ? ", channel-suffixed" : ""}${d.names ? `, ${d.names.length} features` : ""}` : "" write: p => `${esc(p.fmt)}, sidecar`,
+  concat: (p, d) => d ? `${d.n || 0} blocks${p.prefix === "channel" ? ", channel-suffixed" : ""}${d.names ? `, ${d.names.length} features` : ""}` : "", write: p => `${esc(p.fmt)}, sidecar`,
 };
 
 function renderNodes(issues) {
@@ -1029,12 +1339,6 @@ function tidy() {
     list.sort((a, b) => a.key - b.key).forEach((x, i) => { row[x.n.id] = i; x.n.x = 40 + c * 270; x.n.y = 40 + i * 180; });
   });
   renderAll(); fit();
-}
-function fit() {
-  if (!G.nodes.length) { VIEW = {x: 40, y: 30, z: 1}; applyView(); return; }
-  const xs = G.nodes.map(n => n.x), ys = G.nodes.map(n => n.y); const minx = Math.min(...xs) - 30, miny = Math.min(...ys) - 30, maxx = Math.max(...xs) + 250, maxy = Math.max(...ys) + 170;
-  const r = canvas.getBoundingClientRect(); const z = Math.min(1.2, Math.max(0.4, Math.min(r.width / (maxx - minx), r.height / (maxy - miny))));
-  VIEW = {z, x: (r.width - (maxx - minx) * z) / 2 - minx * z, y: (r.height - (maxy - miny) * z) / 2 - miny * z}; applyView(); drawEdges();
 }
 function fit() {
   if (!G.nodes.length) { VIEW = {x: 40, y: 30, z: 1}; applyView(); return; }
@@ -1419,7 +1723,7 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       const f = v => r0 + (Math.log(Math.max(v, d0)) - a) / (b - a) * (r1 - r0);
       f.ticks = () => logTicks(d0, d1); f.d0 = d0; f.d1 = d1; f.log = true; f.inv = px => Math.exp(a + (px - r0) / (r1 - r0) * (b - a)); return f;
     }
-    if (!(d1 > d0)) { const p = Math.abs(d0) * 1e-6 || 1; d0 -= p; d1 += p; }
+    if (!(d1 > d0)) { const p = Math.abs(d0) * 0.05 || 0.5; d0 -= p; d1 += p; }
     if (pad) { const p = (d1 - d0) * 0.04; d0 -= p; d1 += p; }
     const f = v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
     f.ticks = n => niceTicks(d0, d1, n); f.d0 = d0; f.d1 = d1; f.log = false; f.inv = px => d0 + (px - r0) / (r1 - r0) * (d1 - d0); return f;
@@ -1583,6 +1887,7 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       for (let k = 0; k < 20; k++) svgEl("rect", {x: lx, y: ly + lh * (1 - (k + 1) / 20), width: 10, height: lh / 20 + 0.5, fill: ramp(k / 19)}, svg);
       txt(svg, lx + 14, ly + 8, fmtN(hi, 3), {class: "dim"}); txt(svg, lx + 14, ly + lh, fmtN(lo, 3), {class: "dim"});
     }
+    return {svg, m, cw, ch};
   }
 
   /* scatter: two metrics, one colour per group */
@@ -1601,7 +1906,7 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       const col = xpColor(i), gl = svgEl("g", {}, f.svg); layers.push(gl);
       g.points.forEach(p => { if (!okp(p)) return; const c = svgEl("circle", {cx: sx(p[0]), cy: sy(p[1]), r: 3, fill: col, "fill-opacity": .7}, gl); c.onmousemove = ev => tipShow(ev, `<b>${esc(g.label)}</b><br>${esc(r.x)} ${fmtN(p[0], 6)}<br>${esc(r.y)} ${fmtN(p[1], 6)}`); c.onmouseleave = tipHide; });
     });
-    legend(host, gs.map((g, i) => ({label: g.label, color: xpColor(i), extra: `n=${g.n}${g.n_shown < g.n ? " (" + g.n_shown + " drawn)" : ""} r=${fmtN(g.r_pearson, 3)} rho=${fmtN(g.rho_spearman, 3)}`})), i => layers.forEach((l, k) => { l.style.opacity = (i == null || i === k) ? 1 : 0.12; }));
+    legend(host, gs.map((g, i) => ({label: g.label, color: xpColor(i), extra: `n=${g.n}${g.n_shown < g.n ? " (" + g.n_shown + " drawn)" : ""}${g.r_pearson != null || g.rho_spearman != null ? ` r=${fmtN(g.r_pearson, 3)} rho=${fmtN(g.rho_spearman, 3)}` : ""}`})), i => layers.forEach((l, k) => { l.style.opacity = (i == null || i === k) ? 1 : 0.12; }));
   }
 
   function xpFillTable(tbl, cols, rows) {
@@ -1656,27 +1961,28 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     s.onchange = () => onchange(s.value);
     return {field: f, sel: s};
   }
-  function xpQuery(labels, st) {
+  function xpQuery(labels, st, endpoint, extra) {
     const p = new URLSearchParams();
     p.set("labels", labels.join(",")); p.set("view", st.view);
+    if (extra) Object.entries(extra).forEach(([k, v]) => p.set(k, v));
     if (st.view !== "table") p.set("y", st.y || "");
     if (st.view === "scatter") p.set("x", st.x || "");
     if (st.view === "time") p.set("x", st.xt || "t_index");
     if (st.view === "matrix") { p.set("rows", st.rows || ""); p.set("cols", st.cols || ""); } else p.set("group", st.group || "");
     p.set("stat", st.stat); p.set("scale", st.scale); p.set("bins", st.bins);
-    return "/results/agg?" + p.toString();
+    return (endpoint || "/results/agg") + "?" + p.toString();
   }
-  function xpControls(host, st, feats, keyOpts, mkOpts, redraw) {
-    host.innerHTML = "";
-    const pfx = host.id + "-";
+  function xpControls(host, st, feats, keyOpts, mkOpts, redraw, views) {
+    if (!views) host.innerHTML = "";
+    const pfx = host.id + "-" + (views ? "f" : "") + "-";
     const add = (id, lab, opts, key, fallback, rebuild, cast) => {
       const val = (st[key] == null || st[key] === "") ? fallback : st[key];
-      const w = xpSelect(pfx + id, lab, opts, val, v => { st[key] = cast ? cast(v) : v; xpSave(); if (rebuild) xpControls(host, st, feats, keyOpts, mkOpts, redraw); redraw(); });
+      const w = xpSelect(pfx + id, lab, opts, val, v => { st[key] = cast ? cast(v) : v; xpSave(); if (rebuild) { if (views) { [...host.querySelectorAll('[id^="' + pfx + '"]')].forEach(el => el.closest(".field").remove()); } xpControls(host, st, feats, keyOpts, mkOpts, redraw, views); } redraw(); });
       host.appendChild(w.field);
       const cur = cast ? cast(w.sel.value) : w.sel.value;
       if (String(st[key]) !== String(cur)) st[key] = cur;
     };
-    add("view", "view", XP_VIEWS, "view", "distribution", true);
+    add("view", "view", views || XP_VIEWS, "view", (views || XP_VIEWS)[0][0], true);
     const v = st.view;
     if (v === "scatter") { add("x", "x metric", feats, "x", feats[0]); if (st.y === st.x) st.y = feats.find(n => n !== st.x) || st.x; }
     if (v !== "table") add("y", v === "scatter" ? "y metric" : "metric", feats, "y", v === "scatter" ? (feats.find(n => n !== st.x) || feats[0]) : feats[0]);
@@ -1858,6 +2164,964 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
   const _showResult = showResult;
   showResult = function (label) { xpResLabel = label; return _showResult(label); };
   $("res-explore").onclick = () => xpOpen(xpResLabel || current || null);
+
+  /* ===== Learn: pipelines over what runs wrote; every configuration of a sweep; deeper scores;
+     the same views as Explore over the results, plus the ones learning needs. Numbers from the
+     bridge's /learn/ routes (learn/*.py); the page composes, launches, watches and draws. ===== */
+  const LN = {reg: null, mod: {}, tiers: [], inputs: {runs: {}, examples: {}}, pipeline: null, verdict: null, runs: [], label: null, status: null,
+              results: null, sel: {config: "", split: ""}, mode: "compose", view: "summary", timer: null, lastTable: null, vtimer: null, cache: {}};
+  const lnScores = {view: "distribution", y: "accuracy", x: "", xt: "t_index", group: "model", stat: "mean", scale: "linear", bins: 30, mode: "box", rows: "model", cols: "split"};
+  const lnTilesSt = {view: "time", y: "p_true", x: "", xt: "t_index", group: "recording", stat: "mean", scale: "linear", bins: 30, mode: "box", rows: "model", cols: "family"};
+  const lnEmb = {method: "pca", by: "family"};
+  const lnTileSel = {run: "", recording: "", t_index: 0};
+  const LN_SPLITS = [["within_trace", "within-trace tail (the memorisation ceiling)"], ["loro", "leave one recording out"], ["lowo", "leave one workload out (the headline)"], ["loco", "leave one campaign out"]];
+  const LN_VIEWS = [["summary", "summary table"], ["scores", "scores: the five views"], ["tiles", "per tile: the five views"], ["confusion", "confusion matrix"], ["curves", "ROC curves"],
+                    ["embedding", "embedding in 2-D"], ["null", "null vs observed"], ["calibration", "calibration"], ["importance", "importance"], ["saliency", "saliency"],
+                    ["train", "training curves"], ["tile", "a tile as drawn"]];
+  const LN_SCORE_KEYS = [["", "all rows"], ["config", "configuration id"], ["name", "configuration"], ["model", "model"], ["kind", "kind"], ["split", "split"], ["fold", "fold"], ["seed", "seed"],
+                         ["run", "input run"], ["held_out", "held out"], ["family", "fold family"], ["novelty_fold", "novelty fold"]];
+  const LN_TILE_KEYS = [["", "all rows"], ["config", "configuration id"], ["name", "configuration"], ["model", "model"], ["split", "split"], ["fold", "fold"], ["recording", "recording"],
+                        ["workload", "workload"], ["family", "family"], ["y_true", "true label"], ["y_pred", "predicted label"]];
+  const lnSave = () => { try { localStorage.setItem("plan10.learn", JSON.stringify({pipeline: LN.pipeline, label: LN.label, mode: LN.mode, view: LN.view, sel: LN.sel, scores: lnScores, tiles: lnTilesSt, emb: lnEmb, tile: lnTileSel})); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem("plan10.learn") || "null"); if (s) { LN.pipeline = s.pipeline || null; LN.label = s.label || null; LN.mode = s.mode || "compose"; LN.view = s.view || "summary"; LN.sel = s.sel || LN.sel; Object.assign(lnScores, s.scores || {}); Object.assign(lnTilesSt, s.tiles || {}); Object.assign(lnEmb, s.emb || {}); Object.assign(lnTileSel, s.tile || {}); } } catch (e) {}
+
+  const lnDefaults = m => { const p = {}; (m && m.params || []).forEach(q => { p[q.k] = q.default; }); return p; };
+  function lnNewPipeline() {
+    const runs = Object.values(LN.inputs.runs || {});
+    const lab = (runs.find(r => r.features) || runs[0] || {}).label || "";
+    const src = (runs.find(r => r.features) ? "features" : "tiles");
+    return {schema: "plan10.learn.v1", label: "learn", acknowledged: [],
+            slots: [{tier: "input", alts: [{module: "input", params: Object.assign(lnDefaults(LN.mod.input), {run: lab, source: src})}]},
+                    {tier: "preprocess", alts: [{module: "scale", params: lnDefaults(LN.mod.scale)}], optional: false},
+                    {tier: "model", alts: [{module: "logreg", params: lnDefaults(LN.mod.logreg)}]},
+                    {tier: "score", alts: [{module: "score", params: lnDefaults(LN.mod.score)}]},
+                    {tier: "output", alts: [{module: "write", params: lnDefaults(LN.mod.write)}]}],
+            run: {splits: ["loro", "lowo"], seeds: [0], test_frac: 0.2, target: "family"}};
+  }
+  const lnTierIdx = t => LN.tiers.findIndex(x => x.k === t);
+  function lnInsertSlot(slot) {
+    const i = LN.pipeline.slots.findIndex(s => lnTierIdx(s.tier) > lnTierIdx(slot.tier));
+    if (i < 0) LN.pipeline.slots.push(slot); else LN.pipeline.slots.splice(i, 0, slot);
+  }
+  function lnAdd(mid) {
+    const m = LN.mod[mid]; if (!m || !m.available) return;
+    let slot = null;
+    if (m.tier === "preprocess" || m.tier === "represent") slot = [...LN.pipeline.slots].reverse().find(s => s.tier === m.tier);
+    else slot = LN.pipeline.slots.find(s => s.tier === m.tier);
+    if (!slot) { slot = {tier: m.tier, alts: [], optional: false}; lnInsertSlot(slot); }
+    slot.alts.push({module: mid, params: lnDefaults(m)});
+    lnAfterEdit(true);
+  }
+  function lnAfterEdit(rebuild) { lnSave(); if (rebuild) lnRenderBoard(); clearTimeout(LN.vtimer); LN.vtimer = setTimeout(lnValidate, 250); }
+
+  /* ---- palette ---- */
+  function lnRenderPalette() {
+    const host = $("ln-pal"); host.innerHTML = "";
+    LN.tiers.forEach(t => {
+      const mods = LN.reg.modules.filter(m => m.tier === t.k);
+      const sec = document.createElement("div"); sec.className = "ln-tier";
+      sec.innerHTML = `<h3><i style="background:${t.color}"></i>${esc(t.idx)} ${esc(t.name)}</h3>`;
+      mods.forEach(m => {
+        const b = document.createElement("div"); b.className = "ln-mod" + (m.available ? "" : " off");
+        b.innerHTML = `<span class="ico">${esc(m.ico)}</span><span>${esc(m.name)}</span>${m.kind ? `<span class="kind">${esc(m.kind)}</span>` : ""}`;
+        b.title = m.desc + (m.accepts.length ? `\nreads: ${m.accepts.join(", ")}` : "") + (m.emits && m.emits !== "same" ? `\nemits: ${m.emits}` : "") +
+                  (m.ref ? `\n${m.ref}` : "") + (m.available ? "" : `\nunavailable: ${m.why}`);
+        b.onclick = () => lnAdd(m.id);
+        sec.appendChild(b);
+      });
+      host.appendChild(sec);
+    });
+  }
+
+  /* ---- the board: one column per slot, one card per alternative; several alternatives = a sweep ---- */
+  function lnRenderBoard() {
+    const host = $("ln-board"); host.innerHTML = "";
+    const pl = LN.pipeline;
+    pl.slots.forEach((slot, si) => {
+      const t = LN.tiers[lnTierIdx(slot.tier)] || {idx: "?", name: slot.tier};
+      const col = document.createElement("div"); col.className = "ln-slot"; col.dataset.slot = si;
+      const removable = slot.tier === "preprocess" || slot.tier === "represent";
+      col.innerHTML = `<div class="ln-slot-h"><span class="idx">${esc(t.idx)}</span><b>${esc(t.name)}</b>${slot.alts.length > 1 ? `<span class="ln-x" title="alternatives: the sweep tries each">x${slot.alts.length}</span>` : ""}` +
+        (removable ? `<label class="ln-opt" title="optional: the sweep also tries skipping this slot"><input type="checkbox" ${slot.optional ? "checked" : ""}> optional</label><button class="ln-del" title="remove this slot">×</button>` : "") + `</div>`;
+      if (removable) {
+        col.querySelector(".ln-opt input").onchange = e => { slot.optional = e.target.checked; lnAfterEdit(false); lnRenderBoard(); };
+        col.querySelector(".ln-del").onclick = () => { pl.slots.splice(si, 1); lnAfterEdit(true); };
+      }
+      slot.alts.forEach((alt, ai) => col.appendChild(lnCard(slot, si, alt, ai)));
+      const add = document.createElement("div"); add.className = "ln-add";
+      add.textContent = slot.alts.length ? "click a palette module of this tier to add an alternative" : "empty: click a palette module of this tier";
+      col.appendChild(add);
+      host.appendChild(col);
+      const next = pl.slots[si + 1];
+      if (slot.tier === "preprocess" && (!next || next.tier !== "preprocess")) {
+        const b = document.createElement("button"); b.className = "ln-plus"; b.textContent = "+ preprocess slot";
+        b.title = "a second preprocessing step, applied after this one";
+        b.onclick = () => { pl.slots.splice(si + 1, 0, {tier: "preprocess", alts: [], optional: true}); lnAfterEdit(true); };
+        host.appendChild(b);
+      }
+      if (slot.tier === "model" && !pl.slots.some(s => s.tier === "represent")) {
+        /* nothing: represent slots come from the palette */
+      }
+    });
+    lnRenderIssues();
+  }
+  function lnParamInput(q, alt, onchange) {
+    let el;
+    if (q.kind === "select") { el = document.createElement("select"); (q.opts || []).forEach(o => { const op = document.createElement("option"); op.value = o[0]; op.textContent = o[1]; el.appendChild(op); }); el.value = String(alt.params[q.k] == null ? q.default : alt.params[q.k]); el.onchange = () => onchange(el.value); }
+    else if (q.kind === "bool") { el = document.createElement("input"); el.type = "checkbox"; el.checked = !!(alt.params[q.k] == null ? q.default : alt.params[q.k]); el.onchange = () => onchange(el.checked); }
+    else if (q.kind === "run") {
+      el = document.createElement("select");
+      Object.values(LN.inputs.runs || {}).forEach(r => { const op = document.createElement("option"); op.value = r.label; op.textContent = `${r.label} (${[r.features ? `${r.n_rows} rows` : "", r.tiles ? `${r.n_tiles} ${r.tiles_shape} tiles` : ""].filter(Boolean).join(", ")})`; el.appendChild(op); });
+      if (!el.options.length) { const op = document.createElement("option"); op.value = ""; op.textContent = "no run has results yet"; el.appendChild(op); }
+      el.value = String(alt.params[q.k] || ""); if (el.selectedIndex < 0 && el.options.length) el.selectedIndex = 0; el.onchange = () => onchange(el.value);
+    } else { el = document.createElement("input"); el.type = "number"; if (q.step) el.step = q.step; if (q.min != null) el.min = q.min; if (q.max != null) el.max = q.max; el.value = alt.params[q.k] == null ? q.default : alt.params[q.k]; el.onchange = () => onchange(el.value === "" ? q.default : +el.value); }
+    return el;
+  }
+  function lnCard(slot, si, alt, ai) {
+    const m = LN.mod[alt.module] || {name: alt.module, ico: "?", params: [], available: false, why: "unknown module", kind: null, desc: ""};
+    alt.params = alt.params || {};
+    const card = document.createElement("div"); card.className = "ln-card" + (m.available ? "" : " off"); card.dataset.slot = si; card.dataset.alt = ai;
+    card.innerHTML = `<div class="ln-card-h"><span class="ico" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent)">${esc(m.ico)}</span><b>${esc(m.name)}</b>${m.kind ? `<span class="kind">${esc(m.kind)}</span>` : ""}<button class="rm" title="remove">×</button></div>`;
+    card.title = m.desc || "";
+    card.querySelector(".rm").onclick = () => { slot.alts.splice(ai, 1); lnAfterEdit(true); };
+    const grid = document.createElement("div"); grid.className = "ln-p";
+    (m.params || []).forEach(q => {
+      const lab = document.createElement("span"); lab.className = "lab"; lab.textContent = q.lab; lab.title = q.lab;
+      const inp = lnParamInput(q, alt, v => { alt.params[q.k] = v; lnAfterEdit(false); });
+      grid.appendChild(lab); grid.appendChild(inp);
+    });
+    card.appendChild(grid);
+    const iss = document.createElement("div"); iss.className = "ln-issues"; card.appendChild(iss);
+    return card;
+  }
+  function lnRenderIssues() {
+    document.querySelectorAll("#ln-board .ln-issues").forEach(el => { el.innerHTML = ""; });
+    const v = LN.verdict; if (!v || !v.issues) return;
+    v.issues.forEach(i => {
+      if (i.slot == null || i.alt == null) return;
+      const host = document.querySelector(`#ln-board .ln-card[data-slot="${i.slot}"][data-alt="${i.alt}"] .ln-issues`);
+      if (!host) return;
+      const d = document.createElement("div"); d.className = "ln-issue " + i.sev;
+      d.innerHTML = esc(i.msg) + (i.sev === "soft" && i.id && !LN.pipeline.acknowledged.some(a => a.id === i.id) ? `<button data-ack="${esc(i.id)}">acknowledge</button>` : (i.sev === "soft" ? " (acknowledged)" : ""));
+      const b = d.querySelector("button"); if (b) b.onclick = () => lnAck(i.id);
+      host.appendChild(d);
+    });
+  }
+  function lnAck(id) {
+    if (!LN.pipeline.acknowledged.some(a => a.id === id)) LN.pipeline.acknowledged.push({id, at: new Date().toISOString().slice(0, 19) + "Z", note: "acknowledged in the console"});
+    lnAfterEdit(false);
+  }
+
+  /* ---- the run panel and the verdict ---- */
+  function lnRenderRun() {
+    const r = LN.pipeline.run;
+    $("ln-label").value = LN.pipeline.label || "learn";
+    const sp = $("ln-splits"); sp.innerHTML = "";
+    LN_SPLITS.forEach(([k, lab0]) => { const lab = (k === "lowo" && r.target === "archetype") ? "leave one kernel out: every run of one kernel held out (the headline)" : lab0; const l = document.createElement("label"); l.innerHTML = `<input type="checkbox" value="${k}" ${r.splits.includes(k) ? "checked" : ""}> ${esc(lab)}`; l.querySelector("input").onchange = e => { r.splits = LN_SPLITS.map(x => x[0]).filter(x => x === k ? e.target.checked : r.splits.includes(x)); lnAfterEdit(false); }; sp.appendChild(l); });
+    $("ln-seeds").value = (r.seeds || [0]).join(", ");
+    $("ln-tf").value = r.test_frac == null ? 0.2 : r.test_frac;
+    $("ln-target").value = r.target || "family";
+  }
+  $("ln-label").onchange = e => { LN.pipeline.label = e.target.value.trim() || "learn"; lnAfterEdit(false); };
+  $("ln-seeds").onchange = e => { const s = e.target.value.split(/[ ,;]+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x)); LN.pipeline.run.seeds = s.length ? s : [0]; e.target.value = LN.pipeline.run.seeds.join(", "); lnAfterEdit(false); };
+  $("ln-tf").onchange = e => { LN.pipeline.run.test_frac = Math.min(0.9, Math.max(0.05, +e.target.value || 0.2)); e.target.value = LN.pipeline.run.test_frac; lnAfterEdit(false); };
+  $("ln-target").onchange = e => { LN.pipeline.run.target = e.target.value; lnRenderRun(); lnAfterEdit(false); };
+
+  async function lnValidate() {
+    if (!LN.pipeline) return;
+    try { LN.verdict = await api("/learn/validate", {pipeline: LN.pipeline}); } catch (e) { LN.verdict = {error: e.message}; }
+    lnRenderVerdict(); lnRenderIssues();
+  }
+  function lnRenderVerdict() {
+    const host = $("ln-verdict"), v = LN.verdict;
+    if (!v) { host.textContent = "not validated yet"; return; }
+    if (v.error) { host.innerHTML = `<span class="v bad">${esc(v.error)}</span>`; $("ln-launch").disabled = true; return; }
+    const hard = v.verdict.hard, soft = v.verdict.soft_unacknowledged, acked = v.verdict.soft_acknowledged, notes = v.verdict.notes;
+    const est = v.estimate || {};
+    let h = hard.length ? `<span class="v bad">${hard.length} blocking; cannot launch</span>` : soft.length ? `<span class="v warn">${soft.length} unacknowledged warning${soft.length > 1 ? "s" : ""}</span>` : `<span class="v ok">valid; every choice is explicit</span>`;
+    h += `<div><b>${est.configurations || 0}</b> configuration${est.configurations === 1 ? "" : "s"} × <b>${est.splits || 0}</b> split${est.splits === 1 ? "" : "s"} × <b>${est.seeds || 0}</b> seed${est.seeds === 1 ? "" : "s"}; ` +
+         `${est.folds_per_run || 0} folds over ${(est.runs || []).join(", ") || "no run"}: <b>${est.fits || 0}</b> fits</div>`;
+    const item = (i, cls) => `<div class="ln-issue ${cls}">${i.slot != null ? `<span class="mono">slot ${i.slot + 1}${i.alt != null ? "." + (i.alt + 1) : ""}</span> ` : ""}${esc(i.msg)}` +
+                             (cls === "soft" && i.id ? `<button data-ack="${esc(i.id)}">acknowledge</button>` : "") + `</div>`;
+    h += hard.map(i => item(i, "hard")).join("") + soft.map(i => item(i, "soft")).join("") + acked.map(i => `<div class="ln-issue note">acknowledged: ${esc(i.msg)}</div>`).join("") + notes.map(i => item(i, "note")).join("");
+    if ((v.verdict.acknowledgments_without_issue || []).length) h += `<div class="ln-issue note">acknowledgments no longer needed: ${esc(v.verdict.acknowledgments_without_issue.join(", "))}</div>`;
+    host.innerHTML = h;
+    host.querySelectorAll("button[data-ack]").forEach(b => { b.onclick = () => lnAck(b.dataset.ack); });
+    $("ln-launch").disabled = hard.length > 0 || soft.length > 0;
+    $("ln-confs").innerHTML = (v.configurations || []).map(c => `${esc(c.id)}  ${esc(c.name)}`).join("<br>") || "none";
+  }
+
+  /* ---- launch, save, load, examples ---- */
+  $("ln-validate").onclick = lnValidate;
+  $("ln-launch").onclick = async () => {
+    if (!LN.pipeline) return;
+    let r;
+    try { r = await api("/learn/run", {pipeline: LN.pipeline}); }
+    catch (e) {
+      if (/already exists/.test(e.message)) { if (!confirm(`${e.message}\n\nReplace it?`)) return; try { r = await api("/learn/run", {pipeline: LN.pipeline, force: true}); } catch (e2) { alert(e2.message); return; } }
+      else { alert(e.message); return; }
+    }
+    LN.label = r.label; LN.sel = {config: "", split: ""}; LN.results = null; LN.lastTable = null; lnSave();
+    $("ln-sum").innerHTML = ""; $("ln-sum-note").textContent = ""; $("ln-plot").innerHTML = ""; $("ln-cap").innerHTML = ""; $("ln-table").innerHTML = "";
+    lnSetMode("results"); await lnRefreshRuns(); lnPoll();
+  };
+  $("ln-save").onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(LN.pipeline, null, 1)], {type: "application/json"})); a.download = (LN.pipeline.label || "learn") + ".learn.json"; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
+  $("ln-open").onchange = e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { try { const p = JSON.parse(rd.result); if (p.schema !== "plan10.learn.v1") throw new Error("not a plan10.learn.v1 pipeline"); LN.pipeline = p; lnRenderRun(); lnAfterEdit(true); } catch (err) { alert("could not open: " + err.message); } }; rd.readAsText(f); e.target.value = ""; };
+  $("ln-examples").onchange = e => { const k = e.target.value; e.target.value = ""; const ex = LN.inputs.examples[k]; if (!ex) return; LN.pipeline = JSON.parse(JSON.stringify(ex)); lnRenderRun(); lnAfterEdit(true); };
+
+  /* ---- results: the runs, the status, the summary table ---- */
+  async function lnRefreshRuns() {
+    try { const r = await api("/learn/runs"); LN.runs = (r.runs || []).slice().reverse(); } catch (e) { LN.runs = []; }
+    const sel = $("ln-pick"); sel.innerHTML = "";
+    LN.runs.forEach(x => { const o = document.createElement("option"); o.value = x.label; o.textContent = `${x.label} · ${x.state || "?"}${x.n_configurations ? ` · ${x.n_configurations} cfg` : ""}`; sel.appendChild(o); });
+    if (!LN.runs.length) sel.innerHTML = '<option value="">no Learn run yet</option>';
+    if (!LN.label || !LN.runs.some(x => x.label === LN.label)) LN.label = (LN.runs[0] || {}).label || null;
+    sel.value = LN.label || "";
+  }
+  $("ln-pick").onchange = e => { LN.label = e.target.value || null; LN.sel = {config: "", split: ""}; LN.results = null; LN.lastTable = null; lnSave(); clearTimeout(LN.timer);
+                                 $("ln-sum").innerHTML = ""; $("ln-sum-note").textContent = ""; $("ln-plot").innerHTML = ""; $("ln-cap").innerHTML = ""; $("ln-table").innerHTML = ""; lnPoll(); };
+  $("ln-pause").onclick = async () => { if (LN.label) try { await api("/learn/control", {label: LN.label, command: LN.status && LN.status.state === "paused" ? "run" : "pause"}); } catch (e) {} };
+  $("ln-stop").onclick = async () => { if (LN.label) try { await api("/learn/control", {label: LN.label, command: "stop"}); } catch (e) {} };
+  async function lnPoll() {
+    clearTimeout(LN.timer);
+    if (!LN.label) { $("ln-state").textContent = "-"; $("ln-log").textContent = ""; $("ln-sum").innerHTML = ""; return; }
+    let s;
+    try { s = await api("/learn/status?label=" + encodeURIComponent(LN.label) + "&lines=30"); } catch (e) { $("ln-state").textContent = e.message; return; }
+    LN.status = s;
+    const st = $("ln-state"); st.textContent = s.state || "-"; st.className = "mon-state " + (s.state || "");
+    $("ln-phase").textContent = [s.phase, s.configuration ? `${s.configuration} (${s.configuration_index}/${s.n_configurations})` : "", s.split || "", s.fold ? `fold ${s.fold_index}/${s.n_folds}` : "", s.message || ""].filter(Boolean).join(" · ");
+    const pct = s.fits_total ? Math.min(100, Math.round(100 * (s.fits_done || 0) / s.fits_total)) : (s.state === "done" ? 100 : 0);
+    $("ln-fill").style.width = pct + "%"; $("ln-fits").textContent = s.fits_total ? `${s.fits_done || 0} / ${s.fits_total} fits` : "";
+    $("ln-log").textContent = (s.log_tail || []).join("\n");
+    $("ln-pause").textContent = s.state === "paused" ? "Resume" : "Pause";
+    const live = ["starting", "running", "paused"].includes(s.state);
+    if (live) LN.timer = setTimeout(lnPoll, 2000);
+    if (!live && !LN.results) lnLoadResults();
+    if (live) { $("ln-sum-note").textContent = "running; the table fills when the run finishes"; }
+  }
+  const lnKindMetric = k => k === "clusterer" ? "ari_family" : k === "novelty" ? "auroc_vs_training" : "accuracy";
+  async function lnLoadResults() {
+    if (!LN.label) return;
+    try { LN.results = await api("/learn/results?label=" + encodeURIComponent(LN.label)); }
+    catch (e) { $("ln-sum-note").textContent = e.message; $("ln-sum").innerHTML = ""; return; }
+    const R = LN.results;
+    const A = R.target === "archetype" ? (R.archetype || {}) : null;
+    $("ln-sum-note").innerHTML = `target <b>${esc(R.target)}</b> · ${(R.sweep || {}).configurations || 0} configurations · ${R.fits_done} fits in ${R.seconds}s · seeds ${(R.seeds || []).join(", ")} · ` +
+      `${esc(Object.entries(R.versions || {}).filter(([k, v]) => v).map(([k, v]) => k + " " + v).join(", "))}${(R.acknowledged || []).length ? " · acknowledged: " + esc(R.acknowledged.join(", ")) : ""}` +
+      (A ? `<br>archetype from plan11 schema.py: <b>${A.kernels ? A.kernels.length : "?"}</b> kernels over <b>${(A.archetypes || []).length}</b> archetypes` +
+           `${A.kernels_per_archetype ? " (" + esc(Object.entries(A.kernels_per_archetype).map(([a, n]) => a + " " + n).join(", ")) + ")" : ""}; ` +
+           `<b>${A.rows_dropped}</b> of ${A.rows_total} rows dropped (no archetype: the idle cells and anything not among the twelve kernels); ` +
+           `leave-one-workload-out is <b>leave one kernel out</b>; the null is a <b>kernel-level permutation, no refit</b>` : "");
+    const rows = [];
+    R.configurations.forEach(c => Object.entries(c.splits).forEach(([sp, s]) => {
+      const km = lnKindMetric(c.kind), m = s.metrics[km], pooled = s.pooled || {}, nl = pooled.null || {};
+      const headline = pooled.accuracy != null ? pooled.accuracy : pooled.ari_family;
+      const ar = pooled.archetype || null;
+      rows.push({c, sp, ar, cells: [c.id, c.model, c.kind, (sp === "lowo" && A) ? "lowo = leave one kernel out" : sp, s.n_folds, s.skipped, km, m ? `${fmtN(m.mean, 3)} ± ${fmtN(m.std, 2)}` : "–",
+                                headline != null ? fmtN(headline, 3) : "–", nl.n ? `${fmtN(nl.mean, 3)}, p95 ${fmtN(nl.p95, 3)} (p ${fmtN(nl.p_value, 2)})${nl.what ? "; " + esc(nl.what) : ""}` : (nl.why ? "–" : "–"),
+                                s.novelty_folds.length ? s.novelty_folds.length : ""].concat(A ? [ar && ar.majority_baseline != null ? `${fmtN(ar.majority_baseline, 3)} (${esc(ar.majority)})` : "–",
+                                                                                                 ar && ar.macro_recall_3plus != null ? `${fmtN(ar.macro_recall_3plus, 3)} over ${ar.macro_recall_3plus_over.length}` : "–"] : [])});
+    }));
+    const cols = ["id", "model", "kind", "split", "folds", "skipped", "metric", "per fold mean ± std", "pooled", "pooled null (p)", "novelty folds"].concat(A ? ["majority-archetype baseline", "macro recall (archetypes with 3+ kernels)"] : []);
+    const t = $("ln-sum");
+    t.innerHTML = "<thead><tr>" + cols.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+      rows.map(r => `<tr data-c="${esc(r.c.id)}" data-s="${esc(r.sp)}">` + r.cells.map((c, i) => `<td class="${i > 3 && typeof c === "number" ? "num" : ""}">${esc(c == null ? "" : c)}</td>`).join("") + "</tr>").join("") + "</tbody>";
+    /* target archetype: recall per archetype for the selected row, from the pooled out-of-fold predictions */
+    let arch = document.getElementById("ln-sum-arch");
+    if (!arch) { arch = document.createElement("div"); arch.id = "ln-sum-arch"; arch.className = "subnote"; t.insertAdjacentElement("afterend", arch); }
+    const drawArch = () => {
+      const r = rows.find(x => x.c.id === LN.sel.config && x.sp === LN.sel.split);
+      if (!A || !r || !r.ar || !r.ar.recall) { arch.innerHTML = ""; return; }
+      const names = Object.keys(r.ar.recall).sort();
+      arch.innerHTML = `<b>${esc(r.c.id)} / ${esc(r.sp)}</b>: majority-archetype baseline ${fmtN(r.ar.majority_baseline, 3)} (always ${esc(r.ar.majority)}); ` +
+        `macro recall ${r.ar.macro_recall_3plus != null ? fmtN(r.ar.macro_recall_3plus, 3) : "–"} over the archetypes with at least three kernels (${esc((r.ar.macro_recall_3plus_over || []).join(", ") || "none")}). ` +
+        `Null: kernel-level permutation, no refit.<table class="tbl" style="margin-top:6px"><thead><tr><th>archetype</th><th>kernels</th><th>rows</th><th>recall</th></tr></thead><tbody>` +
+        names.map(a => { const x = r.ar.recall[a]; return `<tr><td>${esc(a)}</td><td class="num">${x.n_kernels}</td><td class="num">${x.n_rows}</td><td>${x.recall != null ? fmtN(x.recall, 3) : esc(x.note)}</td></tr>`; }).join("") + "</tbody></table>";
+    };
+    if (!LN.sel.config || !rows.some(r => r.c.id === LN.sel.config && r.sp === LN.sel.split)) LN.sel = rows.length ? {config: rows[0].c.id, split: rows[0].sp} : {config: "", split: ""};
+    drawArch();
+    t.querySelectorAll("tbody tr").forEach(tr => { tr.onclick = () => { LN.sel = {config: tr.dataset.c, split: tr.dataset.s}; lnSave(); lnMarkSel(); drawArch(); lnDrawView(); }; });
+    lnMarkSel(); lnBuildViewCtl(); lnDrawView();
+  }
+  function lnMarkSel() { document.querySelectorAll("#ln-sum tbody tr").forEach(tr => tr.classList.toggle("on", tr.dataset.c === LN.sel.config && tr.dataset.s === LN.sel.split)); }
+
+  /* ---- the detail views ---- */
+  function lnBuildViewCtl() {
+    const host = $("ln-view-ctl"); host.innerHTML = "";
+    const w = xpSelect("ln-view", "view", LN_VIEWS, LN.view, v => { LN.view = v; lnSave(); lnBuildViewCtl(); lnDrawView(); });
+    host.appendChild(w.field);
+    const R = LN.results;
+    if (LN.view === "scores" && R) xpControls(host, lnScores, R.score_columns, LN_SCORE_KEYS, LN_SCORE_KEYS.slice(1), lnDrawView, [["distribution", "distribution"], ["matrix", "matrix"], ["scatter", "scatter"], ["table", "table"]]);
+    if (LN.view === "tiles") xpControls(host, lnTilesSt, ["correct", "p_true", "p_max", "novelty", "cluster"], LN_TILE_KEYS, LN_TILE_KEYS.slice(1).concat([["t_index", "t_index"]]), lnDrawView, XP_VIEWS);
+    if (LN.view === "embedding") { host.appendChild(xpSelect("ln-emb-method", "projection", [["pca", "PCA"], ["umap", "UMAP (if installed)"]], lnEmb.method, v => { lnEmb.method = v; lnSave(); lnDrawView(); }).field);
+                                   host.appendChild(xpSelect("ln-emb-by", "colour by", [["family", "family"], ["workload", "workload"], ["recording", "recording"], ["fold", "fold"]], lnEmb.by, v => { lnEmb.by = v; lnSave(); lnDrawView(); }).field); }
+    if (LN.view === "tile") {
+      const runs = Object.values(LN.inputs.runs || {}).filter(r => r.tiles);
+      if (!lnTileSel.run || !runs.some(r => r.label === lnTileSel.run)) lnTileSel.run = (runs[0] || {}).label || "";
+      host.appendChild(xpSelect("ln-tile-run", "run with tiles", runs.map(r => [r.label, `${r.label} (${r.n_tiles} ${r.tiles_shape})`]), lnTileSel.run, v => { lnTileSel.run = v; lnTileSel.recording = ""; lnSave(); lnBuildViewCtl(); lnDrawView(); }).field);
+      const idx = LN.cache["tiles_index:" + lnTileSel.run];
+      if (idx) {
+        const recs = Object.entries(idx.recordings).map(([id, r]) => [id, `${r.short} (${r.family}, ${r.t_index.length} tiles)`]);
+        if (!lnTileSel.recording || !idx.recordings[lnTileSel.recording]) lnTileSel.recording = recs.length ? recs[0][0] : "";
+        host.appendChild(xpSelect("ln-tile-rec", "recording", recs, lnTileSel.recording, v => { lnTileSel.recording = v; lnTileSel.t_index = 0; lnSave(); lnBuildViewCtl(); lnDrawView(); }).field);
+        const ts = ((idx.recordings[lnTileSel.recording] || {}).t_index || []).slice().sort((a, b) => a - b);
+        if (!ts.includes(lnTileSel.t_index)) lnTileSel.t_index = ts[0] || 0;
+        host.appendChild(xpSelect("ln-tile-t", "t_index", ts.map(t => [String(t), String(t)]), String(lnTileSel.t_index), v => { lnTileSel.t_index = +v; lnSave(); lnDrawView(); }).field);
+      }
+    }
+    if (["confusion", "curves", "null", "calibration", "importance", "saliency", "train"].includes(LN.view)) {
+      const n = document.createElement("div"); n.className = "subnote"; n.style.margin = "0 0 6px 4px"; n.textContent = LN.sel.config ? `${LN.sel.config} · ${LN.sel.split} (pick a row on the left to change)` : "pick a row on the left"; host.appendChild(n);
+    }
+  }
+  let lnSeq = 0;
+  async function lnDrawView() {
+    const plot = $("ln-plot"), cap = $("ln-cap"), tbl = $("ln-table");
+    if (!LN.label) { xpEmpty(plot, "no Learn run selected"); cap.innerHTML = ""; tbl.innerHTML = ""; return; }
+    const seq = ++lnSeq;
+    plot.innerHTML = '<div class="xp-empty">computing…</div>'; cap.innerHTML = ""; tbl.innerHTML = ""; LN.lastTable = null;
+    const view = LN.view, q = `label=${encodeURIComponent(LN.label)}&config=${encodeURIComponent(LN.sel.config)}&split=${encodeURIComponent(LN.sel.split)}`;
+    try {
+      if (view === "summary") { plot.style.minHeight = "0"; plot.innerHTML = ""; cap.innerHTML = "the table on the left is the summary: per-fold mean and std of the kind's headline metric, the pooled out-of-fold score, and the pooled permutation null with its p-value. Pick a row, then a view."; return; }
+      plot.style.minHeight = "";
+      if (view === "scores" || view === "tiles") {
+        const st = view === "scores" ? lnScores : lnTilesSt;
+        const r = await api(xpQuery([LN.label], st, "/learn/agg", {label: LN.label, frame: view}));
+        if (seq !== lnSeq) return;
+        st.y = r.y || st.y; if (r.view === "scatter") st.x = r.x;
+        if (r.view !== "matrix" && !st.group && (r.group || []).length) st.group = r.group.join(",");
+        LN.lastTable = xpRender(plot, cap, tbl, r, st);
+        cap.innerHTML += ` <span class="dim">frame: ${view === "scores" ? "one row per configuration, split, fold and seed" : "one row per scored test tile"}.</span>`;
+        return;
+      }
+      if (view === "tile") {
+        if (!lnTileSel.run) throw new Error("no run has tiles; add Write tiles to a scheme and run it");
+        if (!LN.cache["tiles_index:" + lnTileSel.run]) { LN.cache["tiles_index:" + lnTileSel.run] = await api("/learn/tiles_index?run=" + encodeURIComponent(lnTileSel.run)); if (seq !== lnSeq) return; lnBuildViewCtl(); }
+        const r = await api(`/learn/tile?run=${encodeURIComponent(lnTileSel.run)}&recording=${encodeURIComponent(lnTileSel.recording)}&t_index=${lnTileSel.t_index}`);
+        if (seq !== lnSeq) return;
+        lnDrawTile(plot, cap, tbl, r); return;
+      }
+      const r = await api(`/learn/view?${q}&kind=${view}` + (view === "embedding" ? "&method=" + lnEmb.method : ""));
+      if (seq !== lnSeq) return;
+      ({confusion: lnDrawConfusion, curves: lnDrawCurves, embedding: lnDrawEmbedding, null: lnDrawNull, calibration: lnDrawCalibration, importance: lnDrawImportance, saliency: lnDrawSaliency, train: lnDrawTrain})[view](plot, cap, tbl, r);
+    } catch (e) { if (seq !== lnSeq) return; xpEmpty(plot, e.message); cap.innerHTML = ""; tbl.innerHTML = ""; }
+  }
+  const lnTable = (tbl, cols, rows) => { xpFillTable(tbl, cols, rows); LN.lastTable = {cols, rows}; };
+
+  function lnDrawConfusion(plot, cap, tbl, r) {
+    const geo = drawMatrix(plot, {row_labels: r.labels.map(l => "true " + l), col_labels: r.labels.map(l => "predicted " + l), values: r.row_normalised, n: r.matrix,
+                                  stat: "share of the true row", y: "predictions"}, {scale: "linear"});
+    cap.innerHTML = `<b>confusion</b>, ${esc(r.source)}: rows are the true ${esc(LN.results ? LN.results.target : "label")}, columns the prediction; colour = share of the row, count in the tooltip. n ${r.n}, accuracy ${fmtN(r.accuracy, 4)}.` +
+      (r.novelty_folds.length ? ` <b>novelty folds</b> (no same-family training): ${esc(r.novelty_folds.join(", "))}.` : "");
+    lnTable(tbl, ["true \\ predicted"].concat(r.labels).concat(["recall"]), r.labels.map((l, i) => [l].concat(r.matrix[i]).concat([r.row_recall[i]])));
+  }
+  function lnDrawCurves(plot, cap, tbl, r) {
+    if (!r.series.length) { xpEmpty(plot, r.why || "no curve"); cap.innerHTML = ""; return; }
+    drawLines(plot, r.series.map(s => ({label: `${s.fold}: ${s.what}`, x: s.x, y: s.y, extra: `AUROC ${fmtN(s.auroc, 3)}`})), {xlab: "false-positive rate", ylab: "true-positive rate", x01: true, y01: true, diagonal: true, height: 320});
+    cap.innerHTML = `<b>ROC</b> per fold; the diagonal is chance. Where the fold holds only novel tiles, the benign side is the training tiles' own scores (in-sample, optimistic) and the caption of the series says so.`;
+    lnTable(tbl, ["fold", "what", "AUROC", "AUPRC", "recall at FPR"], r.series.map(s => [s.fold, s.what, s.auroc, s.auprc, s.recall_at_fpr]));
+  }
+  function lnDrawEmbedding(plot, cap, tbl, r) {
+    const by = r[lnEmb.by] || r.family;
+    const groups = {};
+    r.points.forEach((p, i) => { (groups[by[i]] = groups[by[i]] || []).push(p); });
+    const gs = Object.keys(groups).sort().map(k => ({label: k, points: groups[k], n: groups[k].length, n_shown: groups[k].length, r_pearson: null, rho_spearman: null}));
+    drawScatter(plot, {groups: gs, x: "component 1", y: "component 2", n: r.n, stride: r.stride}, {scale: "linear"});
+    cap.innerHTML = `<b>embedding</b> of the test tiles (${r.dim}-D, ${esc(r.method)}${r.explained ? `, explained ${r.explained.map(v => fmtN(v * 100, 3) + "%").join(" + ")}` : ""}), ${r.n_shown} of ${r.n} tiles${r.stride > 1 ? ` (every ${r.stride}th)` : ""}, coloured by ${esc(lnEmb.by)}. A projection for looking, never a fitted feature.`;
+    lnTable(tbl, [lnEmb.by, "tiles", "mean c1", "mean c2"], gs.map(g => [g.label, g.n, g.points.reduce((a, p) => a + p[0], 0) / g.n, g.points.reduce((a, p) => a + p[1], 0) / g.n]));
+  }
+  function lnDrawNull(plot, cap, tbl, r) {
+    const P = r.pooled || {};
+    const hist = P.hist || r.hist;
+    if (hist) drawHistBars(plot, r.edges, hist, {marker: P.observed != null ? P.observed : r.observed_mean, xlab: r.metric + " under permuted labels", ylab: "permutations", height: 260});
+    else xpEmpty(plot, P.why || "no null distribution");
+    cap.innerHTML = `<b>null</b>: ${esc(r.what)}. ` + (P.n ? `Pooled: observed <b>${fmtN(P.observed, 4)}</b> vs null mean ${fmtN(P.mean, 4)}, p95 ${fmtN(P.p95, 4)}, max ${fmtN(P.max, 4)}; the observed sits at the ${fmtN(P.percentile, 3)}th percentile, p = ${fmtN(P.p_value, 3)} (${P.n} permutations over ${P.n_tiles} tiles, ${P.n_classes} classes).` : (P.why ? esc(P.why) : ""));
+    lnTable(tbl, ["fold", "observed", "null mean", "null p95", "null max", "percentile", "p"], r.folds.map(f => [f.fold, f.observed, f.null_mean, f.null_p95, f.null_max, f.percentile, f.p_value]));
+  }
+  function lnDrawCalibration(plot, cap, tbl, r) {
+    drawLines(plot, [{label: "observed", x: r.bins.map(b => b.confidence), y: r.bins.map(b => b.accuracy)}], {xlab: "confidence of the top prediction", ylab: "accuracy in the bin", x01: true, y01: true, diagonal: true, dots: true, height: 300});
+    cap.innerHTML = `<b>reliability</b>, pooled over folds: a calibrated model sits on the diagonal. Mean ECE over folds ${fmtN(r.ece_mean, 4)}.` + (r.proba_note ? ` <b>note:</b> ${esc(r.proba_note)}.` : "");
+    lnTable(tbl, ["bin", "n", "confidence", "accuracy"], r.bins.map(b => [`${fmtN(b.lo, 2)} to ${fmtN(b.hi, 2)}`, b.n, b.confidence, b.accuracy]));
+  }
+  function lnDrawImportance(plot, cap, tbl, r) {
+    const order = r.ranked;
+    drawBarsH(plot, order.map(i => r.names[i]), order.map(i => r.mean_drop[i]), {xlab: "drop in accuracy when permuted"});
+    cap.innerHTML = `<b>permutation importance</b> (${esc(r.axis)}): ${esc(r.what)}; baseline accuracy ${fmtN(r.baseline_mean, 4)}, ${r.n_folds} folds.`;
+    lnTable(tbl, ["column", "mean drop", "std over folds"], order.map(i => [r.names[i], r.mean_drop[i], r.std_drop[i]]));
+  }
+  function lnDrawSaliency(plot, cap, tbl, r) {
+    const M = Array.isArray(r.mean[0]) ? r.mean : [r.mean];
+    const rows = M.map((_, i) => M.length > 1 ? "frame " + i : "input"), cols = M[0].map((_, j) => (r.shape.length > 1 ? "col " : "") + j);
+    drawMatrix(plot, {row_labels: rows, col_labels: cols, values: M, n: M.map(row => row.map(() => 1)), stat: "mean |gradient|", y: "saliency"}, {scale: "linear"});
+    cap.innerHTML = `<b>saliency</b>: ${esc(r.what)}; shape ${r.shape.join(" x ")}. Columns are the metrics (rows), blocks (path) or pages (image) as the model read them.`;
+    lnTable(tbl, ["row"].concat(cols), M.map((row, i) => [rows[i]].concat(row)));
+  }
+  function lnDrawTrain(plot, cap, tbl, r) {
+    drawLines(plot, r.series.map(s => ({label: s.fold, x: s.x, y: s.y})), {xlab: "epoch", ylab: "training loss", height: 300, xfmt: v => String(Math.round(v))});
+    cap.innerHTML = `<b>training curves</b>: ${esc(r.what)}, one line per fold (and per represent step). A curve still falling at the last epoch says the budget was short.`;
+    lnTable(tbl, ["fold", "epochs", "first loss", "last loss"], r.series.map(s => [s.fold, s.x.length, s.y[0], s.y[s.y.length - 1]]));
+  }
+  function lnDrawTile(plot, cap, tbl, r) {
+    const M = r.matrix, rows = M.map((_, i) => "frame " + i), cols = M[0].map((_, j) => (r.shape === "image" ? "page " + (r.pages ? r.pages[j] : j) : "block " + j));
+    const geo = drawMatrix(plot, {row_labels: rows, col_labels: cols, values: M, n: M.map(row => row.map(() => 1)), stat: "value", y: r.channels.join(", ")}, {scale: "linear"});
+    if (r.shape === "path" && geo && r.most_active_block) {
+      const pts = r.most_active_block.map((b, i) => `${geo.m.l + geo.cw * (b + 0.5)},${geo.m.t + geo.ch * (i + 0.5)}`);
+      svgEl("polyline", {points: pts.join(" "), fill: "none", stroke: "var(--bad)", "stroke-width": 2, "stroke-linejoin": "round"}, geo.svg);
+      r.most_active_block.forEach((b, i) => svgEl("circle", {cx: geo.m.l + geo.cw * (b + 0.5), cy: geo.m.t + geo.ch * (i + 0.5), r: 3, fill: "var(--bad)"}, geo.svg));
+    }
+    cap.innerHTML = `<b>${esc(r.shape)}</b> tile ${r.index + 1} of ${r.n_tiles}: ${esc(r.recording)} (${esc(r.family)} / ${esc(r.workload)}), t_index ${r.t_index}, pairs from ${r.seq_start}, W ${r.w} · H ${r.h}` +
+      (r.shape === "path" ? `; the red line walks the most active block per frame` : "") + `.`;
+    lnTable(tbl, ["frame"].concat(cols), M.map((row, i) => [rows[i]].concat(row)));
+  }
+
+  /* ---- small drawings the learning views need beyond Explore's ---- */
+  function drawLines(host, series, o) {
+    o = o || {};
+    const f = xpFrame(host, o.height || 300, {l: 58, r: 14, t: 8, b: 36});
+    const xs = [], ys = [];
+    series.forEach(s => { const a = minMax(s.x), b = minMax(s.y); xs.push(a[0], a[1]); ys.push(b[0], b[1]); });
+    let [xlo, xhi] = minMax(xs), [ylo, yhi] = minMax(ys);
+    if (o.x01) { xlo = 0; xhi = 1; } if (o.y01) { ylo = 0; yhi = 1; }
+    if (!isFinite(xlo) || !isFinite(ylo)) return xpEmpty(host, "nothing to draw");
+    const sx = mkScale("linear", xlo, xhi, f.x0, f.x1, !o.x01), sy = mkScale("linear", ylo, yhi, f.y1, f.y0, !o.y01);
+    axisY(f, sy, o.ylab); axisX(f, sx, o.xlab, o.xfmt);
+    if (o.diagonal) svgEl("line", {x1: sx(0), y1: sy(0), x2: sx(1), y2: sy(1), class: "guide"}, f.svg);
+    const layers = [];
+    series.forEach((s, i) => {
+      const col = xpColor(i), gl = svgEl("g", {}, f.svg); layers.push(gl);
+      let d = "", pen = false;
+      s.x.forEach((x, k) => { const v = s.y[k]; if (v == null || x == null) { pen = false; return; } d += (pen ? " L" : " M") + sx(x) + " " + sy(v); pen = true; });
+      if (d) svgEl("path", {d, fill: "none", stroke: col, "stroke-width": 1.5, "stroke-linejoin": "round"}, gl);
+      if (o.dots || s.x.length <= 40) s.x.forEach((x, k) => { const v = s.y[k]; if (v == null || x == null) return; const c = svgEl("circle", {cx: sx(x), cy: sy(v), r: 3, fill: col}, gl); c.onmousemove = ev => tipShow(ev, `<b>${esc(s.label)}</b><br>${esc(o.xlab || "x")} ${fmtN(x, 5)}<br>${esc(o.ylab || "y")} ${fmtN(v, 5)}`); c.onmouseleave = tipHide; });
+    });
+    legend(host, series.map((s, i) => ({label: s.label, color: xpColor(i), extra: s.extra})), i => layers.forEach((l, k) => { l.style.opacity = (i == null || i === k) ? 1 : 0.15; }));
+  }
+  function drawBarsH(host, names, values, o) {
+    o = o || {};
+    const n = names.length; if (!n) return xpEmpty(host, "nothing to draw");
+    const maxLab = Math.max.apply(null, names.map(s => Math.min(String(s).length, 40)));
+    const m = {l: Math.min(290, 14 + maxLab * 6.4), r: 60, t: 8, b: 34}, H = Math.max(120, 22 * n + m.t + m.b);
+    const f = xpFrame(host, H, m);
+    const vals = values.map(v => (v == null ? 0 : v));
+    let [lo, hi] = minMax(vals.concat([0]));
+    const sc = mkScale("linear", lo, hi, f.x0, f.x1, true);
+    axisX(f, sc, o.xlab);
+    const rowH = (f.y1 - f.y0) / n, bh = Math.min(14, rowH * 0.7);
+    names.forEach((nm, i) => {
+      const cy = f.y0 + rowH * (i + 0.5), v = vals[i], x0 = sc(0), x1 = sc(v);
+      txt(f.svg, f.x0 - 6, cy + 3.5, clipS(nm, 40), {"text-anchor": "end"});
+      const b = svgEl("rect", {x: Math.min(x0, x1), y: cy - bh / 2, width: Math.max(1, Math.abs(x1 - x0)), height: bh, fill: v >= 0 ? xpColor(0) : xpColor(3), "fill-opacity": .8}, f.svg);
+      txt(f.svg, Math.max(x0, x1) + 5, cy + 3.5, fmtN(values[i], 4), {class: "dim"});
+      b.onmousemove = ev => tipShow(ev, `<b>${esc(nm)}</b><br>${fmtN(values[i], 6)}`); b.onmouseleave = tipHide;
+    });
+  }
+  function drawHistBars(host, edges, counts, o) {
+    o = o || {};
+    const f = xpFrame(host, o.height || 260, {l: 58, r: 14, t: 8, b: 36});
+    const sx = mkScale("linear", edges[0], edges[edges.length - 1], f.x0, f.x1, false);
+    const cmax = Math.max.apply(null, counts.concat([1]));
+    const sy = mkScale("linear", 0, cmax * 1.06, f.y1, f.y0, false);
+    axisY(f, sy, o.ylab, v => String(Math.round(v))); axisX(f, sx, o.xlab);
+    counts.forEach((c, k) => {
+      const r = svgEl("rect", {x: sx(edges[k]) + 0.5, y: sy(c), width: Math.max(1, sx(edges[k + 1]) - sx(edges[k]) - 1), height: f.y1 - sy(c), fill: xpColor(7), "fill-opacity": .7}, f.svg);
+      r.onmousemove = ev => tipShow(ev, `[${fmtN(edges[k], 3)}, ${fmtN(edges[k + 1], 3)}${k === counts.length - 1 ? "]" : ")"}: ${c}`); r.onmouseleave = tipHide;
+    });
+    if (o.marker != null && isFinite(o.marker)) { const x = sx(Math.min(Math.max(o.marker, edges[0]), edges[edges.length - 1])); svgEl("line", {x1: x, x2: x, y1: f.y0, y2: f.y1, stroke: "var(--bad)", "stroke-width": 2}, f.svg); txt(f.svg, x + 4, f.y0 + 11, "observed " + fmtN(o.marker, 4), {style: "fill:var(--bad)"}); }
+  }
+
+  /* ---- open, close, modes ---- */
+  function lnSetMode(mode) {
+    LN.mode = mode; lnSave();
+    document.querySelectorAll("#ln .ln-top [data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
+    $("ln-compose").hidden = mode !== "compose"; $("ln-results").hidden = mode !== "results";
+    if (mode === "results") { lnRefreshRuns().then(() => { lnBuildViewCtl(); lnPoll(); }); } else { clearTimeout(LN.timer); }
+  }
+  document.querySelectorAll("#ln .ln-top [data-mode]").forEach(b => { b.onclick = () => lnSetMode(b.dataset.mode); });
+  async function lnOpen() {
+    document.documentElement.classList.add("ln-open");
+    try {
+      if (!LN.reg) { LN.reg = await api("/learn/modules"); LN.mod = {}; LN.reg.modules.forEach(m => { LN.mod[m.id] = m; }); LN.tiers = LN.reg.tiers; }
+      LN.inputs = await api("/learn/inputs");
+    } catch (e) { $("ln-facts").textContent = e.message; return; }
+    const runs = Object.values(LN.inputs.runs || {});
+    $("ln-facts").textContent = `${runs.filter(r => r.features).length} run${runs.filter(r => r.features).length === 1 ? "" : "s"} with rows, ${runs.filter(r => r.tiles).length} with tiles · ` +
+      `${LN.reg.modules.filter(m => m.available).length} of ${LN.reg.modules.length} modules built and available (${Object.entries(LN.reg.deps).filter(([k, v]) => v).map(([k]) => k).join(", ")})`;
+    const ex = $("ln-examples"); ex.innerHTML = '<option value="">load example</option>'; Object.keys(LN.inputs.examples || {}).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = k; ex.appendChild(o); });
+    if (!LN.pipeline || !Array.isArray(LN.pipeline.slots)) LN.pipeline = lnNewPipeline();
+    lnRenderPalette(); lnRenderRun(); lnRenderBoard(); lnValidate();
+    lnSetMode(LN.mode || "compose");
+  }
+  function lnClose() { document.documentElement.classList.remove("ln-open"); clearTimeout(LN.timer); tipHide(); }
+  $("ln-close").onclick = lnClose;
+  $("ln-csv-copy").onclick = () => xpCsvOut(() => LN.lastTable, "copy", $("ln-note"), "");
+  $("ln-csv-dl").onclick = () => xpCsvOut(() => LN.lastTable, "file", $("ln-note"), `${LN.label || "learn"}_${LN.view}_${LN.sel.config || ""}_${LN.sel.split || ""}`.replace(/[^A-Za-z0-9_+.-]+/g, "_"));
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.documentElement.classList.contains("ln-open")) lnClose(); });
+  window.addEventListener("resize", () => { if (document.documentElement.classList.contains("ln-open") && LN.mode === "results") { clearTimeout(LN.rtimer); LN.rtimer = setTimeout(lnDrawView, 200); } });
+  (function () {
+    const host = document.querySelector("header.top"); if (!host) return;
+    const b = document.createElement("button"); b.className = "bigbtn ghost"; b.id = "ln-btn"; b.textContent = "Learn";
+    b.title = "pipelines over what runs wrote: preprocessing, models, splits, every configuration of a sweep, scores and their views";
+    b.onclick = () => lnOpen();
+    const anchor = $("xp-btn") || $("mon-btn") || $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
+
+  /* ===== Encoding paper: plan11_encoding_ladder launched one move at a time (its own driver, its own
+     command lines), its output files shown as they are. Nothing on this panel computes a number; a
+     refusal string is printed as the toolkit wrote it. Routes: /encoding/*. ===== */
+  const EP = {cfg: null, board: null, tab: "cells", move: null, view: null, dir: "", lastLog: null, timer: null, logTimer: null, flagsOpen: false, launch: null};
+  const epSave = () => { try { localStorage.setItem("plan10.encoding", JSON.stringify({tab: EP.tab, move: EP.move, view: EP.view, dir: EP.dir, launch: EP.launch})); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem("plan10.encoding") || "null"); if (s) { EP.tab = s.tab || "cells"; EP.move = s.move == null ? null : s.move; EP.view = s.view || null; EP.dir = s.dir || ""; EP.launch = s.launch || null; } } catch (e) {}
+  const epGet = (path, params) => { const p = new URLSearchParams(params || {}); return api("/encoding/" + path + (p.toString() ? "?" + p.toString() : "")); };
+  const epFileUrl = rel => "/encoding/file?path=" + encodeURIComponent(rel) + "&token=" + encodeURIComponent(B.token);
+  const epIsRefusal = s => /^(refused:|not run:|not applicable:|pending:|failed|stale:)/.test(String(s || "").trim());
+  const epCellClass = s => { const t = String(s == null ? "" : s).trim(); if (t === "") return "empty"; if (/^refused/.test(t) || /^failed/.test(t)) return "refused"; if (epIsRefusal(t)) return "refusal"; return /^-?\d+(\.\d+)?(e[-+]?\d+)?$/i.test(t) ? "num" : ""; };
+  const epPath = (rel, label) => `<span class="ep-path"><a href="${epFileUrl(rel)}" target="_blank" rel="noopener">${esc(label || rel)}</a></span>`;
+
+  /* ---- the tabs ---- */
+  function epSetTab(t) {
+    EP.tab = t; epSave();
+    document.querySelectorAll("#ep .ep-top [data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    ["cells", "moves", "look", "log", "author"].forEach(x => { $("ep-tab-" + x).hidden = x !== t; });
+    ({cells: epCells, moves: epMoves, look: epLook, log: epLog, author: epAuthor})[t]();
+  }
+  document.querySelectorAll("#ep .ep-top [data-tab]").forEach(b => { b.onclick = () => epSetTab(b.dataset.tab); });
+
+  /* ---- configuration: <out>, <root>, the preset, the driver's flags (from its own argparse) ---- */
+  async function epLoadConfig() {
+    EP.cfg = await epGet("config");
+    const c = EP.cfg;
+    $("ep-out").value = c.out || ""; $("ep-root").value = c.root || "";
+    const ps = $("ep-preset"); ps.innerHTML = "";
+    Object.entries(c.presets).forEach(([k, v]) => { const o = document.createElement("option"); o.value = k; o.textContent = `${k}: ${v.label}`; ps.appendChild(o); });
+    const oc = document.createElement("option"); oc.value = "custom"; oc.textContent = "custom (flags edited)"; ps.appendChild(oc);
+    ps.value = c.preset || "custom";
+    const tk = c.toolkit || {};
+    $("ep-tk").innerHTML = `<b>toolkit</b> ${esc(tk.path || "?")}${tk.present ? "" : ' <span class="bad">(not on disk)</span>'} · v${esc(tk.package_version || "?")} · ${tk.n_py_files || 0} .py files, fingerprint <b>${esc(tk.content_fingerprint || "?")}</b><br>` +
+      `repo HEAD <b>${esc(tk.repo_head_short || "?")}</b> · ` + (tk.committed ? '<span class="ok">the toolkit is committed and clean at HEAD</span>'
+        : `<span class="bad">not committed at HEAD</span> (${tk.tracked ? "tracked, " + tk.dirty_entries + " dirty" : "untracked"}): the launch record keeps the fingerprint; the runbook's "named commit" does not yet exist`) +
+      `<br><b>run line</b> ${esc(c.run_line || "")}`;
+    $("ep-facts").textContent = (c.out_exists ? "" : c.out ? "<out> does not exist yet; the toolkit creates it" : "set <out>") + (c.root ? (c.root_exists ? "" : " · <root> not found") : " · <root> unset (move 0 needs it)");
+  }
+  $("ep-apply").onclick = async () => {
+    const body = {out: $("ep-out").value.trim(), root: $("ep-root").value.trim()};
+    const ps = $("ep-preset").value; if (ps !== "custom" && ps !== EP.cfg.preset) body.preset = ps;
+    if (EP.flagsOpen) body.flags = epReadFlags();
+    try { EP.cfg = await api("/encoding/config", body); } catch (e) { alert(e.message); return; }
+    EP.board = null; EP.launch = null; EP.dir = ""; EP.dirFile = null; epSave();      /* another <out> is another run: nothing cached carries over */
+    await epLoadConfig(); if (EP.flagsOpen) epRenderFlags(); epSetTab(EP.tab);
+  };
+  $("ep-preset").onchange = async () => { const ps = $("ep-preset").value; if (ps === "custom") return;
+    try { EP.cfg = await api("/encoding/config", {preset: ps, out: $("ep-out").value.trim(), root: $("ep-root").value.trim()}); } catch (e) { alert(e.message); }
+    await epLoadConfig(); if (EP.flagsOpen) epRenderFlags(); };
+  $("ep-flags-btn").onclick = () => { EP.flagsOpen = !EP.flagsOpen; epRenderFlags(); };
+  function epRenderFlags() {
+    let host = $("ep-flags-host");
+    if (!EP.flagsOpen) { if (host) host.remove(); return; }
+    if (!host) { host = document.createElement("div"); host.id = "ep-flags-host"; host.style.cssText = "flex-basis:100%;max-height:300px;overflow:auto"; $("ep-flags-btn").closest(".ep-cfg").appendChild(host); }
+    const flags = EP.cfg.driver_flags || [], cur = EP.cfg.flags || {};
+    host.innerHTML = `<div class="ep-note">The driver's own flags (<span class="mono">run_moves run</span>, read from its argparse). A set flag is passed on every launch of every move; an unset one is left to the driver's default. The driver compares arguments between launches: changing one re-runs the step (<span class="mono">stale: arguments changed</span>).</div>` +
+      `<table class="ep-flags"><thead><tr><th>flag</th><th>value</th><th>driver default</th><th>help</th></tr></thead><tbody>` +
+      flags.map(f => { const v = cur[f.dest]; let inp;
+        if (f.kind === "bool") inp = `<input type="checkbox" data-dest="${esc(f.dest)}" ${v ? "checked" : ""}>`;
+        else if (f.choices) inp = `<select data-dest="${esc(f.dest)}"><option value="">(unset)</option>${f.choices.map(c => `<option value="${esc(c)}" ${String(v) === String(c) ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
+        else inp = `<input type="${f.kind === "str" ? "text" : "number"}" ${f.kind === "float" ? 'step="any"' : ""} data-dest="${esc(f.dest)}" value="${v == null ? "" : esc(v)}">`;
+        return `<tr><td class="mono">${esc(f.flag)}</td><td>${inp}</td><td class="mono">${esc(f.default == null ? "" : f.default)}</td><td class="help">${esc(f.help)}</td></tr>`; }).join("") + `</tbody></table>`;
+  }
+  function epReadFlags() {
+    const out = {};
+    document.querySelectorAll("#ep-flags-host [data-dest]").forEach(el => { const d = el.dataset.dest; if (el.type === "checkbox") out[d] = el.checked; else out[d] = el.value === "" ? "" : (el.type === "number" ? +el.value : el.value); });
+    return out;
+  }
+
+  /* ---- cells ---- */
+  const EP_CELL_COLS = ["cell_id", "role", "kernel", "archetype_predicted", "label", "campaign", "rep", "rep_dir", "seed", "status", "n_pairs", "extract_status", "n_seq_gaps", "dt_est_s", "K_max", "all_hard_pass", "C1", "C1_rule", "failed_verdict", "excluded"];
+  let epCellsData = null;
+  async function epCells() {
+    const sum = $("ep-cells-sum"), tbl = $("ep-cells-tbl"), note = $("ep-cells-note");
+    let d; try { d = await epGet("cells"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; return; }
+    epCellsData = d;
+    if (!d.exists) { sum.innerHTML = esc(d.why || "no cells.csv"); tbl.innerHTML = ""; note.innerHTML = ""; return; }
+    sum.innerHTML = `<b>${d.n_kernel}</b> kernel cell${d.n_kernel === 1 ? "" : "s"}, <b>${d.n_idle}</b> idle, <b>${d.n_ok}</b> with status ok · ${epPath("cells.csv")}` +
+      (d.n_other_dirs ? ` · <b>${d.n_other_dirs}</b> other director${d.n_other_dirs === 1 ? "y" : "ies"} under the root are neither kernel nor idle and stay in cells.csv only (${esc(Object.entries(d.other_dirs_status).map(([k, v]) => `${v} × ${k}`).join("; "))}); they are not part of this paper's corpus` : "") +
+      (d.preconditions.exists ? ` · admissibility from ${epPath(d.preconditions.path)}${d.preconditions.excluded.length ? `; <b>excluded</b>: ${esc(d.preconditions.excluded.join(", "))}` : ""}` : " · admissibility appears once move 2 has run") +
+      (d.sidecars.n ? ` · pair counts from ${d.sidecars.n} sidecars (${esc(d.sidecars.path)})` : " · pair counts appear once move 1 has run");
+    epRenderCells();
+    note.innerHTML = d.index_params ? `index params: root <span class="mono">${esc(d.index_params.root)}</span>, idle markers ${esc((d.index_params.idle_markers || []).join(", "))}, rep 0 = seed ${esc(d.index_params.rep0_seed)} (cells.index.json)` : "";
+  }
+  function epRenderCells() {
+    const d = epCellsData; if (!d || !d.exists) return;
+    const q = ($("ep-cells-filter").value || "").toLowerCase();
+    const rows = d.rows.filter(r => !q || EP_CELL_COLS.some(c => String(r[c] == null ? "" : r[c]).toLowerCase().includes(q)));
+    $("ep-cells-tbl").innerHTML = "<thead><tr>" + EP_CELL_COLS.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+      rows.map(r => "<tr>" + EP_CELL_COLS.map(c => { const v = r[c] == null ? "" : r[c]; return `<td class="${epCellClass(v)}" title="${esc(v)}">${esc(v)}</td>`; }).join("") + "</tr>").join("") + "</tbody>";
+  }
+  $("ep-cells-filter").oninput = epRenderCells;
+
+  /* ---- progress (2026-09-29): step K of N, the current step's elapsed time, the split stage's parts, ETAs from this run's own
+     measured times. Reads only the board and /encoding/list; computes timings, never a result. ---- */
+  const EP_PROG = {cache: {}, at: 0};
+  function epDur(sec) {
+    if (sec == null || !isFinite(sec)) return "?";
+    sec = Math.max(0, Math.round(sec));
+    const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+    if (d) return `${d} d ${h} h`; if (h) return `${h} h ${m} min`; if (m) return `${m} min`; return `${sec} s`;
+  }
+  const epT = iso => { const t = Date.parse(iso || ""); return isNaN(t) ? null : t / 1000; };
+  const EP_SPLIT_PARTS = [["within_trace", "kernel"], ["within_trace", "archetype"], ["loro", "kernel"], ["loro", "archetype"], ["loko", "archetype"]];
+  function epSplitWeight(split, nullSplits) {           // model fits per part: folds x (1 + null permutations if its null runs)
+    const folds = split === "within_trace" ? 1 : split === "loro" ? 95 : 12;
+    return folds * (nullSplits.includes(split) ? 501 : 1);
+  }
+  async function epSplitParts(c) {                      // the parts of one `models splits` step and which have finished
+    const line = c.line || "", rung = (line.match(/--rung (\S+)/) || [])[1];
+    const variants = line.includes("--raw-and-norm") ? ["raw", "norm"] : line.includes("--raw") ? ["raw"] : ["norm"];
+    const only = (line.match(/--split (\S+)/) || [])[1], ls = (line.match(/--labelspace (\S+)/) || [])[1] || "all";
+    const nullSplits = ((line.match(/--null-splits (\S+)/) || [])[1] || "").split(",");
+    const now = Date.now() / 1000;
+    let grid = EP_PROG.cache["grid:" + rung];
+    if (!grid || now - EP_PROG.at > 60) {
+      const L = await epGet("list", {path: `gates/splits/${rung}`});
+      grid = ((L.entries || []).filter(e => e.dir).sort((a, b) => (b.mtime || "").localeCompare(a.mtime || ""))[0] || {}).name;
+      EP_PROG.cache["grid:" + rung] = grid;
+      if (grid) {
+        const G = await epGet("list", {path: `gates/splits/${rung}/${grid}`});
+        for (const e of (G.entries || []).filter(e => e.dir)) {
+          const D = await epGet("list", {path: `gates/splits/${rung}/${grid}/${e.name}`});
+          const sc = (D.entries || []).find(x => x.name === "scores.json");
+          EP_PROG.cache[`${rung}/${e.name}`] = sc ? sc.mtime : null;
+        }
+      }
+      EP_PROG.at = now;
+    }
+    const parts = [];
+    for (const v of variants) for (const [sp, l] of EP_SPLIT_PARTS) {
+      if (only && sp !== only) continue;
+      if (ls !== "all" && l !== ls) continue;
+      const dir = v === "raw" ? `${sp}__${l}__raw` : `${sp}__${l}`;      // models.run_split_stage: the normalized variant has no suffix
+      parts.push({name: `${sp.replace("_", "-")}, ${l} labels, ${v === "raw" ? "raw" : "normalized"} features`, dir,
+                  weight: epSplitWeight(sp, nullSplits), done_at: epT(EP_PROG.cache[`${rung}/${dir}`])});
+    }
+    return parts;
+  }
+  async function epProgress(b) {
+    let pg = $("ep-progress");
+    if (!pg) { pg = document.createElement("div"); pg.id = "ep-progress"; pg.className = "ep-note"; pg.style.margin = "6px 0";
+               $("ep-moves-sum").after(pg); }
+    try {
+      const now = Date.now() / 1000;
+      const in15 = !!(b.running && b.running.move === 15);                  // while move 15 runs, count move 15 alone
+      const main = b.moves.filter(m => typeof m.move === "number" && (in15 ? m.move === 15 : m.move <= 14));
+      const scope = in15 ? "move 15 (optional)" : "moves 0 to 14";
+      const cmds = main.flatMap(m => m.commands.map(c => ({...c, move: m.move})));
+      const nDone = cmds.filter(c => c.state === "done").length;
+      let h = `<b>progress</b>: ${nDone} of ${cmds.length} steps done in ${scope}` + (in15 ? "" : " (move 15 is optional and not counted)");
+      if (b.running && typeof b.running.move === "number") {
+        const cur = cmds.find(c => c.move >= b.running.move && c.state !== "done");   // the driver's first unfinished step
+        const idx = cur ? cmds.findIndex(c => c.key === cur.key) + 1 : null;
+        const allCmds = b.moves.filter(m => typeof m.move === "number").flatMap(m => m.commands);
+        const lastFin = Math.max(0, ...allCmds.map(c => epT(c.finished_at) || 0), epT(((b.ledger || {}).last_run || {}).started_at) || 0);
+        const started = lastFin > 0 ? lastFin : null;           // the latest finish anywhere in the run, or the driver's start
+        if (cur) {
+          h += `<br><b>now</b>: step ${idx} of ${cmds.length} · move ${esc(cur.move)} · ${esc(cur.name)} · running for ${epDur(started ? now - started : null)}` +
+               (started ? ` (since the previous step finished)` : "");
+          if (cur.module === "models" && cur.sub === "splits") {
+            const parts = await epSplitParts(cur);
+            for (const p of parts) if (p.done_at && started && p.done_at < started) p.done_at = null;   // written by an earlier step, not this one
+            const k = parts.filter(p => p.done_at).length, curPart = parts.find(p => !p.done_at);
+            const doneW = parts.filter(p => p.done_at && p.done_at >= (started || 0)).reduce((a, p) => a + p.weight, 0);
+            const lastPart = Math.max(0, ...parts.filter(p => p.done_at).map(p => p.done_at));
+            const rate = doneW > 0 && started && lastPart > started ? doneW / (lastPart - started) : null;
+            const leftW = parts.filter(p => !p.done_at).reduce((a, p) => a + p.weight, 0);
+            h += `<br>&nbsp;&nbsp;parts: ${k} of ${parts.length} done` + (curPart ? ` · now: ${esc(curPart.name)}, for ${epDur(now - (lastPart > (started || 0) ? lastPart : started))}` : "") +
+                 (rate ? ` · <b>ETA for this step</b>: about ${epDur(leftW / rate - (now - Math.max(lastPart, started)))} more (estimate, from this step's finished parts)` : " · ETA once its first part finishes");
+          }
+        }
+        // the rest of moves 0 to 14: each remaining step timed by the same step already measured on another reading
+        const measured = {};
+        const kindOf = c => `${c.module}:${c.sub}:${/--null-splits \S*loro/.test(c.line || "") ? "loro-null" : ""}`;   // a LORO null costs far more
+        for (const c of allCmds) if (c.state === "done" && c.elapsed_s > 0) {
+          const kind = kindOf(c), rung = ((c.line || "").match(/--rung (\S+)/) || [])[1] || "";
+          (measured[kind] = measured[kind] || []).push({s: c.elapsed_s, apfBoth: rung === "apf" && (c.line || "").includes("--raw-and-norm")});
+        }
+        let rest = 0, unknown = 0;
+        for (const c of cmds) {
+          if (c.state === "done" || (cur && c.key === cur.key)) continue;
+          const tw = measured[kindOf(c)];
+          if (!tw) { unknown++; continue; }
+          const t = tw[tw.length - 1];
+          rest += t.apfBoth && !(c.line || "").includes("--raw-and-norm") ? t.s / 2 : t.s;   // APF ran raw and normalized; the others only normalized
+        }
+        h += `<br><b>rest of ${scope} after this step</b>: about ${epDur(rest)}` + (unknown ? ` plus ${unknown} step${unknown === 1 ? "" : "s"} not yet measured on any reading` : "") +
+             ` (rough: each remaining step timed by the same step already measured on an earlier reading)`;
+      }
+      pg.innerHTML = h;
+    } catch (e) { pg.textContent = "progress: " + e.message; }
+  }
+
+  /* ---- per-move page and batches (2026-09-29): what a move does, each command's timing, a progress line only where
+     the step writes countable files. Reads only the board and /encoding/list; computes timings, never a result. ---- */
+  const EP_MOVE_WHAT = {   /* draft from RUNBOOK.md section 2, author to check */
+    0: "Lists every recording under the retention root as one row of cells.csv, with its kernel, seed and rep, and refuses any it cannot identify.",
+    1: "Reads each recording's trajectory once and writes its per-pair series (changed pages, persistence, content change) to extract/<cell>/.",
+    2: "Checks that each recording can be observed validly, writes the templates for the author's inputs, and runs the pass-period gate G-P.",
+    3: "Checks the instrument, per reading, against the pulse kernel's declared period (G-C).",
+    4: "Measures the idle floor: which kernels read as idle (G-K0), whether the idle recordings are interchangeable, and which kernels sit above them (G-F).",
+    5: "Draws the first figures: APF over time per kernel, and the level-matched sets side by side.",
+    6: "Runs the temporal gate on APF: features at every window, the grid, the rhythm flag G3, the order test G-ORD, then picks APF's window.",
+    7: "Trains and tests the classifier on APF three ways (within-trace, LORO, LOKO) with their luck checks, runs G-X, G-L and G-N, and writes Table 6.",
+    8: "Runs the persistence floor gate G-J and draws the fused plane.",
+    9: "Does for persistence what moves 6 and 7 do for APF, and draws the persistence histograms.",
+    10: "Does the same for content change, runs G-DEC, and draws its figures.",
+    11: "Does the same for wAPF and writes the wAPF-over-APF table.",
+    12: "Does the same for the combined reading, redoes the floor at every reading's chosen window, runs the comparison gates, and writes every table and figure.",
+    13: "Checks the idle tripwire against every row of Table 7.",
+    14: "Runs the three published comparators (Savoldi, Dhodapkar-Smith, Law) through the same splits and writes their tables.",
+    15: "Optional: adds the LORO luck checks a run under the fallback skipped, then redoes the steps and tables that print them.",
+    eusipco: "Writes EUSIPCO Tables 2 and 3 and the five-page skeleton from the finished run."
+  };
+  const EP_GRID_IDS = ["W8_H2", "W8_H4", "W8_H8", "W16_H4", "W16_H8", "W16_H16", "W32_H8", "W32_H16", "W32_H32", "W64_H16", "W64_H32", "W64_H64", "Wall_Hall"];
+  const EP_LS = {};
+  async function epLs(path) {                           // a directory listing, reused for 30 s
+    const now = Date.now() / 1000, c = EP_LS[path];
+    if (c && now - c.at < 30) return c.d;
+    let d; try { d = await epGet("list", {path}); } catch (e) { d = {entries: []}; }
+    EP_LS[path] = {at: now, d}; return d;
+  }
+  const epClock = t => t ? new Date(t * 1000).toTimeString().slice(0, 8) : "?";
+  function epRunCursor(b) {                             // the running command and when it started (the latest finish in the run, or the batch start)
+    if (!b.running || typeof b.running.move !== "number") return null;
+    const all = b.moves.filter(m => typeof m.move === "number").flatMap(m => m.commands.map(c => ({...c, move: m.move})));
+    const cur = all.find(c => c.move >= b.running.move && c.state !== "done");
+    const t0 = epT((b.running.batch || {}).started_at) || epT(b.running.started_at) || 0;
+    const started = Math.max(t0, ...all.map(c => epT(c.finished_at) || 0)) || null;
+    return cur ? {key: cur.key, move: cur.move, started} : null;
+  }
+  async function epCmdProgress(c, started) {            // {done, total, eta} for a step with a countable signal, else null
+    const line = c.line || "", rung = (line.match(/--rung (\S+)/) || [])[1];
+    const fresh = e => !!e && (epT(e.mtime) || 0) >= (started || 0) - 1;
+    let units = null;                                   // [[weight, done], ...]
+    if (c.module === "models" && c.sub === "splits") {
+      const parts = await epSplitParts(c);
+      units = parts.map(p => [p.weight, !!(p.done_at && (!started || p.done_at >= started))]);
+    } else if (c.module === "gates_temporal" && c.sub === "gord" && rung) {
+      units = [];
+      for (const [n, g] of [[8, "W8_H4"], [16, "W16_H8"], [32, "W32_H16"], [64, "W64_H32"]]) {
+        const L = await epLs(`gates/grid/${rung}/${g}`);
+        units.push([64 / n, fresh((L.entries || []).find(e => e.name === "gord.json"))]);   // a window of W pairs has about 1/W as many windows
+      }
+    } else if (c.module === "series" && c.sub === "features" && line.includes("--all-grid") && rung) {
+      const total = line.includes("--both") ? 26 : 13;
+      const L = await epLs(`features/${rung}`);
+      const n = (L.entries || []).filter(e => e.name.endsWith(".npz") && fresh(e)).length;
+      units = Array.from({length: total}, (_, i) => [1, i < n]);
+    } else if (c.module === "gates_temporal" && c.sub === "grid" && rung) {
+      units = [];
+      for (const g of EP_GRID_IDS) { const L = await epLs(`gates/grid/${rung}/${g}`); units.push([1, fresh((L.entries || []).find(e => e.name === "temporal_per_kernel.csv"))]); }
+    } else if (c.module === "extract" && c.sub === "all") {
+      if (EP.cellsOk == null) { try { EP.cellsOk = (await epGet("cells")).n_ok; } catch (e) { EP.cellsOk = null; } }
+      const L = await epLs("extract");
+      const n = (L.entries || []).filter(e => e.dir && fresh(e)).length;
+      if (EP.cellsOk) units = Array.from({length: EP.cellsOk}, (_, i) => [1, i < n]);
+    }
+    if (!units || !units.length) return null;
+    const now = Date.now() / 1000, doneW = units.filter(u => u[1]).reduce((a, u) => a + u[0], 0), leftW = units.filter(u => !u[1]).reduce((a, u) => a + u[0], 0);
+    const rate = doneW > 0 && started ? doneW / (now - started) : null;
+    return {done: units.filter(u => u[1]).length, total: units.length, eta: rate ? leftW / rate : null};
+  }
+  function epCmdTiming(c, cursor) {                     // one command's start and elapsed time on the per-move page
+    if (cursor && c.key === cursor.key)
+      return `<div class="ep-live" data-live="${esc(c.key)}"><b>running</b> since ${epClock(cursor.started)}, for ${epDur(cursor.started ? Date.now() / 1000 - cursor.started : null)} · <span class="ep-prog">progress: …</span></div>`;
+    const t1 = epT(c.finished_at), t0 = epT(c.started_at) || (t1 && c.elapsed_s != null ? t1 - c.elapsed_s : null);
+    if (c.state === "done" || c.state === "failed" || c.state === "refused")
+      return `<div class="subnote">started ${epClock(t0)} · ${c.elapsed_s != null ? "took " + epDur(c.elapsed_s) : "no time recorded"}</div>`;
+    return "";
+  }
+  /* ---- moves ---- */
+  async function epMoves() {
+    const sum = $("ep-moves-sum"), tbl = $("ep-moves-tbl");
+    let b; try { b = await epGet("board"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; $("ep-move-body").innerHTML = ""; return; }
+    EP.board = b;
+    const led = b.ledger || {};
+    sum.innerHTML = (led.exists ? `ledger ${epPath(led.path)}: ${led.n_runs} run${led.n_runs === 1 ? "" : "s"}, ${led.n_commands} command records, package ${esc(led.package_version || "?")}` : "no ledger yet: nothing has run on this output root") +
+      (b.running ? ` · <b>running</b>: move ${esc(b.running.move)}${b.running.external ? ` from a shell (pid ${b.running.pid}, moves ${esc(b.running.moves)}); the console will not start a second driver` : ` (launch ${esc(b.running.id)}, pid ${b.running.pid})`}` : "") +
+      (b.running && b.running.batch ? ` · <b>batch</b>: moves ${esc(b.running.batch.spec)}, started ${esc(epClock(epT(b.running.batch.started_at)))} from ${b.running.batch.source === "shell" ? "a shell" : "the console"}` : "");
+    epProgress(b);
+    tbl.innerHTML = "<thead><tr><th>move</th><th>what</th><th>state</th><th>commands</th><th>reads from</th><th>last finished</th><th></th></tr></thead><tbody>" +
+      b.moves.map(m => { const done = m.commands.filter(c => c.state === "done").length;
+        return `<tr data-move="${esc(m.move)}" class="${String(m.move) === String(EP.move) ? "on" : ""}"><td class="num">${esc(m.move)}</td><td>${esc(m.title)}${m.note ? `<div class="ep-note" style="margin:2px 0 0">${esc(m.note)}</div>` : ""}${m.interrupted_at ? `<div class="ep-note" style="margin:2px 0 0;color:var(--warn)">stopped mid-run at ${esc(m.interrupted_at.replace("T", " ").slice(0, 19))}: run it again (the driver resumes what finished)</div>` : ""}${m.outputs_missing.length && m.state === "done" ? `<div class="ep-note" style="margin:2px 0 0;color:var(--warn)">outputs missing: ${esc(m.outputs_missing.join(", "))}</div>` : ""}</td>` +
+          `<td>${m.state === "queued" ? `<span class="ep-state queued" title="selected in the running batch; it runs after the move now running">queued in this batch</span>${m.state_before_batch ? `<div class="subnote">before this batch: ${esc(m.state_before_batch)}</div>` : ""}` : `<span class="ep-state ${esc(m.state)}">${esc(m.state)}</span>`}</td><td class="num">${m.commands.length ? `${done}/${m.commands.length}` : "2 (by hand)"}</td><td class="num">${esc(m.reads_from.join(", "))}</td><td>${esc((m.last_finished_at || "").replace("T", " ").slice(0, 19))}</td>` +
+          `<td style="white-space:nowrap">${m.state === "done" ? `<button class="bigbtn ghost" data-run="${esc(m.move)}" data-force="1" ${m.runnable ? "" : "disabled"} title="run_moves run --moves ${esc(m.move)} --force">Re-run</button>` : `<button class="bigbtn" data-run="${esc(m.move)}" ${m.runnable ? "" : "disabled"} title="${m.runnable ? "launch the driver for this move" : "waits for move " + m.requires.join(", ")}">Run</button>`}</td></tr>`; }).join("") + "</tbody>";
+    tbl.querySelectorAll("tbody tr").forEach(tr => { tr.onclick = e => { if (e.target.closest("button")) return; EP.move = tr.dataset.move; epSave(); epMoves(); }; });
+    tbl.querySelectorAll("button[data-run]").forEach(btn => { btn.onclick = async e => { e.stopPropagation(); const mv = btn.dataset.run, force = !!btn.dataset.force;
+      if (force && !confirm(`Re-run move ${mv} with --force: every command of the move runs again and its outputs are rewritten by the toolkit. Continue?`)) return;
+      try { const r = await api("/encoding/run", {move: isNaN(+mv) ? mv : +mv, force}); EP.launch = r.id; EP.move = mv; EP.board = null; epSave(); epSetTab("log"); }
+      catch (err) { alert(err.message); } }; });
+    const bf = $("ep-batch-from"), bt = $("ep-batch-to"), br = $("ep-batch-run");
+    if (bf && bt && br) {
+      br.disabled = !!b.running;
+      if (bf.value === "") { const first = b.moves.find(m => typeof m.move === "number" && m.move <= 14 && m.state !== "done"); if (first) bf.value = first.move; }
+      if (bt.value === "") bt.value = 14;
+      br.onclick = async () => { const n = +bf.value, m = +bt.value;
+        if (!(n >= 0 && m >= n && m <= 15)) { alert("choose moves N to M with 0 <= N <= M <= 15"); return; }
+        if (!confirm(`Run moves ${n} to ${m} as one driver run (run_moves run --moves ${n}-${m})? It runs them in order and stops at the first failure.`)) return;
+        try { const r = await api("/encoding/run", {move: n, to_move: m}); EP.launch = r.id; EP.move = String(n); EP.board = null; epSave(); epSetTab("log"); }
+        catch (err) { alert(err.message); } };
+    }
+    epMoveDetail();
+    clearTimeout(EP.timer);
+    if (b.running) EP.timer = setTimeout(() => { if (EP.tab === "moves" && document.documentElement.classList.contains("ep-open")) epMoves(); }, 3000);
+  }
+  async function epMoveDetail() {
+    const b = EP.board, host = $("ep-move-body");
+    const m = b && b.moves.find(x => String(x.move) === String(EP.move));
+    if (!m) { $("ep-move-title").textContent = "pick a move"; host.innerHTML = ""; return; }
+    $("ep-move-title").textContent = `move ${m.move}: ${m.title}`;
+    const cursor = epRunCursor(b);
+    let h = (EP_MOVE_WHAT[m.move] ? `<div class="ep-note" style="font-size:12.5px;color:var(--ink)">${esc(EP_MOVE_WHAT[m.move])} <span class="subnote">(draft, author to check)</span></div>` : "") +
+      (m.state === "queued" ? `<div class="ep-note" style="color:var(--accent)">queued in this batch: it runs after move ${esc(b.running.move)}</div>` : "") + `<div class="ep-note"><span class="ep-state ${esc(m.state)}">${esc(m.state)}</span>${m.interrupted_at ? ` · <b>stopped mid-run</b> at ${esc(m.interrupted_at)}; the records below are what finished before the stop` : ""} · ${m.requires.length ? `after move ${esc(m.requires.join(", "))}` : "the first move"}${m.reads_from.length ? ` · reads files written by move ${esc(m.reads_from.join(", "))}` : ""}` +
+      (m.output_dirs.length ? ` · outputs under ${m.output_dirs.map(d => `<a href="#" data-dir="${esc(d)}" style="color:var(--accent)">${esc(d || "<out>")}</a>`).join(", ")}` : "") + `</div>`;
+    if (m.commands.length) {
+      h += `<h3 style="margin-top:10px">the commands, as the driver plans them</h3>` + m.commands.map(c => `<div class="ep-cmd"><div><b>${esc(c.name)}</b>${c.template ? ' <span class="subnote">(template: never overwritten once it exists)</span>' : ""}${c.internal ? ' <span class="subnote">(the driver\'s own step)</span>' : ""}</div>` +
+        `<div class="line">${esc(c.line)}</div>` + epCmdTiming(c, cursor) + (cursor && c.key === cursor.key ? "" : c.status ? `<div class="st ${esc(c.state)}">${esc(c.status)}${c.verdict && c.verdict !== c.status ? " · verdict: " + esc(c.verdict) : ""}${c.stale ? " · " + esc(c.stale) : ""}${c.finished_at ? " · " + esc(c.finished_at) : ""}${c.elapsed_s != null ? ` · ${esc(c.elapsed_s)} s` : ""}</div>` : `<div class="st">not run</div>`) +
+        (c.stderr_tail ? `<div class="err">${esc(c.stderr_tail)}</div>` : "") + `</div>`).join("");
+    } else {
+      h += `<h3 style="margin-top:10px">the two commands (RUNBOOK.md, run by hand)</h3><div class="ep-cmd"><div class="line">python3 -m plan11_encoding_ladder.tables_eusipco --out &lt;out&gt;\npython3 -m plan11_encoding_ladder.latex_skeleton_eusipco --out &lt;out&gt;${EP.cfg && EP.cfg.standalone_tex ? " --standalone " + esc(EP.cfg.standalone_tex) : ""}</div><div class="st">${esc(m.outputs_missing.length ? "not yet written: " + m.outputs_missing.join(", ") : "written")}</div></div>` +
+        `<div class="ep-note"><b>DO NOT set standalone_tex to a live paper.</b> The builder emits a scaffold with zero prose; apf_paper/p2e_skeleton.tex and p2_skeleton.tex are hand-maintained and the writer now refuses to overwrite them (2026-09-27). Point it at a scratch path or leave it unset; the configuration (standalone_tex) to pass it.</div>`;
+    }
+    if (m.look_at) h += `<h3 style="margin-top:10px">what to look at (RUNBOOK.md)</h3><pre class="ep-pre">${esc(m.look_at)}</pre>`;
+    h += `<h3 style="margin-top:10px">the driver's plan for this move (<span class="mono">run_moves plan --moves ${esc(m.move)}</span>)</h3><pre class="ep-pre" id="ep-plan-text">…</pre>`;
+    host.innerHTML = h;
+    host.querySelectorAll("a[data-dir]").forEach(a => { a.onclick = ev => { ev.preventDefault(); EP.dir = a.dataset.dir; EP.view = null; epSave(); epSetTab("look"); }; });
+    const live = host.querySelector("[data-live]");
+    if (live) {
+      const c = m.commands.find(x => x.key === live.dataset.live), sp = live.querySelector(".ep-prog");
+      try { const p = await epCmdProgress(c, cursor.started);
+            sp.innerHTML = p ? `progress: ${p.done} of ${p.total}${p.eta != null ? ` · ETA about ${epDur(p.eta)} more (estimate, from this step's own pace)` : " · ETA once the first one finishes"}` : "no progress signal"; }
+      catch (e) { sp.textContent = "no progress signal"; }
+    }
+    EP.planText = EP.planText || {};
+    if (m.commands.length) { try { const t = EP.planText[m.move] || (EP.planText[m.move] = await epGet("plan_text", {move: m.move})); const el = $("ep-plan-text"); if (el) el.textContent = t.text || "(nothing printed)"; } catch (e) { const el = $("ep-plan-text"); if (el) el.textContent = e.message; } }
+    else { const el = $("ep-plan-text"); if (el) el.textContent = "not a driver move"; }
+  }
+
+  /* ---- look at: the toolkit's files rendered ---- */
+  async function epLook() {
+    let v; try { v = await epGet("views"); } catch (e) { $("ep-views").innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; return; }
+    const host = $("ep-views"); host.innerHTML = "";
+    (v.views || []).forEach(x => { const b = document.createElement("button"); b.className = (EP.view === x.id ? "on " : "") + (x.any ? "" : "none");
+      b.innerHTML = `<span>${esc(x.title)}</span><span class="n">move ${esc(x.move)} · ${x.files.filter(f => f.exists).length}/${x.files.length}</span>`;
+      b.onclick = () => { EP.view = x.id; epSave(); epLook(); }; host.appendChild(b); });
+    epBrowse();
+    const cur = (v.views || []).find(x => x.id === EP.view);
+    if (!cur) { $("ep-look-title").textContent = "the toolkit's files, as written"; $("ep-look-note").textContent = "pick a view on the left, or a file in the browser"; if (!EP.dirFile) $("ep-look-body").innerHTML = ""; return; }
+    $("ep-look-title").textContent = cur.title;
+    $("ep-look-note").innerHTML = (cur.note ? esc(cur.note) + " " : "") + `Written by move ${esc(cur.move)}. Every panel below is one of the toolkit's files; the path is the file.`;
+    const body = $("ep-look-body"); body.innerHTML = "";
+    for (const f of cur.files) body.appendChild(await epRenderFile(f.path, cur.id));
+  }
+  async function epRenderFile(rel, viewId) {
+    const box = document.createElement("div"); box.className = "ep-file";
+    let d; try { d = await epGet("text", {path: rel}); } catch (e) { box.innerHTML = `<div class="ep-missing">${esc(e.message)}</div>`; return box; }
+    if (!d.exists) { box.innerHTML = `<h4>${esc(rel)}</h4><div class="ep-missing">not yet written by the toolkit: <span class="mono">${esc(rel)}</span></div>`; return box; }
+    const meta = `${epPath(rel)} <span class="subnote">${esc(d.bytes)} B · ${esc((d.mtime || "").replace("T", " ").slice(0, 19))}${d.params_file ? " · params: " : ""}</span>${d.params_file ? epPath(d.params_file) : ""}`;
+    if (d.kind === "binary") {
+      const pdf = rel.endsWith(".png") ? rel.slice(0, -4) + ".pdf" : null;
+      box.innerHTML = `<h4>${esc(rel.split("/").pop())} ${meta}${pdf ? ` <span class="ep-path">${epPath(pdf, "PDF")}</span>` : ""}</h4>` + (d.content_type === "image/png" ? `<img src="${epFileUrl(rel)}" alt="${esc(rel)}">` : `<div class="ep-note">binary file (${esc(d.content_type)})</div>`);
+      return box;
+    }
+    if (d.error) { box.innerHTML = `<h4>${esc(rel.split("/").pop())} ${meta}</h4><div class="ep-missing">${esc(d.error)}</div>`; return box; }
+    if (d.kind === "csv") {
+      let selected = null;
+      if (viewId === "temporal_grid" && rel === "gates/table5_grid.csv") { try { const s = await epGet("text", {path: "gates/selection.json"}); if (s.exists && s.json) { selected = {}; Object.entries(s.json).forEach(([k, v]) => { if (v && typeof v === "object" && v.grid_id) selected[k] = v.grid_id; }); } } catch (e) {} }
+      const iR = d.header.indexOf("rung"), iG = d.header.indexOf("grid_id"), iS = d.header.indexOf("selected");
+      box.innerHTML = `<h4>${esc(rel.split("/").pop())} ${meta} <span class="subnote">${esc(d.n_rows)} rows${d.truncated ? " (first " + d.rows.length + " shown)" : ""}</span></h4>` +
+        `<div class="tblwrap"><table class="tbl"><thead><tr>${d.header.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+        d.rows.map(r => { const sel = selected && iR >= 0 && iG >= 0 && selected[r[iR]] === r[iG] || (iS >= 0 && r[iS]);
+          return `<tr>${r.map((c, i) => `<td class="${epCellClass(c)}${sel && (i === iG || i === iS) ? " sel" : ""}" title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`; }).join("") + `</tbody></table></div>` +
+        (selected ? `<div class="ep-note">highlighted: the grid point selection.json names for each rung (${esc(Object.entries(selected).map(([k, v]) => k + " = " + v).join(", "))}); every other point is kept and shown.</div>` : "");
+      return box;
+    }
+    if (d.kind === "json") { box.innerHTML = `<h4>${esc(rel.split("/").pop())} ${meta}</h4><pre class="ep-pre">${esc(JSON.stringify(d.json, null, 1))}</pre>`; return box; }
+    box.innerHTML = `<h4>${esc(rel.split("/").pop())} ${meta}</h4><pre class="ep-pre">${esc(d.text || "")}</pre>`;
+    return box;
+  }
+  async function epBrowse() {
+    const crumbs = $("ep-crumbs"), ls = $("ep-ls");
+    let d; try { d = await epGet("list", {path: EP.dir}); } catch (e) { ls.innerHTML = `<span class="dim">${esc(e.message)}</span>`; return; }
+    const parts = EP.dir ? EP.dir.split("/") : [];
+    crumbs.innerHTML = `<a data-d="">&lt;out&gt;</a>` + parts.map((p, i) => ` / <a data-d="${esc(parts.slice(0, i + 1).join("/"))}">${esc(p)}</a>`).join("");
+    crumbs.querySelectorAll("a").forEach(a => { a.onclick = () => { EP.dir = a.dataset.d; epSave(); epBrowse(); }; });
+    if (!d.exists) { ls.innerHTML = `<span class="dim">not yet written by the toolkit: ${esc(EP.dir || "<out>")}</span>`; return; }
+    ls.innerHTML = d.entries.map(e => `<a data-p="${esc(e.path)}" data-dir="${e.dir ? 1 : ""}">${esc(e.name)}${e.dir ? "/" : ""}</a><span class="dim">${e.dir ? "" : esc(e.bytes)}</span><span class="dim">${esc((e.mtime || "").replace("T", " ").slice(5, 16))}</span>`).join("") || `<span class="dim">empty</span>`;
+    ls.querySelectorAll("a").forEach(a => { a.onclick = async () => { if (a.dataset.dir) { EP.dir = a.dataset.p; epSave(); epBrowse(); return; }
+      EP.view = null; EP.dirFile = a.dataset.p; epSave(); document.querySelectorAll("#ep-views button").forEach(b => b.classList.remove("on"));
+      $("ep-look-title").textContent = a.dataset.p; $("ep-look-note").textContent = "one of the toolkit's files, as written";
+      const body = $("ep-look-body"); body.innerHTML = ""; body.appendChild(await epRenderFile(a.dataset.p, null)); }; });
+  }
+
+  /* ---- log ---- */
+  async function epLog() {
+    clearTimeout(EP.logTimer);
+    let b; try { b = await epGet("board"); EP.board = b; } catch (e) { $("ep-log").textContent = e.message; return; }
+    const pick = $("ep-log-pick"); const cur = pick.value;
+    pick.innerHTML = "";
+    (b.launches || []).forEach(l => { const o = document.createElement("option"); o.value = l.id; o.textContent = `${l.id} · move ${l.move}${l.force ? " (force)" : ""} · ${l.exit_code == null ? (b.running && b.running.id === l.id ? "running" : "?") : "exit " + l.exit_code}`; pick.appendChild(o); });
+    if (!pick.options.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "no launch from this console yet"; pick.appendChild(o); }
+    const want = EP.launch || (b.running && b.running.id) || cur || (b.launches && b.launches[0] ? b.launches[0].id : "");
+    pick.value = [...pick.options].some(o => o.value === want) ? want : (pick.options[0] ? pick.options[0].value : "");
+    EP.launch = pick.value || null;
+    $("ep-stop").disabled = !(b.running && !b.running.external);
+    let t; try { t = await epGet("log", {launch: EP.launch || "", tail: 400}); } catch (e) { $("ep-log").textContent = e.message; return; }
+    const pre = $("ep-log"); const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+    pre.textContent = (t.lines || []).join("\n") || (t.running ? "(no output yet)" : (t.id ? "(empty log)" : "no launch selected"));
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    const host = $("ep-launch");
+    if (EP.launch) { try { const r = await epGet("launch", {id: EP.launch}); const tk = r.toolkit || {};
+      host.innerHTML = `<dl class="ep-kv"><dt>launch</dt><dd>${esc(r.id)}</dd><dt>move</dt><dd>${esc(r.move)}${r.force ? " (--force)" : ""}</dd><dt>command</dt><dd>${(r.shell || []).map(esc).join("<br>")}</dd><dt>cwd</dt><dd>${esc(r.cwd)}</dd>` +
+        `<dt>started</dt><dd>${esc(r.started_at)}</dd><dt>finished</dt><dd>${esc(r.finished_at || (t.running ? "running" : "?"))}${r.exit_code != null ? " · exit " + esc(r.exit_code) : ""}</dd>` +
+        `<dt>toolkit</dt><dd>repo HEAD ${esc(tk.repo_head || "?")}<br>${tk.committed ? "committed and clean" : "NOT committed at HEAD (" + (tk.tracked ? "tracked, " + tk.dirty_entries + " dirty" : "untracked") + ")"}<br>fingerprint ${esc(tk.content_fingerprint)} over ${esc(tk.n_py_files)} .py files · package ${esc(tk.package_version)}</dd>` +
+        `<dt>flags</dt><dd>${esc(JSON.stringify((r.config || {}).flags || {}))} (preset ${esc((r.config || {}).preset)})</dd>` +
+        `<dt>driver params</dt><dd>${r.driver_params ? esc(JSON.stringify(r.driver_params)) : "(written when the run ends: the ledger's params block)"}</dd>` +
+        `<dt>driver run</dt><dd>${r.driver_run ? esc(JSON.stringify({moves: r.driver_run.moves, exit_code: r.driver_run.exit_code, started_at: r.driver_run.started_at, finished_at: r.driver_run.finished_at})) : "-"}</dd>` +
+        `<dt>record</dt><dd>${esc((r.log || "").replace(/\.log$/, ".json"))}</dd></dl>`; } catch (e) { host.innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; } }
+    else host.innerHTML = `<div class="ep-note">launch a move from the Moves tab; every launch leaves a record under &lt;out&gt;/.console/launches/ with the command line, the toolkit's commit state and the params block the driver wrote.</div>`;
+    if (t.running) EP.logTimer = setTimeout(() => { if (EP.tab === "log" && document.documentElement.classList.contains("ep-open")) { EP.board = null; epLog(); } }, 2000);
+  }
+  $("ep-log-pick").onchange = () => { EP.launch = $("ep-log-pick").value || null; epSave(); epLog(); };
+  $("ep-stop").onclick = async () => { if (!confirm("Stop the running driver? The toolkit has no pause; the process group is terminated and the ledger keeps what finished.")) return; try { await api("/encoding/stop", {}); } catch (e) { alert(e.message); } EP.board = null; epLog(); };
+
+  /* ---- for the author ---- */
+  async function epAuthor() {
+    let d; try { d = await epGet("params"); } catch (e) { $("ep-author-body").innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; return; }
+    $("ep-author-note").innerHTML = `${d.n_blocks || 0} params block${d.n_blocks === 1 ? "" : "s"} under &lt;out&gt; (every JSON the toolkit wrote with a <span class="mono">params</span> key; the ${d.n_sidecars_not_listed || 0} per-cell sidecars are on the Cells tab)` + (d.manifest ? ` · the toolkit's own collection: ${epPath(d.manifest)}` : " · report/manifest.json collects them all once move 12 has run");
+    const kv = obj => `<dl class="ep-kv">${Object.entries(obj || {}).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</dd>`).join("")}</dl>`;
+    let h = `<details class="ep-block" open><summary><b>the driver's flags</b> as the ledger recorded them (driver_state.json params)</summary>${d.driver_params ? kv(d.driver_params) : '<div class="ep-note" style="padding:4px 10px">no ledger yet</div>'}</details>`;
+    h += `<details class="ep-block" open><summary><b>the author's inputs</b> (inputs/*, written as templates by move 2, never overwritten by the toolkit; edit them in the shell)</summary><div style="padding:4px 10px">` +
+      Object.entries(d.inputs || {}).map(([name, f]) => { if (!f.exists) return `<div class="ep-note">${esc(f.path)}: not present</div>`;
+        if (f.kind === "csv") return `<div class="ep-file"><h4>${esc(name)} ${epPath(f.path)}</h4><div class="tblwrap" style="max-height:220px"><table class="tbl"><thead><tr>${f.header.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${f.rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+        return `<div class="ep-file"><h4>${esc(name)} ${epPath(f.path)}</h4><pre class="ep-pre">${esc(f.json ? JSON.stringify(f.json, null, 1) : f.text || "")}</pre></div>`; }).join("") + `</div></details>`;
+    h += (d.blocks || []).map(b => `<details class="ep-block"><summary><b>${esc(b.path)}</b> · ${esc(b.schema || "")}${b.written_at ? " · " + esc(b.written_at) : ""}</summary>${kv(b.params)}${b.citation ? `<div class="ep-note" style="padding:0 10px 8px">${esc(b.citation)}</div>` : ""}</details>`).join("");
+    $("ep-author-body").innerHTML = h;
+  }
+
+  /* ---- open, close ---- */
+  async function epOpen() {
+    document.documentElement.classList.add("ep-open");
+    try { await epLoadConfig(); } catch (e) { $("ep-tk").textContent = e.message; }
+    epSetTab(EP.tab || "cells");
+  }
+  function epClose() { document.documentElement.classList.remove("ep-open"); clearTimeout(EP.timer); clearTimeout(EP.logTimer); }
+  $("ep-close").onclick = epClose;
+  $("ep-refresh").onclick = () => { EP.board = null; EP.cache = {}; epLoadConfig().then(() => epSetTab(EP.tab)); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.documentElement.classList.contains("ep-open")) epClose(); });
+  (function () {
+    const host = document.querySelector("header.top"); if (!host) return;
+    const b = document.createElement("button"); b.className = "bigbtn ghost"; b.id = "ep-btn"; b.textContent = "Encoding paper";
+    b.title = "the encoding paper's toolkit (plan11_encoding_ladder): its moves in the runbook's order, launched one at a time, and its files as written";
+    b.onclick = () => epOpen();
+    const anchor = $("ln-btn") || $("xp-btn") || $("mon-btn") || $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
 
   refreshRuns();
 })();

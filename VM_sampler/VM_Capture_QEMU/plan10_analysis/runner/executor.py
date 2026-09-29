@@ -42,7 +42,7 @@ from plan10_analysis.modules import build_modules                         # noqa
 from plan10_analysis.sources import make_source                           # noqa: E402
 from plan10_analysis.runner import extract, stages, differ, trajectory    # noqa: E402
 
-CROSS = {"baseline", "plv", "deviation", "concat", "write"}
+CROSS = {"baseline", "plv", "deviation", "concat", "write", "write_tiles"}
 
 
 class Stop(Exception):
@@ -131,7 +131,7 @@ def topo(nodes: dict, pipes: list[dict]) -> list[str]:
 
 def cross_set(nodes: dict, pipes: list[dict]) -> set[str]:
     """Nodes evaluated over all recordings at once: baseline/plv/write and their descendants."""
-    cross = {n for n, v in nodes.items() if v["module"] in ("baseline", "plv", "deviation", "write")}
+    cross = {n for n, v in nodes.items() if v["module"] in ("baseline", "plv", "deviation", "write", "write_tiles")}
     changed = True
     while changed:
         changed = False
@@ -352,7 +352,7 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
     # ---- phase 3: cross-recording
     st.write(phase="assemble", recording=None)
     cross_out: dict[str, object] = {}
-    written = None
+    written = tiles_written = None
     for n in order:
         if n not in cross:
             continue
@@ -397,10 +397,21 @@ def _run(sch, scheme_path, out_dir, st, source_spec, store, speed, max_pairs, ac
             maps = [fetch(s) for s in multi_ins]
             written = _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs,
                              _extraction_provenance(stores, st), st)
+        elif mod == "write_tiles":
+            tiles_written = _write_tiles(out_dir, fetch(ins["in"]), rec_ids, ctx, int(p.get("max_mb", 512)) * 1024 * 1024, st)
         else:
             raise ValueError(f"cross-recording node of kind {mod} not handled")
+    if tiles_written and not written:
+        # a tiles-only scheme still leaves the sidecar every consumer reads first
+        _write(out_dir, sch, scheme_path, [], rec_ids, {}, src, manifest, roster, ctx, speed, max_pairs,
+               _extraction_provenance(stores, st), st, features=False)
+    done = []
+    if written:
+        done.append(f"{written['n_rows']} rows, {written['n_features']} features")
+    if tiles_written:
+        done.append(f"{tiles_written['n_tiles']} {tiles_written['shape']} tiles")
     st.write(state="done", phase="done", recording=None, pair=0, n_pairs=0,
-             message=f"{written['n_rows']} rows, {written['n_features']} features in {time.time() - t0:.1f}s" if written else "no Write module reached")
+             message=(", ".join(done) + f" in {time.time() - t0:.1f}s") if done else "no Write module reached")
     st.logline(st.d["message"])
     return 0
 
@@ -475,7 +486,9 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     if mod == "block":
         return stages.block(up("in"), int(p["wp"]), int(p["hp"]))
     if mod == "collapse":
-        return stages.collapse(up("in"), p.get("unchanged", "zero"), p.get("reduce", "mean"))
+        return stages.collapse(up("in"), p.get("unchanged", "zero"), p.get("reduce", "mean"), float(p.get("q", 0.5)))
+    if mod == "persist_pages":
+        return stages.persistent_pages(up("in"), int(p.get("lag") or 1), p.get("side", "t"), p.get("edge", "replicate"))
     if mod == "persistence":
         return stages.persistence(up("in"), p.get("measure", "jaccard"), int(p.get("lag") or 1), p.get("edge", "replicate"), p.get("empty", "zero"))
     if mod == "window":
@@ -512,9 +525,9 @@ def _eval_local(n, g, mod_of, memo, store_d, rid):
     raise ValueError(f"module {mod} cannot be evaluated per recording")
 
 
-def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs, dv, st) -> dict:
+def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, ctx, speed, max_pairs, dv, st, features=True) -> dict:
     rows, keys, names = [], [], None
-    for rid in rec_ids:
+    for rid in (rec_ids if features else []):
         blocks = [m[rid] for m in maps if rid in m]
         if len(blocks) != len(maps):
             continue
@@ -528,11 +541,12 @@ def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, c
     X = np.asarray(rows, dtype=np.float32).reshape(len(rows), len(names or []))
     key_dt = np.dtype([("recording", "U256"), ("workload", "U128"), ("family", "U32"), ("block", "i4"), ("t_index", "i4"), ("seq_start", "i4")])
     tile_keys = np.array(keys, dtype=key_dt)
-    np.savez_compressed(out_dir / "features.npz", X=X, feature_names=np.array(names or [], dtype="U64"), tile_keys=tile_keys)
-    with (out_dir / "features.csv").open("w") as f:
-        f.write(",".join(["recording", "workload", "family", "block", "t_index", "seq_start"] + (names or [])) + "\n")
-        for k, r in zip(keys, X):
-            f.write(",".join([str(x) for x in k] + [f"{v:.6g}" for v in r]) + "\n")
+    if features:
+        np.savez_compressed(out_dir / "features.npz", X=X, feature_names=np.array(names or [], dtype="U64"), tile_keys=tile_keys)
+        with (out_dir / "features.csv").open("w") as f:
+            f.write(",".join(["recording", "workload", "family", "block", "t_index", "seq_start"] + (names or [])) + "\n")
+            for k, r in zip(keys, X):
+                f.write(",".join([str(x) for x in k] + [f"{v:.6g}" for v in r]) + "\n")
     sidecar = {
         "schema": "plan10.sidecar.v1",
         "label": sch.get("label"),
@@ -555,11 +569,113 @@ def _write(out_dir, sch, scheme_path, maps, rec_ids, p, src, manifest, roster, c
         "python": platform.python_version(), "numpy": np.__version__,
         "written_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "n_rows": int(X.shape[0]), "n_features": len(names or []), "feature_names": names or [],
-        "format": p.get("fmt", "npz+csv"),
+        "format": p.get("fmt", "npz+csv") if features else "tiles only",
     }
-    (out_dir / "sidecar.json").write_text(json.dumps(sidecar, indent=1, default=str))
-    st.logline(f"wrote {out_dir / 'features.npz'} ({X.shape[0]} x {X.shape[1]})")
+    side_path = out_dir / "sidecar.json"
+    if side_path.exists():
+        # write_tiles ran first and left its section; keep it
+        try:
+            prev = json.loads(side_path.read_text())
+            if "tiles" in prev:
+                sidecar["tiles"] = prev["tiles"]
+        except (OSError, json.JSONDecodeError):
+            pass
+    side_path.write_text(json.dumps(sidecar, indent=1, default=str))
+    if features:
+        st.logline(f"wrote {out_dir / 'features.npz'} ({X.shape[0]} x {X.shape[1]})")
     return {"n_rows": int(X.shape[0]), "n_features": len(names or [])}
+
+
+KEY_DT = np.dtype([("recording", "U256"), ("workload", "U128"), ("family", "U32"), ("block", "i4"), ("t_index", "i4"), ("seq_start", "i4")])
+
+
+def _write_tiles(out_dir, tiles_map: dict, rec_ids, ctx, max_bytes: int, st) -> dict:
+    """tiles.npz: the tiles themselves, keyed like features.npz, in one of three shapes.
+
+      series  X (n, W) or (n, W, k)        a collapsed series' windows, as Window made them
+      path    X (n, W, n_blocks * k)        a blocked series: the per-block windows of one
+                                            (t_index, seq_start) stacked along the last axis in
+                                            block order, so a tile is a walk through block-space
+      image   X (n, W, P) + pages (P,)      the page-by-time image, P active pages
+
+    Complex tiles stay complex64 and say so; the byte budget refuses before writing, naming the
+    size, the way Window's budget does.
+    """
+    shape = None
+    Xs, keys = [], []
+    n_blocks, pages, channels, w, h, is_complex = 0, None, None, None, None, False
+    for rid in rec_ids:
+        t = tiles_map.get(rid)
+        if t is None or t["X"].shape[0] == 0:
+            st.logline(f"write_tiles: {rid} produced no tiles")
+            continue
+        rec = ctx.rec_by_id[rid]
+        w, h, channels, is_complex = int(t["w"]), int(t["h"]), list(t["channels"]), bool(t.get("complex"))
+        X = t["X"]
+        if t.get("page_axis"):
+            this = "image"
+            if pages is not None and not np.array_equal(pages, t["pages"]):
+                raise ValueError("write_tiles: the active page set differs between recordings; images are written per recording set, "
+                                 "select one recording per scheme or use page_mode=all")
+            pages = np.asarray(t["pages"])
+            for X_i, (blk, ti, ss) in zip(X, t["keys"]):
+                Xs.append(X_i)
+                keys.append((rid, rec["workload"], rec["family"], -1, int(ti), int(ss)))
+        elif any(k[0] is not None for k in t["keys"]):
+            this = "path"
+            by_win: dict[tuple, dict[int, int]] = {}
+            for i, (blk, ti, ss) in enumerate(t["keys"]):
+                by_win.setdefault((int(ti), int(ss)), {})[int(blk)] = i
+            blocks = sorted({int(k[0]) for k in t["keys"] if k[0] is not None})
+            if n_blocks and len(blocks) != n_blocks:
+                raise ValueError(f"write_tiles: {rid} has {len(blocks)} blocks, an earlier recording {n_blocks}")
+            n_blocks = len(blocks)
+            skipped = 0
+            for (ti, ss) in sorted(by_win):
+                rows = by_win[(ti, ss)]
+                if any(b not in rows for b in blocks):
+                    skipped += 1
+                    continue
+                stack = np.stack([X[rows[b]] for b in blocks], axis=1)      # (W, n_blocks[, k])
+                Xs.append(stack.reshape(stack.shape[0], -1))
+                keys.append((rid, rec["workload"], rec["family"], -1, ti, ss))
+            if skipped:
+                st.logline(f"write_tiles: {rid}: {skipped} window(s) lacked a block and were skipped")
+        else:
+            this = "series"
+            for X_i, (blk, ti, ss) in zip(X, t["keys"]):
+                Xs.append(X_i)
+                keys.append((rid, rec["workload"], rec["family"], -1, int(ti), int(ss)))
+        if shape and this != shape:
+            raise ValueError(f"write_tiles: {rid} gives {this} tiles, an earlier recording {shape}")
+        shape = this
+    if not Xs:
+        raise ValueError("write_tiles: no tiles reached the module")
+    Xall = np.stack(Xs).astype(np.complex64 if is_complex else np.float32)
+    need = Xall.size * Xall.dtype.itemsize
+    if need > max_bytes:
+        raise ValueError(f"write_tiles: {need / 1e6:.0f} MB of tiles, over the {max_bytes / 1e6:.0f} MB budget; "
+                         "raise it, widen the hop, or select fewer recordings")
+    tile_keys = np.array(keys, dtype=KEY_DT)
+    out = {"X": Xall, "tile_keys": tile_keys, "shape": np.array(shape), "w": np.array(w), "h": np.array(h),
+           "channels": np.array(channels, dtype="U64"), "n_blocks": np.array(n_blocks), "complex": np.array(is_complex)}
+    if pages is not None:
+        out["pages"] = np.asarray(pages, dtype=np.int32)
+    np.savez_compressed(out_dir / "tiles.npz", **out)
+    section = {"shape": shape, "n_tiles": int(Xall.shape[0]), "w": w, "h": h, "n_blocks": n_blocks,
+               "n_pages": int(pages.shape[0]) if pages is not None else None, "channels": channels,
+               "complex": is_complex, "tile_shape": list(Xall.shape[1:]), "bytes": int(need), "file": str(out_dir / "tiles.npz")}
+    side_path = out_dir / "sidecar.json"
+    prev = {}
+    if side_path.exists():
+        try:
+            prev = json.loads(side_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            prev = {}
+    prev["tiles"] = section
+    side_path.write_text(json.dumps(prev, indent=1, default=str))
+    st.logline(f"wrote {out_dir / 'tiles.npz'}: {Xall.shape[0]} {shape} tiles of {list(Xall.shape[1:])} ({need / 1e6:.1f} MB)")
+    return {"n_tiles": int(Xall.shape[0]), "shape": shape}
 
 
 def main() -> int:

@@ -445,6 +445,19 @@ def aggregate(runs: list[Run], view: str, y: str | None = None, x: str | None = 
         raise ViewError(f"scale is linear or log, not {scale!r}")
     group = [g for g in (group or []) if g]
     fr = make_frame(runs, [n for n in ((x if view == "scatter" else None), y) if n])
+    return aggregate_frame(fr, view, y, x, group, stat, scale, bins, rows, cols)
+
+
+def aggregate_frame(fr: Frame, view: str, y: str | None = None, x: str | None = None, group=(), stat: str = "median",
+                    scale: str = "linear", bins: int = 30, rows: str | None = None, cols: str | None = None) -> dict:
+    """The same five views over a frame built elsewhere (the Learn view's results frames)."""
+    if view not in VIEWS:
+        raise ViewError(f"unknown view {view!r}; one of {', '.join(VIEWS)}")
+    if stat not in STATS:
+        raise ViewError(f"unknown stat {stat!r}; one of {', '.join(STATS)}")
+    if scale not in ("linear", "log"):
+        raise ViewError(f"scale is linear or log, not {scale!r}")
+    group = [g for g in (group or []) if g]
     if view != "table":
         y = y or (fr.names[1] if view == "scatter" and len(fr.names) > 1 else fr.names[0])
     if view == "scatter":

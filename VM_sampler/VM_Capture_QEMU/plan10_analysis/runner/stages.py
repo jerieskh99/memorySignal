@@ -41,7 +41,7 @@ from b1_features import features as b1_features                          # noqa:
 from coherence_temp_spec_stability.cepstrum_stability import CepstrumStability  # noqa: E402
 from coherence_temp_spec_stability.plv_calcolator import PLVStability           # noqa: E402
 import plan04_cusum                                                           # noqa: E402
-from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE   # noqa: E402
+from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE, collapsed_channel_names   # noqa: E402
 
 
 class NotImplementedStage(RuntimeError):
@@ -187,25 +187,90 @@ def block(field: dict, wp: int, hp: int) -> dict:
     return out
 
 
-def collapse(field: dict, unchanged: str = "zero", reduce: str = "mean") -> dict | list[dict]:
+def _lerp(a: float, b: float, t: float) -> float:
+    """numpy's own linear interpolation (numpy.lib.function_base._lerp), so a quantile taken here
+    equals numpy.quantile's to the last bit."""
+    d = b - a
+    return b - d * (1.0 - t) if t >= 0.5 else a + d * t
+
+
+def _quantile_with_zeros(v: np.ndarray, n_zero: int, q: float) -> float:
+    """numpy.quantile(concat(v, n_zero zeros), q), linear method, without building the zeros: an
+    unchanged page counted as zero is one of n_zero virtual entries, and a dump has 262,144 of them."""
+    n = v.size + n_zero
+    if n == 0:
+        return 0.0
+    vs = np.sort(v.astype(np.float64))
+    p = int(np.searchsorted(vs, 0.0, side="left"))       # where the zeros sit in sorted order
+
+    def at(i: int) -> float:
+        if i < p:
+            return float(vs[i])
+        if i < p + n_zero:
+            return 0.0
+        return float(vs[i - n_zero])
+    h = q * (n - 1)
+    lo = int(np.floor(h))
+    hi = min(lo + 1, n - 1)
+    return _lerp(at(lo), at(hi), h - lo)
+
+
+def collapse(field: dict, unchanged: str = "zero", reduce: str = "mean", q: float = 0.5) -> dict | list[dict]:
     """Reduce the page axis per pair. Returns one Series, or one per block for a blocked field.
 
     reduce = "mean"              the mean of the channel values over the pages (unchanged pages
                                  count as zero, or are excluded)
     reduce = "changed_fraction"  the fraction of pages that changed at all: K/N, which is APF
                                  (plan02_apf_helper) when N is the page count
+    reduce = "median"            the median of the channel values over the pages: the encoding
+                                 paper's per-pair summary of the content-change reading
+    reduce = "quantile"          quantile q over the pages, numpy's linear method, as plan11's
+                                 extract takes it (so the two agree on the same rows)
+
+    Under unchanged = "excluded" a quantile is over the pair's rows, 0 when it has none (as the
+    mean is); under "zero" every page of the block or dump counts, unchanged ones as 0. Channel
+    names: a quantile appends its tag (q50), a field restricted to persistent pages appends _per.
     """
+    if reduce not in ("mean", "changed_fraction", "median", "quantile"):
+        raise ValueError(f"unknown reduce {reduce!r}")
+    qq = 0.5 if reduce == "median" else float(q)
+    if reduce in ("median", "quantile"):
+        if field["z"] is not None:
+            raise ValueError("a quantile of complex values is undefined; Collapse by mean, or feed real channels")
+        if not 0.0 <= qq <= 1.0:
+            raise ValueError(f"quantile q must be in [0, 1]; got {qq}")
+        if unchanged not in ("zero", "excluded"):
+            raise ValueError(f"unknown unchanged mode {unchanged!r}")
     T = field["n_pairs"]
     n_pages = field["n_pages"]
     seq = field["seq"]
     blocks = field.get("block")
 
+    def quantile_rows(mask, denom_pages):
+        k = len(field["channels"])
+        vals = np.stack([field["cols"][c] for c in field["channels"]], axis=1)
+        s = seq[mask] - 1
+        v = vals[mask]
+        order = np.argsort(s, kind="stable")
+        s, v = s[order], v[order]
+        bounds = np.searchsorted(s, np.arange(T + 1))
+        out = np.zeros((T, k), dtype=np.float64)
+        for t in range(T):
+            a, b = bounds[t], bounds[t + 1]
+            for j in range(k):
+                col = v[a:b, j].astype(np.float64)
+                if unchanged == "excluded":
+                    out[t, j] = float(np.quantile(col, qq)) if col.size else 0.0
+                else:
+                    out[t, j] = _quantile_with_zeros(col, max(int(denom_pages) - col.size, 0), qq)
+        return (out if k > 1 else out[:, 0]).astype(np.float32)
+
     def reduce_rows(mask, denom_pages):
         if reduce == "changed_fraction":
             cnt = np.bincount(seq[mask] - 1, minlength=T).astype(np.float32)
             return cnt / float(denom_pages)
-        if reduce != "mean":
-            raise ValueError(f"unknown reduce {reduce!r}")
+        if reduce in ("median", "quantile"):
+            return quantile_rows(mask, denom_pages)
         if field["z"] is not None:
             vals = field["z"]
             out = np.zeros(T, dtype=np.complex64)
@@ -228,7 +293,7 @@ def collapse(field: dict, unchanged: str = "zero", reduce: str = "mean") -> dict
             raise ValueError(f"unknown unchanged mode {unchanged!r}")
         return out.astype(np.complex64 if field["z"] is not None else np.float32)
 
-    base = {"channels": field["channels"] if reduce == "mean" else ["changed_fraction"],
+    base = {"channels": collapsed_channel_names(field["channels"], reduce, qq, bool(field.get("persistent"))),
             "complex": field["z"] is not None and reduce == "mean", "n_pages": n_pages}
     if blocks is None:
         return dict(base, values=reduce_rows(np.ones(len(seq), dtype=bool), n_pages), block=None)
@@ -297,6 +362,65 @@ def persistence(field: dict, measure: str = "jaccard", lag: int = 1, edge: str =
     bw, bh = field["block_w"], field.get("block_h", field["block_w"])
     nb = field.get("n_blocks") or n_blocks(field["n_pages"], bw, bh)
     return [dict(base, values=series_for(blocks == b), block=b) for b in range(nb)]
+
+
+def persistent_pages(field: dict, lag: int = 1, side: str = "t", edge: str = "replicate") -> dict:
+    """Keep, for each pair t, only the rows of pages that changed in pair t and change again in pair
+    t+lag: the set S_t & S_{t+lag}, the population of the content-change reading (P2 Sec. II; plan11
+    extract's `_per` scope, P_t = S_t & S_{t+1}).
+
+    side = "t"      the rows of pair t, so the values are d_t(p), as the paper writes and as
+                    plan11's persist_side defaults
+    side = "t+lag"  the rows of pair t+lag for the same pages, relabelled to pair t
+    The last lag pairs have no partner. edge = "replicate" gives them the last partnered pair's
+    rows, so any reduction repeats its last value and the series keeps its length (Concat needs
+    it; plan11 leaves those pairs blank instead); edge = "empty" leaves them without rows.
+    Membership is by page, so a blocked field's replicated rows are kept or dropped together.
+    The values are not changed; the field is marked persistent so Collapse can name the population.
+    """
+    if side not in ("t", "t+lag"):
+        raise ValueError(f"unknown side {side!r}")
+    if edge not in ("replicate", "empty"):
+        raise ValueError(f"unknown edge {edge!r}")
+    T = int(field["n_pairs"])
+    lag = int(lag)
+    if lag < 1:
+        raise ValueError("lag must be at least 1")
+    if lag >= T:
+        raise ValueError(f"lag {lag} leaves no pair with a partner in {T} pairs")
+    seq = field["seq"].astype(np.int64)
+    pg = field["page_index"].astype(np.int64)
+    m = int(pg.max()) + 1 if pg.size else 1
+    present = np.unique(seq * m + pg)                       # every (pair, page) that changed
+    if side == "t":
+        keep = np.isin((seq + lag) * m + pg, present)       # this page changes again lag pairs later
+        new_seq = seq
+    else:
+        keep = (seq > lag) & np.isin((seq - lag) * m + pg, present)
+        new_seq = seq - lag
+    idx = np.nonzero(keep)[0]
+    out_seq = new_seq[idx]
+    take, seqs = [idx], [out_seq]
+    if edge == "replicate":
+        last = idx[out_seq == T - lag]
+        for t in range(T - lag + 1, T + 1):
+            take.append(last)
+            seqs.append(np.full(last.size, t, dtype=np.int64))
+    take = np.concatenate(take)
+    seqs = np.concatenate(seqs)
+    order = np.lexsort((pg[take], seqs))
+    take, seqs = take[order], seqs[order]
+    out = dict(field)
+    out["seq"] = seqs.astype(field["seq"].dtype)
+    out["page_index"] = field["page_index"][take]
+    if field.get("z") is not None:
+        out["z"] = field["z"][take]
+    if field.get("cols"):
+        out["cols"] = {c: v[take] for c, v in field["cols"].items()}
+    if field.get("block") is not None:
+        out["block"] = field["block"][take]
+    out["persistent"] = {"lag": lag, "side": side, "edge": edge}
+    return out
 
 
 def _taper(w: int, kind: str) -> np.ndarray:

@@ -133,6 +133,29 @@ def ratio_name(spec: str) -> str:
     return spec.replace(RATIO_SEP, "_over_")
 
 
+PERSIST_SUFFIX = "_per"      # a channel reduced over the persistent pages S_t & S_{t+lag} (plan11's `_per` scope)
+
+
+def quantile_tag(q: float) -> str:
+    """The suffix a per-pair quantile gives its channel: 0.5 -> 'q50', 0.05 -> 'q05' (plan11's r_l0_q50_per)."""
+    import math
+    return f"q{int(math.floor(float(q) * 100 + 0.5)):02d}"      # half up, as the canvas's Math.round
+
+
+def collapsed_channel_names(channels: list[str], reduce: str, q: float = 0.5, persistent: bool = False) -> list[str]:
+    """The channels Collapse emits. One definition; stages.py and scheme.py import it. K/N is one channel
+    whatever fed it; mean keeps the names (unchanged behaviour); a quantile says which one; a field
+    restricted to persistent pages says so, so the column names carry the population as plan11's do."""
+    if reduce == "changed_fraction":
+        names = ["changed_fraction"]
+    elif reduce in ("median", "quantile"):
+        tag = quantile_tag(0.5 if reduce == "median" else q)
+        names = [f"{c}_{tag}" for c in channels]
+    else:
+        names = list(channels)
+    return [f"{n}{PERSIST_SUFFIX}" for n in names] if persistent else names
+
+
 def ratio_options() -> tuple[list[dict], list[str]]:
     """The content-change family: an amount channel over the bytes changed in the page (the
     differ's l0), or over the page size. Numerators are read from the roster's amount group so
@@ -218,8 +241,12 @@ def build_modules() -> dict:
         mod("collapse", "divide", "Collapse pages", "S",
             "average the page axis away: what every result to date does (APF is this)",
             inputs=[inp("in", ["field", "complex"])], outputs=[outp("out", "series")],
-            params=[sel("reduce", "reduction", [["mean", "mean of the channel values over pages"], ["changed_fraction", "fraction of pages changed: K/N, which is APF"]], "mean"),
-                    sel("unchanged", "unchanged pages (mean only)", [["zero", "count as zero (matches K/N)"], ["excluded", "excluded from statistics"]], "zero")]),
+            params=[sel("reduce", "reduction", [["mean", "mean of the channel values over pages"],
+                                                ["changed_fraction", "fraction of pages changed: K/N, which is APF"],
+                                                ["median", "median of the channel values over pages (the encoding paper's content-change summary)"],
+                                                ["quantile", "quantile q of the channel values over pages (numpy's linear method, as plan11)"]], "mean"),
+                    sel("unchanged", "unchanged pages (mean, median, quantile)", [["zero", "count as zero (matches K/N)"], ["excluded", "excluded from statistics"]], "zero"),
+                    num("q", "quantile q, 0 to 1 (quantile only)", 0.5, 0.05)]),
         mod("persistence", "divide", "Persistence", "\u2229",
             "how much of one pair's changed-page set is still changing lag pairs later: Jaccard of the two sets, "
             "one value per pair. The address axis is reduced by overlap, not by averaging; the values are not read",
@@ -232,6 +259,17 @@ def build_modules() -> dict:
                         [["replicate", "replicate the last value: the series keeps its length, tiles align with other readings"],
                          ["zero", "zero-pad"], ["drop", "drop: the series is lag shorter"]], "replicate"),
                     sel("empty", "when the denominator is empty (no pages changed)", [["zero", "0"], ["one", "1: nothing changed in either, call them the same"]], "zero")]),
+        mod("persist_pages", "divide", "Persistent pages", "\u2286",
+            "keep, per pair, only the pages that changed in pair t and change again lag pairs later: the set "
+            "S_t & S_{t+lag}, the population of the content-change reading. One-time writes leave; the values stay",
+            inputs=[inp("in", ["field", "complex"])], outputs=[outp("out", "field", "field, persistent")],
+            params=[num("lag", "lag (pairs apart)", 1),
+                    sel("side", "whose values", [["t", "t: the earlier pair's values, d_t(p) (the paper; plan11's default)"],
+                                                 ["t+lag", "t+lag: the later pair's values, relabelled to pair t"]], "t"),
+                    sel("edge", "the last lag pair(s), which have no partner",
+                        [["replicate", "replicate: they take the last pair's persistent rows, so every reduction repeats its last value "
+                                       "and tiles align with the other readings (plan11 leaves them blank)"],
+                         ["empty", "empty: they keep no rows, and the reduction's empty rule applies (0 under excluded)"]], "replicate")]),
         mod("block", "divide", "Block pages", "#",
             "cut the address axis into blocks of whole pages; a hop smaller than the width overlaps them and replicates each page's row",
             inputs=[inp("in", ["field", "complex"])], outputs=[outp("out", "field", "field, blocked")],
@@ -305,6 +343,11 @@ def build_modules() -> dict:
         mod("write", "output", "Write", ">", "npz plus csv twin, and the sidecar that records every choice; without it the run is not valid",
             inputs=[inp("in", ["features"], multi=True)],
             params=[sel("fmt", "format", [["npz+csv", "npz + csv twin"], ["npz", "npz only"], ["parquet+csv", "parquet + csv twin"]], "npz+csv")]),
+        mod("write_tiles", "output", "Write tiles", "T",
+            "save the tiles themselves beside the features, for the Learn view: a collapsed series, a blocked path "
+            "(frames x blocks, one tile per window across every block), or the page-by-time image",
+            inputs=[inp("in", ["tiles"])],
+            params=[num("max_mb", "budget for tiles.npz (MB)", 512)]),
     ]
     unbuilt = [{"tier": "compose", "name": "Products, gates",
                 "desc": "products and per-channel gating: designed, unbuilt (Entry 13 figure); ratios are the Ratios module"}]

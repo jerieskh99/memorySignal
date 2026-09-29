@@ -179,6 +179,143 @@ def test_results_summary_and_agg_over_http():
         assert _call(port, token, "/results/agg?labels=done_a&view=table&bins=x")[0] == 400
 
 
+def test_learn_endpoints_over_http():
+    """The Learn routes answer over HTTP: the palette, what runs offer, validation with its
+    refusals, a launched run reaching done, its status and results, the frames, the views, and
+    a stop through control."""
+    import numpy as np
+    sys.path.insert(0, str(QEMU_DIR / "tests"))
+    import test_plan10_learn as TL
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root = td / "corpus"
+        synth.make_corpus(root, n_snapshots=8)
+        port, token, out = _start(td, root)
+        TL.make_runs(out)                                   # rows_run, path_run, image_run under the runs dir
+        code, reg = _call(port, token, "/learn/modules")
+        assert code == 200 and any(m["id"] == "minirocket" and m["available"] for m in reg["modules"])
+        code, inp = _call(port, token, "/learn/inputs")
+        assert code == 200 and inp["runs"]["rows_run"]["features"] and inp["runs"]["path_run"]["tiles_shape"] == "path" and "floors" in inp["examples"]
+        pl = inp["examples"]["floors"]
+        pl["label"] = "floors_http"
+        pl["slots"][2]["alts"] = [{"module": "logreg"}, {"module": "knn", "params": {"k": 3}}]
+        pl["slots"][3]["alts"][0]["params"] = {"null_permutations": 20, "bootstrap": 20}
+        pl["run"]["splits"] = ["loco"]
+        code, v = _call(port, token, "/learn/validate", {"pipeline": pl})
+        assert code == 200 and v["exit"] == 0 and v["estimate"]["configurations"] == 2 and [c["id"] for c in v["configurations"]] == ["c001", "c002"]
+        bad = dict(pl, slots=[pl["slots"][0], {"tier": "model", "alts": [{"module": "lstm"}]}] + pl["slots"][3:])
+        code, v = _call(port, token, "/learn/validate", {"pipeline": bad})
+        assert code == 200 and v["exit"] == 1 and "reads path" in v["verdict"]["hard"][0]["msg"]
+        assert _call(port, token, "/learn/run", {"pipeline": bad})[0] == 409
+        code, r = _call(port, token, "/learn/run", {"pipeline": pl})
+        assert code == 200 and r["label"] == "floors_http", r
+        assert _call(port, token, "/learn/run", {"pipeline": pl})[0] == 409          # exists, no force
+        st = None
+        for _ in range(600):
+            code, st = _call(port, token, "/learn/status?label=floors_http")
+            if st.get("state") in ("done", "failed", "refused", "stopped"):
+                break
+            time.sleep(0.3)
+        assert st and st["state"] == "done", st
+        code, runs = _call(port, token, "/learn/runs")
+        assert any(x["label"] == "floors_http" and x["has_results"] for x in runs["runs"])
+        code, res = _call(port, token, "/learn/results?label=floors_http")
+        assert code == 200 and [c["model"] for c in res["configurations"]] == ["logreg", "knn"]
+        assert res["configurations"][0]["splits"]["loco"]["pooled"]["accuracy"] > 0.9
+        code, a = _call(port, token, "/learn/agg?label=floors_http&frame=scores&view=table&group=model&stat=mean")
+        assert code == 200 and [r["label"] for r in a["rows"]] == ["knn", "logreg"] and "accuracy" in a["features"]
+        code, t = _call(port, token, "/learn/agg?label=floors_http&frame=tiles&view=time&y=correct&x=t_index&group=model&stat=mean")
+        assert code == 200 and len(t["series"]) == 2
+        code, cm = _call(port, token, "/learn/view?label=floors_http&kind=confusion&config=c001&split=loco")
+        assert code == 200 and cm["labels"] == ["cpu", "io", "mem"] and cm["n"] == 144
+        code, nl = _call(port, token, "/learn/view?label=floors_http&kind=null&config=c001&split=loco")
+        assert code == 200 and nl["pooled"]["n"] == 20
+        assert _call(port, token, "/learn/view?label=floors_http&kind=saliency&config=c001&split=loco")[0] == 400
+        assert _call(port, token, "/learn/view?label=floors_http&kind=nope&config=c001&split=loco")[0] == 400
+        code, tile = _call(port, token, "/learn/tile?run=path_run&t_index=2")
+        assert code == 200 and tile["shape"] == "path" and len(tile["matrix"]) == 8
+        assert _call(port, token, "/learn/tiles_index?run=image_run")[1]["shape"] == "image"
+        assert _call(port, token, "/learn/status?label=nope")[0] == 404
+        # a second run, stopped through control right after launch
+        pl2 = dict(pl, label="stop_learn")
+        pl2["slots"][2]["alts"] = [{"module": m} for m in ("logreg", "knn", "rf", "extratrees", "hgb")]
+        pl2["run"]["splits"] = ["loro", "lowo", "loco"]
+        code, r = _call(port, token, "/learn/run", {"pipeline": pl2})
+        assert code == 200
+        code, c = _call(port, token, "/learn/control", {"label": "stop_learn", "command": "stop"})
+        assert code == 200 and c["ok"]
+        for _ in range(200):
+            code, st = _call(port, token, "/learn/status?label=stop_learn")
+            if st.get("state") in ("stopped", "done", "failed"):
+                break
+            time.sleep(0.3)
+        assert st["state"] in ("stopped", "done"), st
+        assert _call(port, token, "/learn/control", {"label": "stop_learn", "command": "nope"})[0] == 400
+
+
+def test_encoding_panel_endpoints_over_http():
+    """The Encoding paper routes: configuration with the driver's own flags, the board, a launch of
+    move 0 through the driver, the cells table, the toolkit's files served as they are (and nothing
+    outside <out>), the params blocks, the runbook sections, the log and the launch record."""
+    import urllib.request
+    from plan10_analysis import encoding_panel as EP
+    if not EP.toolkit_present():
+        print("skip: the toolkit is not on disk")
+        return
+    sys.path.insert(0, str(QEMU_DIR / "tests"))
+    import test_plan10_encoding_panel as TE
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root = td / "corpus"
+        synth.make_corpus(root, n_snapshots=8)
+        port, token, out = _start(td, root)
+        AB.ST.encoding = EP.Panel(td / "encoding_cfg.json")          # this test's own configuration file, not the user's
+        corpus = TE.make_corpus(td / "enc")                          # its own directory: td/corpus holds this test's plan10 corpus
+        eout = td / "eout"
+        code, c = _call(port, token, "/encoding/config", {"out": str(eout), "root": str(corpus), "preset": "smoke", "flags": {"duration_s": 25.76, "n_jobs": 2}})
+        assert code == 200 and c["preset"] == "custom" and c["flags"]["null_perm"] == 20 and any(f["dest"] == "c1_rule" for f in c["driver_flags"])
+        assert _call(port, token, "/encoding/config", {"flags": {"nope": 1}})[0] == 400
+        code, b = _call(port, token, "/encoding/board")
+        assert code == 200 and len(b["moves"]) == 17 and b["moves"][0]["runnable"] and not b["moves"][1]["runnable"] and b["ledger"]["exists"] is False
+        code, rb = _call(port, token, "/encoding/runbook")
+        assert code == 200 and rb["sections"]["0"]["title"] == "the cell index" and rb["present"]
+        code, pt = _call(port, token, "/encoding/plan_text?move=3")
+        assert code == 200 and pt["text"].count("gates_calibration gc") == 5
+        assert _call(port, token, "/encoding/run", {"move": 2})[0] == 400              # waits for moves 0 and 1
+        code, r = _call(port, token, "/encoding/run", {"move": 0})
+        assert code == 200 and r["move"] == 0 and r["shell"][0].startswith("python3 -m plan11_encoding_ladder.run_moves run")
+        assert _call(port, token, "/encoding/run", {"move": 0})[0] == 400              # one process at a time
+        for _ in range(400):
+            code, b = _call(port, token, "/encoding/board")
+            if not b["running"]:
+                break
+            time.sleep(0.3)
+        assert b["moves"][0]["state"] == "done" and b["moves"][1]["runnable"], b["moves"][0]
+        code, lr = _call(port, token, "/encoding/launch?id=" + r["id"])
+        assert code == 200 and lr["exit_code"] == 0 and lr["driver_run"]["moves"] == [0] and lr["toolkit"]["content_fingerprint"]
+        code, lg = _call(port, token, "/encoding/log?launch=" + r["id"] + "&tail=50")
+        assert code == 200 and any("extract index" in ln for ln in lg["lines"]) and lg["running"] is False
+        code, cells = _call(port, token, "/encoding/cells")
+        assert code == 200 and cells["n_kernel"] == 12 and cells["n_idle"] == 3 and cells["n_other_dirs"] == 1 and cells["rows"][0]["n_pairs"] == ""
+        code, t = _call(port, token, "/encoding/text?path=cells.csv")
+        assert code == 200 and t["kind"] == "csv" and "cell_id" in t["header"] and t["n_rows"] == 16
+        assert _call(port, token, "/encoding/text?path=../cells.csv")[0] == 400
+        assert _call(port, token, "/encoding/text?path=/etc/hosts")[0] == 400
+        code, ls = _call(port, token, "/encoding/list?path=")
+        assert code == 200 and any(e["name"] == "cells.csv" for e in ls["entries"])
+        code, v = _call(port, token, "/encoding/views")
+        assert code == 200 and any(x["id"] == "calibration" and not x["any"] for x in v["views"])
+        code, pb = _call(port, token, "/encoding/params")
+        assert code == 200 and pb["driver_params"]["null_perm"] == 20 and any(x["path"] == "cells.index.json" for x in pb["blocks"])
+        # the file route: bytes with a content type, nothing outside <out>
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/encoding/file?path=cells.csv&token={token}")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            assert resp.status == 200 and resp.headers.get("Content-Type", "").startswith("text/csv") and resp.read().startswith(b"cell_id,")
+        assert _call(port, token, "/encoding/file?path=../x")[0] == 400
+        assert _call(port, token, "/encoding/file?path=report/figures/fig_apf_per_kernel.png")[0] == 404
+        assert _call(port, token, "/encoding/stop", {})[0] == 400                      # nothing running
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

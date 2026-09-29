@@ -47,6 +47,12 @@ Needs: `python3` (3.10+), `numpy`, `PyWavelets`, `kymatio` (see `requirements.tx
    full-screen view of the same run.
 5. **Explore** (header, or the Results tab's button): plots and tables of what a run wrote,
    and runs side by side. See "Explore" below.
+6. **Learn** (header): pipelines of preprocessing, models and scores over what runs wrote,
+   every configuration of a sweep, per split and fold; results through the same views plus
+   the ones learning needs. See "Learn" below.
+7. **Encoding paper** (header): the encoding paper's toolkit, `plan11_encoding_ladder`, launched
+   one move at a time in its runbook's order and its output files shown as they are. See
+   "Encoding paper" below.
 
 Runs land under `~/.cache/plan10/runs/<label>/`: `features.npz` (`X`, `feature_names`,
 `tile_keys`), `features.csv`, `sidecar.json`, `status.json`, `run.log`. Extracted channels
@@ -70,6 +76,13 @@ are cached under `~/.cache/plan10/l1/` per (recording, speed, channel set) and r
 | `runner/stages.py` | one pure function per module kind; reuses b1_features, CepstrumStability, PLVStability, plan04_cusum, normal_profile | `test_plan10_runner_executor.py` |
 | `runner/executor.py` | order, run per recording, status, control, output, sidecar | same |
 | `results_view.py` | what a run produced, summarised and aggregated in numpy for the Explore view: per-metric statistics, the five views, several runs aligned by metric name | `test_plan10_results_view.py` |
+| `learn/registry.py` | the Learn palette: tiers, shapes, modules, what each needs, what is unbuilt | `test_plan10_learn.py` |
+| `learn/pipeline.py` | the pipeline format, its validator (hard / soft / note), the sweep, the worked examples | same |
+| `learn/data.py`, `learn/splits.py` | rows from features.npz, paths and images from tiles.npz; grouped folds (within-trace, leave-one-recording/workload/campaign-out) | same |
+| `learn/preprocess.py`, `learn/models.py`, `learn/scores.py` | fitted transforms; one wrapper over sklearn, numpy and torch models; the scores, the null, the bootstrap, the explanations | same |
+| `learn/executor.py` | run every configuration; status, control, outputs, sidecar | same |
+| `learn/results.py` | a Learn run as frames for the five views, plus confusion, ROC, embedding, saliency, importance, null, calibration, training curves, tiles as drawn | same, and `test_plan10_bridge.py` |
+| `encoding_panel.py` | the Encoding paper panel's backend: the toolkit's driver launched per move, its ledger read for the board's states, its files served as they are, the launch records | `test_plan10_encoding_panel.py`, and `test_plan10_bridge.py` |
 | `ui/analysis_bridge.py` | the local HTTP backend | `test_plan10_bridge.py` |
 | `ui/build_analysis_console.py` | injects everything above into the template; static build has no network code | `test_plan10_build.py` |
 | `ui/analysis_console.template.html` | the console; the bridge client sits between SERVED_ONLY markers | loaded in a browser |
@@ -155,38 +168,6 @@ stale glimpse of a directory that was still filling. In the console, **Reload** 
 manifest; **Scan** runs `rebuild` on the source and then reads it. The bridge's startup line
 and the header say which one the corpus came from.
 
-## The archive keeps its own manifest
-
-The archive is append-only at the file level: a snapshot is written once and never rewritten,
-so the only party that knows when a recording is complete is the tool that put it there and
-verified it. That tool registers it in `<root>/.manifest/manifest.json`, and every reader,
-the console first of all, reads that one file instead of stat-ing a hundred thousand snapshots
-over NFS (the full walk took 239 s under capture load; the manifest reads in under a second).
-A recording still arriving is not in the manifest and so cannot be selected: there is no
-stability guess.
-
-The file is a corpus manifest (`plan10.corpus_manifest.v1`, the shape `corpus_manifest.py`
-produces from a walk) so the console consumes it unchanged, plus an `archive_manifest` block
-(`rebuilt_at`, `updated_at`, `registered_since_rebuild`, `last_registered`) and, per recording,
-`has.substrate_columns`: the trajectory's header, read in place at registration. That is what
-lets the Channels module light its rings on page load without a fetch or a round trip.
-
-Who writes it: `plan07_campaign/ui/migrate_agent_server.sh` after each verified move from
-`/project` to the NFS archive, `plan07_campaign/ui/place_csv.py` after placing a trajectory
-beside its chain, and the laptop's `push_to_nfs.sh` after a verified push. Each calls
-`python3 plan10_analysis/archive_manifest.py register <root> <rel>`. Concurrent writers take a
-lock (an atomically created directory, since flock is unreliable on NFS; a lock older than
-120 s is a dead writer and is broken; release renames the directory away first, because the
-NFS client can leave a silly-renamed `.nfs*` file inside that defeats a plain rmdir), rewrite
-to a temp file and rename it over the old one, so a reader never sees a partial manifest.
-
-`rebuild <root>` walks the whole archive and rewrites the manifest from what is there. It is
-the safety net for files copied in by hand and the only path that ever walks the archive.
-A registration made while its walk runs is kept from the live manifest, not from the walk's
-stale glimpse of a directory that was still filling. In the console, **Reload** reads the
-manifest; **Scan** runs `rebuild` on the source and then reads it. The bridge's startup line
-and the header say which one the corpus came from.
-
 ## Explore: what a run wrote, and runs side by side
 
 `features.npz` is tiles x metrics with six keys per row (`recording, workload, family, block,
@@ -219,6 +200,153 @@ bridge restart's new URL does not lose them.
 
 "Copy table as CSV" and "Download CSV" export the table as drawn. Paper figures are not made
 here: read the same `features.npz` from a script.
+
+## Learn: pipelines over what runs wrote
+
+Designed in `LEARN_DESIGN_BRIEF.md`; built 2026-09-17. The view composes a **pipeline** as a
+chain of slots in tier order (input, preprocess, represent, model, score, output); each slot
+holds one or more alternatives and the run is the product of them, over the chosen splits and
+seeds. That is "execute every possibility", counted in the verdict and recorded in every result.
+The graph is a chain rather than free-form piping: one board, one card per alternative.
+
+**Inputs.** `features.npz` (rows: one vector of metrics per tile) or `tiles.npz`, which the
+scheme's new `Write tiles` module writes beside the features: a collapsed series' windows
+(read as a one-block path), a **path** (a blocked series: frames x blocks per window, a walk
+through block-space), or an **image** (the page-by-time tile). Labels are the keys every run
+writes: family, workload, recording, plus the campaign derived from the recording id.
+
+**Folds** (`learn/splits.py`, B1's `b1_splits.py` generalised): within-trace tail (the
+memorisation ceiling, never the headline), leave-one-recording-out, leave-one-workload-out (the
+headline), leave-one-campaign-out. No group straddles a split and the executor asserts it. Every
+fitted step (scaler, PCA, encoder, model) fits on the training rows of the fold only. A fold with
+no training rows is skipped and named; a family with no same-family training on its fold is a
+novelty fold, flagged, not hidden.
+
+**Modules** (`learn/registry.py`): every module says which shapes it reads, what it emits, what
+it needs. The palette shows unavailable modules with the reason (a missing package) and designed
+but unbuilt ones with what they would need (TabPFN, the time-series foundation models, USAD,
+TranAD, S4 / Mamba, TS2Vec, MAE; diffusion is a locked slot, deferred to its own study). Built:
+scalers, log1p, differencing, per-recording z (a soft warning: it removes level), flatten, page
+pooling, PCA / kernel PCA / ICA / random projection / selection; AE (MLP), VAE, conv AE as
+encoders; logistic regression, linear SVM, kNN, random forest, extra trees, gradient boosting,
+MLP, FT-Transformer, MiniRocket (numpy), LSTM / GRU / RNN, 1-D CNN, TCN, InceptionTime, a patch
+transformer, 2-D CNN; k-means, GMM, hierarchical (k fixed in advance); isolation forest, LOF,
+one-class SVM, ECOD (numpy), kNN distance, Deep SVDD; the AE / VAE / conv-AE **banks** (one
+model per family, argmin error, B1 phase 1). torch models run on the CPU by default
+(`PLAN10_TORCH_DEVICE` overrides) and are seeded.
+
+**Scores** (`learn/scores.py`), per fold and aggregated per (configuration, split): accuracy,
+balanced accuracy, macro F1, kappa, MCC, per-class precision / recall / F1, the confusion matrix,
+top-2, Brier, log loss, calibration (ECE, reliability bins), train accuracy and the gap; AUROC,
+AUPRC and recall at a fixed FPR for novelty scores, in the fold where it holds both classes and
+against the training tiles' own scores (in-sample, and labelled so) where it holds only novel
+tiles; ARI and NMI against family and workload, silhouette, Davies-Bouldin, Calinski-Harabasz,
+purity and the contingency table for clusterers; silhouette and kNN purity of embeddings;
+permutation importance per column or per block; input-gradient saliency for torch models;
+training curves. The **null** permutes the test labels against the predictions: per fold where
+the fold holds several classes, and **pooled** over every fold's out-of-fold predictions, which
+is the null a leave-one-out design needs (a single fold often holds one class and has none of
+its own). The **bootstrap** resamples recordings. Effective n is workloads: a sweep past 12 fits
+per split is a soft warning, and its size is in every result.
+
+**Outputs** (`~/.cache/plan10/learn/<label>/`): `learn_results.json`, `predictions.npz` (one row
+per scored test tile), `embeddings.npz`, `sidecar.json` (the pipeline, the input runs and the
+hashes of their files, the folds per split by recording id, seeds, versions, device, the sweep
+size), `status.json`, `run.log`, `control.json`. The executor is a subprocess, like the
+extraction runner, so a run outlives a page reload; pause and stop go through `control.json`.
+
+**Views.** The results are two frames, scores (one row per configuration, split, fold, seed)
+and tiles (one row per scored test tile), drawn through Explore's five views. On top: the
+confusion matrix, ROC curves, the embedding in 2-D (PCA on the bridge; UMAP when installed),
+the null next to the observed score, calibration, importance, saliency, training curves, and a
+path or image tile as drawn (a path shows the most active block per frame as a line). Every
+table exports as CSV. The bridge routes are `/learn/modules`, `/learn/inputs`, `/learn/validate`,
+`/learn/run`, `/learn/runs`, `/learn/status`, `/learn/control`, `/learn/results`, `/learn/agg`,
+`/learn/view`, `/learn/tile`, `/learn/tiles_index`; the CLI is
+`python3 -m plan10_analysis.learn.executor run PIPELINE.json --out-dir OUT --runs-root RUNS`.
+
+Verified 2026-09-17 on the laptop: the synthetic three-shape suite (`tests/test_plan10_learn.py`,
+rows, paths and images through sklearn, numpy and torch models), the HTTP suite, and in the
+browser two real runs (`b1_apf_floor_bnb_tsp`, one workload, 1851 rows; `b1_real_smoke`, three
+families, 27 rows) plus a synthetic path run through MiniRocket and an LSTM. No real recording
+has tiles yet: a scheme with `Write tiles` against the NFS corpus is the next capture-side step.
+
+## Encoding paper: the plan11 toolkit, launched and shown, never reimplemented
+
+`plan11_encoding_ladder/` is the encoding paper's pre-registered, command-line toolkit and the
+source of truth for the paper's numbers; its `RUNBOOK.md` is the contract. The panel
+(`encoding_panel.py`, the `ep` overlay, the `/encoding/*` routes) obeys one rule: it launches
+the toolkit's own commands and displays the toolkit's own files. It computes no number, it
+writes nothing under `plan11_encoding_ladder/`, and it touches no server.
+
+**Launching.** Each move's Run button starts the toolkit's driver for that one move,
+`python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> --moves N <flags>`,
+from `VM_Capture_QEMU/` (the driver's cwd), with the flags the author set and nothing else;
+Re-run adds `--force`. The driver's own resume and staleness rules apply unchanged (it skips a
+command whose outputs exist and inputs are unchanged, re-runs what a changed input or argument
+makes stale, never overwrites the author's `inputs/*`). The flag form is built from the driver's
+own argparse (`run_moves._add_run_args`), so every flag, default and help line is the toolkit's;
+two presets set exactly the values of RUNBOOK section 1 (the paper run) and section 0b (the
+smoke run). A set flag is passed on every launch, because the driver compares arguments between
+launches. The order is enforced: a move's Run is enabled only when the move before it is done
+(the runbook's order, and the order the driver runs `--moves 0-14` in); the board also lists which
+earlier moves each move reads files from (the producers of its declared inputs, from the driver's
+plan). One toolkit process at a time; a driver started from a shell on the same `<out>` is
+detected by its command line, shown as running, and the console refuses to start a second writer
+to `driver_state.json`. Stop terminates the driver's process group (the toolkit has no pause);
+the move it was on then reads **not run** with the time it was cut, whatever finished before the
+stop (the ledger's open `runs` entry says so), the next move stays disabled, and running it again
+lets the driver resume: it skips the commands that finished and runs the rest.
+
+**The board's states** come from the ledger the driver writes (`<out>/driver_state.json`): the
+last record of every command of a move, its status string as written (`done`, `skipped: ...`,
+`kept: author input exists`, `failed: exit N`, a `refused:` verdict of an internal step), rolled
+up to not run / running / done / partial / failed / refused. The commands a move will run are the
+driver's plan for the current flags, and the exact lines `run_moves plan --moves N` prints are
+shown beside them. The runbook's own "Look at" paragraph per move is shown as written.
+
+**Every launch is recorded** under `<out>/.console/launches/<id>.json` (a directory the toolkit
+neither reads nor hashes): the command line, cwd, the flags and preset, the toolkit's identity
+(repository HEAD, whether the toolkit's files are tracked and clean at it, a sha256 fingerprint
+over its top-level .py files, its package version), and when the run ends its exit code, the
+driver's `params` block and its `runs` record from the ledger. The driver's stdout is streamed
+to `<id>.log` and shown in the Log tab. As of 2026-09-17 the toolkit is untracked by git, so the
+record says "not committed at HEAD" and the fingerprint is what identifies the code that ran.
+
+**Cells.** `cells.csv` (move 0) joined for display with each cell's `extract/<cell_id>/sidecar.json`
+(`n_pairs`, status, gaps, `dt_est_s`, `K_max`; move 1) and its `gates/preconditions.csv` row
+(`all_hard_pass`, C1 and its rule, the failed verdict; move 2) plus `preconditions.json`'s
+excluded list. Kernel and idle rows are listed; any other directory under the retention root
+(the toolkit indexes the whole root with `rglob("rep*__*")`) is counted with its status and never
+named, since the paper's corpus is the kernels plus the idle cells. The idle cells' real layout
+(`sleep/sleep/sleep_600/rep00N__idle_01c`) is indexed by the toolkit as role `idle`, test label
+`sleep`, rep = rep_dir - 1; verified on synthetic copies.
+
+**Look at.** Each view is a list of the toolkit's files: a PNG is shown inline with its PDF
+linked, a CSV as a table with every cell verbatim (refusal strings in colour, empty cells empty,
+a `.params.json` sidecar linked), a JSON as its object, a Markdown table as text. A missing file
+is named as not yet written, with the move that writes it. The temporal-grid view highlights the
+grid point `selection.json` names per rung and shows every other point. The `browse <out>`
+list opens any file under the output root. Nothing outside `<out>` is served (`safe_path`).
+
+**For the author.** The driver's params block from the ledger, the author's input files as they
+are (`inputs/*`; edit them in the shell, the toolkit never overwrites them), and every params
+block the toolkit wrote under `<out>` (each JSON with a top-level `params`), read-only;
+`report/manifest.json` collects them once move 12 has run.
+
+**The EUSIPCO row.** The runbook's two commands that the driver does not schedule
+(`tables_eusipco`, `latex_skeleton_eusipco`) are a final row, enabled after move 14; its state is
+read from the files they write. **`--standalone` must not point at a live paper.** As of 2026-09-27
+`apf_paper/p2e_skeleton.tex` and `p2_skeleton.tex` are hand-maintained; the builders emit a
+scaffold with zero prose lines and the writers refuse to overwrite a target that holds prose.
+`standalone_tex` in the panel should be unset, or a scratch path.
+
+Tested on the toolkit's own synthetic corpus (`synth corpus`), never on the server: moves 0 to 5
+through the panel in the browser, a shell-started driver detected on another output root, and
+the suites `tests/test_plan10_encoding_panel.py` and `test_encoding_panel_endpoints_over_http`.
+Moves 6 to 14 and the comparators were not driven to completion here (G-ORD alone takes tens of
+minutes per rung even on a tiny corpus); their views render whatever files exist and name what
+does not.
 
 ## What is not implemented, and says so
 

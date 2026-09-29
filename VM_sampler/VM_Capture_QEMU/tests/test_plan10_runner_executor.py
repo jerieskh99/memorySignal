@@ -911,6 +911,86 @@ def test_refusal_and_stop():
         assert rc == 130 and json.loads((out / "status.json").read_text())["state"] == "stopped"
 
 
+def test_write_tiles_three_shapes():
+    """Write tiles leaves tiles.npz beside features.npz in the shape the graph implies: a
+    collapsed series' windows, a blocked path (frames x blocks per window), or the page image;
+    keyed like features.npz, with the sidecar carrying a tiles section either way."""
+    if not _have_tools():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        root, manifest, mp, _ = _corpus(td, n_snapshots=12)
+        ids = [r["id"] for r in manifest["recordings"]]
+        n = lambda i, m, **p: {"id": i, "module": m, "params": p, "x": 0, "y": 0}
+        e = lambda a, ap, b, bp: {"from": [a, ap], "to": [b, bp]}
+        head = [n("c", "cells", sel=ids, min_pairs=1), n("ch", "channels", chans=["hamming"])]
+        base = {"schema": "plan10.scheme.v1", "acknowledged": [{"id": "no_substrate", "at": "t"}]}
+
+        def run(sch):
+            sp = td / f"{sch['label']}.json"
+            sp.write_text(json.dumps(sch))
+            rc = executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp, acknowledge_all=True)
+            assert rc == 0, (td / "out" / sch["label"] / "status.json").read_text()
+            side = json.loads((td / "out" / sch["label"] / "sidecar.json").read_text())
+            return np.load(td / "out" / sch["label"] / "tiles.npz"), side
+
+        # series: collapse -> window -> both writers; features and tiles agree row for row
+        sch = dict(base, label="t_series",
+                   nodes=head + [n("co", "collapse", reduce="changed_fraction"), n("wi", "window", w=4, h=2),
+                                 n("st", "stats", feats=["mean"]), n("w", "write"), n("wt", "write_tiles")],
+                   pipes=[e("c", "cells", "ch", "cells"), e("ch", "field", "co", "in"), e("co", "out", "wi", "in"),
+                          e("wi", "out", "st", "in"), e("st", "out", "w", "in"), e("wi", "out", "wt", "in")])
+        z, side = run(sch)
+        f = np.load(td / "out" / "t_series" / "features.npz")
+        assert str(z["shape"]) == "series" and z["X"].shape == (f["X"].shape[0], 4) and int(z["w"]) == 4 and int(z["h"]) == 2
+        assert np.array_equal(z["tile_keys"], f["tile_keys"])
+        assert np.allclose(z["X"].mean(axis=1), f["X"][:, 0], atol=1e-6)        # the tile's mean is the feature
+        assert side["tiles"]["shape"] == "series" and side["tiles"]["n_tiles"] == z["X"].shape[0] and side["n_features"] == 1
+
+        # path: block -> collapse -> window -> write_tiles only (a tiles-only scheme is valid and leaves a sidecar)
+        wp = synth.N_PAGES // 4
+        sch = dict(base, label="t_path",
+                   nodes=head + [n("b", "block", wp=wp, hp=wp), n("co", "collapse", reduce="changed_fraction"),
+                                 n("wi", "window", w=4, h=2), n("wt", "write_tiles")],
+                   pipes=[e("c", "cells", "ch", "cells"), e("ch", "field", "b", "in"), e("b", "out", "co", "in"),
+                          e("co", "out", "wi", "in"), e("wi", "out", "wt", "in")])
+        z, side = run(sch)
+        n_win = sum((min(r["n_pairs"], 10 ** 9) - 4) // 2 + 1 for r in manifest["recordings"])
+        assert str(z["shape"]) == "path" and z["X"].shape == (n_win, 4, 4) and int(z["n_blocks"]) == 4
+        assert (z["tile_keys"]["block"] == -1).all() and len(set(z["tile_keys"]["recording"].tolist())) == len(ids)
+        assert not (td / "out" / "t_path" / "features.npz").exists() and side["format"] == "tiles only" and side["tiles"]["n_blocks"] == 4
+        # the path's block b at frame f is the block-b series window: check one against a blocked feature run
+        sch2 = dict(base, label="t_path_feats",
+                    nodes=head + [n("b", "block", wp=wp, hp=wp), n("co", "collapse", reduce="changed_fraction"),
+                                  n("wi", "window", w=4, h=2), n("st", "stats", feats=["mean"]), n("w", "write")],
+                    pipes=[e("c", "cells", "ch", "cells"), e("ch", "field", "b", "in"), e("b", "out", "co", "in"),
+                           e("co", "out", "wi", "in"), e("wi", "out", "st", "in"), e("st", "out", "w", "in")])
+        sp = td / "t_path_feats.json"; sp.write_text(json.dumps(sch2))
+        assert executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp, acknowledge_all=True) == 0
+        f2 = np.load(td / "out" / "t_path_feats" / "features.npz")
+        for i in range(z["X"].shape[0]):
+            k = z["tile_keys"][i]
+            for b in range(4):
+                m = (f2["tile_keys"]["recording"] == k["recording"]) & (f2["tile_keys"]["t_index"] == k["t_index"]) & (f2["tile_keys"]["block"] == b)
+                assert m.sum() == 1 and np.isclose(z["X"][i, :, b].mean(), f2["X"][m][0, 0], atol=1e-6)
+
+        # image: single channel with the page axis -> window -> write_tiles, one recording (its own active page set)
+        sch = dict(base, label="t_image",
+                   nodes=[n("c", "cells", sel=ids[:1], min_pairs=1), n("ch", "channels", chans=["hamming"]), n("s", "single"),
+                          n("wi", "window", w=4, h=2, page_mode="active"), n("wt", "write_tiles")],
+                   pipes=[e("c", "cells", "ch", "cells"), e("ch", "field", "s", "in"), e("s", "out", "wi", "in"), e("wi", "out", "wt", "in")])
+        z, side = run(sch)
+        assert str(z["shape"]) == "image" and z["X"].ndim == 3 and z["X"].shape[1] == 4 and z["X"].shape[2] == z["pages"].shape[0]
+        assert side["tiles"]["n_pages"] == int(z["pages"].shape[0]) and (z["tile_keys"]["recording"] == ids[0]).all()
+
+        # the budget refuses before writing, naming the size
+        sch = dict(sch, label="t_budget", nodes=[dict(x) for x in sch["nodes"]])
+        next(x for x in sch["nodes"] if x["module"] == "write_tiles")["params"] = {"max_mb": 0}
+        sp = td / "t_budget.json"; sp.write_text(json.dumps(sch))
+        assert executor.run(sp, td / "out", {"kind": "local", "root": str(root)}, td / "l1", speed=2, manifest_path=mp, acknowledge_all=True) == 1
+        assert "over the 0 MB budget" in json.loads((td / "out" / "t_budget" / "status.json").read_text())["message"]
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

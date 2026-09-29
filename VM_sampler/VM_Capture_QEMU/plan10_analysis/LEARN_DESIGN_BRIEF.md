@@ -1,7 +1,8 @@
 # Design brief: the Learn view
 
-Written 2026-09-17 from a conversation with JK. **This is understanding, not a change.** Nothing
-here has been built. It is the input for the prompts that will build it (envoy), in a later
+Written 2026-09-17 from a conversation with JK. **This is the design.** It was built the same
+night; what exists, and how it departs from this text (a chain of slots rather than free-form
+piping; the pooled null), is in README.md under "Learn". Read this for the why. It is the input for the prompts that will build it (envoy), in a later
 session. Everything it cites about the existing code was read, not assumed; everything it
 proposes is marked as a proposal.
 

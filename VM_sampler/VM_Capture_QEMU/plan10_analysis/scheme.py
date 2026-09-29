@@ -40,9 +40,9 @@ from plan10_analysis.modules import build_modules  # noqa: E402
 
 
 try:
-    from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE
+    from plan10_analysis.modules import ratio_name, RATIO_SEP, RATIO_PAGE, collapsed_channel_names, quantile_tag
 except ImportError:                                   # run as a script from plan10_analysis/
-    from modules import ratio_name, RATIO_SEP, RATIO_PAGE
+    from modules import ratio_name, RATIO_SEP, RATIO_PAGE, collapsed_channel_names, quantile_tag
 
 
 def stages_wavelet_max_level(fam: str, w: int) -> int:
@@ -228,9 +228,20 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
              "workloads": base["workloads"]}
     elif mod == "collapse":
         u = up("in")
-        # K/N is one real channel named changed_fraction, whatever fed it; mean keeps the channels
-        d = (dict(u, type="series", axis="collapsed", channels=["changed_fraction"], complex=False)
-             if p.get("reduce", "mean") == "changed_fraction" else dict(u, type="series", axis="collapsed")) if u else None
+        red = p.get("reduce", "mean")
+        # K/N is one real channel named changed_fraction, whatever fed it; mean keeps the channels; a
+        # quantile names itself and a persistent field says so (modules.collapsed_channel_names)
+        if u:
+            chans = collapsed_channel_names(u.get("channels", []), red, float(p.get("q", 0.5) or 0), bool(u.get("persistent")))
+            d = dict(u, type="series", axis="collapsed", channels=chans)
+            if red != "mean":
+                d["complex"] = False
+        else:
+            d = None
+    elif mod == "persist_pages":
+        u = up("in")
+        # a subset of the rows: the type, channels and length are unchanged, the population is not
+        d = dict(u, persistent=True) if u else None
     elif mod == "persistence":
         u = up("in")
         lag_ = max(int(p.get("lag") or 1), 0)
@@ -264,7 +275,7 @@ def descriptor(g: Graph, nid: str, memo: dict) -> dict | None:
         pre = p.get("prefix", "none")
         names = [x for e in es for x in block_names(descriptor(g, e["from"][0], memo), pre)]
         d = {"type": "features", "n": len(es), "names": names, "names_final": True, "up": None, "w": None}
-    elif mod == "write":
+    elif mod in ("write", "write_tiles"):
         d = {"type": "sink"}
     else:  # lenses
         u = up("in")
@@ -339,7 +350,6 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                 out.append(_issue(nid, "note", f"the first {hd} pairs of every recording are dropped before any branch, kernels and idle alike; pairs renumber from 1 and the shortest recording keeps {shortest - hd}",
                                   "runner/executor.py apply_head_drop"))
 
-
     elif mod == "channels":
         chans = list(p.get("chans", []))
         u = up("cells")
@@ -405,6 +415,38 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                                   "runner/stages.py ratios"))
         if any(x.endswith(RATIO_SEP + RATIO_PAGE) for x in specs) and int(p.get("page_bytes") or 0) <= 0:
             out.append(_issue(nid, "hard", "page size must be positive", "runner/stages.py ratios"))
+
+    elif mod == "collapse":
+        u = up("in")
+        red = p.get("reduce", "mean")
+        if red in ("median", "quantile"):
+            q_ = 0.5 if red == "median" else float(p.get("q", 0.5) or 0)
+            if u and u.get("complex"):
+                out.append(_issue(nid, "hard", "a quantile of complex values is undefined; Collapse by mean, or feed real channels",
+                                  "runner/stages.py collapse"))
+            if not 0.0 <= q_ <= 1.0:
+                out.append(_issue(nid, "hard", f"quantile q must be between 0 and 1; got {q_}", "runner/stages.py collapse"))
+            elif p.get("unchanged", "zero") == "zero":
+                out.append(_issue(nid, "note", f"unchanged pages count as zero, so the {quantile_tag(q_)} is over every page of the dump: "
+                                  f"for a sparse delta it is 0 unless more than {1 - q_:.0%} of the pages changed. The content-change "
+                                  f"reading takes it over the changed pages (unchanged = excluded)", "runner/stages.py collapse"))
+        if u and u.get("persistent") and red == "changed_fraction":
+            out.append(_issue(nid, "note", "K/N of a persistent field counts the pages in S_t & S_{t+lag}, not the pages changed: this is not APF",
+                              "runner/stages.py persistent_pages"))
+
+    elif mod == "persist_pages":
+        u = up("in")
+        lag_ = int(p.get("lag") or 0)
+        if lag_ < 1:
+            out.append(_issue(nid, "hard", "lag must be at least 1", "runner/stages.py persistent_pages"))
+        elif u and u.get("nmin") and lag_ >= u["nmin"]:
+            out.append(_issue(nid, "hard", f"lag {lag_} leaves no pair with a partner in the shortest connected recording ({u['nmin']} pairs)",
+                              "runner/stages.py persistent_pages"))
+        if lag_ >= 1:
+            how = ("take the last partnered pair's rows, so every reduction repeats its last value and the series keeps its length"
+                   if p.get("edge", "replicate") == "replicate" else "keep no rows, so a reduction under unchanged = excluded gives 0 there")
+            out.append(_issue(nid, "note", f"the last {lag_} pair(s) have no partner and {how}; plan11 leaves them blank",
+                              "runner/stages.py persistent_pages"))
 
     elif mod == "persistence":
         u = up("in")
@@ -650,6 +692,18 @@ def node_constraints(g: Graph, nid: str, memo: dict) -> list[dict]:
                 out.append(_issue(nid, "hard", f"duplicate feature names across the inputs: {dups[:6]}{' ...' if len(dups) > 6 else ''}; "
                                   "join them through a Concat with prefix=channel", "runner/stages.py concat"))
 
+    elif mod == "write_tiles":
+        e = g.in_pipes(nid, "in")
+        if not e:
+            out.append(_issue(nid, "hard", "nothing to write", "required port"))
+        else:
+            u = descriptor(g, e[0]["from"][0], memo)
+            if u and u.get("page_axis"):
+                out.append(_issue(nid, "note", "page-resolution tiles: the image is written dense, under Window's budget and this module's", "write_tiles"))
+            elif u and u.get("axis") == "blocked":
+                out.append(_issue(nid, "note", f"blocked tiles are written as paths: one tile per window, frames x {u.get('n_blocks') or '?'} blocks "
+                                               "(block count assumes the config's pages per dump)", "write_tiles"))
+
     return out
 
 
@@ -691,7 +745,7 @@ def validate(scheme: dict, ctx: Context) -> list[dict]:
     memo: dict = {}
     for nid in g.nodes:
         issues.extend(node_constraints(g, nid, memo))
-    if not any(n["module"] == "write" for n in g.nodes.values()):
+    if not any(n["module"] in ("write", "write_tiles") for n in g.nodes.values()):
         issues.append(_issue(None, "hard", "no Write module: the scheme produces nothing", "plan10 UX section 7"))
     if not any(n["module"] == "cells" for n in g.nodes.values()):
         issues.append(_issue(None, "hard", "no Cells module: nothing is read", "plan10 UX section 3"))

@@ -17,6 +17,22 @@ It serves the built console and exposes:
   POST /control        {label, command: stop|pause|run}
   GET  /runs                         every run under the output directory
   GET  /results?label=L&rows=N       sidecar + the first N feature rows
+  GET  /learn/modules                the Learn palette (registry.py): what is built, unavailable, unbuilt
+  GET  /learn/inputs                 what every run offers Learn (rows, tiles, counts) and the worked examples
+  POST /learn/validate {pipeline}    pipeline.py verdict, estimate, the configurations of the sweep
+  POST /learn/run      {pipeline, force?}   spawn the Learn executor; returns {label, out_dir}
+  GET  /learn/runs, /learn/status?label=L, POST /learn/control {label, command}
+  GET  /learn/results?label=L        summary of a Learn run (results.py)
+  GET  /learn/agg?label=L&frame=scores|tiles&view=...  the five views over a Learn run's frames
+  GET  /learn/view?label=L&kind=confusion|curves|embedding|saliency|importance|null|calibration|train&config=&split=
+  GET  /learn/tile?run=R&recording=&t_index=  one path or image tile as drawn; /learn/tiles_index?run=R
+  GET  /encoding/config, POST /encoding/config {out, root, preset, flags, standalone_tex}
+                                     the Encoding paper panel: where the toolkit reads and writes, the driver's flags
+  GET  /encoding/board               the moves in runbook order with their ledger states, the running process, the launches
+  POST /encoding/run {move, force?}  launch the toolkit's driver for ONE move (`run_moves run --moves N`); POST /encoding/stop
+  GET  /encoding/cells, /encoding/views, /encoding/params, /encoding/runbook, /encoding/plan_text?move=N
+  GET  /encoding/text?path=P, /encoding/file?path=P, /encoding/list?path=P    the toolkit's files under <out>, as they are
+  GET  /encoding/log?launch=ID&tail=N, /encoding/launch?id=ID
   GET  /results/summary?label=L      what a run holds: per-metric stats, keys, sidecar facts (Explore)
   GET  /results/agg?labels=A,B&view=V&y=F&x=F|key&group=k1,k2&stat=S&scale=linear|log&bins=N&rows=k&cols=k
                                      one view over one run or several, aggregated in numpy (results_view.py)
@@ -52,6 +68,8 @@ sys.path.insert(0, str(QEMU_DIR))
 
 from plan10_analysis import channel_roster, corpus_manifest, scheme as S   # noqa: E402
 from plan10_analysis import results_view as RV                            # noqa: E402
+from plan10_analysis.learn import executor as LE, pipeline as LP, registry as LREG, results as LR   # noqa: E402
+from plan10_analysis import encoding_panel as EPN                         # noqa: E402
 from plan10_analysis.runner import trajectory, extract                     # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
@@ -59,13 +77,16 @@ from plan10_analysis.sources import SourceError, make_source              # noqa
 SERVED_HTML = HERE / "analysis_console.served.html"
 BUILD = HERE / "build_analysis_console.py"
 EXECUTOR = PKG / "runner" / "executor.py"
+LEARN_EXECUTOR = PKG / "learn" / "executor.py"
 DEFAULT_OUT = Path(os.path.expanduser("~/.cache/plan10/runs"))
 LABEL_OK = __import__("re").compile(r"^[A-Za-z0-9_-]+$")
 
 
 class State:
-    def __init__(self, out_dir: Path, source: dict, store: Path | None):
+    def __init__(self, out_dir: Path, source: dict, store: Path | None, learn_dir: Path | None = None):
         self.out_dir = out_dir
+        self.learn_dir = learn_dir or (out_dir.parent / "learn")
+        self.encoding = EPN.Panel()
         self.store = store
         self.source = source
         self.manifest: dict | None = None
@@ -589,12 +610,305 @@ def ep_results_agg(q, _b):
         return {"error": str(e)}, 400
 
 
+# ---------------------------------------------------------------------------
+# Learn: pipelines over what runs wrote
+# ---------------------------------------------------------------------------
+
+def _learn_ctx():
+    return LE.context_for(ST.out_dir)
+
+
+def ep_learn_modules(_q, _b):
+    return LREG.build_registry()
+
+
+def ep_learn_inputs(_q, _b):
+    ctx = _learn_ctx()
+    return {"runs": ctx.runs, "examples": LP.examples(ctx), "runs_root": str(ST.out_dir), "learn_dir": str(ST.learn_dir)}
+
+
+def ep_learn_validate(_q, body):
+    pl = body.get("pipeline")
+    if not isinstance(pl, dict):
+        return {"error": "pipeline missing"}, 400
+    ctx = _learn_ctx()
+    issues = LP.validate(pl, ctx)
+    code, v = LP.verdict(issues, pl)
+    confs = LP.configurations(pl) if code != 1 else []
+    return {"exit": code, "verdict": v, "issues": issues, "estimate": LP.estimate(pl, ctx),
+            "configurations": [{"id": c["id"], "name": c["name"]} for c in confs]}
+
+
+def ep_learn_run(_q, body):
+    pl = body.get("pipeline")
+    if not isinstance(pl, dict):
+        return {"error": "pipeline missing"}, 400
+    label = str(pl.get("label") or "")
+    if not LABEL_OK.match(label):
+        return {"error": f"label must match {LABEL_OK.pattern}"}, 400
+    ctx = _learn_ctx()
+    code, v = LP.verdict(LP.validate(pl, ctx), pl)
+    if code:
+        return {"error": "pipeline refused", "exit": code, "verdict": {k: v[k] for k in ("hard", "soft_unacknowledged")}}, 409
+    run_dir = ST.learn_dir / label
+    if run_dir.exists() and not body.get("force"):
+        return {"error": f"Learn run {label!r} already exists; choose another label or pass force"}, 409
+    if run_dir.exists():
+        shutil.rmtree(run_dir)
+    run_dir.mkdir(parents=True)
+    (run_dir / "pipeline.json").write_text(json.dumps(pl, indent=1))
+    argv = [sys.executable, str(LEARN_EXECUTOR), "run", str(run_dir / "pipeline.json"), "--out-dir", str(ST.learn_dir), "--runs-root", str(ST.out_dir)]
+    log = (run_dir / "bridge.log").open("a")
+    env = dict(os.environ, PYTHONUNBUFFERED="1")
+    p = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, cwd=str(QEMU_DIR), env=env)
+    with ST.lock:
+        ST.procs["learn:" + label] = p
+    return {"label": label, "out_dir": str(run_dir), "pid": p.pid, "argv": argv}
+
+
+def _learn_dir_of(label: str):
+    if not label or not LABEL_OK.match(label):
+        return None
+    d = ST.learn_dir / label
+    return d if d.is_dir() else None
+
+
+def _learn_status_of(run_dir: Path) -> dict:
+    st = run_dir / "status.json"
+    d = json.loads(st.read_text()) if st.exists() else {"state": "starting", "label": run_dir.name}
+    p = ST.procs.get("learn:" + run_dir.name)
+    if p is not None:
+        rc = p.poll()
+        d["process"] = "running" if rc is None else f"exited {rc}"
+        if rc is not None and d.get("state") in ("starting", "running"):
+            d["state"] = "failed" if rc else "done"
+    return d
+
+
+def ep_learn_runs(_q, _b):
+    out = []
+    if ST.learn_dir.is_dir():
+        for d in sorted(ST.learn_dir.iterdir()):
+            if d.is_dir() and (d / "pipeline.json").exists():
+                s = _learn_status_of(d)
+                item = {"label": d.name, "state": s.get("state"), "updated_at": s.get("updated_at"), "message": s.get("message"),
+                        "has_results": (d / "learn_results.json").exists(), "n_configurations": s.get("n_configurations"),
+                        "fits_done": s.get("fits_done"), "fits_total": s.get("fits_total")}
+                out.append(item)
+    return {"runs": out}
+
+
+def ep_learn_status(q, _b):
+    label = (q.get("label") or [""])[0]
+    run_dir = _learn_dir_of(label)
+    if run_dir is None:
+        return {"error": "unknown Learn run"}, 404
+    d = _learn_status_of(run_dir)
+    n = int((q.get("lines") or ["40"])[0])
+    log = run_dir / "run.log"
+    d["log_tail"] = log.read_text().splitlines()[-n:] if log.exists() else []
+    blog = run_dir / "bridge.log"
+    if blog.exists() and not log.exists():
+        d["log_tail"] = blog.read_text().splitlines()[-n:]
+    return d
+
+
+def ep_learn_control(_q, body):
+    label, cmd = str(body.get("label") or ""), body.get("command")
+    run_dir = _learn_dir_of(label)
+    if run_dir is None:
+        return {"error": "unknown Learn run"}, 404
+    if cmd not in ("stop", "pause", "run"):
+        return {"error": "command must be stop, pause or run"}, 400
+    tmp = run_dir / "control.json.tmp"
+    tmp.write_text(json.dumps({"command": cmd, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}))
+    os.replace(tmp, run_dir / "control.json")
+    return {"ok": True, "label": label, "command": cmd}
+
+
+def ep_learn_results(q, _b):
+    run_dir = _learn_dir_of((q.get("label") or [""])[0])
+    if run_dir is None:
+        return {"error": "unknown Learn run"}, 404
+    try:
+        return LR.summary(run_dir)
+    except LR.ResultsError as e:
+        return {"error": str(e)}, 400
+
+
+def ep_learn_agg(q, _b):
+    g = lambda k, d="": (q.get(k) or [d])[0]
+    run_dir = _learn_dir_of(g("label"))
+    if run_dir is None:
+        return {"error": "unknown Learn run"}, 404
+    try:
+        bins = int(g("bins", "30"))
+    except ValueError:
+        return {"error": "bins must be an integer"}, 400
+    try:
+        return LR.agg(run_dir, g("frame", "scores"), g("view", "distribution"), y=g("y") or None, x=g("x") or None,
+                      group=[k for k in g("group").split(",") if k], stat=g("stat", "median"), scale=g("scale", "linear"), bins=bins,
+                      rows=g("rows") or None, cols=g("cols") or None)
+    except (LR.ResultsError, RV.ViewError) as e:
+        return {"error": str(e)}, 400
+
+
+def ep_learn_view(q, _b):
+    g = lambda k, d="": (q.get(k) or [d])[0]
+    run_dir = _learn_dir_of(g("label"))
+    if run_dir is None:
+        return {"error": "unknown Learn run"}, 404
+    kind, config, split = g("kind"), g("config"), g("split")
+    fns = {"confusion": lambda: LR.confusion(run_dir, config, split, g("fold") or None), "curves": lambda: LR.curves(run_dir, config, split),
+           "embedding": lambda: LR.embedding(run_dir, config, split, g("method", "pca")), "saliency": lambda: LR.saliency(run_dir, config, split),
+           "importance": lambda: LR.importance(run_dir, config, split), "null": lambda: LR.null(run_dir, config, split),
+           "calibration": lambda: LR.calibration(run_dir, config, split), "train": lambda: LR.train_curves(run_dir, config, split)}
+    if kind not in fns:
+        return {"error": f"kind must be one of {', '.join(fns)}"}, 400
+    try:
+        return fns[kind]()
+    except LR.ResultsError as e:
+        return {"error": str(e)}, 400
+
+
+def ep_learn_tile(q, _b):
+    g = lambda k, d="": (q.get(k) or [d])[0]
+    run = g("run")
+    if not run or not LABEL_OK.match(run) or not (ST.out_dir / run).is_dir():
+        return {"error": "unknown run"}, 404
+    try:
+        idx = g("index")
+        return LR.tile(ST.out_dir, run, g("recording") or None, int(g("t_index")) if g("t_index") else None, int(idx) if idx else None)
+    except (LR.ResultsError, ValueError) as e:
+        return {"error": str(e)}, 400
+
+
+def ep_learn_tiles_index(q, _b):
+    run = (q.get("run") or [""])[0]
+    if not run or not LABEL_OK.match(run) or not (ST.out_dir / run).is_dir():
+        return {"error": "unknown run"}, 404
+    try:
+        return LR.tiles_index(ST.out_dir, run)
+    except LR.ResultsError as e:
+        return {"error": str(e)}, 400
+
+
+# ---------------------------------------------------------------------------
+# Encoding paper: the plan11_encoding_ladder toolkit, launched and read, never reimplemented
+# ---------------------------------------------------------------------------
+
+def _enc(fn):
+    try:
+        return fn()
+    except EPN.PanelError as e:
+        return {"error": str(e)}, 400
+    except FileNotFoundError as e:
+        return {"error": f"missing: {e}"}, 404
+
+
+def ep_enc_config(_q, _b):
+    return _enc(lambda: ST.encoding.config())
+
+
+def ep_enc_set_config(_q, body):
+    return _enc(lambda: ST.encoding.set_config(body or {}))
+
+
+def ep_enc_board(_q, _b):
+    return _enc(lambda: ST.encoding.board())
+
+
+def ep_enc_run(_q, body):
+    move = (body or {}).get("move")
+    if move is None:
+        return {"error": "move required"}, 400
+    return _enc(lambda: ST.encoding.launch(move, bool((body or {}).get("force")), (body or {}).get("to_move")))
+
+
+def ep_enc_stop(_q, _b):
+    return _enc(lambda: ST.encoding.stop())
+
+
+def ep_enc_cells(_q, _b):
+    return _enc(lambda: EPN.cells(Path(ST.encoding.cfg.get("out") or "")) if ST.encoding.cfg.get("out") else {"exists": False, "why": "set <out> first"})
+
+
+def ep_enc_views(_q, _b):
+    def go():
+        out = ST.encoding.cfg.get("out") or ""
+        if not out:
+            return {"views": [], "why": "set <out> first"}
+        return {"views": EPN.views(Path(out), []), "out": out}
+    return _enc(go)
+
+
+def ep_enc_params(_q, _b):
+    return _enc(lambda: EPN.params_blocks(Path(ST.encoding.cfg.get("out") or "")) if ST.encoding.cfg.get("out") else {"blocks": [], "why": "set <out> first"})
+
+
+def ep_enc_runbook(_q, _b):
+    return {"sections": {str(k): v for k, v in EPN.runbook_sections().items()}, "path": str(EPN.RUNBOOK), "present": EPN.RUNBOOK.exists()}
+
+
+def ep_enc_plan_text(q, _b):
+    mv = (q.get("move") or ["0"])[0]
+    def go():
+        c = ST.encoding.cfg
+        if not c.get("out"):
+            raise EPN.PanelError("set <out> first")
+        return {"move": mv, "text": EPN.plan_text(c["out"], c.get("root") or "<root required>", c.get("flags", {}), mv)}
+    return _enc(go)
+
+
+def ep_enc_text(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _enc(lambda: EPN.text_file(Path(ST.encoding.cfg.get("out") or ""), rel))
+
+
+def ep_enc_list(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _enc(lambda: EPN.listing(Path(ST.encoding.cfg.get("out") or ""), rel))
+
+
+def ep_enc_file(q, _b):
+    """The toolkit's file bytes (a figure, a PDF, a CSV) from under <out>; nothing outside it."""
+    rel = (q.get("path") or [""])[0]
+    try:
+        p = EPN.safe_path(Path(ST.encoding.cfg.get("out") or ""), rel)
+    except EPN.PanelError as e:
+        return {"error": str(e)}, 400
+    if not p.is_file():
+        return {"error": f"no such file under the output root: {rel}"}, 404
+    ctype = EPN.BINARY_TYPES.get(p.suffix.lower()) or {"csv": "text/csv", "json": "application/json", "md": "text/markdown", "tex": "text/plain",
+                                                         "text": "text/plain"}.get(EPN.TEXT_KINDS.get(p.suffix.lower(), "text"), "application/octet-stream")
+    return p.read_bytes(), 200, ctype
+
+
+def ep_enc_log(q, _b):
+    lid = (q.get("launch") or [""])[0] or None
+    n = int((q.get("tail") or ["200"])[0])
+    return _enc(lambda: ST.encoding.log_tail(lid, n))
+
+
+def ep_enc_launch(q, _b):
+    lid = (q.get("id") or [""])[0]
+    return _enc(lambda: ST.encoding.launch_record(lid))
+
+
 ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
                "/results/summary": ep_results_summary, "/results/agg": ep_results_agg,
+               "/learn/modules": ep_learn_modules, "/learn/inputs": ep_learn_inputs, "/learn/runs": ep_learn_runs, "/learn/status": ep_learn_status,
+               "/learn/results": ep_learn_results, "/learn/agg": ep_learn_agg, "/learn/view": ep_learn_view, "/learn/tile": ep_learn_tile,
+               "/learn/tiles_index": ep_learn_tiles_index,
+               "/encoding/config": ep_enc_config, "/encoding/board": ep_enc_board, "/encoding/cells": ep_enc_cells, "/encoding/views": ep_enc_views,
+               "/encoding/params": ep_enc_params, "/encoding/runbook": ep_enc_runbook, "/encoding/plan_text": ep_enc_plan_text,
+               "/encoding/text": ep_enc_text, "/encoding/list": ep_enc_list, "/encoding/file": ep_enc_file, "/encoding/log": ep_enc_log,
+               "/encoding/launch": ep_enc_launch,
                "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,
                "/cache/status": ep_cache_status}
 ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
-                "/cache/drop": ep_cache_drop}
+                "/cache/drop": ep_cache_drop, "/learn/validate": ep_learn_validate, "/learn/run": ep_learn_run, "/learn/control": ep_learn_control,
+                "/encoding/config": ep_enc_set_config, "/encoding/run": ep_enc_run, "/encoding/stop": ep_enc_stop}
 
 TOKEN = ""
 
@@ -632,7 +946,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"error": "bad token"}, 401)
         out = fn(q, None)
         if isinstance(out, tuple):
-            return self._send(out[0], out[1])
+            return self._send(out[0], out[1], out[2]) if len(out) == 3 else self._send(out[0], out[1])
         return self._send(out)
 
     def do_POST(self):
@@ -654,11 +968,13 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(out)
 
 
-def serve(port: int, source: dict, out_dir: Path, store: Path | None, open_browser: bool, build: bool, token: str | None = None):
+def serve(port: int, source: dict, out_dir: Path, store: Path | None, open_browser: bool, build: bool, token: str | None = None,
+          learn_dir: Path | None = None):
     global ST, TOKEN
     TOKEN = token or secrets.token_urlsafe(24)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ST = State(out_dir, source, store)
+    ST = State(out_dir, source, store, learn_dir)
+    ST.learn_dir.mkdir(parents=True, exist_ok=True)
     try:
         src = make_source(source)
         ST.manifest = corpus_manifest.scan_source(src)
@@ -700,6 +1016,7 @@ def main() -> int:
     ap.add_argument("--root", type=Path, default=None, help="shorthand for a local source")
     ap.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--store", type=Path, default=None, help="L1 store directory (default ~/.cache/plan10/l1)")
+    ap.add_argument("--learn-dir", type=Path, default=None, help="where Learn runs land (default: beside --out-dir, ~/.cache/plan10/learn)")
     ap.add_argument("--no-build", action="store_true", help="do not rebuild the served console at start")
     ap.add_argument("--open", action="store_true", help="open the browser")
     ap.add_argument("--token", type=str, default=None, help=argparse.SUPPRESS)
@@ -709,7 +1026,7 @@ def main() -> int:
     else:
         root = a.root or corpus_manifest.default_root()
         source = {"kind": "local", "root": str(root)}
-    serve(a.port, source, a.out_dir, a.store, a.open, not a.no_build, a.token)
+    serve(a.port, source, a.out_dir, a.store, a.open, not a.no_build, a.token, a.learn_dir)
     return 0
 
 
