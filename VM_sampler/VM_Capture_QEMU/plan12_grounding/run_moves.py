@@ -17,7 +17,7 @@ toolkit's staleness rule); `--force` re-runs everything selected. A second drive
 `<out>` is refused (`<out>/.driver.lock`, the writer's pid). A move whose last attempt was stopped
 mid-run reads "not run" in `status` until a later attempt records every one of its commands.
 
-Slice 1 (2026-09-30) plans moves 0 to 2; later slices append their moves to `build_plan`.
+Slice 1 (2026-09-30) plans moves 0 to 2, slice 2 moves 3 to 5; later slices append theirs to `build_plan`.
 The server is never contacted by this file: the modules do, one recording at a time, in fetch mode
 only (SPEC 1.2), and `--dry-run` makes them print their commands instead.
 """
@@ -193,6 +193,17 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
     # ---- move 2: sanity (SPEC move 2); a violation stops the run
     P.append(_cmd(2, "sanity", "sanity", "check", [*O],
                   outputs=["moves/02_sanity/sanity.json"], inputs=["cells.csv", "moves/01_extract/extract.json"]))
+    # ---- moves 3 and 4: every run, the kernel portraits (SPEC moves 3, 4; figures.py), both cuts
+    series_inputs = ["cells.csv", "params.json", "moves/01_extract/extract.json"]
+    P.append(_cmd(3, "every run", "figures", "every-run", [*O],
+                  outputs=["moves/03_every_run/figures.json", "moves/03_every_run/index.html"], inputs=series_inputs))
+    P.append(_cmd(4, "kernel portraits", "figures", "portraits", [*O],
+                  outputs=["moves/04_portraits/figures.json", "moves/04_portraits/index.html"], inputs=series_inputs))
+    # ---- move 5: how similar (SPEC move 5; stats.py and similarity.py), both cuts; the hand check first (SPEC 8.1)
+    P.append(_cmd(5, "statistics hand check", "stats", "hand-check", [*O],
+                  outputs=["moves/05_similarity/hand_check.txt"], inputs=[]))
+    P.append(_cmd(5, "how similar", "similarity", "similarity", [*O, "--n-shuffles", o.n_shuffles, "--seed", o.seed],
+                  outputs=["moves/05_similarity/similarity.json"], inputs=series_inputs))
     return P
 
 
@@ -514,7 +525,7 @@ def print_plan(plan: list[dict], moves: str) -> None:
 # ---------------------------------------------------------------------------------------------
 def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--out", required=True, help="the output folder (SPEC 7; decision D4)")
-    ap.add_argument("--moves", default="0-2", help="moves to run, e.g. 0-2, 1, 0-1,2 (slice 1 plans 0 to 2)")
+    ap.add_argument("--moves", default="0-5", help="moves to run, e.g. 0-5, 1, 0-1,2 (slices 1 and 2 plan 0 to 5)")
     add_source_args(ap)
     ap.add_argument("--store", default=DEFAULT_STORE, help="the L1 store the per-page extracts go to (default: the console's)")
     ap.add_argument("--encoding-out", default=None,
@@ -524,6 +535,8 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--allow-unmatched-declared", action="store_true",
                     help="do not stop when a declared keep-first row names no recording (the smoke corpus)")
     ap.add_argument("--room-removal", action="store_true", help="switch move 9 on (decision D1; off by default, used from slice 3)")
+    ap.add_argument("--n-shuffles", type=int, default=1000, help="label shuffles of the nulls in move 5 (SPEC move 5: 1,000)")
+    ap.add_argument("--seed", type=int, default=20260930, help="the seed of the label shuffles")
     ap.add_argument("--force", action="store_true", help="re-run every selected command")
     ap.add_argument("--dry-run", action="store_true", help="record every command; the modules print what they would do and touch nothing")
 
