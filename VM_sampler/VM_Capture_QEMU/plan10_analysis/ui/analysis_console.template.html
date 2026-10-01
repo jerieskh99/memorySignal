@@ -448,6 +448,18 @@ html.ep-open{overflow:hidden}
 .ep-filter{width:260px; padding:5px 8px; font-size:11.5px; background:var(--sunk); border:1px solid var(--line-2); border-radius:8px; color:inherit; margin-left:8px}
 @media (max-width:1180px){.ep-two{grid-template-columns:1fr}}
 
+/* Grounding paper: the plan12 engine launched one move at a time and its files shown as they are (the Encoding tab's pattern and styles). */
+.gp{display:none; position:fixed; inset:0; z-index:64; background:var(--bg); flex-direction:column; overflow:hidden}
+html.gp-open .gp{display:flex}
+html.gp-open{overflow:hidden}
+.gp-gallery img{max-width:100%; height:auto; display:block; margin:4px 0 14px; border:1px solid var(--line); border-radius:8px; background:#fff}
+.gp-gallery h1{font-size:15px; margin:8px 0} .gp-gallery h2{font-size:13px; margin:18px 0 6px} .gp-gallery p{font-size:11.5px; color:var(--ink-2)}
+.gp-gallery a{color:var(--accent)} .gp-gallery ul{font-size:11.5px}
+.gp-side{width:100%; border-collapse:collapse; font-size:11px; margin-top:6px}
+.gp-side th{text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:600; padding:4px 5px; border-bottom:1px solid var(--line)}
+.gp-side td{padding:3px 5px; border-bottom:1px solid var(--line); font-family:"IBM Plex Mono",monospace; font-size:10.5px}
+.gp-side td.lab{font-family:inherit; font-size:11px}
+
 /* channel availability in the capture's own trajectory */
 .col.traj-all{box-shadow:inset 0 0 0 2px var(--ok)}
 .col.traj-some{box-shadow:inset 0 0 0 2px var(--warn)}
@@ -744,6 +756,81 @@ html.ep-open{overflow:hidden}
         <h3>for the author: the declared parameters, as the toolkit recorded them (read-only)</h3>
         <div class="ep-note" id="ep-author-note"></div>
         <div id="ep-author-body"></div>
+      </div>
+    </div>
+  </section>
+  <section class="gp" id="gp" aria-label="grounding paper">
+    <div class="mon-top ep-top">
+      <h2>Grounding paper</h2>
+      <div class="tabs"><button data-tab="moves" class="on">Moves</button><button data-tab="cells">Cells</button><button data-tab="look">Look at</button><button data-tab="log">Log</button><button data-tab="author">For the author</button></div>
+      <span class="subnote" id="gp-facts" style="margin:0"></span>
+      <span class="sp"></span>
+      <button class="bigbtn ghost" id="gp-refresh">Refresh</button>
+      <button class="bigbtn" id="gp-close">Close</button>
+    </div>
+    <div class="ep-cfg">
+      <div class="field"><label class="fl">output folder &lt;out&gt;</label><input type="text" id="gp-out" class="mono" spellcheck="false" placeholder="~/.cache/plan12/grounding_run_<date>"></div>
+      <div class="field"><label class="fl">local root (the smoke corpus; the real run uses the ssh flags)</label><input type="text" id="gp-root" class="mono" spellcheck="false" placeholder="/path/to/root, or empty"></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">preset</label><select class="f" id="gp-preset"></select></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">move 9, decision D1</label><label style="font-size:11.5px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="gp-room"> room removal (<span class="mono">--room-removal</span>), off by default</label></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">&nbsp;</label><div><button class="bigbtn ghost" id="gp-flags-btn">driver flags</button> <button class="bigbtn" id="gp-apply">Apply</button></div></div>
+      <div class="tk" id="gp-tk"></div>
+    </div>
+    <div class="ep-body" id="gp-tab-moves">
+      <div class="ep-two">
+        <div class="mon-card">
+          <h3>the moves, in the runbook's order</h3>
+          <div class="ep-sum" id="gp-moves-sum"></div>
+          <div class="tblwrap" style="max-height:calc(100vh - 330px)"><table class="tbl ep-moves" id="gp-moves-tbl"></table></div>
+          <div class="ep-note">Run launches the engine's driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. A move waits for the one before it; move 10 follows move 8 (move 9 is optional). One engine process at a time.</div>
+        </div>
+        <div class="mon-card" id="gp-move-detail">
+          <h3 id="gp-move-title">pick a move</h3>
+          <div id="gp-move-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="gp-tab-cells" hidden>
+      <div class="mon-card">
+        <h3>the recordings the engine indexed <input type="text" id="gp-cells-filter" class="ep-filter" placeholder="filter rows"></h3>
+        <div class="ep-sum" id="gp-cells-sum"></div>
+        <div class="tblwrap" style="max-height:calc(100vh - 300px)"><table class="tbl" id="gp-cells-tbl"></table></div>
+        <div class="ep-note" id="gp-cells-note"></div>
+      </div>
+    </div>
+    <div class="ep-body" id="gp-tab-look" hidden>
+      <div class="ep-two" style="grid-template-columns:300px minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>look at</h3>
+          <div class="ep-views" id="gp-views"></div>
+          <h3 style="margin-top:12px">browse &lt;out&gt;</h3>
+          <div class="ep-crumbs" id="gp-crumbs"></div>
+          <div class="ep-ls" id="gp-ls"></div>
+        </div>
+        <div class="mon-card">
+          <h3 id="gp-look-title">the engine's files, as written</h3>
+          <div class="ep-note" id="gp-look-note"></div>
+          <div id="gp-look-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="gp-tab-log" hidden>
+      <div class="ep-two" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>the running move's output <select id="gp-log-pick" style="margin-left:8px"></select> <button class="bigbtn ghost" id="gp-stop" style="margin-left:8px;padding:3px 8px;font-size:10.5px">Stop</button></h3>
+          <pre class="ep-pre log" id="gp-log"></pre>
+        </div>
+        <div class="mon-card">
+          <h3>the launch record</h3>
+          <div id="gp-launch"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="gp-tab-author" hidden>
+      <div class="mon-card">
+        <h3>for the author: the decisions and parameters, as the engine recorded them (read-only)</h3>
+        <div class="ep-note" id="gp-author-note"></div>
+        <div id="gp-author-body"></div>
       </div>
     </div>
   </section>
@@ -3120,6 +3207,325 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     b.title = "the encoding paper's toolkit (plan11_encoding_ladder): its moves in the runbook's order, launched one at a time, and its files as written";
     b.onclick = () => epOpen();
     const anchor = $("ln-btn") || $("xp-btn") || $("mon-btn") || $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
+
+  /* ===== Grounding paper: plan12_grounding launched one move at a time (its own driver, its own command
+     lines), its output files shown as they are. The Encoding tab's pattern; nothing on this panel computes a
+     number; a refusal string is printed as the engine wrote it. Routes: /grounding/*. ===== */
+  const GP = {cfg: null, board: null, tab: "moves", move: null, view: null, dir: "", dirFile: null, timer: null, logTimer: null, flagsOpen: false, launch: null, planText: {}};
+  const gpSave = () => { try { localStorage.setItem("plan10.grounding", JSON.stringify({tab: GP.tab, move: GP.move, view: GP.view, dir: GP.dir, launch: GP.launch})); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem("plan10.grounding") || "null"); if (s) { GP.tab = s.tab || "moves"; GP.move = s.move == null ? null : s.move; GP.view = s.view || null; GP.dir = s.dir || ""; GP.launch = s.launch || null; } } catch (e) {}
+  const gpGet = (path, params) => { const p = new URLSearchParams(params || {}); return api("/grounding/" + path + (p.toString() ? "?" + p.toString() : "")); };
+  const gpFileUrl = rel => "/grounding/file?path=" + encodeURIComponent(rel) + "&token=" + encodeURIComponent(B.token);
+  const gpPath = (rel, label) => `<span class="ep-path"><a href="${gpFileUrl(rel)}" target="_blank" rel="noopener">${esc(label || rel)}</a></span>`;
+  const gpNum = v => (v == null || v === "") ? "" : (typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : esc(v));
+
+  /* ---- the tabs ---- */
+  function gpSetTab(t) {
+    GP.tab = t; gpSave();
+    document.querySelectorAll("#gp .ep-top [data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    ["moves", "cells", "look", "log", "author"].forEach(x => { $("gp-tab-" + x).hidden = x !== t; });
+    ({moves: gpMoves, cells: gpCells, look: gpLook, log: gpLog, author: gpAuthor})[t]();
+  }
+  document.querySelectorAll("#gp .ep-top [data-tab]").forEach(b => { b.onclick = () => gpSetTab(b.dataset.tab); });
+
+  /* ---- configuration: <out>, the local root, the preset, the room-removal switch, the driver's flags (from its own argparse) ---- */
+  async function gpLoadConfig() {
+    GP.cfg = await gpGet("config");
+    const c = GP.cfg;
+    $("gp-out").value = c.out || ""; $("gp-root").value = c.root || ""; $("gp-room").checked = !!c.room_removal;
+    const ps = $("gp-preset"); ps.innerHTML = "";
+    Object.entries(c.presets).forEach(([k, v]) => { const o = document.createElement("option"); o.value = k; o.textContent = `${k}: ${v.label}`; ps.appendChild(o); });
+    const oc = document.createElement("option"); oc.value = "custom"; oc.textContent = "custom (flags edited)"; ps.appendChild(oc);
+    ps.value = c.preset || "custom";
+    const tk = c.toolkit || {};
+    $("gp-tk").innerHTML = `<b>engine</b> ${esc(tk.path || "?")}${tk.present ? "" : ' <span class="bad">(not on disk)</span>'} · v${esc(tk.package_version || "?")} · ${tk.n_py_files || 0} .py files, fingerprint <b>${esc(tk.content_fingerprint || "?")}</b> (the record book's own)<br>` +
+      `repo HEAD <b>${esc(tk.repo_head_short || "?")}</b> · ` + (tk.committed ? '<span class="ok">the engine is committed and clean at HEAD</span>'
+        : `<span class="bad">not committed at HEAD</span> (${tk.tracked ? "tracked, " + tk.dirty_entries + " dirty" : "untracked"}): the launch record keeps the fingerprint`) +
+      `<br><b>source</b> ${esc(c.source === "ssh" ? "the server in fetch mode (--ssh " + (c.flags.ssh || "") + ", --remote-root " + (c.flags.remote_root || "") + ")" : c.source === "root" ? "the local root " + c.root : "none set (move 0 needs one)")}` +
+      `<br><b>run line</b> ${esc(c.run_line || "")}`;
+    $("gp-facts").textContent = (c.out_exists ? "" : c.out ? "<out> does not exist yet; the engine creates it" : "set <out>") + (c.room_removal ? " · move 9 switched on" : "");
+  }
+  $("gp-apply").onclick = async () => {
+    const body = {out: $("gp-out").value.trim(), root: $("gp-root").value.trim()};
+    const ps = $("gp-preset").value; if (ps !== "custom" && ps !== GP.cfg.preset) body.preset = ps;
+    body.flags = GP.flagsOpen ? gpReadFlags() : {room_removal: $("gp-room").checked};
+    try { GP.cfg = await api("/grounding/config", body); } catch (e) { alert(e.message); return; }
+    GP.board = null; GP.launch = null; GP.dir = ""; GP.dirFile = null; GP.planText = {}; gpSave();      /* another <out> is another run: nothing cached carries over */
+    await gpLoadConfig(); if (GP.flagsOpen) gpRenderFlags(); gpSetTab(GP.tab);
+  };
+  $("gp-preset").onchange = async () => { const ps = $("gp-preset").value; if (ps === "custom") return;
+    try { GP.cfg = await api("/grounding/config", {preset: ps, out: $("gp-out").value.trim(), root: $("gp-root").value.trim()}); } catch (e) { alert(e.message); }
+    await gpLoadConfig(); if (GP.flagsOpen) gpRenderFlags(); };
+  $("gp-room").onchange = async () => {
+    try { GP.cfg = await api("/grounding/config", {flags: {room_removal: $("gp-room").checked}}); } catch (e) { alert(e.message); }
+    GP.board = null; GP.planText = {}; await gpLoadConfig(); if (GP.flagsOpen) gpRenderFlags(); if (GP.tab === "moves") gpMoves(); };
+  $("gp-flags-btn").onclick = () => { GP.flagsOpen = !GP.flagsOpen; gpRenderFlags(); };
+  function gpRenderFlags() {
+    let host = $("gp-flags-host");
+    if (!GP.flagsOpen) { if (host) host.remove(); return; }
+    if (!host) { host = document.createElement("div"); host.id = "gp-flags-host"; host.style.cssText = "flex-basis:100%;max-height:300px;overflow:auto"; $("gp-flags-btn").closest(".ep-cfg").appendChild(host); }
+    const flags = GP.cfg.driver_flags || [], cur = GP.cfg.flags || {};
+    host.innerHTML = `<div class="ep-note">The driver's own flags (<span class="mono">run_moves run</span>, read from its argparse). A set flag is passed on every launch of every move; an unset one is left to the driver's default. The driver compares arguments between launches: changing one re-runs the step (<span class="mono">stale: arguments changed</span>); the job count is the one exception.</div>` +
+      `<table class="ep-flags"><thead><tr><th>flag</th><th>value</th><th>driver default</th><th>help</th></tr></thead><tbody>` +
+      flags.map(f => { const v = cur[f.dest]; let inp;
+        if (f.kind === "bool") inp = `<input type="checkbox" data-dest="${esc(f.dest)}" ${v ? "checked" : ""}>`;
+        else if (f.choices) inp = `<select data-dest="${esc(f.dest)}"><option value="">(unset)</option>${f.choices.map(c => `<option value="${esc(c)}" ${String(v) === String(c) ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
+        else inp = `<input type="${f.kind === "str" ? "text" : "number"}" ${f.kind === "float" ? 'step="any"' : ""} data-dest="${esc(f.dest)}" value="${v == null ? "" : esc(v)}">`;
+        return `<tr><td class="mono">${esc(f.flag)}</td><td>${inp}</td><td class="mono">${esc(f.default == null ? "" : f.default)}</td><td class="help">${esc(f.help)}</td></tr>`; }).join("") + `</tbody></table>`;
+  }
+  function gpReadFlags() {
+    const out = {};
+    document.querySelectorAll("#gp-flags-host [data-dest]").forEach(el => { const d = el.dataset.dest; if (el.type === "checkbox") out[d] = el.checked; else out[d] = el.value === "" ? "" : (el.type === "number" ? +el.value : el.value); });
+    out.room_removal = $("gp-room").checked;
+    return out;
+  }
+
+  /* ---- cells: cells.csv joined with the series records; non-corpus recordings are counted by move 0, never named ---- */
+  let gpCellsData = null;
+  async function gpCells() {
+    const sum = $("gp-cells-sum"), tbl = $("gp-cells-tbl"), note = $("gp-cells-note");
+    let d; try { d = await gpGet("cells"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; return; }
+    gpCellsData = d;
+    if (!d.exists) { sum.innerHTML = esc(d.why || "no cells.csv"); tbl.innerHTML = ""; note.innerHTML = ""; return; }
+    sum.innerHTML = `<b>${d.n_kernel}</b> kernel recording${d.n_kernel === 1 ? "" : "s"}, <b>${d.n_idle}</b> idle, <b>${d.n_admissible}</b> admissible · ${gpPath("cells.csv")}` +
+      (d.n_other_counted_by_move_0 ? ` · <b>${d.n_other_counted_by_move_0}</b> other recording${d.n_other_counted_by_move_0 === 1 ? "" : "s"} under the root were counted by move 0 and are not part of this paper's corpus (${esc(Object.entries(d.other_by_index_status || {}).map(([k, v]) => `${v} × ${k}`).join("; "))})` : "") +
+      (d.series.n ? ` · series records from ${gpPath(d.series.path)}` : " · series records appear once move 1 has run");
+    gpRenderCells();
+    note.innerHTML = "admissible: the index status and, when an encoding run is named (decision D2), its preconditions; the reason column is the engine's own words.";
+  }
+  function gpRenderCells() {
+    const d = gpCellsData; if (!d || !d.exists) return;
+    const q = ($("gp-cells-filter").value || "").toLowerCase(), cols = d.columns;
+    const rows = d.rows.filter(r => !q || cols.some(c => String(r[c] == null ? "" : r[c]).toLowerCase().includes(q)));
+    $("gp-cells-tbl").innerHTML = "<thead><tr>" + cols.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>" +
+      rows.map(r => "<tr>" + cols.map(c => { const v = r[c] == null ? "" : r[c]; return `<td class="${epCellClass(v)}" title="${esc(v)}">${esc(v)}</td>`; }).join("") + "</tr>").join("") + "</tbody>";
+  }
+  $("gp-cells-filter").oninput = gpRenderCells;
+
+  /* ---- moves: the board from the record book, a progress line for the running move (reads the board only) ---- */
+  function gpRunCursor(b) {
+    if (!b.running || typeof b.running.move !== "number") return null;
+    const all = b.moves.filter(m => typeof m.move === "number").flatMap(m => m.commands.map(c => ({...c, move: m.move})));
+    const cur = all.find(c => c.move >= b.running.move && c.state !== "done");
+    const t0 = epT((b.running.batch || {}).started_at) || epT(b.running.started_at) || 0;
+    const started = Math.max(t0, ...all.map(c => epT(c.finished_at) || 0)) || null;
+    return cur ? {key: cur.key, move: cur.move, started} : null;
+  }
+  function gpProgress(b) {
+    let pg = $("gp-progress");
+    if (!pg) { pg = document.createElement("div"); pg.id = "gp-progress"; pg.className = "ep-note"; pg.style.margin = "6px 0"; $("gp-moves-sum").after(pg); }
+    const cmds = b.moves.flatMap(m => m.commands.map(c => ({...c, move: m.move})));
+    const nDone = cmds.filter(c => c.state === "done").length;
+    let h = `<b>progress</b>: ${nDone} of ${cmds.length} steps done in the planned moves` + (b.room_removal ? " (move 9 switched on)" : " (move 9 off)");
+    const cur = gpRunCursor(b);
+    if (cur) {
+      const idx = cmds.findIndex(c => c.key === cur.key) + 1, now = Date.now() / 1000;
+      h += `<br><b>now</b>: step ${idx} of ${cmds.length} · move ${esc(cur.move)} · running for ${epDur(cur.started ? now - cur.started : null)}` + (cur.started ? " (since the previous step finished)" : "");
+      const p = b.running.progress;
+      if (p && p.total) h += ` · ${p.done} of ${p.total} ${esc(p.unit)}` + (p.done > 0 && p.done < p.total && cur.started ? ` · ETA about ${epDur((now - cur.started) * (p.total - p.done) / p.done)} more (estimate, from this step's own pace)` : "");
+      else if (p) h += ` · ${p.done} ${esc(p.unit)} so far`;
+    }
+    pg.innerHTML = h;
+  }
+  async function gpMoves() {
+    const sum = $("gp-moves-sum"), tbl = $("gp-moves-tbl");
+    let b; try { b = await gpGet("board"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; $("gp-move-body").innerHTML = ""; return; }
+    GP.board = b;
+    const led = b.ledger || {};
+    sum.innerHTML = (led.exists ? `record book ${gpPath(led.path)}: ${led.n_runs} run${led.n_runs === 1 ? "" : "s"}, ${led.n_commands} command records, package ${esc(led.package_version || "?")}, fingerprint ${esc((led.toolkit_fingerprint || "?").slice(0, 16))}` : "no record book yet: nothing has run on this output folder") +
+      (b.running ? ` · <b>running</b>: move ${esc(b.running.move)}${b.running.external ? ` from a shell (pid ${b.running.pid}, moves ${esc(b.running.moves)}); the console will not start a second driver` : ` (launch ${esc(b.running.id)}, pid ${b.running.pid})`}` : "") +
+      (b.running && b.running.batch ? ` · <b>batch</b>: moves ${esc(b.running.batch.spec)}, started ${esc(epClock(epT(b.running.batch.started_at)))} from ${b.running.batch.source === "shell" ? "a shell" : "the console"}` : "");
+    gpProgress(b);
+    tbl.innerHTML = "<thead><tr><th>move</th><th>what</th><th>state</th><th>commands</th><th>reads from</th><th>last finished</th><th></th></tr></thead><tbody>" +
+      b.moves.map(m => { const done = m.commands.filter(c => c.state === "done").length;
+        return `<tr data-move="${esc(m.move)}" class="${String(m.move) === String(GP.move) ? "on" : ""}"><td class="num">${esc(m.move)}</td><td>${esc(m.title)}${m.note ? `<div class="ep-note" style="margin:2px 0 0">${esc(m.note)}</div>` : ""}${m.interrupted_at ? `<div class="ep-note" style="margin:2px 0 0;color:var(--warn)">stopped mid-run at ${esc(m.interrupted_at.replace("T", " ").slice(0, 19))}: run it again (the driver resumes what finished)</div>` : ""}${m.outputs_missing.length && m.state === "done" ? `<div class="ep-note" style="margin:2px 0 0;color:var(--warn)">outputs missing: ${esc(m.outputs_missing.join(", "))}</div>` : ""}</td>` +
+          `<td>${m.state === "queued" ? `<span class="ep-state queued">queued in this batch</span>${m.state_before_batch ? `<div class="subnote">before this batch: ${esc(m.state_before_batch)}</div>` : ""}` : `<span class="ep-state ${esc(m.state)}">${esc(m.state)}</span>`}</td><td class="num">${m.commands.length ? `${done}/${m.commands.length}` : ""}</td><td class="num">${esc(m.reads_from.join(", "))}</td><td>${esc((m.last_finished_at || "").replace("T", " ").slice(0, 19))}</td>` +
+          `<td style="white-space:nowrap">${m.state === "off" ? "" : m.state === "done" ? `<button class="bigbtn ghost" data-run="${esc(m.move)}" data-force="1" ${m.runnable ? "" : "disabled"} title="run_moves run --moves ${esc(m.move)} --force">Re-run</button>` : `<button class="bigbtn" data-run="${esc(m.move)}" ${m.runnable ? "" : "disabled"} title="${m.runnable ? "launch the driver for this move" : "waits for move " + m.requires.join(", ")}">Run</button>`}</td></tr>`; }).join("") + "</tbody>";
+    tbl.querySelectorAll("tbody tr").forEach(tr => { tr.onclick = e => { if (e.target.closest("button")) return; GP.move = tr.dataset.move; gpSave(); gpMoves(); }; });
+    tbl.querySelectorAll("button[data-run]").forEach(btn => { btn.onclick = async e => { e.stopPropagation(); const mv = btn.dataset.run, force = !!btn.dataset.force;
+      if (force && !confirm(`Re-run move ${mv} with --force: every command of the move runs again and its outputs are rewritten by the engine. Continue?`)) return;
+      try { const r = await api("/grounding/run", {move: +mv, force}); GP.launch = r.id; GP.move = mv; GP.board = null; gpSave(); gpSetTab("log"); }
+      catch (err) { alert(err.message); } }; });
+    gpMoveDetail();
+    clearTimeout(GP.timer);
+    if (b.running) GP.timer = setTimeout(() => { if (GP.tab === "moves" && document.documentElement.classList.contains("gp-open")) gpMoves(); }, 3000);
+  }
+  function gpCmdTiming(c, cursor) {
+    if (cursor && c.key === cursor.key) return `<div class="ep-live"><b>running</b> since ${epClock(cursor.started)}, for ${epDur(cursor.started ? Date.now() / 1000 - cursor.started : null)}</div>`;
+    const t1 = epT(c.finished_at), t0 = epT(c.started_at) || (t1 && c.elapsed_s != null ? t1 - c.elapsed_s : null);
+    if (c.state === "done" || c.state === "failed" || c.state === "refused") return `<div class="subnote">started ${epClock(t0)} · ${c.elapsed_s != null ? "took " + epDur(c.elapsed_s) : "no time recorded"}</div>`;
+    return "";
+  }
+  async function gpMoveDetail() {
+    const b = GP.board, host = $("gp-move-body");
+    const m = b && b.moves.find(x => String(x.move) === String(GP.move));
+    if (!m) { $("gp-move-title").textContent = "pick a move"; host.innerHTML = ""; return; }
+    $("gp-move-title").textContent = `move ${m.move}: ${m.title}`;
+    const cursor = gpRunCursor(b);
+    let h = (m.what ? `<div class="ep-note" style="font-size:12px;color:var(--ink)"><b>writes</b> (RUNBOOK.md section 4): ${esc(m.what)}</div>` : "") +
+      (m.state === "queued" ? `<div class="ep-note" style="color:var(--accent)">queued in this batch: it runs after move ${esc(b.running.move)}</div>` : "") +
+      `<div class="ep-note"><span class="ep-state ${esc(m.state)}">${esc(m.state)}</span>${m.interrupted_at ? ` · <b>stopped mid-run</b> at ${esc(m.interrupted_at)}; the records below are what finished before the stop` : ""} · ${m.requires.length ? `after move ${esc(m.requires.join(", "))}` : "the first move"}${m.reads_from.length ? ` · reads files written by move ${esc(m.reads_from.join(", "))}` : ""}` +
+      (m.output_dirs.length ? ` · outputs under ${m.output_dirs.map(d => `<a href="#" data-dir="${esc(d)}" style="color:var(--accent)">${esc(d || "<out>")}</a>`).join(", ")}` : "") + `</div>`;
+    if (m.commands.length) {
+      h += `<h3 style="margin-top:10px">the commands, as the driver plans them</h3>` + m.commands.map(c => `<div class="ep-cmd"><div><b>${esc(c.name)}</b></div><div class="line">${esc(c.line)}</div>` + gpCmdTiming(c, cursor) +
+        (cursor && c.key === cursor.key ? "" : c.status ? `<div class="st ${esc(c.state)}">${esc(c.status)}${c.stale ? " · " + esc(c.stale) : ""}${c.finished_at ? " · " + esc(c.finished_at) : ""}${c.elapsed_s != null ? ` · ${esc(c.elapsed_s)} s` : ""}</div>` : `<div class="st">not run</div>`) +
+        (c.stdout_tail ? `<pre class="ep-pre" style="max-height:160px;margin-top:4px">${esc(c.stdout_tail)}</pre>` : "") + (c.stderr_tail ? `<div class="err">${esc(c.stderr_tail)}</div>` : "") + `</div>`).join("");
+    } else if (m.state === "off") {
+      h += `<div class="ep-note">Move 9 is planned by the driver only with <span class="mono">--room-removal</span> (decision D1). Switch it on in the bar above; the switch is passed to move 9 alone, so nothing else re-runs.</div>`;
+    }
+    if (m.move === 6) h += `<h3 style="margin-top:10px">next to move 6: the named encoding run's matching numbers (read only)</h3><div id="gp-side-by-side" class="ep-note">…</div>`;
+    h += `<h3 style="margin-top:10px">the driver's plan for this move (<span class="mono">run_moves plan --moves ${esc(m.move)}</span>)</h3><pre class="ep-pre" id="gp-plan-text">…</pre>`;
+    host.innerHTML = h;
+    host.querySelectorAll("a[data-dir]").forEach(a => { a.onclick = ev => { ev.preventDefault(); GP.dir = a.dataset.dir; GP.view = null; gpSave(); gpSetTab("look"); }; });
+    if (m.move === 6) gpSideBySide();
+    if (m.commands.length) { try { const t = GP.planText[m.move] || (GP.planText[m.move] = await gpGet("plan_text", {move: m.move})); const el = $("gp-plan-text"); if (el) el.textContent = t.text || "(nothing printed)"; } catch (e) { const el = $("gp-plan-text"); if (el) el.textContent = e.message; } }
+    else { const el = $("gp-plan-text"); if (el) el.textContent = m.state === "off" ? "not planned while the switch is off" : "no command"; }
+  }
+  async function gpSideBySide() {
+    const host = $("gp-side-by-side"); if (!host) return;
+    let t2, sc; try { t2 = await gpGet("encoding_table2"); } catch (e) { host.textContent = e.message; return; }
+    if (!t2.exists) { host.innerHTML = esc(t2.why || "no encoding run named"); return; }
+    try { sc = await gpGet("text", {path: "moves/06_classify/cut16/scores.csv"}); } catch (e) { sc = null; }
+    const mine = {};
+    if (sc && sc.exists && sc.kind === "csv") { const H = sc.header; sc.rows.forEach(r => { const o = {}; H.forEach((h, i) => o[h] = r[i]); if (o.encoding === "E0") mine[o.split] = o; }); }
+    let h = `<div>encoding run <span class="mono">${esc(t2.encoding_out)}</span> · combined rung at <b>${esc(t2.grid_id)}</b> (${esc(t2.grid_source)}) · ${esc(t2.note)}</div>` +
+      `<table class="gp-side"><thead><tr><th>split</th><th>labels</th><th colspan="4">the encoding run (scores.json)</th><th colspan="4">move 6, E0 at the cut of 16 (scores.csv)</th></tr>` +
+      `<tr><th></th><th></th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · verdict</th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · status</th></tr></thead><tbody>`;
+    for (const r of t2.rows) { const o = mine[r.split] || {};
+      h += `<tr><td class="lab">${esc(r.split)}</td><td class="lab">${esc(r.labelspace)}</td>` + (r.exists ? `<td>${gpNum(r.accuracy)}</td><td>${gpNum(r.macro_recall)}</td><td>${gpNum(r.majority)}</td><td>${gpNum(r.null_p95)} · ${esc(r.b1_g1 || r.status || "")}</td>` : `<td colspan="4" class="lab" style="color:var(--ink-3)">not written by the encoding run: ${esc(r.path)}</td>`) +
+        (o.split ? `<td>${gpNum(o.accuracy === "" ? "" : +o.accuracy)}</td><td>${gpNum(o.macro_recall === "" ? "" : +o.macro_recall)}</td><td>${gpNum(o.majority === "" ? "" : +o.majority)}</td><td>${gpNum(o.null_p95 === "" ? "" : +o.null_p95)} · ${esc(o.status || "")}</td>` : `<td colspan="4" class="lab" style="color:var(--ink-3)">move 6 not run at this cut</td>`) + `</tr>`; }
+    h += `</tbody></table>`;
+    const t2files = Object.keys(t2.table2 || {});
+    h += t2files.length ? `<div style="margin-top:6px">the encoding run's own Table 2 files: ${t2files.map(esc).join(", ")}</div>` + (t2.table2["eusipco_table2.csv"] ? `<div class="tblwrap" style="max-height:240px;margin-top:4px"><table class="tbl"><thead><tr>${t2.table2["eusipco_table2.csv"].header.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${t2.table2["eusipco_table2.csv"].rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : "")
+      : `<div style="margin-top:6px">the encoding run has not written its Table 2 files (report/tables/eusipco_table2.*); the rows above are its split records</div>`;
+    host.innerHTML = h;
+  }
+
+  /* ---- look at: the engine's files rendered as written; a gallery page (index.html) with its links rewritten to the file route ---- */
+  async function gpLook() {
+    let v; try { v = await gpGet("views"); } catch (e) { $("gp-views").innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; return; }
+    const host = $("gp-views"); host.innerHTML = "";
+    (v.views || []).forEach(x => { const b = document.createElement("button"); b.className = (GP.view === x.id ? "on " : "") + (x.any ? "" : "none");
+      b.innerHTML = `<span>${esc(x.title)}</span><span class="n">move ${esc(x.move)} · ${x.files.filter(f => f.exists).length}/${x.files.length}</span>`;
+      b.onclick = () => { GP.view = x.id; GP.dirFile = null; gpSave(); gpLook(); }; host.appendChild(b); });
+    gpBrowse();
+    const cur = (v.views || []).find(x => x.id === GP.view);
+    if (!cur) { $("gp-look-title").textContent = "the engine's files, as written"; $("gp-look-note").textContent = "pick a view on the left, or a file in the browser"; if (!GP.dirFile) $("gp-look-body").innerHTML = ""; return; }
+    $("gp-look-title").textContent = cur.title;
+    $("gp-look-note").innerHTML = (cur.note ? esc(cur.note) + " " : "") + `Written by move ${esc(cur.move)}. Every panel below is one of the engine's files; the path is the file.`;
+    const body = $("gp-look-body"); body.innerHTML = "";
+    for (const f of cur.files) body.appendChild(await gpRenderFile(f.path));
+  }
+  async function gpRenderFile(rel) {
+    const box = document.createElement("div"); box.className = "ep-file";
+    let d; try { d = await gpGet("text", {path: rel}); } catch (e) { box.innerHTML = `<div class="ep-missing">${esc(e.message)}</div>`; return box; }
+    if (!d.exists) { box.innerHTML = `<h4>${esc(rel)}</h4><div class="ep-missing">not yet written by the engine: <span class="mono">${esc(rel)}</span></div>`; return box; }
+    const meta = `${gpPath(rel)} <span class="subnote">${esc(d.bytes)} B · ${esc((d.mtime || "").replace("T", " ").slice(0, 19))}</span>`;
+    const name = rel.split("/").pop();
+    if (d.kind === "svg") { const csv = rel.replace(/\.svg$/, ".csv"); box.innerHTML = `<h4>${esc(name)} ${meta} <span class="ep-path">${gpPath(csv, "data (CSV)")}</span></h4><img src="${gpFileUrl(rel)}" alt="${esc(rel)}">`; return box; }
+    if (d.kind === "html") { box.innerHTML = `<h4>${esc(name)} ${meta} <span class="subnote">a gallery page; its links are rewritten to the file route, nothing else is changed</span></h4><div class="gp-gallery"></div>`; gpGallery(box.querySelector(".gp-gallery"), rel, d.text || ""); return box; }
+    if (d.kind === "binary") { box.innerHTML = `<h4>${esc(name)} ${meta}</h4>` + (d.content_type === "image/png" ? `<img src="${gpFileUrl(rel)}" alt="${esc(rel)}">` : `<div class="ep-note">binary file (${esc(d.content_type)})</div>`); return box; }
+    if (d.error) { box.innerHTML = `<h4>${esc(name)} ${meta}</h4><div class="ep-missing">${esc(d.error)}</div>`; return box; }
+    if (d.kind === "csv") {
+      box.innerHTML = `<h4>${esc(name)} ${meta} <span class="subnote">${esc(d.n_rows)} rows${d.truncated ? " (first " + d.rows.length + " shown)" : ""}</span></h4>` +
+        `<div class="tblwrap"><table class="tbl"><thead><tr>${d.header.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+        d.rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}" title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`).join("") + `</tbody></table></div>`;
+      return box;
+    }
+    if (d.kind === "json") { box.innerHTML = `<h4>${esc(name)} ${meta}</h4><pre class="ep-pre">${esc(JSON.stringify(d.json, null, 1))}</pre>`; return box; }
+    box.innerHTML = `<h4>${esc(name)} ${meta}</h4><pre class="ep-pre">${esc(d.text || "")}</pre>`;
+    return box;
+  }
+  function gpGallery(host, rel, html) {
+    const dir = rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
+    const join = (base, r) => { const parts = (base ? base.split("/") : []); for (const seg of r.split("/")) { if (seg === "..") parts.pop(); else if (seg && seg !== ".") parts.push(seg); } return parts.join("/"); };
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("style, script").forEach(n => n.remove());
+    doc.querySelectorAll("img[src]").forEach(img => { const s = img.getAttribute("src"); if (!/^(https?:|data:|\/)/.test(s)) img.src = gpFileUrl(join(dir, s)); });
+    doc.querySelectorAll("a[href]").forEach(a => { const h = a.getAttribute("href"); if (!h || /^(#|https?:|\/)/.test(h)) return; const target = join(dir, h.split("#")[0]);
+      if (/\.html?$/.test(target)) { a.setAttribute("data-gp-page", target); a.setAttribute("href", "#"); } else { a.href = gpFileUrl(target); a.target = "_blank"; a.rel = "noopener"; } });
+    host.innerHTML = doc.body.innerHTML;
+    host.querySelectorAll("a[data-gp-page]").forEach(a => { a.onclick = async ev => { ev.preventDefault(); const t = a.dataset.gpPage; GP.view = null; GP.dirFile = t; gpSave();
+      $("gp-look-title").textContent = t; $("gp-look-note").textContent = "a gallery page of the engine, as written"; const body = $("gp-look-body"); body.innerHTML = ""; body.appendChild(await gpRenderFile(t)); }; });
+  }
+  async function gpBrowse() {
+    const crumbs = $("gp-crumbs"), ls = $("gp-ls");
+    let d; try { d = await gpGet("list", {path: GP.dir}); } catch (e) { ls.innerHTML = `<span class="dim">${esc(e.message)}</span>`; return; }
+    const parts = GP.dir ? GP.dir.split("/") : [];
+    crumbs.innerHTML = `<a data-d="">&lt;out&gt;</a>` + parts.map((p, i) => ` / <a data-d="${esc(parts.slice(0, i + 1).join("/"))}">${esc(p)}</a>`).join("");
+    crumbs.querySelectorAll("a").forEach(a => { a.onclick = () => { GP.dir = a.dataset.d; gpSave(); gpBrowse(); }; });
+    if (!d.exists) { ls.innerHTML = `<span class="dim">not yet written by the engine: ${esc(GP.dir || "<out>")}</span>`; return; }
+    ls.innerHTML = d.entries.map(e => `<a data-p="${esc(e.path)}" data-dir="${e.dir ? 1 : ""}">${esc(e.name)}${e.dir ? "/" : ""}</a><span class="dim">${e.dir ? "" : esc(e.bytes)}</span><span class="dim">${esc((e.mtime || "").replace("T", " ").slice(5, 16))}</span>`).join("") || `<span class="dim">empty</span>`;
+    ls.querySelectorAll("a").forEach(a => { a.onclick = async () => { if (a.dataset.dir) { GP.dir = a.dataset.p; gpSave(); gpBrowse(); return; }
+      GP.view = null; GP.dirFile = a.dataset.p; gpSave(); document.querySelectorAll("#gp-views button").forEach(b => b.classList.remove("on"));
+      $("gp-look-title").textContent = a.dataset.p; $("gp-look-note").textContent = "one of the engine's files, as written";
+      const body = $("gp-look-body"); body.innerHTML = ""; body.appendChild(await gpRenderFile(a.dataset.p)); }; });
+  }
+
+  /* ---- log ---- */
+  async function gpLog() {
+    clearTimeout(GP.logTimer);
+    let b; try { b = await gpGet("board"); GP.board = b; } catch (e) { $("gp-log").textContent = e.message; return; }
+    const pick = $("gp-log-pick"); const cur = pick.value;
+    pick.innerHTML = "";
+    (b.launches || []).forEach(l => { const o = document.createElement("option"); o.value = l.id; o.textContent = `${l.id} · move ${l.move}${l.force ? " (force)" : ""} · ${l.exit_code == null ? (b.running && b.running.id === l.id ? "running" : "?") : "exit " + l.exit_code}`; pick.appendChild(o); });
+    if (!pick.options.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "no launch from this console yet"; pick.appendChild(o); }
+    const want = GP.launch || (b.running && b.running.id) || cur || (b.launches && b.launches[0] ? b.launches[0].id : "");
+    pick.value = [...pick.options].some(o => o.value === want) ? want : (pick.options[0] ? pick.options[0].value : "");
+    GP.launch = pick.value || null;
+    $("gp-stop").disabled = !(b.running && !b.running.external);
+    let t; try { t = await gpGet("log", {launch: GP.launch || "", tail: 400}); } catch (e) { $("gp-log").textContent = e.message; return; }
+    const pre = $("gp-log"); const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+    pre.textContent = (t.lines || []).join("\n") || (t.running ? "(no output yet)" : (t.id ? "(empty log)" : "no launch selected"));
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    const host = $("gp-launch");
+    if (GP.launch) { try { const r = await gpGet("launch", {id: GP.launch}); const tk = r.toolkit || {};
+      host.innerHTML = `<dl class="ep-kv"><dt>launch</dt><dd>${esc(r.id)}</dd><dt>move</dt><dd>${esc(r.move)}${r.force ? " (--force)" : ""}</dd><dt>command</dt><dd>${(r.shell || []).map(esc).join("<br>")}</dd><dt>cwd</dt><dd>${esc(r.cwd)}</dd>` +
+        `<dt>started</dt><dd>${esc(r.started_at)}</dd><dt>finished</dt><dd>${esc(r.finished_at || (t.running ? "running" : "?"))}${r.exit_code != null ? " · exit " + esc(r.exit_code) : ""}</dd>` +
+        `<dt>engine</dt><dd>repo HEAD ${esc(tk.repo_head || "?")}<br>${tk.committed ? "committed and clean" : "NOT committed at HEAD (" + (tk.tracked ? "tracked, " + tk.dirty_entries + " dirty" : "untracked") + ")"}<br>fingerprint ${esc(tk.content_fingerprint)} over ${esc(tk.n_py_files)} .py files · package ${esc(tk.package_version)}</dd>` +
+        `<dt>flags</dt><dd>${esc(JSON.stringify((r.config || {}).flags || {}))} (preset ${esc((r.config || {}).preset)})</dd>` +
+        `<dt>driver params</dt><dd>${r.driver_params ? esc(JSON.stringify(r.driver_params)) : "(written when the run ends: the record book's params block)"}</dd>` +
+        `<dt>driver run</dt><dd>${r.driver_run ? esc(JSON.stringify({moves: r.driver_run.moves, exit_code: r.driver_run.exit_code, started_at: r.driver_run.started_at, finished_at: r.driver_run.finished_at})) : "-"}</dd>` +
+        `<dt>record</dt><dd>${esc((r.log || "").replace(/\.log$/, ".json"))}</dd></dl>`; } catch (e) { host.innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; } }
+    else host.innerHTML = `<div class="ep-note">launch a move from the Moves tab; every launch leaves a record under &lt;out&gt;/.console/launches/ with the command line, the engine's commit state and the params block the driver wrote.</div>`;
+    if (t.running) GP.logTimer = setTimeout(() => { if (GP.tab === "log" && document.documentElement.classList.contains("gp-open")) { GP.board = null; gpLog(); } }, 2000);
+  }
+  $("gp-log-pick").onchange = () => { GP.launch = $("gp-log-pick").value || null; gpSave(); gpLog(); };
+  $("gp-stop").onclick = async () => { if (!confirm("Stop the running driver? The engine has no pause; the process group is terminated and the record book keeps what finished; the move then reads not run until it is run again.")) return; try { await api("/grounding/stop", {}); } catch (e) { alert(e.message); } GP.board = null; gpLog(); };
+
+  /* ---- for the author ---- */
+  async function gpAuthor() {
+    let d; try { d = await gpGet("params"); } catch (e) { $("gp-author-body").innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; return; }
+    $("gp-author-note").innerHTML = `${d.n_blocks || 0} params block${d.n_blocks === 1 ? "" : "s"} under &lt;out&gt; (every JSON the engine wrote with a <span class="mono">params</span> key)` + (d.manifest ? ` · the engine's own collection: ${gpPath(d.manifest)}` : " · report/manifest.json collects every output once move 10 has run");
+    const kv = obj => `<dl class="ep-kv">${Object.entries(obj || {}).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</dd>`).join("")}</dl>`;
+    let h = `<details class="ep-block" open><summary><b>the decisions and the cuts</b> as move 0 recorded them (params.json)</summary>${d.decisions ? kv(d.decisions) : '<div class="ep-note" style="padding:4px 10px">no params.json yet (move 0)</div>'}</details>`;
+    h += `<details class="ep-block" open><summary><b>the driver's flags</b> as the record book recorded them (driver_state.json params)</summary>${d.driver_params ? kv(d.driver_params) : '<div class="ep-note" style="padding:4px 10px">no record book yet</div>'}</details>`;
+    h += `<details class="ep-block"><summary><b>the declared inputs</b> as copied under inputs/ (the encoding paper's own files, read in place by the engine)</summary><div style="padding:4px 10px">` +
+      Object.entries(d.inputs || {}).map(([name, f]) => { if (!f.exists) return `<div class="ep-note">${esc(f.path)}: not present</div>`;
+        if (f.kind === "csv") return `<div class="ep-file"><h4>${esc(name)} ${gpPath(f.path)}</h4><div class="tblwrap" style="max-height:220px"><table class="tbl"><thead><tr>${f.header.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${f.rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+        return `<div class="ep-file"><h4>${esc(name)} ${gpPath(f.path)}</h4><pre class="ep-pre">${esc(f.json ? JSON.stringify(f.json, null, 1) : f.text || "")}</pre></div>`; }).join("") + `</div></details>`;
+    h += (d.blocks || []).map(b => `<details class="ep-block"><summary><b>${esc(b.path)}</b> · ${esc(b.schema || "")}${b.written_at ? " · " + esc(b.written_at) : ""}</summary>${kv(b.params)}${b.citation ? `<div class="ep-note" style="padding:0 10px 8px">${esc(b.citation)}</div>` : ""}</details>`).join("");
+    $("gp-author-body").innerHTML = h;
+  }
+
+  /* ---- open, close ---- */
+  async function gpOpen() {
+    document.documentElement.classList.add("gp-open");
+    try { await gpLoadConfig(); } catch (e) { $("gp-tk").textContent = e.message; }
+    gpSetTab(GP.tab || "moves");
+  }
+  function gpClose() { document.documentElement.classList.remove("gp-open"); clearTimeout(GP.timer); clearTimeout(GP.logTimer); }
+  $("gp-close").onclick = gpClose;
+  $("gp-refresh").onclick = () => { GP.board = null; GP.planText = {}; gpLoadConfig().then(() => gpSetTab(GP.tab)); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.documentElement.classList.contains("gp-open")) gpClose(); });
+  (function () {
+    const host = document.querySelector("header.top"); if (!host) return;
+    const b = document.createElement("button"); b.className = "bigbtn ghost"; b.id = "gp-btn"; b.textContent = "Grounding paper";
+    b.title = "the grounding paper's engine (plan12_grounding): its moves in the runbook's order, launched one at a time, and its files as written";
+    b.onclick = () => gpOpen();
+    const anchor = $("ep-btn") || $("ln-btn") || $("xp-btn") || $("mon-btn") || $("validate");
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
   })();
 

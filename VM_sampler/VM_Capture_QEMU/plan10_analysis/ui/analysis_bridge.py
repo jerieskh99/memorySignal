@@ -33,6 +33,14 @@ It serves the built console and exposes:
   GET  /encoding/cells, /encoding/views, /encoding/params, /encoding/runbook, /encoding/plan_text?move=N
   GET  /encoding/text?path=P, /encoding/file?path=P, /encoding/list?path=P    the toolkit's files under <out>, as they are
   GET  /encoding/log?launch=ID&tail=N, /encoding/launch?id=ID
+  GET  /grounding/config, POST /grounding/config {out, root, preset, flags}
+                                     the Grounding paper panel (plan12_grounding): the same shape as /encoding/*
+  GET  /grounding/board              the moves 0 to 10 with their record-book states, the running process, the launches
+  POST /grounding/run {move, force?} launch the engine's driver for ONE move; POST /grounding/stop
+  GET  /grounding/cells, /grounding/views, /grounding/params, /grounding/runbook, /grounding/plan_text?move=N
+  GET  /grounding/text?path=P, /grounding/file?path=P, /grounding/list?path=P    the engine's files under <out>, as they are
+  GET  /grounding/log?launch=ID&tail=N, /grounding/launch?id=ID
+  GET  /grounding/encoding_table2    read only: the named encoding run's matching numbers next to move 6
   GET  /results/summary?label=L      what a run holds: per-metric stats, keys, sidecar facts (Explore)
   GET  /results/agg?labels=A,B&view=V&y=F&x=F|key&group=k1,k2&stat=S&scale=linear|log&bins=N&rows=k&cols=k
                                      one view over one run or several, aggregated in numpy (results_view.py)
@@ -70,6 +78,7 @@ from plan10_analysis import channel_roster, corpus_manifest, scheme as S   # noq
 from plan10_analysis import results_view as RV                            # noqa: E402
 from plan10_analysis.learn import executor as LE, pipeline as LP, registry as LREG, results as LR   # noqa: E402
 from plan10_analysis import encoding_panel as EPN                         # noqa: E402
+from plan10_analysis import grounding_panel as GPN                        # noqa: E402
 from plan10_analysis.runner import trajectory, extract                     # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
@@ -87,6 +96,7 @@ class State:
         self.out_dir = out_dir
         self.learn_dir = learn_dir or (out_dir.parent / "learn")
         self.encoding = EPN.Panel()
+        self.grounding = GPN.Panel()
         self.store = store
         self.source = source
         self.manifest: dict | None = None
@@ -895,6 +905,111 @@ def ep_enc_launch(q, _b):
     return _enc(lambda: ST.encoding.launch_record(lid))
 
 
+# ---------------------------------------------------------------------------
+# Grounding paper: the plan12_grounding engine, launched and read, never reimplemented (the Encoding panel's pattern)
+# ---------------------------------------------------------------------------
+
+def _gp(fn):
+    try:
+        return fn()
+    except GPN.PanelError as e:
+        return {"error": str(e)}, 400
+    except FileNotFoundError as e:
+        return {"error": f"missing: {e}"}, 404
+
+
+def _gp_out() -> Path:
+    return Path(os.path.expanduser(ST.grounding.cfg.get("out") or ""))
+
+
+def ep_gp_config(_q, _b):
+    return _gp(lambda: ST.grounding.config())
+
+
+def ep_gp_set_config(_q, body):
+    return _gp(lambda: ST.grounding.set_config(body or {}))
+
+
+def ep_gp_board(_q, _b):
+    return _gp(lambda: ST.grounding.board())
+
+
+def ep_gp_run(_q, body):
+    move = (body or {}).get("move")
+    if move is None:
+        return {"error": "move required"}, 400
+    return _gp(lambda: ST.grounding.launch(move, bool((body or {}).get("force"))))
+
+
+def ep_gp_stop(_q, _b):
+    return _gp(lambda: ST.grounding.stop())
+
+
+def ep_gp_cells(_q, _b):
+    return _gp(lambda: GPN.cells(_gp_out()) if ST.grounding.cfg.get("out") else {"exists": False, "why": "set <out> first"})
+
+
+def ep_gp_views(_q, _b):
+    return _gp(lambda: {"views": GPN.views(_gp_out()), "out": str(_gp_out())} if ST.grounding.cfg.get("out") else {"views": [], "why": "set <out> first"})
+
+
+def ep_gp_params(_q, _b):
+    return _gp(lambda: GPN.params_blocks(_gp_out()) if ST.grounding.cfg.get("out") else {"blocks": [], "why": "set <out> first"})
+
+
+def ep_gp_runbook(_q, _b):
+    return {"sections": {str(k): v for k, v in GPN.runbook_sections().items()}, "path": str(GPN.RUNBOOK), "present": GPN.RUNBOOK.exists()}
+
+
+def ep_gp_plan_text(q, _b):
+    mv = (q.get("move") or ["0"])[0]
+    def go():
+        c = ST.grounding.cfg
+        if not c.get("out"):
+            raise GPN.PanelError("set <out> first")
+        return {"move": mv, "text": GPN.plan_text(str(_gp_out()), c.get("root") or "", c.get("flags", {}), mv)}
+    return _gp(go)
+
+
+def ep_gp_text(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _gp(lambda: GPN.text_file(_gp_out(), rel))
+
+
+def ep_gp_list(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _gp(lambda: GPN.listing(_gp_out(), rel))
+
+
+def ep_gp_file(q, _b):
+    """The engine's file bytes (a figure, a CSV, a gallery page) from under <out>; nothing outside it."""
+    rel = (q.get("path") or [""])[0]
+    try:
+        p = GPN.safe_path(_gp_out(), rel)
+    except GPN.PanelError as e:
+        return {"error": str(e)}, 400
+    if not p.is_file():
+        return {"error": f"no such file under the output folder: {rel}"}, 404
+    ctype = GPN.BINARY_TYPES.get(p.suffix.lower()) or {"csv": "text/csv", "json": "application/json", "md": "text/markdown", "html": "text/html",
+                                                         "svg": "image/svg+xml", "text": "text/plain"}.get(GPN.TEXT_KINDS.get(p.suffix.lower(), "text"), "application/octet-stream")
+    return p.read_bytes(), 200, ctype
+
+
+def ep_gp_log(q, _b):
+    lid = (q.get("launch") or [""])[0] or None
+    n = int((q.get("tail") or ["200"])[0])
+    return _gp(lambda: ST.grounding.log_tail(lid, n))
+
+
+def ep_gp_launch(q, _b):
+    lid = (q.get("id") or [""])[0]
+    return _gp(lambda: ST.grounding.launch_record(lid))
+
+
+def ep_gp_encoding_table2(_q, _b):
+    return _gp(lambda: GPN.encoding_table2(_gp_out()) if ST.grounding.cfg.get("out") else {"exists": False, "why": "set <out> first"})
+
+
 ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
                "/results/summary": ep_results_summary, "/results/agg": ep_results_agg,
                "/learn/modules": ep_learn_modules, "/learn/inputs": ep_learn_inputs, "/learn/runs": ep_learn_runs, "/learn/status": ep_learn_status,
@@ -904,11 +1019,16 @@ ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_stat
                "/encoding/params": ep_enc_params, "/encoding/runbook": ep_enc_runbook, "/encoding/plan_text": ep_enc_plan_text,
                "/encoding/text": ep_enc_text, "/encoding/list": ep_enc_list, "/encoding/file": ep_enc_file, "/encoding/log": ep_enc_log,
                "/encoding/launch": ep_enc_launch,
+               "/grounding/config": ep_gp_config, "/grounding/board": ep_gp_board, "/grounding/cells": ep_gp_cells, "/grounding/views": ep_gp_views,
+               "/grounding/params": ep_gp_params, "/grounding/runbook": ep_gp_runbook, "/grounding/plan_text": ep_gp_plan_text,
+               "/grounding/text": ep_gp_text, "/grounding/list": ep_gp_list, "/grounding/file": ep_gp_file, "/grounding/log": ep_gp_log,
+               "/grounding/launch": ep_gp_launch, "/grounding/encoding_table2": ep_gp_encoding_table2,
                "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,
                "/cache/status": ep_cache_status}
 ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
                 "/cache/drop": ep_cache_drop, "/learn/validate": ep_learn_validate, "/learn/run": ep_learn_run, "/learn/control": ep_learn_control,
-                "/encoding/config": ep_enc_set_config, "/encoding/run": ep_enc_run, "/encoding/stop": ep_enc_stop}
+                "/encoding/config": ep_enc_set_config, "/encoding/run": ep_enc_run, "/encoding/stop": ep_enc_stop,
+                "/grounding/config": ep_gp_set_config, "/grounding/run": ep_gp_run, "/grounding/stop": ep_gp_stop}
 
 TOKEN = ""
 
