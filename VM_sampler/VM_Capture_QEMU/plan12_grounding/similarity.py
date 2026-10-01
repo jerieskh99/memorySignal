@@ -41,7 +41,7 @@ import numpy as np  # noqa: E402
 from scipy import signal  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import now_iso, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, write_json  # noqa: E402
 from plan12_grounding.stats import ORDER, SERIES, cut_series, cuts_of, load_runs, run_stats, stat_names  # noqa: E402
 from plan12_grounding.figures import FONT, PALETTE, panel, svg_open, write_csv  # noqa: E402
 
@@ -158,6 +158,9 @@ def log_spectrum(x: np.ndarray, nperseg: int) -> np.ndarray:
     """The level-free log spectrum: the series standardized, Welch (Hann, half overlap, constant
     detrend), f = 0 dropped, the spectrum normalised to sum 1 and logged (the council's `log(P / P.sum())`)."""
     x = np.asarray(x, dtype=np.float64)
+    if not np.isfinite(x).all():                      # an undefined angle (no changed page, move 9) takes the series' finite mean
+        fin = np.isfinite(x)
+        x = np.where(fin, x, x[fin].mean() if fin.any() else 0.0)
     x = (x - x.mean()) / (x.std() + 1e-12)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -373,6 +376,7 @@ def run_similarity(out: Path, moves_dir: Path, runs: list[dict], n_shuffles: int
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.similarity", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("similarity", help="move 5: how similar the runs are")

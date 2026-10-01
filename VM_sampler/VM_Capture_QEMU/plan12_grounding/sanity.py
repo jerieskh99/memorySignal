@@ -5,11 +5,13 @@
 
 On every kept row of every recording's L1 store (the rows the series was built from: the keep-first
 cut applied, as move 1 recorded it): `l0 <= h <= 8 * l0`, `l0 <= l1 <= 255 * l0`, `0 <= d <= 1`,
-finite values. Per recording: the series' pair indices consecutive with no gap or repeat, no pair
-with zero changed pages (a pair of the kept range with no row of h > 0 is a gap), and the series'
-page counts equal to the store's recount. Angle conventions counted, not judged: rows at d = 1,
-rows at d = 0 with h > 0, the smallest positive d. Writes `<out>/moves/02_sanity/counts.csv` (one row
-per recording), `violations.csv` (rule, count, up to five example rows) and `sanity.json`. Any
+finite values. Per recording, on the store in FILE order: the seq column non-decreasing with every
+seq in one contiguous block (no repeat of a pair later in the file), no seq missing between the first
+and the last kept (no gap), and every (seq, page) row unique (a duplicate counts a page twice);
+then the series: its pair indices consecutive, no pair with zero changed pages, and its page counts
+equal to the store's recount. Angle conventions counted, not judged: rows at d = 1, rows at d = 0
+with h > 0, the smallest positive d. Writes `<out>/moves/02_sanity/counts.csv` (one row per
+recording), `violations.csv` (rule, count, up to five example rows) and `sanity.json`. Any
 violation exits 1, which stops the driver (SPEC: a violation stops the run).
 """
 from __future__ import annotations
@@ -30,12 +32,13 @@ import traceback  # noqa: E402
 import numpy as np  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import now_iso, read_json, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, read_json, write_json  # noqa: E402
 from plan10_analysis.runner import extract as L1  # noqa: E402
 
 CITATION = "plan12_grounding/SPEC.md move 2 (the magnitude rules, the pair rules, the angle conventions counted)"
 RULES = ("finite", "l0 <= h <= 8*l0", "l0 <= l1 <= 255*l0", "0 <= d <= 1", "pairs consecutive, no repeat",
-         "no pair with zero changed pages", "series page counts equal the store's recount")
+         "no pair with zero changed pages", "series page counts equal the store's recount",
+         "store seq in file order: non-decreasing, one block per seq, no gap", "store (seq, page) rows unique")
 COUNT_COLUMNS = ("cell_id", "n_rows_store", "n_rows_kept", "n_rows_dropped_keep_first", "n_pairs", "n_at_d1",
                  "n_at_d0_hpos", "min_positive_d", "n_violations", "violated_rules")
 N_EXAMPLES = 5
@@ -72,6 +75,29 @@ def check_recording(cell_id: str, store_npz: Path, series_npz: Path) -> tuple[di
     bad = ~((d_k >= 0.0) & (d_k <= 1.0))
     if bad.any():
         viol.append({"cell_id": cell_id, "rule": RULES[3], "count": int(bad.sum()), "examples": _examples(seq_k, page_k, h_k, d_k, l0_k, l1_k, bad)})
+    # per recording: the store's seq column in file order (no repeat of a pair later in the file, no gap), and (seq, page) unique
+    if seq_k.size:
+        dseq = np.diff(seq_k)
+        n_decrease = int((dseq < 0).sum())
+        starts = np.flatnonzero(np.r_[True, dseq != 0])                    # where a new seq block begins
+        block_seqs = seq_k[starts]
+        _, first_counts = np.unique(block_seqs, return_counts=True)
+        n_repeat_blocks = int((first_counts > 1).sum())
+        present = np.unique(seq_k)
+        n_gap = int((present.max() - present.min() + 1) - present.size)
+        if n_decrease or n_repeat_blocks or n_gap:
+            ex = [{"row": int(i), "seq": int(seq_k[i]), "next_seq": int(seq_k[i + 1])} for i in np.flatnonzero(dseq < 0)[:N_EXAMPLES]]
+            ex += [{"seq_block_repeated": int(v)} for v in np.unique(block_seqs)[first_counts > 1][:N_EXAMPLES]]
+            ex += [{"seq_missing": int(v)} for v in np.setdiff1d(np.arange(present.min(), present.max() + 1), present)[:N_EXAMPLES]]
+            viol.append({"cell_id": cell_id, "rule": RULES[7], "count": n_decrease + n_repeat_blocks + n_gap, "examples": ex})
+        key = seq_k.astype(np.int64) * np.int64(max(int(page_k.max()) + 1, 1)) + page_k.astype(np.int64)
+        _, kc = np.unique(key, return_counts=True)
+        n_dup = int((kc - 1).sum())
+        if n_dup:
+            dup_keys = np.unique(key)[kc > 1][:N_EXAMPLES]
+            mod = np.int64(max(int(page_k.max()) + 1, 1))
+            viol.append({"cell_id": cell_id, "rule": RULES[8], "count": n_dup,
+                         "examples": [{"seq": int(k // mod), "page_index": int(k % mod)} for k in dup_keys]})
     # per recording: the pair index
     if pairs.size:
         dif = np.diff(pairs)
@@ -84,10 +110,14 @@ def check_recording(cell_id: str, store_npz: Path, series_npz: Path) -> tuple[di
             viol.append({"cell_id": cell_id, "rule": RULES[5], "count": int(missing.size + int((N <= 0).sum())),
                          "examples": [{"pair": int(p)} for p in missing[:N_EXAMPLES]] + [{"pair": int(pairs[i]), "N": int(N[i])} for i in np.flatnonzero(N <= 0)[:N_EXAMPLES]]})
     hp = h_k > 0
-    u, cnt = np.unique(seq_k[hp], return_counts=True)
-    if u.size != pairs.size or not np.array_equal(u, pairs) or not np.array_equal(cnt, N):
-        viol.append({"cell_id": cell_id, "rule": RULES[6], "count": int(max(u.size, pairs.size)),
-                     "examples": [{"pairs_store": int(u.size), "pairs_series": int(pairs.size)}]})
+    u_all = np.unique(seq_k)                                        # every pair of the kept range, including one with no row of h > 0 (N = 0 in the series)
+    cnt_all = np.zeros(u_all.size, dtype=np.int64)
+    if hp.any():
+        uh, ch = np.unique(seq_k[hp], return_counts=True)
+        cnt_all[np.searchsorted(u_all, uh)] = ch
+    if u_all.size != pairs.size or not np.array_equal(u_all, pairs) or not np.array_equal(cnt_all, N):
+        viol.append({"cell_id": cell_id, "rule": RULES[6], "count": int(max(u_all.size, pairs.size)),
+                     "examples": [{"pairs_store": int(u_all.size), "pairs_series": int(pairs.size)}]})
     pos = d_k[d_k > 0]
     counts = {"cell_id": cell_id, "n_rows_store": int(seq.size), "n_rows_kept": int(seq_k.size),
               "n_rows_dropped_keep_first": int((~keep).sum()), "n_pairs": int(pairs.size),
@@ -150,6 +180,7 @@ def check(o: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.sanity", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("check", help="move 2: the sanity checks")

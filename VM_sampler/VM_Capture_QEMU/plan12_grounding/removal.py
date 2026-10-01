@@ -40,7 +40,7 @@ import traceback  # noqa: E402
 import numpy as np  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import now_iso, read_json, sha256_file, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, read_json, sha256_file, write_json  # noqa: E402
 from plan12_grounding.stats import SERIES, cuts_of, load_runs  # noqa: E402
 from plan12_grounding.extract import build_series, save_series  # noqa: E402
 from plan12_grounding.figures import svg_open, write_csv, run_figures  # noqa: E402
@@ -55,17 +55,27 @@ THRESHOLD = 0.95
 SUBDIR = "09_removed"
 
 
-def always_changing(npz_path: Path, meta: dict) -> tuple[set, int]:
-    """The pages that change in at least THRESHOLD of the run's kept pairs (from the store's rows
-    with hamming > 0, seq within the kept range). Returns (pages, n_pairs_counted)."""
+def always_changing(npz_path: Path, meta: dict, cut: int) -> tuple[set, int]:
+    """The pages that change in at least THRESHOLD of the run's pairs after the declared cut (the
+    council measured after the 16-pair cut): from the store's rows with hamming > 0, seq within the
+    kept range, the first `cut` pairs and the last pair dropped as the cut convention says. Returns
+    (pages, n_pairs_counted)."""
     z = L1.load(npz_path)
     seq = np.asarray(z["seq"]).astype(np.int64)
     page = np.asarray(z["page_index"]).astype(np.int64)
     h = np.asarray(z["hamming"]).astype(np.float64)
-    keep = h > 0
+    keep = np.ones(seq.size, dtype=bool)
     bound = meta.get("keep_first_bound_seq")
     if bound is not None:
         keep &= seq <= int(bound)
+    if keep.any():
+        pairs_all = np.unique(seq[keep])
+        if pairs_all.size > int(cut) + 1:
+            lo, hi = pairs_all[int(cut)], pairs_all[-1]         # drop the first `cut` pairs and the last pair
+            keep &= (seq >= lo) & (seq < hi)
+        else:
+            keep &= False
+    keep &= h > 0
     seq_k, page_k = seq[keep], page[keep]
     n_pairs = int(np.unique(seq_k).size)
     if n_pairs == 0:
@@ -134,7 +144,7 @@ def run_removal(out: Path, o: argparse.Namespace, argv: list[str]) -> dict:
     t0 = time.time()
     own, n_pairs_of = {}, {}
     for r in runs:
-        own[r["cell_id"]], n_pairs_of[r["cell_id"]] = always_changing(Path(r["meta"]["store"]["npz"]), r["meta"])
+        own[r["cell_id"]], n_pairs_of[r["cell_id"]] = always_changing(Path(r["meta"]["store"]["npz"]), r["meta"], cuts["declared"])
     R = set.intersection(*[own[r["cell_id"]] for r in idle]) if idle else set()
     write_csv(mdir / "removal_set.csv", ["page_index"], [[p] for p in sorted(R)])
     per_rows, flagged = [], []
@@ -167,11 +177,7 @@ def run_removal(out: Path, o: argparse.Namespace, argv: list[str]) -> dict:
     run_figures(out, mdir, runs2, "every-run", argv)
     run_figures(out, mdir, runs2, "portraits", argv)
     run_similarity(out, mdir, runs2, int(o.n_shuffles), int(o.seed), argv)
-    ident_path = out / "moves" / "06_classify" / "e0_identity.json"
-    identity = read_json(ident_path) if ident_path.is_file() else None
-    if identity is not None and not identity.get("passed"):
-        identity = None
-    run_classify(out, mdir, runs2, o, argv, identity=({**identity, "reused_from": str(ident_path)} if identity else None))
+    run_classify(out, mdir, runs2, o, argv)                 # E0 as declared by move 1's identity record; nothing is fetched here
     run_floor(out, mdir, runs2, argv)
     # before and after
     ba_rows, ba_csv = [], []
@@ -184,7 +190,10 @@ def run_removal(out: Path, o: argparse.Namespace, argv: list[str]) -> dict:
     (mdir / "before_after.svg").write_text(before_after_svg(ba_rows))
     rec = {"schema": "plan12.removal.v1", "citation": CITATION, "package_version": __version__, "toolkit_fingerprint": toolkit_fingerprint()["sha256"],
            "command": argv, "written_at": now_iso(), "status": "ok",
-           "params": {"rule": "A", "threshold": THRESHOLD, "n_idle_runs": len(idle), "cuts": cuts, "n_shuffles": int(o.n_shuffles), "seed": int(o.seed),
+           "params": {"rule": "A", "threshold": THRESHOLD, "n_idle_runs": len(idle), "cuts": cuts,
+                      "always_changing_measured_on": f"the pairs after the declared cut of {cuts['declared']} pairs, the last pair dropped (the cut convention)",
+                      "rebuilt_series": "every pair of the kept range is kept; a pair whose changed pages all fall in the removal set reads N = 0, H = 0, A undefined (NaN)",
+                      "n_shuffles": int(o.n_shuffles), "seed": int(o.seed),
                       "null_perm": int(o.null_perm), "null_splits": o.null_splits, "n_estimators": int(o.n_estimators),
                       "e0_note": "E0 is the encoding run's own extract and is not recomputed under removal; E1, E2, E_new use the rebuilt series"},
            "removal_set": {"n_pages": len(R), "pages": sorted(R)},
@@ -202,6 +211,7 @@ def run(o: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.removal", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("removal", help="move 9: rule A, then moves 3 to 7 again on the rebuilt series")

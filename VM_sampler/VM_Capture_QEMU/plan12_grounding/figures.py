@@ -33,7 +33,7 @@ import traceback  # noqa: E402
 import numpy as np  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import now_iso, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, write_json  # noqa: E402
 from plan12_grounding.stats import ORDER, SERIES, cut_series, cuts_of, load_runs  # noqa: E402
 
 CITATION = "plan12_grounding/SPEC.md moves 3 and 4, section 6; the style of apf_paper/previews/make_shape_gallery.py"
@@ -341,6 +341,7 @@ def run_move(o: argparse.Namespace, which: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.figures", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, h in (("every-run", "move 3: every run per kernel and idle, the gallery"), ("portraits", "move 4: the kernel portraits")):

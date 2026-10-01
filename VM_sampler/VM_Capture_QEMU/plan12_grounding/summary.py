@@ -35,7 +35,7 @@ import traceback  # noqa: E402
 import numpy as np  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import LEDGER, LOCK, now_iso, read_json, sha256_file, write_json  # noqa: E402
+from plan12_grounding.run_moves import LEDGER, LOCK, install_sigterm, now_iso, read_json, sha256_file, write_json  # noqa: E402
 from plan12_grounding.stats import ORDER, SERIES, cuts_of  # noqa: E402
 from plan12_grounding.figures import write_csv  # noqa: E402
 from plan11_encoding_ladder import schema  # noqa: E402
@@ -185,15 +185,20 @@ def copy_figures(out: Path, cuts: dict) -> list[dict]:
 
 
 def manifest(out: Path) -> dict:
-    skip = {LEDGER, LOCK, "manifest.json"}
+    """Every output of the engine under <out> with its sha256. Left out: the record book and its lock,
+    the manifest itself, the console's own folder (`.console/`, which the engine neither reads nor
+    hashes) and any path with a component starting with a dot."""
+    skip = {LEDGER, LOCK}
     files = {}
     for p in sorted(out.rglob("*")):
-        if not p.is_file() or p.name in skip or p.name.startswith("."):
+        if not p.is_file() or p.name in skip:
             continue
-        rel = str(p.relative_to(out))
-        if rel.startswith("report/manifest.json"):
+        rel = p.relative_to(out)
+        if any(part.startswith(".") for part in rel.parts):
             continue
-        files[rel] = {"bytes": p.stat().st_size, "sha256": sha256_file(p)}
+        if rel.as_posix() == "report/manifest.json":
+            continue
+        files[rel.as_posix()] = {"bytes": p.stat().st_size, "sha256": sha256_file(p)}
     return files
 
 
@@ -239,6 +244,7 @@ def run(o: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.summary", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("summary", help="move 10: the per-kernel table, the figure set, the manifest")

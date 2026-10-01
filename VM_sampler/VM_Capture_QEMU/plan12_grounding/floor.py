@@ -38,7 +38,7 @@ import numpy as np  # noqa: E402
 from scipy import signal, stats as sps  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
-from plan12_grounding.run_moves import now_iso, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, write_json  # noqa: E402
 from plan12_grounding.stats import ORDER, SERIES, cut_series, cuts_of, load_runs  # noqa: E402
 from plan12_grounding.figures import SERIES_LABEL, svg_open, write_csv  # noqa: E402
 
@@ -278,6 +278,7 @@ def run(o: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.floor", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("floor", help="move 7: the noise floor, each kernel against the idle runs")

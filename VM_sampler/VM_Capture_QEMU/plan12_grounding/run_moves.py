@@ -38,6 +38,8 @@ import argparse  # noqa: E402
 import hashlib  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
+import re  # noqa: E402
+import signal  # noqa: E402
 import subprocess  # noqa: E402
 import time  # noqa: E402
 import traceback  # noqa: E402
@@ -51,7 +53,7 @@ MAX_MOVE = 10                                # SPEC section 4: moves 0 to 10
 CUT_DECLARED = 16                            # SPEC section 2: the declared start-up cut (declared/head_drop_values.csv)
 CUT_MEASURED = 112                           # SPEC section 2: the council's measured end of the start-up burst
 DEFAULT_STORE = "~/.cache/plan10/l1"         # plan10_analysis/runner/extract.py DEFAULT_STORE: the console's L1 store
-DEFAULT_CACHE = "~/.cache/plan10/chains"     # plan10_analysis/sources.py DEFAULT_CACHE: where a fetched trajectory lands
+DEFAULT_CACHE = "~/.cache/plan12/fetch"      # plan12's own fetch cache, never the console's: cleanup_fetched removes only what this engine fetched
 DECLARED_DIR = _HERE.parent / "plan11_encoding_ladder" / "declared"     # read in place, never copied as logic (SPEC 2)
 DECLARED_FILES = ("keep_first_pairs.csv", "seed_map.csv", "head_drop_values.csv")
 CITATION = "plan12_grounding/SPEC.md sections 4 and 7; modelled on plan11_encoding_ladder/run_moves.py (its ledger and staleness rule)"
@@ -64,6 +66,55 @@ MOVE_NAMES = {0: "inputs and index", 1: "extract", 2: "sanity", 3: "every run", 
 # ---------------------------------------------------------------------------------------------
 # small helpers (kept here so the move modules import them from one place)
 # ---------------------------------------------------------------------------------------------
+def install_sigterm() -> None:
+    """Every move calls this first: the console's Stop is a SIGTERM to the process group, and a module
+    must run its `finally` blocks on it (the index mirror is removed, nothing half-written is left).
+    The driver itself does NOT install it: its record-book entry stays open on a stop, which is how
+    a stopped move reads `not run` (SPEC 7)."""
+    def _on_term(signum, frame):
+        raise SystemExit(143)
+    try:
+        signal.signal(signal.SIGTERM, _on_term)
+    except (ValueError, OSError):            # not the main thread, or no signal support: nothing to install
+        pass
+
+
+_IMPORT_RE = re.compile(r"^\s*(?:from\s+plan12_grounding(?:\.(\w+))?\s+import\s+([^#\n]+)|import\s+plan12_grounding\.(\w+))", re.M)
+
+
+def module_closure(module: str) -> list[str]:
+    """The plan12 modules one command's code reaches: the module, every plan12 module it imports, and
+    so on (a static read of the import lines), plus the package's __init__. A change to any of them
+    makes the command stale; a change elsewhere does not."""
+    seen, todo = [], [module]
+    while todo:
+        m = todo.pop()
+        if m in seen or not (_HERE / f"{m}.py").is_file():
+            continue
+        seen.append(m)
+        text = (_HERE / f"{m}.py").read_text(encoding="utf-8", errors="replace")
+        for g in _IMPORT_RE.finditer(text):
+            if g.group(3):
+                todo.append(g.group(3))
+            elif g.group(1):
+                todo.append(g.group(1))
+            else:                                # `from plan12_grounding import a, b`: names of the package (its __init__) or modules
+                for name in g.group(2).replace("(", "").replace(")", "").split(","):
+                    name = name.strip().split(" as ")[0].strip()
+                    if (_HERE / f"{name}.py").is_file():
+                        todo.append(name)
+    return sorted(set(seen) | {"__init__"})
+
+
+def code_fingerprint(module: str) -> dict:
+    """sha256 over the sorted (name, sha256) of the modules in `module_closure`: the code one command ran with."""
+    names = module_closure(module)
+    h = hashlib.sha256()
+    for n in names:
+        h.update(f"{n}.py:{sha256_file(_HERE / f'{n}.py')}\n".encode())
+    return {"sha256": h.hexdigest(), "modules": names}
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -169,6 +220,18 @@ def describe_source(src) -> dict:
 # ---------------------------------------------------------------------------------------------
 # the command table (SPEC section 4); slice 1: moves 0 to 2
 # ---------------------------------------------------------------------------------------------
+def encoding_run_inputs(enc_out: Path) -> list[str]:
+    """The encoding run's files moves 1, 6 and 9 read, as absolute paths (hashed into the record book; an
+    absent one hashes as `absent`): cells.csv first, then selection.json, gk0.csv, preconditions.csv and
+    every extract.csv and sidecar.json under extract/."""
+    files = [enc_out / "cells.csv", enc_out / "gates" / "selection.json", enc_out / "gates" / "gk0.csv", enc_out / "gates" / "preconditions.csv"]
+    ex = enc_out / "extract"
+    if ex.is_dir():
+        for d in sorted(p for p in ex.iterdir() if p.is_dir()):
+            files += [d / "extract.csv", d / "sidecar.json"]
+    return [str(f) for f in files]
+
+
 def _cmd(move: int, name: str, module: str, sub: str | None, args: list, *, outputs=(), inputs=()) -> dict:
     return {"move": move, "name": name, "module": module, "sub": sub, "args": [str(a) for a in args],
             "outputs": list(outputs), "inputs": list(inputs)}
@@ -188,10 +251,16 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
         a0.append("--allow-unmatched-declared")
     P.append(_cmd(0, "inputs and index", "inputs", "index", a0,
                   outputs=["cells.csv", "params.json", "inputs/sha256.json", "moves/00_index/index.json"], inputs=declared))
-    # ---- move 1: extract (SPEC move 1), one recording at a time, resumable per recording
+    # ---- move 1: extract (SPEC move 1), one recording at a time, resumable per recording; the E0 identity check runs here (D2)
     a1 = [*O, *S, "--store", o.store]
+    enc_files: list[str] = []
+    if getattr(o, "encoding_out", None):
+        a1 += ["--encoding-out", o.encoding_out]
+        enc_files = encoding_run_inputs(Path(os.path.expanduser(o.encoding_out)))
+    if getattr(o, "identity_cell", None):
+        a1 += ["--identity-cell", o.identity_cell]
     P.append(_cmd(1, "extract", "extract", "extract", a1,
-                  outputs=["moves/01_extract/extract.json"], inputs=["cells.csv", "params.json"]))
+                  outputs=["moves/01_extract/extract.json", "moves/01_extract/e0_identity.json"], inputs=["cells.csv", "params.json"] + enc_files[:1]))
     # ---- move 2: sanity (SPEC move 2); a violation stops the run
     P.append(_cmd(2, "sanity", "sanity", "check", [*O],
                   outputs=["moves/02_sanity/sanity.json"], inputs=["cells.csv", "moves/01_extract/extract.json"]))
@@ -213,16 +282,18 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
         cls_args += ["--encoding-out", o.encoding_out]
     if getattr(o, "identity_cell", None):
         cls_args += ["--identity-cell", o.identity_cell]
-    P.append(_cmd(6, "classification", "classify", "classify", [*O, *S, *cls_args],
-                  outputs=["moves/06_classify/classify.json"], inputs=series_inputs + ["inputs/encoding_run/cells.csv"]))
+    # every encoding-run file move 6 reads is one of its inputs (SPEC 4: inputs with sha256), the identity record too
+    P.append(_cmd(6, "classification", "classify", "classify", [*O, *cls_args],
+                  outputs=["moves/06_classify/classify.json"],
+                  inputs=series_inputs + ["inputs/encoding_run/cells.csv", "moves/01_extract/e0_identity.json"] + enc_files))
     # ---- move 7: the noise floor (SPEC move 7), both cuts
     P.append(_cmd(7, "noise floor", "floor", "floor", [*O], outputs=["moves/07_floor/floor.json"], inputs=series_inputs))
     # ---- move 8: the start-up (SPEC move 8), no cut
     P.append(_cmd(8, "start-up", "startup", "startup", [*O], outputs=["moves/08_startup/startup.json"], inputs=series_inputs))
     # ---- move 9: the noise-floor removal (SPEC move 9; decision D1), only when switched on
     if getattr(o, "room_removal", False):
-        P.append(_cmd(9, "noise-floor removal", "removal", "removal", [*O, *S, *cls_args, "--n-shuffles", o.n_shuffles, "--seed", o.seed],
-                      outputs=["moves/09_removed/removal.json"], inputs=series_inputs + ["moves/06_classify/classify.json"]))
+        P.append(_cmd(9, "noise-floor removal", "removal", "removal", [*O, *cls_args, "--n-shuffles", o.n_shuffles, "--seed", o.seed],
+                      outputs=["moves/09_removed/removal.json"], inputs=series_inputs + ["moves/06_classify/classify.json"] + enc_files))
     # ---- move 10: the summary (SPEC move 10; section 6 and 7)
     P.append(_cmd(10, "summary", "summary", "summary", [*O], outputs=["report/manifest.json", "moves/10_summary/summary.json"],
                   inputs=series_inputs + ["moves/05_similarity/similarity.json", "moves/06_classify/classify.json", "moves/07_floor/floor.json",
@@ -292,6 +363,7 @@ def _outputs_sha256(out: Path, specs: list[str]) -> dict:
 
 
 VOLATILE_FLAGS = ("--n-jobs",)          # a resource setting; changing it must not make a result stale
+FORCE_MODULES = ("extract",)             # modules with their own reuse rule, which --force (or an interrupted attempt) must reach
 
 
 def _argv_signature(argv) -> list:
@@ -308,7 +380,10 @@ def _argv_signature(argv) -> list:
     return out
 
 
-def _stale_reason(out: Path, prev: dict, inputs: list[str], argv) -> str | None:
+def _stale_reason(out: Path, prev: dict, inputs: list[str], argv, code_fp: str | None = None) -> str | None:
+    """Why a command whose outputs exist must run again: an input's sha256 changed, its arguments
+    changed, or the code it ran with changed (the fingerprint of its modules at its last `done`;
+    an old record without one is compared by the package fingerprint it carried)."""
     cur = _inputs_sha256(out, inputs)
     old = prev.get("inputs_sha256", {})
     for k, v in cur.items():
@@ -316,6 +391,14 @@ def _stale_reason(out: Path, prev: dict, inputs: list[str], argv) -> str | None:
             return f"stale: {Path(k).name} changed since move {prev.get('move')} ({prev.get('finished_at', '?')})"
     if argv is not None and prev.get("argv") is not None and _argv_signature(argv) != _argv_signature(prev.get("argv")):
         return f"stale: arguments changed since move {prev.get('move')} ({prev.get('finished_at', '?')})"
+    if code_fp is not None:
+        was = prev.get("code_fingerprint") or {}
+        was_sha = was.get("sha256") if isinstance(was, dict) else was
+        if was_sha is None:
+            if prev.get("fingerprint") != toolkit_fingerprint()["sha256"]:
+                return f"stale: the code changed since move {prev.get('move')} ({prev.get('finished_at', '?')}; no per-command fingerprint in that record)"
+        elif was_sha != code_fp:
+            return f"stale: the code of this command changed since move {prev.get('move')} ({prev.get('finished_at', '?')}; fingerprint {was_sha[:12]} -> {code_fp[:12]})"
     return None
 
 
@@ -424,24 +507,34 @@ def _run_plan_locked(o: argparse.Namespace, plan: list[dict], out: Path) -> int:
     ledger.setdefault("runs", []).append(run_rec)
     save_ledger(out, ledger)
     selected = set(parse_moves(o.moves))
+    cut = interrupted_moves(ledger, plan)                   # a move whose last attempt was stopped mid-run: its commands are stale, run as if forced
     rc_final = 0
     for c in plan:
         if c["move"] not in selected:
             continue
         key = _cmd_key(c)
+        cfp = code_fingerprint(c["module"])
         rec = {"key": key, "move": c["move"], "name": c["name"], "module": c["module"], "sub": c["sub"],
                "started_at": now_iso(), "inputs_sha256": _inputs_sha256(out, c["inputs"]), "outputs": list(c["outputs"]),
-               "fingerprint": ledger["toolkit_fingerprint"]["sha256"]}
+               "fingerprint": ledger["toolkit_fingerprint"]["sha256"], "code_fingerprint": cfp}
+        force = bool(o.force) or c["move"] in cut
         argv = [sys.executable, "-m", f"{PACKAGE_NAME}.{c['module']}"] + ([c["sub"]] if c["sub"] else []) + c["args"]
+        if force and c["module"] in FORCE_MODULES:
+            argv = argv + ["--force"]
         rec["argv"] = argv
         rec["cwd"] = str(_HERE.parent)
         prev = _last_done(ledger, key)
-        if not o.force and prev is not None and c["outputs"] and all(_output_exists(out, s) for s in c["outputs"]):
-            stale = _stale_reason(out, prev, c["inputs"], argv)
+        if not force and prev is not None and c["outputs"] and all(_output_exists(out, s) for s in c["outputs"]):
+            stale = _stale_reason(out, prev, c["inputs"], argv, cfp["sha256"])
             if stale is None:
-                rec.update(status="skipped: outputs exist and inputs unchanged", exit_code=0, finished_at=now_iso())
+                # the outputs stand as the earlier run made them: the skip record keeps that run's fingerprints
+                rec.update(status="skipped: outputs exist and inputs unchanged", exit_code=0, finished_at=now_iso(),
+                           fingerprint=prev.get("fingerprint"), code_fingerprint=prev.get("code_fingerprint"),
+                           made_by={"finished_at": prev.get("finished_at"), "fingerprint_now": ledger["toolkit_fingerprint"]["sha256"], "code_fingerprint_now": cfp})
                 ledger["commands"].append(rec); save_ledger(out, ledger); _say(rec); continue
             rec["stale"] = stale
+        elif c["move"] in cut and not o.force:
+            rec["stale"] = f"stale: the last attempt was interrupted at {cut[c['move']]} (run as if forced)"
         if not _module_path(c["module"]).exists():
             rec.update(status=f"failed: module {c['module']}.py absent", exit_code=2, finished_at=now_iso())
             ledger["commands"].append(rec); save_ledger(out, ledger); _say(rec)
@@ -513,12 +606,18 @@ def move_states(out: Path, plan: list[dict]) -> list[dict]:
     rows = []
     for m in sorted({c["move"] for c in plan}):
         cmds = [c for c in plan if c["move"] == m]
-        sts = []
+        sts, fps, changed = [], [], []
         for c in cmds:
             rec = last.get(_cmd_key(c))
             s = str((rec or {}).get("status") or "not run")
             sts.append("done" if s.startswith(("done", "skipped", "kept")) else "failed" if s.startswith("failed") else
                        "not run" if s.startswith(("not run", "dry-run")) else "other")
+            cf = (rec or {}).get("code_fingerprint") or {}
+            cf_sha = cf.get("sha256") if isinstance(cf, dict) else cf
+            if cf_sha:
+                fps.append(cf_sha[:12])
+                if cf_sha != code_fingerprint(c["module"])["sha256"]:
+                    changed.append(c["name"])
         if m in cut:
             state = "not run"
         elif all(s == "not run" for s in sts):
@@ -530,7 +629,8 @@ def move_states(out: Path, plan: list[dict]) -> list[dict]:
         else:
             state = "partial"
         rows.append({"move": m, "name": MOVE_NAMES.get(m, f"move {m}"), "state": state,
-                     "done": sum(1 for s in sts if s == "done"), "n": len(cmds), "interrupted_at": cut.get(m)})
+                     "done": sum(1 for s in sts if s == "done"), "n": len(cmds), "interrupted_at": cut.get(m),
+                     "code_fingerprint": (fps[0] if len(set(fps)) == 1 else ",".join(fps)) if fps else None, "code_changed": changed})
     return rows
 
 
@@ -541,8 +641,10 @@ def print_status(out: Path, plan: list[dict]) -> int:
     print(f"runs: {len(ledger.get('runs', []))}   command records: {len(ledger.get('commands', []))}   "
           f"fingerprint: {str(fp.get('sha256', '?'))[:16]} ({fp.get('n_py_files', '?')} files)   now: {toolkit_fingerprint()['sha256'][:16]}")
     for r in move_states(out, plan):
-        extra = f"  (stopped mid-run at {r['interrupted_at']}: run it again; the driver resumes what finished)" if r["interrupted_at"] else ""
-        print(f"  [move {r['move']:>2}] {r['name']:<28} {r['state']:<8} {r['done']}/{r['n']}{extra}")
+        extra = f"  (stopped mid-run at {r['interrupted_at']}: run it again; the driver runs it as if forced)" if r["interrupted_at"] else ""
+        if r["code_changed"]:
+            extra += f"  (code changed since: {', '.join(r['code_changed'])}; stale)"
+        print(f"  [move {r['move']:>2}] {r['name']:<28} {r['state']:<8} {r['done']}/{r['n']}  code {r['code_fingerprint'] or '-':<12}{extra}")
     for rec in ledger.get("commands", [])[-8:]:
         print(f"    {rec.get('started_at', '')[11:19]} move {rec.get('move')} {rec.get('name'):<20} {str(rec.get('status'))[:60]}")
     return 0

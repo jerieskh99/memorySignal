@@ -14,10 +14,12 @@ mirror is removed afterwards. The data fixes are the encoding paper's own declar
 place from `plan11_encoding_ladder/declared/`: `seed_map.csv` (through build_index), `keep_first_pairs.csv`
 (the three double recordings; applied at move 1, recorded here per recording), `head_drop_values.csv`
 (through `series.load_head_drop` / `head_drop_for`; applied at analysis time, recorded here).
-Admissibility is the encoding toolkit's rule `series.admissible_cells`: status ok in the index, and
-`all_hard_pass` in the named encoding run's `gates/preconditions.csv` when `--encoding-out` (D2) names
-that run; that is where lexer seed 6898 is refused, as it was there. Without `--encoding-out` the
-index alone decides, and `params.json` says so.
+Admissibility is the encoding toolkit's rule `series.admissible_cells`: status ok in the index, and,
+when `--encoding-out` (D2) names a run, status ok in that run's `cells.csv` and `all_hard_pass` in its
+`gates/preconditions.csv` (a recording without a row there is not admissible); that is where lexer seed
+6898 is refused, as it was there. Both files must exist or move 0 stops naming the missing one. Without
+`--encoding-out` the index alone decides, and `params.json` says exactly which it was. Idle is exactly
+the 8 recordings at `sleep/sleep/sleep_600/rep00N__idle_01c` (SPEC 2): move 0 stops unless it finds 8.
 
 Writes `<out>/cells.csv`, `<out>/inputs/` (copies of the declared files with sha256; the encoding run's
 cells.csv and preconditions.csv when given), `<out>/params.json` (both cuts, D2, D3, D4, the move 9
@@ -37,13 +39,14 @@ if str(_HERE.parent) not in sys.path:
 import argparse  # noqa: E402
 import csv  # noqa: E402
 import os  # noqa: E402
+import re  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
 import traceback  # noqa: E402
 
 from plan12_grounding import __version__, toolkit_fingerprint  # noqa: E402
 from plan12_grounding.run_moves import (  # noqa: E402
-    CUT_DECLARED, CUT_MEASURED, DECLARED_DIR, DECLARED_FILES, add_source_args, describe_source, now_iso,
+    CUT_DECLARED, CUT_MEASURED, DECLARED_DIR, DECLARED_FILES, add_source_args, describe_source, install_sigterm, now_iso,
     read_json, sha256_file, source_from_args, write_json,
 )
 from plan11_encoding_ladder import extract as E11  # noqa: E402  (build_index and the declared-file readers; imported, never copied)
@@ -54,10 +57,13 @@ TRAJ_MARKER = "substrate_trajectory"
 CELLS_COLUMNS = ("cell_id", "kernel", "role", "archetype_predicted", "seed", "rep", "rep_dir", "label", "campaign",
                  "rec_rel", "traj_file", "index_status", "seed_from_map", "keep_first_pairs", "head_drop_pairs",
                  "admissible", "reason")
-CUT_CONVENTION = ("a cut of H pairs drops the first H pairs of a recording's per-pair series in pair-index order "
-                  "(plan11_encoding_ladder/series.py rung_series: n_series = n_pairs - 1 - head_drop, the first head_drop "
-                  "rows dropped); H per recording = series.head_drop_for(load_head_drop(declared/head_drop_values.csv), "
-                  "kernel, role), the idle row for idle cells; every number is computed at both cuts")
+CUT_CONVENTION = ("a cut of H pairs drops the first H pairs AND the last pair of a recording's per-pair series, in pair-index "
+                  "order, exactly the rows plan11_encoding_ladder/series.py rung_series drops (lo = head_drop, hi = n_rows - 1: "
+                  "n_series = n_pairs - 1 - head_drop); the cut values are params.json cuts (16 declared, 112 measured), the same "
+                  "for every recording (declared/head_drop_values.csv gives 16 for every kernel and for idle); every number of "
+                  "moves 3 to 7 and 10 is computed at both cuts; move 8 (the start-up) reads the uncut series")
+IDLE_REC_RE = re.compile(r"^sleep/sleep/sleep_600/rep00[0-9]__idle_01c$")      # SPEC 2: the 8 idle runs, this layout and no other
+N_IDLE_EXPECTED = 8
 
 
 def _mirror_listing(entries, mirror: Path) -> dict:
@@ -81,21 +87,49 @@ def _mirror_listing(entries, mirror: Path) -> dict:
 
 
 def _is_corpus(row: dict) -> bool:
+    """SPEC 2: idle is exactly `sleep/sleep/sleep_600/rep00N__idle_01c`; a kernel recording is one of the
+    twelve kernels under `kernel/`. Any other recording, whatever its test label says, is counted and never named."""
     if row.get("role") == "idle":
-        return True
+        return bool(IDLE_REC_RE.match(str(row.get("rec_rel", ""))))
     return row.get("role") == "kernel" and row.get("kernel") in schema.KERNEL_NAMES and row.get("family") == "kernel"
 
 
+class EncodingRunMissing(FileNotFoundError):
+    pass
+
+
 def _encoding_admissibility(enc_out: Path) -> tuple[dict, dict, dict]:
-    """The named encoding run's records, read only: its cells.csv by cell_id, its preconditions by
-    cell_id (series.preconditions_map), and the paths copied. Missing files are reported, not fatal."""
-    cells = {}
+    """The named encoding run's records, read only: its cells.csv by cell_id and its preconditions by
+    cell_id (series.preconditions_map). Both files must exist: admissibility comes from them (SPEC 2,
+    lexer seed 6898 is refused there), so a missing one stops move 0 by name."""
     p = enc_out / "cells.csv"
-    if p.is_file():
-        cells = {r["cell_id"]: r for r in S11.read_csv(p)}
+    q = enc_out / "gates" / "preconditions.csv"
+    for f in (p, q):
+        if not f.is_file():
+            raise EncodingRunMissing(f"the encoding run named by --encoding-out has no {f.relative_to(enc_out)} ({f}); "
+                                     "admissibility is read from it (SPEC 2), so move 0 stops")
+    cells = {r["cell_id"]: r for r in S11.read_csv(p)}
     pm = S11.preconditions_map(enc_out)
-    return cells, pm, {"cells_csv": str(p) if p.is_file() else None,
-                       "preconditions_csv": str(enc_out / "gates" / "preconditions.csv") if (enc_out / "gates" / "preconditions.csv").is_file() else None}
+    return cells, pm, {"cells_csv": str(p), "preconditions_csv": str(q)}
+
+
+def _copy_corpus_rows(src: Path, dst: Path) -> dict:
+    """A copy of one of the encoding run's CSVs holding only its kernel and idle rows (SPEC 1.1: a
+    recording outside the corpus is counted, never named); the record carries the ORIGINAL file's
+    sha256 and the number of rows left out."""
+    with open(src, newline="") as fh:
+        rd = csv.DictReader(fh)
+        fields = list(rd.fieldnames or [])
+        rows = list(rd)
+    kept = [r for r in rows if r.get("role") in ("kernel", "idle")]
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with open(dst, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        for r in kept:
+            w.writerow(r)
+    return {"sha256": sha256_file(src), "copy_sha256": sha256_file(dst), "source": str(src), "bytes": src.stat().st_size,
+            "rows_in_source": len(rows), "rows_copied": len(kept), "rows_left_out_counted_not_named": len(rows) - len(kept)}
 
 
 def _precondition_reason(row: dict) -> str:
@@ -127,13 +161,17 @@ def index(o: argparse.Namespace) -> int:
         if o.encoding_out:
             print(f"[index] would read the encoding run's cells.csv and gates/preconditions.csv under {o.encoding_out} (read only)")
         return 0
+    enc_cells, enc_pm, enc_paths = ({}, {}, {})
+    if o.encoding_out:
+        enc_cells, enc_pm, enc_paths = _encoding_admissibility(Path(os.path.expanduser(o.encoding_out)))
     out.mkdir(parents=True, exist_ok=True)
     entries = src.listing()
     listing_warning = getattr(src, "listing_warning", None)
-    # the mirror: a scratch tree of empty files under <out>, built for build_index and removed below
-    # (it holds only directory names and empty placeholder files this move created; it also holds the
-    # names of the recordings outside the corpus, which must not persist anywhere: SPEC 1.1)
-    mirror = Path(tempfile.mkdtemp(prefix=".index_mirror_", dir=str(out)))
+    # the mirror: a scratch tree of empty files OUTSIDE <out> (the system's temp dir), built for build_index
+    # and removed below (it holds only directory names and empty placeholder files this move created; it
+    # also holds the names of the recordings outside the corpus, which must not persist anywhere: SPEC 1.1;
+    # a SIGTERM reaches the finally through install_sigterm)
+    mirror = Path(tempfile.mkdtemp(prefix="plan12_index_mirror_"))
     try:
         mstats = _mirror_listing(entries, mirror)
         top = sorted(d for d in os.listdir(mirror) if (mirror / d).is_dir())
@@ -151,9 +189,6 @@ def index(o: argparse.Namespace) -> int:
         kfp_rows = E11._load_keep_first_pairs(declared["keep_first_pairs.csv"])
         hd = S11.load_head_drop(declared["head_drop_values.csv"])
         matched_kfp = set()
-        enc_cells, enc_pm, enc_paths = ({}, {}, {})
-        if o.encoding_out:
-            enc_cells, enc_pm, enc_paths = _encoding_admissibility(Path(os.path.expanduser(o.encoding_out)))
         seed_from_map = set(index_params.get("seed_from_map") or [])
         for r in corpus:
             kf = E11._keep_first_for(Path(r["path"]), kfp_rows)
@@ -172,9 +207,10 @@ def index(o: argparse.Namespace) -> int:
             pr = enc_pm.get(r["cell_id"])
             if pr is not None and str(pr.get("all_hard_pass", "true")).lower() != "true":
                 reasons.append(f"encoding run preconditions: all_hard_pass false ({_precondition_reason(pr)})")
+            if o.encoding_out and pr is None:
+                reasons.append("encoding run preconditions: no row for this recording (admissibility is read from gates/preconditions.csv)")
             r["admissible"] = "true" if not reasons else "false"
-            r["reason"] = "; ".join(reasons) if reasons else ("ok" + ("" if not o.encoding_out else
-                                                                   ("; in the encoding run's preconditions" if pr is not None else "; not in the encoding run's preconditions")))
+            r["reason"] = "; ".join(reasons) if reasons else ("ok" + ("" if not o.encoding_out else "; all_hard_pass in the encoding run's preconditions"))
         unmatched_kfp = [{"row": k["row"], "path": k["path"], "keep_first_pairs": k["keep_first_pairs"]} for k in kfp_rows if k["row"] not in matched_kfp]
         if unmatched_kfp and not o.allow_unmatched_declared:
             print("stopped: declared keep-first rows that name no recording of this source (the encoding toolkit stops here too; "
@@ -184,6 +220,15 @@ def index(o: argparse.Namespace) -> int:
             return 2
     finally:
         shutil.rmtree(mirror, ignore_errors=True)   # the scratch mirror of empty files this move created (see above)
+    n_idle_found = sum(1 for r in corpus if r["role"] == "idle")
+    if n_idle_found != N_IDLE_EXPECTED:
+        print(f"stopped: {n_idle_found} idle recording(s) at sleep/sleep/sleep_600/rep00N__idle_01c; SPEC 2 expects exactly {N_IDLE_EXPECTED} "
+              f"(idle recordings under any other layout are counted as other, never named)", file=sys.stderr)
+        return 2
+    bad_kernels = sorted({r["kernel"] for r in corpus if r["role"] == "kernel" and r["kernel"] not in schema.KERNEL_NAMES})
+    if bad_kernels:
+        print(f"stopped: kernel recording(s) outside the twelve kernels of SPEC 2: {len(bad_kernels)} kernel name(s)", file=sys.stderr)
+        return 2
     order = {k: i for i, k in enumerate(schema.KERNEL_NAMES)}
     corpus.sort(key=lambda r: (r["role"] != "kernel", order.get(r["kernel"], 99), r["rep"] if r["rep"] is not None else 999, r["cell_id"]))
     # cells.csv
@@ -202,11 +247,8 @@ def index(o: argparse.Namespace) -> int:
         shas[name] = {"sha256": sha256_file(inp / name), "source": str(p), "bytes": p.stat().st_size}
     if o.encoding_out:
         for tag, p in enc_paths.items():
-            if p:
-                dst = inp / "encoding_run" / Path(p).name
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(p, dst)
-                shas[f"encoding_run/{Path(p).name}"] = {"sha256": sha256_file(dst), "source": p, "bytes": Path(p).stat().st_size}
+            # only the kernel and idle rows are copied (SPEC 1.1); the sha256 recorded is the original file's
+            shas[f"encoding_run/{Path(p).name}"] = _copy_corpus_rows(Path(p), inp / "encoding_run" / Path(p).name)
     write_json(inp / "sha256.json", {"schema": "plan12.inputs.v1", "citation": CITATION, "written_at": now_iso(), "files": shas})
     n_adm = sum(1 for r in corpus if r["admissible"] == "true")
     n_kernel = sum(1 for r in corpus if r["role"] == "kernel")
@@ -221,8 +263,12 @@ def index(o: argparse.Namespace) -> int:
         "D1_room_removal": {"switch": "the driver's --room-removal at move 9 (moves/09_removed/removal.json records a run); this record only names the default", "on_at_move_0": bool(o.room_removal), "default": "off (SPEC 9: built, off)"},
         "D2_baseline": {"encoding_out": (str(Path(os.path.expanduser(o.encoding_out))) if o.encoding_out else None),
                         "default": "the named encoding run's own per-pair extract, pulled read only (SPEC 2)",
-                        "admissibility": ("the encoding run's gates/preconditions.csv through series.admissible_cells" if o.encoding_out
-                                          else "index status only: no encoding run named, so no preconditions record was applied")},
+                        "admissibility": ({"rule": "index status ok, status ok in the encoding run's cells.csv, and all_hard_pass true in its gates/preconditions.csv (a recording without a preconditions row is not admissible)",
+                                           "cells_csv": enc_paths["cells_csv"], "cells_csv_sha256": shas["encoding_run/cells.csv"]["sha256"],
+                                           "preconditions_csv": enc_paths["preconditions_csv"], "preconditions_csv_sha256": shas["encoding_run/preconditions.csv"]["sha256"],
+                                           "pair_rung_exclusion": "applied by move 6 (series.admissible_cells with the combined rung), not here"} if o.encoding_out
+                                          else {"rule": "index status only: no encoding run named, so no preconditions record exists to apply",
+                                                "note": "lexer seed 6898 is refused only through an encoding run's preconditions (SPEC 2)"})},
         "D3_window": {"grid_id": None, "default": "the encoding run's selected grid point for its combined rung (series.selected_grid_id); fallback W=8, H=4",
                       "resolved_at": "move 6"},
         "D4_out": str(out),
@@ -256,6 +302,7 @@ def index(o: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.inputs", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("index", help="move 0: the inputs and the index")
@@ -272,6 +319,9 @@ def main(argv: list[str] | None = None) -> int:
         return index(o)
     except (E11.SeedMapError, E11.KeepFirstError) as exc:
         print(f"declared input: {exc}", file=sys.stderr)
+        return 2
+    except EncodingRunMissing as exc:
+        print(f"stopped: {exc}", file=sys.stderr)
         return 2
     except SystemExit as exc:
         if exc.code not in (None, 0):

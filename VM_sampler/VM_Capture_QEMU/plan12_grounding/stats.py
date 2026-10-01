@@ -41,7 +41,7 @@ import warnings  # noqa: E402
 import numpy as np  # noqa: E402
 
 from plan12_grounding import __version__  # noqa: E402
-from plan12_grounding.run_moves import now_iso, read_json, write_json  # noqa: E402
+from plan12_grounding.run_moves import install_sigterm, now_iso, read_json, write_json  # noqa: E402
 from plan10_analysis.runner import stages as _stages  # noqa: E402  (the console's deep() helpers; imported, never edited)
 from b1_features import FEAT as B1_FEAT, features as _b1_features  # noqa: E402  (plan08_b1, on sys.path through stages)
 
@@ -95,12 +95,14 @@ def cuts_of(out: Path) -> dict:
 
 
 def cut_series(run: dict, cut: int) -> dict:
-    """The series after the cut: the first `cut` pairs dropped in pair-index order (SPEC section 2,
-    the convention written by move 1 into the series metadata)."""
+    """The series after the cut: the first `cut` pairs AND the last pair dropped, in pair-index order,
+    exactly the rows the encoding toolkit's rung_series drops (lo = head_drop, hi = n_rows - 1, so
+    n_series = n_pairs - 1 - head_drop); SPEC section 2, the convention move 0 and move 1 record."""
     a = run["arrays"]
     n = int(a["pair"].size)
     k = min(max(int(cut), 0), n)
-    return {key: v[k:] for key, v in a.items() if key != "hist_edges" and isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] == n}
+    hi = max(k, n - 1)
+    return {key: v[k:hi] for key, v in a.items() if key != "hist_edges" and isinstance(v, np.ndarray) and v.ndim >= 1 and v.shape[0] == n}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -250,7 +252,14 @@ def nov_phase(theta: np.ndarray, weights: np.ndarray | None = None) -> dict:
 # ---------------------------------------------------------------------------------------------
 def series_stats(name: str, x: np.ndarray, theta_weights: np.ndarray | None = None) -> dict:
     """Every statistic of one series: `<name>.b1.*`, `<name>.deep.*`, and `<name>.nov.*` (the
-    magnitude set for N and H, the phase set for A, on the angle in radians)."""
+    magnitude set for N and H, the phase set for A, on the angle in radians). A pair whose angle is
+    undefined (no changed page: A = NaN, from move 9's removal) is left out of the statistics."""
+    x = np.asarray(x, dtype=np.float64)
+    fin = np.isfinite(x)
+    if not fin.all():
+        if theta_weights is not None:
+            theta_weights = np.asarray(theta_weights, dtype=np.float64)[fin]
+        x = x[fin]
     out = {}
     for k, v in b1_stats(x).items():
         out[f"{name}.b1.{k}"] = v
@@ -349,6 +358,7 @@ def hand_check_text() -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.stats", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("hand-check", help="the November features on a hand-made series, next to the values computed by hand")
