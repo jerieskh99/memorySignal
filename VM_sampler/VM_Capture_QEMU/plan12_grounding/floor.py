@@ -127,7 +127,7 @@ def floor_svg(series: str, mode: str, cut: int, freqs: np.ndarray, idle: dict, p
                    f"(Welch t, Bonferroni {ALPHA}/{len(freqs)}); {nperseg}-pair segments")
     allv = [idle["mean"], idle["lo"], idle["hi"]] + [k["mean"] for k in per_kernel]
     v = np.concatenate([np.asarray(a) for a in allv if np.asarray(a).size])
-    v = v[np.isfinite(v)]
+    v = v[np.isfinite(v) & (v > np.log(1e-200))]          # a bin without power (a constant series) is clipped at the panel's floor, not scaled to
     ylo, yhi = (float(v.min()), float(v.max())) if v.size else (0.0, 1.0)
     if yhi <= ylo:
         yhi = ylo + 1.0
@@ -135,11 +135,12 @@ def floor_svg(series: str, mode: str, cut: int, freqs: np.ndarray, idle: dict, p
     if xhi <= xlo:
         xhi = xlo + 1.0
     X = lambda f: 0 + pw * (f - xlo) / (xhi - xlo)          # noqa: E731
-    Y = lambda y: ph - ph * (y - ylo) / (yhi - ylo)          # noqa: E731
+    Y = lambda y: ph - ph * (min(max(y, ylo), yhi) - ylo) / (yhi - ylo)          # noqa: E731  clipped to the panel
     for i, k in enumerate(per_kernel):
         cx, cy = 60 + (i % cols) * (pw + 30), 50 + (i // cols) * (ph + 50)
         out.append(f'<g transform="translate({cx},{cy})">')
-        out.append(f'<text x="0" y="-5" font-weight="bold">{html.escape(k["kernel"])}<tspan font-weight="normal" fill="#666"> {k["n_above"]} above, {k["n_below"]} below of {len(freqs)}; ratio {k["median_ratio"]:.2f}</tspan></text>')
+        ratio_txt = f'{k["median_ratio"]:.3g}' if k["median_ratio"] < 1e6 else "no idle power"
+        out.append(f'<text x="0" y="-5" font-weight="bold">{html.escape(k["kernel"])}<tspan font-weight="normal" fill="#666" font-size="8"> {k["n_above"]} above, {k["n_below"]} below of {len(freqs)}; ratio {ratio_txt}</tspan></text>')
         out.append(f'<rect x="0" y="0" width="{pw}" height="{ph}" fill="none" stroke="#ccc"/>')
         bw = pw / max(1, len(freqs))
         for j in np.flatnonzero(k["above"]):

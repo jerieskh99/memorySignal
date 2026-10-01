@@ -376,8 +376,8 @@ def other_writers(out: Path) -> list[dict]:
             pid = int(pid_s)
         except ValueError:
             continue
-        if pid == os.getpid():
-            continue
+        if pid in (os.getpid(), os.getppid()):
+            continue                                  # the driver itself, and the shell that launched it (its command line may quote the command)
         toks = cmd.split()
         try:
             o = toks[toks.index("--out") + 1]
