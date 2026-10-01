@@ -59,13 +59,15 @@ ORDER = ["floyd", "histogram", "nbody", "fft", "stencil_jacobi", "gemm", "gibbs"
 # ---------------------------------------------------------------------------------------------
 # the runs: cells.csv + extract.json + series/<cell_id>.npz, and the cut
 # ---------------------------------------------------------------------------------------------
-def load_runs(out: Path) -> list[dict]:
+def load_runs(out: Path, series_index: Path | None = None) -> list[dict]:
     """Every admissible recording with a complete series, in the gallery's kernel order then by rep:
-    {cell_id, kernel, group ('idle' for idle cells), role, seed, rep, arrays{pair, N, H, A, C, S, ...}, meta}."""
+    {cell_id, kernel, group ('idle' for idle cells), role, archetype (predicted, from cells.csv), campaign,
+    rec_rel, seed, rep, arrays{pair, N, H, A, C, S, ...}, meta}. `series_index` names another record of
+    series (move 9's `moves/09_removed/extract.json`) in place of move 1's."""
     out = Path(out)
     with open(out / "cells.csv", newline="") as fh:
         cells = {r["cell_id"]: r for r in csv.DictReader(fh)}
-    ex = read_json(out / "moves" / "01_extract" / "extract.json")
+    ex = read_json(Path(series_index) if series_index else out / "moves" / "01_extract" / "extract.json")
     runs = []
     for cid, rec in (ex.get("recordings") or {}).items():
         if not str(rec.get("status", "")).startswith(("done", "reused")):
@@ -78,6 +80,7 @@ def load_runs(out: Path) -> list[dict]:
             meta = json.loads(str(z["meta"]))
         group = "idle" if c["role"] == "idle" else c["kernel"]
         runs.append({"cell_id": cid, "kernel": c["kernel"], "group": group, "role": c["role"],
+                     "archetype": c.get("archetype_predicted") or "", "campaign": c.get("campaign") or "", "rec_rel": c.get("rec_rel") or "",
                      "seed": (int(c["seed"]) if c.get("seed") not in (None, "") else None), "rep": int(c["rep"]) if c.get("rep") not in (None, "") else None,
                      "arrays": arrays, "meta": meta})
     order = {k: i for i, k in enumerate(ORDER)}

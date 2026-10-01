@@ -199,8 +199,8 @@ def minutes_svg(run: dict, cut: int) -> str:
     return "\n".join(out)
 
 
-def every_run(out: Path, cut_name: str, cut: int, runs: list[dict], argv: list[str]) -> dict:
-    d = out / "moves" / "03_every_run" / f"cut{cut}"
+def every_run(out: Path, cut_name: str, cut: int, runs: list[dict], argv: list[str], moves_dir: Path | None = None) -> dict:
+    d = (moves_dir or out / "moves") / "03_every_run" / f"cut{cut}"
     for sub in ("overlay", "average", "runs"):
         (d / sub).mkdir(parents=True, exist_ok=True)
     groups = [g for g in ORDER if any(r["group"] == g for r in runs)]
@@ -273,8 +273,8 @@ def portrait_svg(series: str, per_group: dict, idle: dict | None, cut: int) -> s
     return "\n".join(out)
 
 
-def portraits(out: Path, cut_name: str, cut: int, runs: list[dict], argv: list[str]) -> dict:
-    d = out / "moves" / "04_portraits" / f"cut{cut}"
+def portraits(out: Path, cut_name: str, cut: int, runs: list[dict], argv: list[str], moves_dir: Path | None = None) -> dict:
+    d = (moves_dir or out / "moves") / "04_portraits" / f"cut{cut}"
     d.mkdir(parents=True, exist_ok=True)
     groups = [g for g in ORDER if any(r["group"] == g for r in runs)]
     files = []
@@ -310,6 +310,22 @@ def _top_index(d: Path, title: str, results: list[dict]) -> None:
     (d / "index.html").write_text("\n".join(page))
 
 
+def run_figures(out: Path, moves_dir: Path, runs: list[dict], which: str, argv: list[str]) -> list[dict]:
+    """Move 3 or 4 at both cuts under `moves_dir` (the driver's `moves/`, or move 9's `moves/09_removed/`)."""
+    cuts = cuts_of(out)
+    fn = every_run if which == "every-run" else portraits
+    mdir = moves_dir / ("03_every_run" if which == "every-run" else "04_portraits")
+    results = [fn(out, name, cut, runs, argv, moves_dir) for name, cut in cuts.items()]
+    _top_index(mdir, "Every run (plan12 move 3)" if which == "every-run" else "Kernel portraits (plan12 move 4)", results)
+    write_json(mdir / "figures.json", {"schema": f"plan12.{'every_run' if which == 'every-run' else 'portraits'}.v1", "citation": CITATION,
+                                       "package_version": __version__, "toolkit_fingerprint": toolkit_fingerprint()["sha256"],
+                                       "command": argv, "written_at": now_iso(), "cuts": cuts, "n_runs": len(runs),
+                                       "results": results})
+    for r in results:
+        print(f"[figures] {which} at cut {r['cut']} ({r['cut_name']}): {len(r['files'])} figures for {len(r['groups'])} groups -> {mdir / r['index']}")
+    return results
+
+
 def run_move(o: argparse.Namespace, which: str) -> int:
     out = Path(os.path.expanduser(o.out))
     cuts = cuts_of(out)
@@ -320,16 +336,7 @@ def run_move(o: argparse.Namespace, which: str) -> int:
     if not runs:
         print("no runs with a complete series (run move 1 first)", file=sys.stderr)
         return 2
-    fn = every_run if which == "every-run" else portraits
-    mdir = out / "moves" / ("03_every_run" if which == "every-run" else "04_portraits")
-    results = [fn(out, name, cut, runs, sys.argv) for name, cut in cuts.items()]
-    _top_index(mdir, "Every run (plan12 move 3)" if which == "every-run" else "Kernel portraits (plan12 move 4)", results)
-    write_json(mdir / "figures.json", {"schema": f"plan12.{'every_run' if which == 'every-run' else 'portraits'}.v1", "citation": CITATION,
-                                       "package_version": __version__, "toolkit_fingerprint": toolkit_fingerprint()["sha256"],
-                                       "command": sys.argv, "written_at": now_iso(), "cuts": cuts, "n_runs": len(runs),
-                                       "results": results})
-    for r in results:
-        print(f"[figures] {which} at cut {r['cut']} ({r['cut_name']}): {len(r['files'])} figures for {len(r['groups'])} groups -> {mdir / r['index']}")
+    run_figures(out, out / "moves", runs, which, sys.argv)
     return 0
 
 

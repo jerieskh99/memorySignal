@@ -278,8 +278,8 @@ def loso_svg(summary: list[dict], cut: int) -> str:
 # ---------------------------------------------------------------------------------------------
 # the move
 # ---------------------------------------------------------------------------------------------
-def one_cut(out: Path, cut_name: str, cut: int, runs: list[dict], n_shuffles: int, seed: int) -> dict:
-    d = out / "moves" / "05_similarity" / f"cut{cut}"
+def one_cut(out: Path, cut_name: str, cut: int, runs: list[dict], n_shuffles: int, seed: int, moves_dir: Path | None = None) -> dict:
+    d = (moves_dir or out / "moves") / "05_similarity" / f"cut{cut}"
     d.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
     names = stat_names()
@@ -351,18 +351,25 @@ def run(o: argparse.Namespace) -> int:
     if not runs:
         print("no runs with a complete series (run move 1 first)", file=sys.stderr)
         return 2
-    results = [one_cut(out, name, cut, runs, int(o.n_shuffles), int(o.seed)) for name, cut in cuts.items()]
-    mdir = out / "moves" / "05_similarity"
+    run_similarity(out, out / "moves", runs, int(o.n_shuffles), int(o.seed), sys.argv)
+    return 0
+
+
+def run_similarity(out: Path, moves_dir: Path, runs: list[dict], n_shuffles: int, seed: int, argv: list[str]) -> list[dict]:
+    """Move 5 at both cuts under `moves_dir` (the driver's `moves/`, or move 9's `moves/09_removed/`)."""
+    cuts = cuts_of(out)
+    results = [one_cut(out, name, cut, runs, n_shuffles, seed, moves_dir) for name, cut in cuts.items()]
+    mdir = moves_dir / "05_similarity"
     write_json(mdir / "similarity.json", {"schema": "plan12.similarity.v1", "citation": CITATION, "package_version": __version__,
-                                          "toolkit_fingerprint": toolkit_fingerprint()["sha256"], "command": sys.argv, "written_at": now_iso(),
-                                          "params": {"n_shuffles": int(o.n_shuffles), "seed": int(o.seed), "cuts": cuts, "nperseg": NPERSEG,
+                                          "toolkit_fingerprint": toolkit_fingerprint()["sha256"], "command": argv, "written_at": now_iso(),
+                                          "params": {"n_shuffles": n_shuffles, "seed": seed, "cuts": cuts, "nperseg": NPERSEG,
                                                      "circular_note": "circular statistics (A.nov.*) are compared between kernels or against shuffles only, never against a fixed pass mark (SPEC 5.2)"},
                                           "results": results})
     for r in results:
         print(f"[similarity] cut {r['cut']} ({r['cut_name']}): {r['n_runs']} runs, {r['n_statistics']} statistics; ICC median {r['icc']['median']}, "
               f"{r['icc']['n_above_null_p95']} above the null's p95; PCA explains {[round(100 * e, 1) for e in r['pca']['explained']]} percent; "
               f"leave-one-seed-out hit rate {r['loso_rate']['all']:.3f}; spectral within-between " + ", ".join(f"{s['series']} {s['within_minus_between']:.3f} (p {s['p_value']:.3f})" for s in r["spectral"]))
-    return 0
+    return results
 
 
 def main(argv: list[str] | None = None) -> int:

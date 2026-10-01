@@ -3,7 +3,9 @@
 book per output folder.
 
   python3 -m plan12_grounding.run_moves run    --out O --moves N [--root R | --ssh USER@HOST --remote-root RR]
-                                               [--store S] [--cache C] [--force] [--dry-run] [--room-removal]
+                                               [--store S] [--cache C] [--encoding-out E] [--force] [--dry-run]
+                                               [--room-removal] [--null-perm 500] [--null-splits loko,within_trace]
+                                               [--n-jobs 1] [--n-estimators 300] [--seed-offset 0]
   python3 -m plan12_grounding.run_moves plan   --out O --moves N ...      (print the command list, run nothing)
   python3 -m plan12_grounding.run_moves status --out O                    (the record book, move by move)
 
@@ -17,7 +19,9 @@ toolkit's staleness rule); `--force` re-runs everything selected. A second drive
 `<out>` is refused (`<out>/.driver.lock`, the writer's pid). A move whose last attempt was stopped
 mid-run reads "not run" in `status` until a later attempt records every one of its commands.
 
-Slice 1 (2026-09-30) plans moves 0 to 2, slice 2 moves 3 to 5; later slices append theirs to `build_plan`.
+Slice 1 (2026-09-30) plans moves 0 to 2, slice 2 moves 3 to 5, slice 3 (2026-10-01) moves 6 to 10; move 9
+is planned only with `--room-removal` (decision D1) and move 0's arguments do not carry that switch, so
+switching it on re-runs nothing else. `--n-jobs` is a resource setting and never makes a move stale.
 The server is never contacted by this file: the modules do, one recording at a time, in fetch mode
 only (SPEC 1.2), and `--dry-run` makes them print their commands instead.
 """
@@ -182,8 +186,6 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
         a0 += ["--encoding-out", o.encoding_out]
     if getattr(o, "allow_unmatched_declared", False):
         a0.append("--allow-unmatched-declared")
-    if getattr(o, "room_removal", False):
-        a0.append("--room-removal")
     P.append(_cmd(0, "inputs and index", "inputs", "index", a0,
                   outputs=["cells.csv", "params.json", "inputs/sha256.json", "moves/00_index/index.json"], inputs=declared))
     # ---- move 1: extract (SPEC move 1), one recording at a time, resumable per recording
@@ -204,6 +206,27 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                   outputs=["moves/05_similarity/hand_check.txt"], inputs=[]))
     P.append(_cmd(5, "how similar", "similarity", "similarity", [*O, "--n-shuffles", o.n_shuffles, "--seed", o.seed],
                   outputs=["moves/05_similarity/similarity.json"], inputs=series_inputs))
+    # ---- move 6: classification (SPEC move 6; decisions D2, D3), both cuts; the source is for the E0 identity check
+    cls_args = ["--null-perm", o.null_perm, "--null-splits", o.null_splits, "--n-jobs", o.n_jobs, "--n-estimators", o.n_estimators,
+                "--seed-offset", o.seed_offset]
+    if getattr(o, "encoding_out", None):
+        cls_args += ["--encoding-out", o.encoding_out]
+    if getattr(o, "identity_cell", None):
+        cls_args += ["--identity-cell", o.identity_cell]
+    P.append(_cmd(6, "classification", "classify", "classify", [*O, *S, *cls_args],
+                  outputs=["moves/06_classify/classify.json"], inputs=series_inputs + ["inputs/encoding_run/cells.csv"]))
+    # ---- move 7: the noise floor (SPEC move 7), both cuts
+    P.append(_cmd(7, "noise floor", "floor", "floor", [*O], outputs=["moves/07_floor/floor.json"], inputs=series_inputs))
+    # ---- move 8: the start-up (SPEC move 8), no cut
+    P.append(_cmd(8, "start-up", "startup", "startup", [*O], outputs=["moves/08_startup/startup.json"], inputs=series_inputs))
+    # ---- move 9: the noise-floor removal (SPEC move 9; decision D1), only when switched on
+    if getattr(o, "room_removal", False):
+        P.append(_cmd(9, "noise-floor removal", "removal", "removal", [*O, *S, *cls_args, "--n-shuffles", o.n_shuffles, "--seed", o.seed],
+                      outputs=["moves/09_removed/removal.json"], inputs=series_inputs + ["moves/06_classify/classify.json"]))
+    # ---- move 10: the summary (SPEC move 10; section 6 and 7)
+    P.append(_cmd(10, "summary", "summary", "summary", [*O], outputs=["report/manifest.json", "moves/10_summary/summary.json"],
+                  inputs=series_inputs + ["moves/05_similarity/similarity.json", "moves/06_classify/classify.json", "moves/07_floor/floor.json",
+                                          "moves/08_startup/startup.json", "moves/09_removed/removal.json"]))
     return P
 
 
@@ -268,9 +291,21 @@ def _outputs_sha256(out: Path, specs: list[str]) -> dict:
     return res
 
 
+VOLATILE_FLAGS = ("--n-jobs",)          # a resource setting; changing it must not make a result stale
+
+
 def _argv_signature(argv) -> list:
-    """argv without the volatile tokens (none yet in plan12; kept for the rule's shape)."""
-    return list(argv or [])
+    """argv without the volatile tokens (the flag and its value)."""
+    out, skip = [], False
+    for tok in list(argv or []):
+        if skip:
+            skip = False
+            continue
+        if tok in VOLATILE_FLAGS:
+            skip = True
+            continue
+        out.append(tok)
+    return out
 
 
 def _stale_reason(out: Path, prev: dict, inputs: list[str], argv) -> str | None:
@@ -518,6 +553,8 @@ def print_plan(plan: list[dict], moves: str) -> None:
     for c in plan:
         if c["move"] in sel:
             print(f"[move {c['move']:>2}] {c['name']:<28} python3 -m {PACKAGE_NAME}.{c['module']} " + (c["sub"] + " " if c["sub"] else "") + " ".join(c["args"]))
+    if 9 in sel and not any(c["move"] == 9 for c in plan):
+        print(f"[move  9] {MOVE_NAMES[9]:<28} off (decision D1): run with --room-removal to switch it on")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -525,7 +562,7 @@ def print_plan(plan: list[dict], moves: str) -> None:
 # ---------------------------------------------------------------------------------------------
 def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--out", required=True, help="the output folder (SPEC 7; decision D4)")
-    ap.add_argument("--moves", default="0-5", help="moves to run, e.g. 0-5, 1, 0-1,2 (slices 1 and 2 plan 0 to 5)")
+    ap.add_argument("--moves", default="0-10", help="moves to run, e.g. 0-10, 1, 0-1,2 (move 9 only with --room-removal)")
     add_source_args(ap)
     ap.add_argument("--store", default=DEFAULT_STORE, help="the L1 store the per-page extracts go to (default: the console's)")
     ap.add_argument("--encoding-out", default=None,
@@ -534,9 +571,16 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--cut-measured", type=int, default=CUT_MEASURED, help="the measured start-up cut in pairs (SPEC 2)")
     ap.add_argument("--allow-unmatched-declared", action="store_true",
                     help="do not stop when a declared keep-first row names no recording (the smoke corpus)")
-    ap.add_argument("--room-removal", action="store_true", help="switch move 9 on (decision D1; off by default, used from slice 3)")
+    ap.add_argument("--room-removal", action="store_true", help="switch move 9 on (decision D1; off by default)")
     ap.add_argument("--n-shuffles", type=int, default=1000, help="label shuffles of the nulls in move 5 (SPEC move 5: 1,000)")
     ap.add_argument("--seed", type=int, default=20260930, help="the seed of the label shuffles")
+    ap.add_argument("--null-perm", type=int, default=500, help="move 6: label permutations of the null (Table 2: 500)")
+    ap.add_argument("--null-splits", default="loko,within_trace",
+                    help="move 6: the splits whose null runs (the encoding run's paper preset; loro's null costs 96 folds per permutation)")
+    ap.add_argument("--n-jobs", type=int, default=1, help="move 6: processes for the forest and the permutations")
+    ap.add_argument("--n-estimators", type=int, default=300, help="move 6: trees (Table 2: 300)")
+    ap.add_argument("--seed-offset", type=int, default=0, help="move 6: added to the forest and null seeds")
+    ap.add_argument("--identity-cell", default=None, help="move 6: the recording recomputed for the E0 identity check (default: the first kernel cell)")
     ap.add_argument("--force", action="store_true", help="re-run every selected command")
     ap.add_argument("--dry-run", action="store_true", help="record every command; the modules print what they would do and touch nothing")
 

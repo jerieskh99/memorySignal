@@ -86,12 +86,20 @@ def read_series_meta(path: Path) -> dict | None:
         return None
 
 
-def build_series(npz_path: Path, rec: dict, keep_first_pairs: int | None) -> tuple[dict, dict]:
-    """The per-pair series of SPEC section 3 from one L1 store. Returns (arrays, meta)."""
+def build_series(npz_path: Path, rec: dict, keep_first_pairs: int | None, exclude_pages=None) -> tuple[dict, dict]:
+    """The per-pair series of SPEC section 3 from one L1 store. Returns (arrays, meta). `exclude_pages`
+    (move 9, rule A) is a set of page indices whose rows are left out before anything is counted;
+    the metadata records how many rows that removed."""
     z = L1.load(npz_path)
     seq = np.asarray(z["seq"]).astype(np.int64)
     h = np.asarray(z["hamming"]).astype(np.float64)
     d = np.asarray(z["cosine"]).astype(np.float64)
+    n_rows_excluded_pages = 0
+    if exclude_pages:
+        page = np.asarray(z["page_index"]).astype(np.int64)
+        drop = np.isin(page, np.fromiter(exclude_pages, dtype=np.int64))
+        n_rows_excluded_pages = int(drop.sum())
+        seq, h, d = seq[~drop], h[~drop], d[~drop]
     n_rows_file = int(seq.size)
     seq_first_file = int(seq.min()) if seq.size else None
     seq_last_file = int(seq.max()) if seq.size else None
@@ -141,6 +149,7 @@ def build_series(npz_path: Path, rec: dict, keep_first_pairs: int | None) -> tup
         "keep_first_bound_seq": bound,
         "n_rows_file": n_rows_file, "n_pairs_file": int(z["n_pairs"]), "seq_first_file": seq_first_file, "seq_last_file": seq_last_file,
         "n_rows_dropped_after_keep_first": int((~keep).sum()), "n_rows_h0_dropped": int((keep & ~hpos).sum()),
+        "excluded_pages": ({"n_pages": len(exclude_pages), "n_rows_removed": n_rows_excluded_pages, "rule": "move 9 rule A"} if exclude_pages else None),
         "n_rows_kept": int(m.sum()), "n_pairs_series": n, "seq_first_kept": seq_first_kept, "seq_last_kept": seq_last_kept,
         "n_pairs_missing_in_kept_range": n_gaps,
         "store": {"npz": str(npz_path), "meta": str(npz_path.with_name(npz_path.name.replace(".npz", ".meta.json"))),

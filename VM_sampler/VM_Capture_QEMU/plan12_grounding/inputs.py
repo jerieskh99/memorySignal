@@ -218,7 +218,7 @@ def index(o: argparse.Namespace) -> int:
         "source": describe_source(src), "listing": {**mstats, "warning": listing_warning},
         "cuts": {"declared_pairs": int(o.cut_declared), "measured_pairs": int(o.cut_measured),
                  "convention": CUT_CONVENTION, "head_drop_source": str(declared["head_drop_values.csv"])},
-        "D1_room_removal": {"on": bool(o.room_removal), "default": "off (SPEC 9: built, off)"},
+        "D1_room_removal": {"switch": "the driver's --room-removal at move 9 (moves/09_removed/removal.json records a run); this record only names the default", "on_at_move_0": bool(o.room_removal), "default": "off (SPEC 9: built, off)"},
         "D2_baseline": {"encoding_out": (str(Path(os.path.expanduser(o.encoding_out))) if o.encoding_out else None),
                         "default": "the named encoding run's own per-pair extract, pulled read only (SPEC 2)",
                         "admissibility": ("the encoding run's gates/preconditions.csv through series.admissible_cells" if o.encoding_out
