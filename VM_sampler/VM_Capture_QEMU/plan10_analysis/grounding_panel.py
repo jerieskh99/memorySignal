@@ -14,8 +14,16 @@ says. So this module
     nothing here computes a number, and a refusal string is passed through as written;
   - records every launch (the engine's commit state, the command line, the params block the
     driver wrote) under `<out>/.console/launches/`, a directory the engine does not read;
+  - writes exactly one file outside `<out>/.console`: its own configuration,
+    `~/.cache/plan10/grounding_config.json` (where `<out>` is, the root, the preset and the flags),
+    which cannot live under `<out>` because it is what names `<out>`; this is the one exception to
+    SPEC 8.2, named here;
   - never writes under plan12_grounding/ and never touches a server (a move the author starts
     may fetch from it, read only, as the engine's own runbook says).
+
+Recordings outside the corpus are never named: `cells()` counts them, and every CSV under
+`<out>/inputs/` is served with its kernel and idle rows only (the engine already copies only those;
+this is defence in depth), the rows left out counted.
 
 Move 9 (the noise-floor removal, decision D1) is a switch, off by default: the driver plans it only
 with `--room-removal`; the board shows it as off until the author switches it on. Next to move 6
@@ -27,6 +35,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import csv
+import io
 import json
 import os
 import re
@@ -159,7 +168,7 @@ def flag_tokens(flags: dict) -> list[str]:
     toks: list[str] = []
     for dest, val in (flags or {}).items():
         a = by_dest.get(dest)
-        if a is None or val is None or val == "" or dest in CONFIG_FIELDS:
+        if a is None or _unset(val) or dest in CONFIG_FIELDS:
             continue
         opt = a.option_strings[-1]
         if a.nargs == 0:
@@ -291,15 +300,54 @@ def read_json(path: Path):
 
 
 def safe_path(out: Path, rel: str) -> Path:
-    """A path under <out>, or a PanelError; `..` and absolute paths are refused."""
+    """A path under <out>, or a PanelError; `..`, absolute paths, and any top-level dot entry other
+    than `.console` are refused (a dot entry is scratch, never one of the engine's outputs)."""
     rel = str(rel or "")
     if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
         raise PanelError(f"not a path under the output root: {rel!r}")
+    first = Path(rel).parts[0] if Path(rel).parts else ""
+    if first.startswith(".") and first != CONSOLE_DIR:
+        raise PanelError(f"not one of the engine's outputs: {rel!r}")
     p = (Path(out) / rel).resolve()
     o = Path(out).resolve()
     if p != o and o not in p.parents:
         raise PanelError(f"not a path under the output root: {rel!r}")
     return p
+
+
+def _unset(v) -> bool:
+    """A flag value that means "unset": None, the empty string, or false itself; 0 is a value."""
+    return v is None or (isinstance(v, str) and v == "") or v is False
+
+
+def corpus_csv(path: Path) -> tuple[list[str], list[list[str]], int, int]:
+    """A CSV under inputs/ with its kernel and idle rows only: (header, rows, n_total, n_left_out).
+    A CSV without a `role` column is returned whole."""
+    header, rows, total = read_csv_rows(path)
+    if "role" not in header:
+        return header, rows, total, 0
+    i = header.index("role")
+    kept = [r for r in rows if len(r) > i and r[i] in ("kernel", "idle")]
+    return header, kept, total, total - len(kept)
+
+
+def file_bytes(out: Path, rel: str) -> tuple[bytes, str]:
+    """The engine's file bytes from under <out>, nothing outside it; a CSV under inputs/ is served with
+    its kernel and idle rows only."""
+    p = safe_path(out, rel)
+    if not p.is_file():
+        raise FileNotFoundError(rel)
+    ctype = BINARY_TYPES.get(p.suffix.lower()) or {"csv": "text/csv", "json": "application/json", "md": "text/markdown", "html": "text/html",
+                                                   "svg": "image/svg+xml", "text": "text/plain"}.get(TEXT_KINDS.get(p.suffix.lower(), "text"), "application/octet-stream")
+    if p.suffix.lower() == ".csv" and Path(rel).parts and Path(rel).parts[0] == "inputs":
+        header, rows, total, left = corpus_csv(p)
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(header)
+        for r in rows:
+            w.writerow(r)
+        return buf.getvalue().encode("utf-8"), "text/csv"
+    return p.read_bytes(), ctype
 
 
 def text_file(out: Path, rel: str) -> dict:
@@ -321,8 +369,12 @@ def text_file(out: Path, rel: str) -> dict:
         d["error"] = f"{size} bytes: over the {MAX_TEXT_BYTES} byte limit for inline display; open the file"
         return d
     if kind == "csv":
-        header, rows, total = read_csv_rows(p)
-        d.update(header=header, rows=rows, n_rows=total, truncated=total > len(rows))
+        if Path(rel).parts and Path(rel).parts[0] == "inputs":
+            header, rows, total, left = corpus_csv(p)      # never a recording outside the corpus, counted instead
+            d.update(header=header, rows=rows, n_rows=len(rows), truncated=False, rows_left_out_counted_not_named=left)
+        else:
+            header, rows, total = read_csv_rows(p)
+            d.update(header=header, rows=rows, n_rows=total, truncated=total > len(rows))
     elif kind == "json":
         try:
             d["json"] = read_json(p)
@@ -340,8 +392,8 @@ def listing(out: Path, rel: str = "") -> dict:
         return {"path": rel, "exists": False, "entries": []}
     ents = []
     for c in sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name)):
-        if c.name == CONSOLE_DIR and not rel:
-            continue
+        if not rel and c.name.startswith(".") and c.name != CONSOLE_DIR:
+            continue                                     # a top-level dot entry is scratch, never one of the engine's outputs
         st = c.stat()
         ents.append({"name": c.name, "dir": c.is_dir(), "bytes": None if c.is_dir() else st.st_size,
                      "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
@@ -363,6 +415,10 @@ def params_blocks(out: Path) -> dict:
             if rel.parts and rel.parts[0] == "report" and p.name == "manifest.json":
                 continue
             try:
+                p = safe_path(o, str(rel))                   # a link that leaves <out> is refused, a dot path too
+            except PanelError:
+                continue
+            try:
                 j = read_json(p)
             except (OSError, json.JSONDecodeError, UnicodeDecodeError):
                 continue
@@ -379,7 +435,10 @@ def params_blocks(out: Path) -> dict:
         for p in sorted((o / "inputs").rglob("*")):
             if p.is_file():
                 rel = str(p.relative_to(o))
-                inputs[rel] = text_file(o, rel)
+                try:
+                    inputs[rel] = text_file(o, rel)          # a CSV under inputs/ comes back with its kernel and idle rows only
+                except PanelError:
+                    continue
     return {"driver_params": (ledger or {}).get("params"), "package_version": (ledger or {}).get("package_version"),
             "toolkit_fingerprint": ((ledger or {}).get("toolkit_fingerprint") or {}).get("sha256"),
             "decisions": decisions, "inputs": inputs, "blocks": blocks, "n_blocks": len(blocks),
@@ -666,45 +725,58 @@ def views(out: Path) -> list[dict]:
     return outs
 
 
+def _effective_scores(doc: dict) -> dict:
+    """plan11's own reading of a split's score (models.effective_scores: the re-run without the
+    quarantined features when B1-G3 quarantined any); the document as written when plan11 is absent."""
+    try:
+        if str(QEMU_DIR) not in sys.path:
+            sys.path.insert(0, str(QEMU_DIR))
+        from plan11_encoding_ladder import models as M11
+        return M11.effective_scores(doc)
+    except Exception:                                   # noqa: BLE001  plan11 not importable: the document as written, said so
+        return {**doc, "score_source": "scores.json as written (plan11 models.effective_scores not importable)"}
+
+
 def encoding_table2(out: Path) -> dict:
     """Next to move 6, read only: the named encoding run's matching numbers for the combined rung at
-    its selected grid point (the three split stages' scores.json: within-trace and LORO on kernel
-    labels, LOKO on archetypes), and its EUSIPCO Table 2 files when the run wrote them. The run's
-    folder is the one params.json names (decision D2); nothing else outside <out> is read."""
+    the grid point move 6 used, the D2 folder and the D3 grid point both read from
+    `moves/06_classify/classify.json` (what move 6 ran with, not today's files), each split's score
+    read through plan11's `models.effective_scores`, the engine's own `table2_check.json`, and the
+    encoding run's EUSIPCO Table 2 files when it wrote them. Nothing else outside <out> is read."""
     o = Path(out)
-    if not (o / "params.json").exists():
-        return {"exists": False, "why": "no params.json yet (move 0)"}
+    cj = o / "moves" / "06_classify" / "classify.json"
+    if not cj.exists():
+        return {"exists": False, "why": "move 6 has not run yet: the D2 folder and the D3 grid point are read from moves/06_classify/classify.json"}
     try:
-        prm = read_json(o / "params.json")
+        prm = read_json(cj).get("params") or {}
     except (OSError, json.JSONDecodeError):
-        return {"exists": False, "why": "params.json unreadable"}
-    enc = (prm.get("D2_baseline") or {}).get("encoding_out")
+        return {"exists": False, "why": "moves/06_classify/classify.json unreadable"}
+    enc = prm.get("D2_encoding_out")
     if not enc:
-        return {"exists": False, "why": "no encoding run named (decision D2): move 0 ran without --encoding-out"}
+        return {"exists": False, "why": "move 6 ran without an encoding run (decision D2): E0 was not computed"}
     e = Path(os.path.expanduser(enc))
     if not e.is_dir():
-        return {"exists": False, "why": f"the encoding run's folder is not on this machine: {enc}", "encoding_out": enc}
-    res = {"exists": True, "encoding_out": str(e), "rung": "combined", "rows": [], "table2": {}}
-    grid, src = None, None
-    sel = e / "gates" / "selection.json"
-    if sel.exists():
-        with contextlib.suppress(OSError, json.JSONDecodeError):
-            j = read_json(sel)
-            entry = j.get("combined") or (j.get("selection") or {}).get("combined")
-            if entry and entry.get("grid_id"):
-                grid, src = entry["grid_id"], "gates/selection.json"
-    if grid is None:
-        grid, src = "W8_H4", "the default (no selection for the combined rung in the encoding run)"
-    res["grid_id"], res["grid_source"] = grid, src
+        return {"exists": False, "why": f"the encoding run move 6 used is not on this machine: {enc}", "encoding_out": enc}
+    grid = prm.get("D3_grid_id") or (prm.get("D3_window") or {}).get("grid_id")
+    if not grid:
+        return {"exists": False, "why": "classify.json names no D3 grid point", "encoding_out": str(e)}
+    res = {"exists": True, "encoding_out": str(e), "rung": "combined", "rows": [], "table2": {}, "grid_id": grid,
+           "grid_source": f"move 6's own record (classify.json: {(prm.get('D3_window') or {}).get('source', 'D3')})",
+           "e0_status": prm.get("e0_status"), "e0_identity": prm.get("e0_identity"), "cut_declared": (prm.get("cuts") or {}).get("declared")}
     for split, lab in (("within_trace", "kernel"), ("loro", "kernel"), ("loko", "archetype")):
         d = e / "gates" / "splits" / "combined" / grid / f"{split}__{lab}"
         sc = d / "scores.json"
         row = {"split": split, "labelspace": lab, "path": str(sc.relative_to(e)), "exists": sc.exists()}
         if sc.exists():
             with contextlib.suppress(OSError, json.JSONDecodeError):
-                j = read_json(sc)
-                row.update({k: j.get(k) for k in ("status", "accuracy", "macro_recall", "majority", "null_p95", "b1_g1", "n_perm", "feature_count", "feature_count_used", "n_units")})
+                j = _effective_scores(read_json(sc))
+                row.update({k: j.get(k) for k in ("status", "accuracy", "macro_recall", "majority", "null_p95", "b1_g1", "n_perm", "feature_count", "feature_count_used", "n_units",
+                                                   "score_source", "quarantined_features")})
         res["rows"].append(row)
+    tc = o / "moves" / "06_classify" / "table2_check.json"
+    if tc.exists():
+        with contextlib.suppress(OSError, json.JSONDecodeError):
+            res["table2_check"] = read_json(tc)
     for name in ("eusipco_table2.csv", "eusipco_table2.md"):
         p = e / "report" / "tables" / name
         if p.exists():
@@ -713,8 +785,8 @@ def encoding_table2(out: Path) -> dict:
                 res["table2"][name] = {"header": h, "rows": rows, "n_rows": total}
             else:
                 res["table2"][name] = {"text": p.read_text(encoding="utf-8", errors="replace")[:20000]}
-    res["note"] = ("E0 of move 6 at the cut of 16 pairs is the encoding run's own combined-rung features at this grid point; the same forest, seeds and "
-                   "settings should give the same numbers as these rows, which is the check")
+    res["note"] = ("E0 of move 6 at the declared cut is the encoding run's own combined-rung features at this grid point, under the same settings, "
+                   "order and quarantine; the engine's table2_check.json says whether each row is reproduced exactly")
     return res
 
 
@@ -789,7 +861,7 @@ class Panel:
 
     def __init__(self, config_path: Path = DEFAULT_CONFIG):
         self.config_path = Path(config_path)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()                 # re-entrant: _reap takes it too, from stop() and from the readers
         self.proc: subprocess.Popen | None = None
         self.running: dict | None = None
         self.cfg = self._load()
@@ -823,11 +895,11 @@ class Panel:
             for k, v in body["flags"].items():
                 if k not in valid:
                     raise PanelError(f"not a driver flag: {k}")
-                if v in (None, "", False):
+                if _unset(v):
                     self.cfg["flags"].pop(k, None)
                 else:
                     self.cfg["flags"][k] = v
-            norm = lambda d: {k: v for k, v in (d or {}).items() if v not in (None, "", False)}   # noqa: E731  an unset flag and a false switch are the same thing
+            norm = lambda d: {k: v for k, v in (d or {}).items() if not _unset(v)}   # noqa: E731  an unset flag and a false switch are the same thing; 0 is a value
             self.cfg["preset"] = "custom" if norm(self.cfg["flags"]) != norm(PRESETS.get(self.cfg.get("preset", ""), {}).get("flags")) else self.cfg["preset"]
         self.save()
         return self.config()
@@ -917,6 +989,11 @@ class Panel:
             flags = self.cfg.get("flags", {})
             if move == 0 and not root and not flags.get("ssh"):
                 raise PanelError("move 0 needs a source: the local root <root>, or the ssh flags (--ssh and --remote-root)")
+            if move == 0 and self.cfg.get("preset") == "paper" and _unset(flags.get("encoding_out")):
+                raise PanelError("the paper preset needs the encoding run named (--encoding-out, decision D2): without it admissibility comes from the index alone "
+                                 "and lexer seed 6898 is not refused; set the flag in the driver flags, or choose another preset")
+            if row.get("interrupted_at") and not force:
+                force = True                                # a stopped move runs again as if forced: nothing half-rewritten can be skipped over
             argv = driver_argv("run", str(out), root, move, flags, force)
             ldir = self._launch_dir(out)
             base = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"_move{move}"
@@ -938,46 +1015,58 @@ class Panel:
             return rec
 
     def _reap(self):
-        if self.proc is None or self.running is None:
-            return
-        rc = self.proc.poll()
-        if rc is None:
-            return
-        out = Path(self.running["out"])
-        ldir = self._launch_dir(out)
-        p = ldir / f"{self.running['id']}.json"
-        try:
-            rec = read_json(p)
-        except (OSError, json.JSONDecodeError):
-            rec = {"id": self.running["id"], "move": self.running["move"]}
-        rec["finished_at"] = now_iso()
-        rec["exit_code"] = rc
-        led = load_ledger(out) or {}
-        rec["driver_params"] = led.get("params")
-        rec["driver_run"] = (led.get("runs") or [None])[-1]
-        rec["package_version"] = led.get("package_version")
-        p.write_text(json.dumps(rec, indent=1))
-        self.proc = None
-        self.running = None
+        """Close the launch record once the process has ended. Under the lock, so a Stop and a
+        reader never race on `self.proc`. The record book's run and params are attached only when
+        that run is this launch's own (its pid is the launched process), never another run's."""
+        with self.lock:
+            if self.proc is None or self.running is None:
+                return
+            rc = self.proc.poll()
+            if rc is None:
+                return
+            out = Path(self.running["out"])
+            ldir = self._launch_dir(out)
+            p = ldir / f"{self.running['id']}.json"
+            try:
+                rec = read_json(p)
+            except (OSError, json.JSONDecodeError):
+                rec = {"id": self.running["id"], "move": self.running["move"]}
+            rec["finished_at"] = now_iso()
+            rec["exit_code"] = rc
+            led = load_ledger(out) or {}
+            own = [r for r in (led.get("runs") or []) if r.get("pid") == self.proc.pid]
+            if own:
+                rec["driver_run"] = own[-1]
+                rec["driver_params"] = led.get("params")
+                rec["package_version"] = led.get("package_version")
+            else:
+                rec["driver_run"] = None
+                rec["driver_params"] = None
+                rec["driver_run_note"] = "the driver wrote no run record for this launch (it ended before its record book entry: a refusal, a stop in its first moment, or a bad argument)"
+            p.write_text(json.dumps(rec, indent=1))
+            self.proc = None
+            self.running = None
 
     def stop(self) -> dict:
         with self.lock:
             self._reap()
             if not self.running or self.proc is None:
                 raise PanelError("nothing is running")
+            proc, rid = self.proc, self.running["id"]              # local references: a reader's reap cannot pull them from under us
             try:
-                os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
-                self.proc.terminate()
+                proc.terminate()
             t0 = time.time()
-            while self.proc.poll() is None and time.time() - t0 < 10:
+            while proc.poll() is None and time.time() - t0 < 10:
                 time.sleep(0.2)
-            if self.proc.poll() is None:
+            if proc.poll() is None:
                 with contextlib.suppress(Exception):
-                    os.killpg(os.getpgid(self.proc.pid), signal.SIGKILL)
-            rid = self.running["id"]
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                proc.wait(timeout=5)
             self._reap()
-            return {"stopped": rid, "note": "the driver was terminated with its process group; its record book keeps what finished, the running command left no record"}
+            return {"stopped": rid, "note": "the driver was terminated with its process group; its record book keeps what finished, the running command left no record; "
+                                            "the move reads not run, and its next Run launches with --force"}
 
     def launches(self) -> list[dict]:
         out = Path(os.path.expanduser(self.cfg.get("out") or ""))

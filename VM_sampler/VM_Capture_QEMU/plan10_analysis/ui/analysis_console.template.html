@@ -3390,12 +3390,15 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     try { sc = await gpGet("text", {path: "moves/06_classify/cut16/scores.csv"}); } catch (e) { sc = null; }
     const mine = {};
     if (sc && sc.exists && sc.kind === "csv") { const H = sc.header; sc.rows.forEach(r => { const o = {}; H.forEach((h, i) => o[h] = r[i]); if (o.encoding === "E0") mine[o.split] = o; }); }
-    let h = `<div>encoding run <span class="mono">${esc(t2.encoding_out)}</span> · combined rung at <b>${esc(t2.grid_id)}</b> (${esc(t2.grid_source)}) · ${esc(t2.note)}</div>` +
-      `<table class="gp-side"><thead><tr><th>split</th><th>labels</th><th colspan="4">the encoding run (scores.json)</th><th colspan="4">move 6, E0 at the cut of 16 (scores.csv)</th></tr>` +
-      `<tr><th></th><th></th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · verdict</th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · status</th></tr></thead><tbody>`;
+    const tc = t2.table2_check;
+    let h = `<div>encoding run <span class="mono">${esc(t2.encoding_out)}</span> · combined rung at <b>${esc(t2.grid_id)}</b> (${esc(t2.grid_source)}) · E0 ${esc(t2.e0_status || "?")} · ${esc(t2.note)}</div>` +
+      (tc ? `<div style="margin-top:4px"><b>the engine's own check</b> (moves/06_classify/table2_check.json, cut of ${esc(tc.cut)} pairs): ${tc.n_reproduced} of ${tc.n_rows_checked} checked rows reproduced exactly` +
+            (tc.rows || []).map(r => `; ${esc(r.split)}: ${r.reproduced == null ? esc(r.note || "not checked") : r.reproduced ? "reproduced" : "differs at " + esc(JSON.stringify(r.first_difference))}`).join("") + `</div>` : "") +
+      `<table class="gp-side"><thead><tr><th>split</th><th>labels</th><th colspan="4">the encoding run (scores.json through models.effective_scores)</th><th colspan="4">move 6, E0 at the declared cut (scores.csv)</th></tr>` +
+      `<tr><th></th><th></th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · verdict</th><th>accuracy</th><th>macro recall</th><th>majority</th><th>null p95 · verdict</th></tr></thead><tbody>`;
     for (const r of t2.rows) { const o = mine[r.split] || {};
       h += `<tr><td class="lab">${esc(r.split)}</td><td class="lab">${esc(r.labelspace)}</td>` + (r.exists ? `<td>${gpNum(r.accuracy)}</td><td>${gpNum(r.macro_recall)}</td><td>${gpNum(r.majority)}</td><td>${gpNum(r.null_p95)} · ${esc(r.b1_g1 || r.status || "")}</td>` : `<td colspan="4" class="lab" style="color:var(--ink-3)">not written by the encoding run: ${esc(r.path)}</td>`) +
-        (o.split ? `<td>${gpNum(o.accuracy === "" ? "" : +o.accuracy)}</td><td>${gpNum(o.macro_recall === "" ? "" : +o.macro_recall)}</td><td>${gpNum(o.majority === "" ? "" : +o.majority)}</td><td>${gpNum(o.null_p95 === "" ? "" : +o.null_p95)} · ${esc(o.status || "")}</td>` : `<td colspan="4" class="lab" style="color:var(--ink-3)">move 6 not run at this cut</td>`) + `</tr>`; }
+        (o.split ? `<td>${gpNum(o.accuracy === "" ? "" : +o.accuracy)}</td><td>${gpNum(o.macro_recall === "" ? "" : +o.macro_recall)}</td><td>${gpNum(o.majority === "" ? "" : +o.majority)}</td><td>${gpNum(o.null_p95 === "" ? "" : +o.null_p95)} · ${esc(o.null_verdict || o.status || "")}</td>` : `<td colspan="4" class="lab" style="color:var(--ink-3)">move 6 not run at this cut</td>`) + `</tr>`; }
     h += `</tbody></table>`;
     const t2files = Object.keys(t2.table2 || {});
     h += t2files.length ? `<div style="margin-top:6px">the encoding run's own Table 2 files: ${t2files.map(esc).join(", ")}</div>` + (t2.table2["eusipco_table2.csv"] ? `<div class="tblwrap" style="max-height:240px;margin-top:4px"><table class="tbl"><thead><tr>${t2.table2["eusipco_table2.csv"].header.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${t2.table2["eusipco_table2.csv"].rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : "")

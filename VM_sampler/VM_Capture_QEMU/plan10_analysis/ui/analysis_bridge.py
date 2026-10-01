@@ -919,7 +919,12 @@ def _gp(fn):
 
 
 def _gp_out() -> Path:
-    return Path(os.path.expanduser(ST.grounding.cfg.get("out") or ""))
+    """The panel's <out>; a PanelError while it is unset, so no route ever serves the bridge's own
+    working directory in its place."""
+    out = ST.grounding.cfg.get("out") or ""
+    if not out:
+        raise GPN.PanelError("set <out> first")
+    return Path(os.path.expanduser(out))
 
 
 def ep_gp_config(_q, _b):
@@ -982,17 +987,16 @@ def ep_gp_list(q, _b):
 
 
 def ep_gp_file(q, _b):
-    """The engine's file bytes (a figure, a CSV, a gallery page) from under <out>; nothing outside it."""
+    """The engine's file bytes (a figure, a CSV, a gallery page) from under <out>; nothing outside it;
+    nothing while <out> is unset; a CSV under inputs/ with its kernel and idle rows only."""
     rel = (q.get("path") or [""])[0]
     try:
-        p = GPN.safe_path(_gp_out(), rel)
+        data, ctype = GPN.file_bytes(_gp_out(), rel)
     except GPN.PanelError as e:
         return {"error": str(e)}, 400
-    if not p.is_file():
+    except FileNotFoundError:
         return {"error": f"no such file under the output folder: {rel}"}, 404
-    ctype = GPN.BINARY_TYPES.get(p.suffix.lower()) or {"csv": "text/csv", "json": "application/json", "md": "text/markdown", "html": "text/html",
-                                                         "svg": "image/svg+xml", "text": "text/plain"}.get(GPN.TEXT_KINDS.get(p.suffix.lower(), "text"), "application/octet-stream")
-    return p.read_bytes(), 200, ctype
+    return data, 200, ctype
 
 
 def ep_gp_log(q, _b):
