@@ -320,14 +320,60 @@ def _unset(v) -> bool:
     return v is None or (isinstance(v, str) and v == "") or v is False
 
 
+_IDLE_PATH_RE = re.compile(r"(^|/)sleep/sleep/sleep_600/rep00[0-9]__idle_01c/?$")
+_IDLE_CELL_RE = re.compile(r"^idle__rep0[0-9]__idle_01c$")
+_KERNELS = ("gemm", "floyd", "gibbs", "nbody", "spmm", "stencil_jacobi", "fft", "histogram", "fem_assembly", "lexer", "rmat_gen", "bnb_tsp")
+
+
+def _corpus_row_local(row: dict, corpus_ids=None) -> bool:
+    """The engine's exact corpus rule (plan12_grounding.inputs.corpus_row), the same patterns, used
+    only when the engine cannot be imported: idle by the path's tail, a kernel by its name and path."""
+    role = row.get("role")
+    path = str(row.get("path") or row.get("rec_rel") or "")
+    if path:
+        if role == "idle":
+            return bool(_IDLE_PATH_RE.search(path))
+        if role == "kernel":
+            k = str(row.get("kernel") or "")
+            return k in _KERNELS and bool(re.search(r"(^|/)kernel/kernel_" + re.escape(k) + r"_v2/[^/]+/[^/]+/?$", path))
+        return False
+    cid = str(row.get("cell_id") or "")
+    if corpus_ids is not None:
+        return cid in corpus_ids
+    if role == "idle":
+        return bool(_IDLE_CELL_RE.match(cid))
+    if role == "kernel":
+        return "__rep" in cid and cid.split("__", 1)[0] in _KERNELS
+    return False
+
+
+def corpus_rule():
+    """The engine's own rule when it is on disk (one source of truth), else the same patterns here."""
+    try:
+        if str(QEMU_DIR) not in sys.path:
+            sys.path.insert(0, str(QEMU_DIR))
+        import importlib
+        return importlib.import_module(f"{TOOLKIT_NAME}.inputs").corpus_row
+    except Exception:                                   # noqa: BLE001
+        return _corpus_row_local
+
+
 def corpus_csv(path: Path) -> tuple[list[str], list[list[str]], int, int]:
-    """A CSV under inputs/ with its kernel and idle rows only: (header, rows, n_total, n_left_out).
-    A CSV without a `role` column is returned whole."""
+    """A CSV under inputs/ with only the rows that pass the engine's exact corpus rule (the layout of
+    the path, never the role alone, since the encoding toolkit calls any "sleep" or "idle" label
+    idle): (header, rows, n_total, n_left_out). A file without a path column (preconditions.csv) is
+    judged by its cell_ids against the kept rows of the cells.csv beside it. A CSV without a `role`
+    column is returned whole."""
     header, rows, total = read_csv_rows(path)
     if "role" not in header:
         return header, rows, total, 0
-    i = header.index("role")
-    kept = [r for r in rows if len(r) > i and r[i] in ("kernel", "idle")]
+    rule = corpus_rule()
+    ids = None
+    sib = path.parent / "cells.csv"
+    if "path" not in header and sib.is_file() and sib.resolve() != path.resolve():
+        h2, r2, _ = read_csv_rows(sib)
+        ids = {dict(zip(h2, r)).get("cell_id", "") for r in r2 if rule(dict(zip(h2, r)))}
+    kept = [r for r in rows if rule(dict(zip(header, r)), ids)]
     return header, kept, total, total - len(kept)
 
 

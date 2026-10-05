@@ -63,7 +63,36 @@ CUT_CONVENTION = ("a cut of H pairs drops the first H pairs AND the last pair of
                   "for every recording (declared/head_drop_values.csv gives 16 for every kernel and for idle); every number of "
                   "moves 3 to 7 and 10 is computed at both cuts; move 8 (the start-up) reads the uncut series")
 IDLE_REC_RE = re.compile(r"^sleep/sleep/sleep_600/rep00[0-9]__idle_01c$")      # SPEC 2: the 8 idle runs, this layout and no other
+IDLE_PATH_RE = re.compile(r"(^|/)sleep/sleep/sleep_600/rep00[0-9]__idle_01c/?$")  # the same layout at the END of a path (the encoding run's paths may be absolute)
+IDLE_CELL_RE = re.compile(r"^idle__rep0[0-9]__idle_01c$")                          # the cell_id the encoding toolkit gives those 8 (a row without a path column)
 N_IDLE_EXPECTED = 8
+
+
+def corpus_row(row: dict, corpus_ids=None) -> bool:
+    """The exact corpus rule of move 0 (SPEC 2) on one row of an index or of one of the encoding run's
+    CSVs: an idle row is one whose path ENDS with sleep/sleep/sleep_600/rep00N__idle_01c; a kernel
+    row is one of the twelve kernels whose path ends with kernel/kernel_<name>_v2/<args>/<rep>. The
+    encoding toolkit marks as idle any test label holding "sleep" or "idle", so the role alone is
+    never enough. A row without a path column (gates/preconditions.csv) is judged by its cell_id:
+    against `corpus_ids` (the cell_ids kept from the run's cells.csv) when given, else by the
+    cell_id's own shape. Every other row is counted by the caller, never named."""
+    role = row.get("role")
+    path = str(row.get("path") or row.get("rec_rel") or "")
+    if path:
+        if role == "idle":
+            return bool(IDLE_PATH_RE.search(path))
+        if role == "kernel":
+            k = str(row.get("kernel") or "")
+            return k in schema.KERNEL_NAMES and bool(re.search(r"(^|/)kernel/kernel_" + re.escape(k) + r"_v2/[^/]+/[^/]+/?$", path))
+        return False
+    cid = str(row.get("cell_id") or "")
+    if corpus_ids is not None:
+        return cid in corpus_ids
+    if role == "idle":
+        return bool(IDLE_CELL_RE.match(cid))
+    if role == "kernel":
+        return "__rep" in cid and cid.split("__", 1)[0] in schema.KERNEL_NAMES
+    return False
 
 
 def _mirror_listing(entries, mirror: Path) -> dict:
@@ -87,11 +116,12 @@ def _mirror_listing(entries, mirror: Path) -> dict:
 
 
 def _is_corpus(row: dict) -> bool:
-    """SPEC 2: idle is exactly `sleep/sleep/sleep_600/rep00N__idle_01c`; a kernel recording is one of the
-    twelve kernels under `kernel/`. Any other recording, whatever its test label says, is counted and never named."""
-    if row.get("role") == "idle":
-        return bool(IDLE_REC_RE.match(str(row.get("rec_rel", ""))))
-    return row.get("role") == "kernel" and row.get("kernel") in schema.KERNEL_NAMES and row.get("family") == "kernel"
+    """SPEC 2 on an index row (its rec_rel is relative to the root): idle is exactly
+    `sleep/sleep/sleep_600/rep00N__idle_01c`; a kernel recording is one of the twelve kernels under
+    `kernel/kernel_<name>_v2/`. Any other recording, whatever its test label says, is counted and never named."""
+    if row.get("role") == "idle" and not IDLE_REC_RE.match(str(row.get("rec_rel", ""))):
+        return False
+    return corpus_row({**row, "path": row.get("rec_rel", "")})
 
 
 class EncodingRunMissing(FileNotFoundError):
@@ -113,15 +143,16 @@ def _encoding_admissibility(enc_out: Path) -> tuple[dict, dict, dict]:
     return cells, pm, {"cells_csv": str(p), "preconditions_csv": str(q)}
 
 
-def _copy_corpus_rows(src: Path, dst: Path) -> dict:
-    """A copy of one of the encoding run's CSVs holding only its kernel and idle rows (SPEC 1.1: a
-    recording outside the corpus is counted, never named); the record carries the ORIGINAL file's
-    sha256 and the number of rows left out."""
+def _copy_corpus_rows(src: Path, dst: Path, corpus_ids=None) -> dict:
+    """A copy of one of the encoding run's CSVs holding only the rows that pass move 0's exact corpus
+    rule (`corpus_row`: the layout of the path, or the cell_id against `corpus_ids` for a file without
+    a path column), SPEC 1.1: a recording outside the corpus is counted, never named. The record
+    carries the ORIGINAL file's sha256, the copy's, the cell_ids kept and the number of rows left out."""
     with open(src, newline="") as fh:
         rd = csv.DictReader(fh)
         fields = list(rd.fieldnames or [])
         rows = list(rd)
-    kept = [r for r in rows if r.get("role") in ("kernel", "idle")]
+    kept = [r for r in rows if corpus_row(r, corpus_ids)]
     dst.parent.mkdir(parents=True, exist_ok=True)
     with open(dst, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields, extrasaction="ignore")
@@ -129,7 +160,9 @@ def _copy_corpus_rows(src: Path, dst: Path) -> dict:
         for r in kept:
             w.writerow(r)
     return {"sha256": sha256_file(src), "copy_sha256": sha256_file(dst), "source": str(src), "bytes": src.stat().st_size,
-            "rows_in_source": len(rows), "rows_copied": len(kept), "rows_left_out_counted_not_named": len(rows) - len(kept)}
+            "rows_in_source": len(rows), "rows_copied": len(kept), "rows_left_out_counted_not_named": len(rows) - len(kept),
+            "rule": "move 0's exact corpus rule (corpus_row): the path's layout, or the cell_id against the rows kept from cells.csv",
+            "_kept_ids": {str(r.get("cell_id") or "") for r in kept}}
 
 
 def _precondition_reason(row: dict) -> str:
@@ -246,9 +279,16 @@ def index(o: argparse.Namespace) -> int:
         shutil.copyfile(p, inp / name)
         shas[name] = {"sha256": sha256_file(inp / name), "source": str(p), "bytes": p.stat().st_size}
     if o.encoding_out:
-        for tag, p in enc_paths.items():
-            # only the kernel and idle rows are copied (SPEC 1.1); the sha256 recorded is the original file's
-            shas[f"encoding_run/{Path(p).name}"] = _copy_corpus_rows(Path(p), inp / "encoding_run" / Path(p).name)
+        # only the corpus rows are copied (SPEC 1.1, the exact rule of corpus_row); cells.csv first, its kept cell_ids then
+        # decide the preconditions rows (that file has no path column); the sha256 recorded is the original file's
+        kept_ids = None
+        for tag in ("cells_csv", "preconditions_csv"):
+            p = enc_paths[tag]
+            rec = _copy_corpus_rows(Path(p), inp / "encoding_run" / Path(p).name, kept_ids)
+            if tag == "cells_csv":
+                kept_ids = rec["_kept_ids"]
+            rec.pop("_kept_ids", None)
+            shas[f"encoding_run/{Path(p).name}"] = rec
     write_json(inp / "sha256.json", {"schema": "plan12.inputs.v1", "citation": CITATION, "written_at": now_iso(), "files": shas})
     n_adm = sum(1 for r in corpus if r["admissible"] == "true")
     n_kernel = sum(1 for r in corpus if r["role"] == "kernel")
