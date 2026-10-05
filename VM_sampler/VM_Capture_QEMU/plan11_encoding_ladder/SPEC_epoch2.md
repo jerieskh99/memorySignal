@@ -1311,3 +1311,31 @@ default runs unless the author says otherwise.
     computed, not any gate or its rule; a table built before move 15 prints `not run` in LORO's
     null cells and says why. `tests/test_driver.py` changes in two tokens and
     `tests/test_comparators.py` in one: the out-of-range move in their three bound checks becomes 16.
+30. Amendment of 2026-10-05 (the author's decision after the run of 2026-09-29; `apf_paper/P2_AUTHOR_ANSWERS.md`
+    A20, A21, A22). A20 traced why Table 2's readings were refused: the instrument check for the content rung
+    (`gates_calibration.gate_gc`, `content_rows`) orders gibbs < histogram < gemm by `l1_q50_per / 4096`, the byte
+    change averaged over the whole page, while the prediction it carries is about the size of a change per changed
+    byte; the page average multiplies that size by the share of bytes changed and puts gibbs and histogram on the
+    same level, so the check's statistic does not test its own prediction (on the run of 2026-09-29 the predicted
+    order holds in all 8 runs per changed byte and in 2 of 8 per page). G-F part (i) voided wAPF, persistence,
+    content and combined besides. A21 corrects the check's statistic to the median over pairs of
+    `r_l1l0_q50_per`, the change per changed byte on persistent pages, the l0 ordering unchanged, and keeps the
+    original verdict beside the corrected one, dated. A22 adds one move, 16, labelled "added 2026-10-05, after the
+    run of 2026-09-29", opt-in like move 15 and never part of the declared moves 0 to 15 (`MAX_MOVE = 16`): (1) the
+    corrected check (`gates_calibration.gate_gc_corrected`, `gates/added/gc_corrected.csv`; `gate_gc` and
+    `gates/gc.csv` unchanged); (2) the idle common-ground test (`gates_idle_common_ground.run`): leave-one-run-out
+    with the 8 idle runs as a 13th class beside the 12 kernels (`models.prepare_split_data(include_idle=True)`,
+    kernel labels), per rung at its selected point, normalized features, the recall of every class, the LORO null's
+    run-level label shuffles scored on the accuracy and on the idle recall (`--null-perm`, default 500; below 500
+    the verdict reads `not run: N permutations < 500`, numbers kept), under `gates/added/idle_common_ground/`;
+    (3) a second Table 2, `report/tables/eusipco_table2_corrected.*`, the same columns and scores as the declared
+    one, built by `tables_eusipco.table2_corrected` from `tables.table7_rows` under the twin refusal
+    `_report_common.rung_override_corrected`: the corrected instrument check in place of the original, and in
+    place of G-F part (i) the rule that a reading is void only when a held-out idle run is not recognised as idle
+    above chance (idle recall not above the null's 95th percentile). The declared Table 2 and every existing gate
+    file stay as they are; both tables are reported, and the `.tex` carries a `\slot` note for the author's
+    wording of the disclosure. Traced: the window rule (`gates_temporal.select`) chooses by G1, G2 and G4 and
+    attaches the G-C verdict only as a label, so the correction moves no selected window; Table 2 applies its
+    refusals in `_report_common.rung_override` (G-C first, then G-F part (i)), which is why the twin lives there.
+    `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py` in one and
+    `tests/test_plan10_bridge.py` in one: the out-of-range move becomes 17 and the console's board has 18 rows.

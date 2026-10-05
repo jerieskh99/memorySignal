@@ -586,6 +586,51 @@ LORO null, four LORO nulls per rung on APF and two on each other rung; about thr
 4-core server, so run it on a many-core machine. A G-L (ii) feature-drop re-run
 (`gates/splits_gl2drop/`) is not repeated here.
 
+### Move 16: the corrected instrument check, the idle common-ground test, a second Table 2 (optional; added 2026-10-05, after the run of 2026-09-29)
+
+```
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --moves 16
+```
+
+Only when named; the default `--moves 0-14` never runs it, as it never runs move 15 (SPEC_epoch2 Part 4
+item 30; the why and the decisions are `apf_paper/P2_AUTHOR_ANSWERS.md` A20 to A22). Run it after move
+14 (it reads `gates/gc.csv`, `gates/selection.json`, the split records and `report/tables/table7.csv`);
+after move 15 as well when move 15 has run, since Table 7 then carries LORO's nulls. Every file it
+writes is labelled "added 2026-10-05, after the run of 2026-09-29", and nothing it writes replaces
+an existing gate file or table. Three commands:
+
+1. `gates_calibration gc-corrected`: the instrument check for the content rung with its first
+   statistic corrected (A21): the median over pairs of `r_l1l0_q50_per`, the change per changed byte
+   on persistent pages, in place of `l1_q50_per / 4096`, the change averaged over the whole page,
+   which did not test the prediction (A20); the l0 ordering is unchanged. Writes
+   `gates/added/gc_corrected.csv` with, per rep, the three corrected values, the three original values,
+   the three l0 values (which `gc.csv` omits), the corrected verdict and the original verdict copied
+   from `gates/gc.csv`, and an `all` row for content and for combined. `gates/gc.csv` is not touched.
+2. `gates_idle_common_ground run`: for each rung at its selected point, leave-one-run-out on the
+   normalized features with the 8 idle runs as a 13th class beside the 12 kernels (`include_idle`,
+   kernel labels): the recall of every class (each kernel and idle), the accuracy, the majority
+   baseline, and a null from the same run-level label shuffles the LORO null uses, scored on the
+   accuracy and on the idle recall (`--null-perm`, default 500; below 500 the verdicts read `not run:
+   N permutations < 500` and the numbers are kept). Writes `gates/added/idle_common_ground/<rung>/`
+   (scores.json, predictions.csv, recall_per_class.csv, null.json) and `gates/added/idle_common_ground.csv`.
+   Cost: one LORO stage with its null per rung, 104 folds instead of 96: about the cost of move 15's
+   LORO nulls, so a many-core machine.
+3. `tables_eusipco --only table2_corrected`: `report/tables/eusipco_table2_corrected.{csv,md,tex}`, the
+   same columns and the same scores as `eusipco_table2`, with the refusals of
+   `_report_common.rung_override_corrected`: the corrected instrument check in place of the original,
+   and in place of G-F part (i) the rule that a reading is void only when a held-out idle run is not
+   recognised as idle above chance (idle recall not above the null's 95th percentile). A rung the idle
+   test has not run for prints `not run` in every score cell. The `.tex` carries a `\slot` note for
+   the author's wording of the disclosure. `eusipco_table2.*` stays as it is; both tables are reported.
+
+Look at: `gates/added/gc_corrected.csv` (the corrected verdict beside the original, per rep);
+`gates/added/idle_common_ground.csv` (per rung: idle recall, its null p95, the verdict);
+`report/tables/eusipco_table2_corrected.md` against `eusipco_table2.md`.
+
 ### The EUSIPCO outputs (build epoch 2): Table 2, Table 3, the five-page skeleton
 
 Run after Table 7 exists and after the comparators' move has written its rows (the comparators

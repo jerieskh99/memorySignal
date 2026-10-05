@@ -345,6 +345,81 @@ def table2(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matched: bool 
 
 
 # ----------------------------------------------------------------------------------------------
+# Table 2, corrected (move 16; added 2026-10-05, after the run of 2026-09-29; A21, A22; SPEC_epoch2 Part 4 item 30)
+# ----------------------------------------------------------------------------------------------
+TABLE2_CORRECTED_NOTE = ("\\slot{note: Table 2 corrected, added 2026-10-05 after the run of 2026-09-29 (A21, A22): the corrected instrument "
+                         "check (per changed byte) in place of the original, and the idle common-ground test in place of the floor check's "
+                         "part (i); the declared Table 2 stands beside it; the disclosure's wording by the author}")
+CITATION_TABLE2_CORRECTED = (CITATION_TABLE2 + "; P2_AUTHOR_ANSWERS.md A20 to A22 (the correction and the idle test); "
+                             "SPEC_epoch2.md Part 4 item 30; _report_common.rung_override_corrected (the twin refusal)")
+
+
+def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matched: bool = INCLUDE_MATCHED_DEFAULT,
+                     comparator_variant: str = COMPARATOR_VARIANT_DEFAULT) -> dict:
+    """The second Table 2 (A22): the same columns and the same scores as `eusipco_table2`, with the
+    refusals of the twin function `_report_common.rung_override_corrected` in place of
+    `rung_override`: the corrected instrument check (gates/added/gc_corrected.csv) instead of the
+    original, and the idle common-ground test (gates/added/idle_common_ground.csv) instead of G-F
+    part (i): a reading is void only when a held-out idle run is not recognised as idle above chance.
+    The rung rows are rebuilt from the split records with `tables.table7_rows` under those readers
+    (nothing is recomputed: the scores are the same files); the comparator rows and the matched row
+    are read as the declared table reads them. Writes `report/tables/eusipco_table2_corrected.{csv,md,tex}`
+    and `.params.json`; `eusipco_table2.*` and every existing gate file are left untouched. The `.tex`
+    carries a `\\slot` note for the author's wording of the disclosure."""
+    from plan11_encoding_ladder import tables as T                     # the declared Table 7's row builder, with the twin readers
+    from plan11_encoding_ladder._report_common import gc_corrected_verdict, idle_common_ground_text, rung_override_corrected
+    out = Path(out)
+    t7p = _tables_dir(out) / TABLE7_FILE
+    if not t7p.exists():
+        raise FileNotFoundError(str(t7p))
+    t7 = read_csv(t7p)
+    t7c = T.table7_rows(out, override_fn=rung_override_corrected, gc_fn=gc_corrected_verdict, gf_fn=idle_common_ground_text)
+    comparators = tuple(comparators)
+    rows, sources, cite_keys = [], {}, {}
+    for rung, label in TABLE2_RUNG_ROWS:
+        rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
+    for key in comparators:
+        display = COMPARATOR_DISPLAY.get(key, key)
+        crow, source, label = comparator_rows(out, key, variant=comparator_variant, table7_rows=t7)
+        sources[key] = source or "absent"
+        cite_keys[display] = key
+        if not crow:
+            miss = not_run(f"{TABLE7_FILE} has no comparator row for {key} ({display}; nor "
+                           f"{TABLE7_COMPARATORS_FILE}, variant '{comparator_variant}')")
+            rows.append(_table2_row(display, [], TABLE7_FILE, missing_all=miss))
+        else:
+            rows.append(_table2_row(display, crow, source.split(" (", 1)[0]))
+    if include_matched:
+        rung, label = TABLE2_MATCHED_ROW
+        rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
+    note = ("EUSIPCO Table 2, corrected (move 16, added 2026-10-05 after the run of 2026-09-29; A21, A22): the same scores and columns as "
+            "eusipco_table2, built from the same split records; the refusals are _report_common.rung_override_corrected's: the corrected "
+            "instrument check (gates/added/gc_corrected.csv, per changed byte) in place of gates/gc.csv's content verdict, and the idle "
+            "common-ground test (gates/added/idle_common_ground.csv: void only when a held-out idle run is not recognised as idle above chance) "
+            "in place of G-F part (i); the declared table stands beside it")
+    for key in comparators:
+        note += f"\ncomparator {COMPARATOR_DISPLAY.get(key, key)} [{key}] <- {sources[key]}"
+    paths = _write_three(out, "eusipco_table2_corrected", EUSIPCO_TABLE2_COLUMNS, rows, label="tab:p2e_table2_corrected",
+                         cite_col="reduction", cite_keys=cite_keys, note_comment=note, wide=True, tex_note=TABLE2_CORRECTED_NOTE)
+    gates = {rung: {"G-C corrected": gc_corrected_verdict(out, rung), "idle common ground": idle_common_ground_text(out, rung),
+                    "override": rung_override_corrected(out, rung)} for rung, _ in TABLE2_RUNG_ROWS}
+    write_json(_tables_dir(out) / "eusipco_table2_corrected.params.json", {
+        "schema": "plan11.eusipco_table2_corrected.v1",
+        "params": _params(out, {"added": "added 2026-10-05, after the run of 2026-09-29", "comparators": list(comparators),
+                                "comparator_display": {k: COMPARATOR_DISPLAY.get(k, k) for k in comparators},
+                                "comparator_variant": comparator_variant, "comparator_sources": sources,
+                                "include_matched": bool(include_matched), "columns": EUSIPCO_TABLE2_COLUMNS,
+                                "refusal_function": "_report_common.rung_override_corrected",
+                                "void_rule": "void only when a held-out idle run is not recognised as idle above chance (idle recall not above the null's 95th percentile); "
+                                             "a test below the permutation floor voids nothing; a rung without the test prints not run in every score cell",
+                                "gate_readings": gates, "declared_table_untouched": True,
+                                "inputs_sha256": inputs_sha256([t7p, _tables_dir(out) / TABLE7_COMPARATORS_FILE, out / "gates" / "added" / "gc_corrected.csv",
+                                                                out / "gates" / "added" / "idle_common_ground.csv", out / "gates" / "selection.json"])}),
+        "citation": CITATION_TABLE2_CORRECTED, "n_rows": len(rows), "rows": [r["reduction"] for r in rows]})
+    return paths
+
+
+# ----------------------------------------------------------------------------------------------
 # Table 3
 # ----------------------------------------------------------------------------------------------
 def _resolve_ds_id(out: Path, ds_id: str | None) -> str:
@@ -584,7 +659,8 @@ def _ds_threshold_record(out: Path, rid: str, inputs: list) -> dict:
 # ----------------------------------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------------------------------
-TABLE_NAMES = ("table2", "table3")
+TABLE_NAMES = ("table2", "table3", "table2_corrected")      # table2_corrected: move 16 only (added 2026-10-05); never in the default run
+DEFAULT_TABLES = ("table2", "table3")
 
 
 def run(out: Path, only: list[str] | None = None, *, comparators=COMPARATORS_DEFAULT,
@@ -592,7 +668,7 @@ def run(out: Path, only: list[str] | None = None, *, comparators=COMPARATORS_DEF
         ds_id: str | None = None) -> dict:
     """Write the named tables (default both) with the given choices; returns `{name: paths}`
     as `tables.run` does (SPEC 6; the driver's `tables --only` form)."""
-    names = list(only) if only else list(TABLE_NAMES)
+    names = list(only) if only else list(DEFAULT_TABLES)
     unknown = [n for n in names if n not in TABLE_NAMES]
     if unknown:
         raise ValueError(f"unknown table name(s): {unknown}; known: {TABLE_NAMES}")
@@ -603,6 +679,9 @@ def run(out: Path, only: list[str] | None = None, *, comparators=COMPARATORS_DEF
                                 comparator_variant=comparator_variant)
         elif n == "table3":
             written[n] = table3(out, ds_id=ds_id)
+        elif n == "table2_corrected":
+            written[n] = table2_corrected(out, comparators=comparators, include_matched=include_matched,
+                                          comparator_variant=comparator_variant)
     return written
 
 
@@ -628,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(a.out)
     only = [s.strip() for s in a.only.split(",") if s.strip()] if a.only else None
     comps = tuple(s.strip() for s in a.comparators.split(",") if s.strip())
-    if (only is None or "table2" in only) and not (_tables_dir(out) / TABLE7_FILE).exists():
+    if (only is None or "table2" in only or "table2_corrected" in only) and not (_tables_dir(out) / TABLE7_FILE).exists():
         print(f"missing input: {_tables_dir(out) / TABLE7_FILE}", file=sys.stderr)
         return 2
     try:

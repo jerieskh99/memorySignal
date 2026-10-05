@@ -502,7 +502,7 @@ def _driver_accepts(flag: str) -> bool:
 def test_driver_move14_plan_and_run(corpus):
     assert run_moves.parse_moves("0-14") == list(range(15))
     with pytest.raises(ValueError):
-        run_moves.parse_moves("16")
+        run_moves.parse_moves("17")
     P = [c for c in run_moves.build_plan(_ns()) if c["move"] == 14]
     assert [c["name"] for c in P] == ["comparators savoldi", "comparators dhodapkar", "comparators law", "comparators gates",
                                       "tables table7_comparators,table_comparators", "figures dhodapkar_sweep", "tables manifest (after comparators)"]

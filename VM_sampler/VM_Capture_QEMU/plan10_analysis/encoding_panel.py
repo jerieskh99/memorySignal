@@ -43,8 +43,9 @@ TOOLKIT = QEMU_DIR / TOOLKIT_NAME
 RUNBOOK = TOOLKIT / "RUNBOOK.md"
 DEFAULT_CONFIG = Path(os.path.expanduser("~/.cache/plan10/encoding_config.json"))
 CONSOLE_DIR = ".console"                 # under <out>; the toolkit neither reads nor hashes it
-MAX_MOVE = 15                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29);
-                                         # the EUSIPCO row still follows move 14, since move 15 is optional
+MAX_MOVE = 16                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29); move 16: the
+                                         # corrected instrument check, the idle common-ground test and the second Table 2
+                                         # (added 2026-10-05, item 30); the EUSIPCO row still follows move 14, both being optional
 EUSIPCO_KEY = "eusipco"                  # the two runbook commands the driver does not schedule
 
 # RUNBOOK.md section 1 (the paper run) and section 0b (the smoke run): the flag values those two

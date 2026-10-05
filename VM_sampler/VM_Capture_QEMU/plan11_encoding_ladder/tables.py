@@ -571,19 +571,12 @@ def _feature_count_text(sc: dict | None):
     return v if v is not None else sc.get("feature_count")
 
 
-def table7(out: Path) -> dict:
-    """Table 7, rungs compared at gated resolution (P2 Sec. 4 Table 7; SPEC 6.3). Rows `apf,
-    wapf, persist, content, combined, combined (matched)`; one row per (rung, split) in the
-    split's primary label space (archetype for LOKO, kernel for LORO and within-trace), then the
-    archetype-space rows of LORO and within-trace appended below, marked in `label space`.
-    Columns: resolution from `gates/selection.json` (al-Farabi review 2.11(c) for
-    best-feasible), `feature_count` from `scores.json`, accuracy, `macro_recall` (over G-N
-    headline rows in archetype space, SPEC 4.2), null p95, rank, majority (all from
-    `scores.json`, SPEC 4.5), `G-C` (`gates/gc.csv` rep = all; al-Farabi review 2.5), `G-F (i)`
-    (`gates/gf.csv`; al-Farabi review 2.6), `G-L` (`gates/gl.csv`, SPEC 3.7.4), `G-DIM`
-    (`gates/gdim.csv`, SPEC 3.7.7), `G-M vs APF` (`gates/gm.csv`, SPEC 3.7.8, as text with the
-    margin), `G-X` (the rung's own leak verdict; al-Kindi review 8; a LOKO headline under a
-    total-confound leak reads `refused: campaign leak with total confound`, SPEC 3.7.6)."""
+def table7_rows(out: Path, override_fn=rung_override, gc_fn=gc_rung_verdict, gf_fn=gf_part1_verdict) -> list[dict]:
+    """Table 7's rows (the loop of `table7`, unchanged), with the refusal function and the two gate
+    readers as parameters so that move 16's second Table 2 (added 2026-10-05) can build the same rows
+    under the corrected instrument check and the idle common-ground test (`_report_common.
+    rung_override_corrected`, `gc_corrected_verdict`, `idle_common_ground_text`). The defaults are
+    the declared readers; `table7` itself calls this with them."""
     rows = []
     plan = [(r, s, PRIMARY_LABELSPACE[s]) for r in list(RUNGS) + ["combined (matched)"] for s in ("loko", "loro", "within_trace")]
     plan += [(r, s, "archetype") for r in list(RUNGS) + ["combined (matched)"] for s in ("loro", "within_trace")]
@@ -597,15 +590,15 @@ def table7(out: Path) -> dict:
             m = not_run(f"no selection for {base_rung}")
             for c in ("feature count", "accuracy", "macro recall (headline rows)", "null p95", "rank", "majority"):
                 row[c] = m
-            row["G-C"] = gc_rung_verdict(out, base_rung) or not_run("gates/gc.csv missing or has no row for " + base_rung)
-            row["G-F (i)"] = gf_part1_verdict(out, base_rung) or not_run("gates/gf.csv missing or has no part (i) row for " + base_rung)
+            row["G-C"] = gc_fn(out, base_rung) or not_run("gates/gc.csv missing or has no row for " + base_rung)
+            row["G-F (i)"] = gf_fn(out, base_rung) or not_run("gates/gf.csv missing or has no part (i) row for " + base_rung)
             row["G-L"] = _gl_text(out, base_rung)
             row["G-DIM"] = _gdim_text(out, rung)
             row["G-M vs APF"] = _gm_text(out, rung, split)
             row["G-X"] = _gx_text(out, base_rung)
             rows.append(row)
             continue
-        override = rung_override(out, base_rung, gid)
+        override = override_fn(out, base_rung, gid)
         if rung == "combined (matched)":
             sc, missing = _matched_scores(out, gid, split, ls)
         else:
@@ -628,13 +621,31 @@ def table7(out: Path) -> dict:
         if split == "loko" and ls == "archetype" and _gx_total_leak(out, base_rung):
             row["accuracy"] = refused("campaign leak with total confound")
             row["macro recall (headline rows)"] = refused("campaign leak with total confound")
-        row["G-C"] = gc_rung_verdict(out, base_rung) or not_run("gates/gc.csv missing or has no row for " + base_rung)
-        row["G-F (i)"] = gf_part1_verdict(out, base_rung, gid) or not_run("gates/gf.csv missing or has no part (i) row for " + base_rung)
+        row["G-C"] = gc_fn(out, base_rung) or not_run("gates/gc.csv missing or has no row for " + base_rung)
+        row["G-F (i)"] = gf_fn(out, base_rung, gid) or not_run("gates/gf.csv missing or has no part (i) row for " + base_rung)
         row["G-L"] = _gl_text(out, base_rung)
         row["G-DIM"] = _gdim_text(out, rung)
         row["G-M vs APF"] = _gm_text(out, rung, split)
         row["G-X"] = _gx_text(out, base_rung)
         rows.append(row)
+    return rows
+
+
+def table7(out: Path) -> dict:
+    """Table 7, rungs compared at gated resolution (P2 Sec. 4 Table 7; SPEC 6.3). Rows `apf,
+    wapf, persist, content, combined, combined (matched)`; one row per (rung, split) in the
+    split's primary label space (archetype for LOKO, kernel for LORO and within-trace), then the
+    archetype-space rows of LORO and within-trace appended below, marked in `label space`.
+    Columns: resolution from `gates/selection.json` (al-Farabi review 2.11(c) for
+    best-feasible), `feature_count` from `scores.json`, accuracy, `macro_recall` (over G-N
+    headline rows in archetype space, SPEC 4.2), null p95, rank, majority (all from
+    `scores.json`, SPEC 4.5), `G-C` (`gates/gc.csv` rep = all; al-Farabi review 2.5), `G-F (i)`
+    (`gates/gf.csv`; al-Farabi review 2.6), `G-L` (`gates/gl.csv`, SPEC 3.7.4), `G-DIM`
+    (`gates/gdim.csv`, SPEC 3.7.7), `G-M vs APF` (`gates/gm.csv`, SPEC 3.7.8, as text with the
+    margin), `G-X` (the rung's own leak verdict; al-Kindi review 8; a LOKO headline under a
+    total-confound leak reads `refused: campaign leak with total confound`, SPEC 3.7.6)."""
+    rows = table7_rows(out)
+    sel_cache = {base: selected_grid(out, base) for base in RUNGS}        # the grid ids the rows were read at (recorded in params)
     paths = write_table(_tables_dir(out), "table7", TABLE7_COLUMNS, rows, label="tab:table7",
                         note_comment="one row per (rung, split); LOKO in archetype space, LORO and within-trace "
                                      "in kernel space; archetype-space rows for LORO and within-trace appended below")

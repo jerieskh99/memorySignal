@@ -94,12 +94,15 @@ CITATION = "P2 Sec. 5 (the blind-move order); K2 Sec. 5; SPEC section 7; SPEC re
 LEDGER = "driver_state.json"
 RANDOM_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "g3"),
                    ("gates_temporal", "gord"), ("models", "splits"), ("models", "cluster"),
-                   ("gates_comparison", "gx"), ("gates_comparison", "gm"), ("gates_comparison", "gdim"), ("gates_readings", "gdec")}
+                   ("gates_comparison", "gx"), ("gates_comparison", "gm"), ("gates_comparison", "gdim"), ("gates_readings", "gdec"),
+                   ("gates_idle_common_ground", "run")}
 NJOBS_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "gord"),
-                  ("models", "splits"), ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm")}
+                  ("models", "splits"), ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
+                  ("gates_idle_common_ground", "run")}
 # SPEC_epoch2 B25 (E1 6.61): the commands that take --n-estimators; the driver passes its value to every one of them
 NEST_COMMANDS = {("gates_temporal", "gord"), ("models", "splits"), ("gates_precondition", "gf"),
-                 ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm")}
+                 ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
+                 ("gates_idle_common_ground", "run")}
 # SPEC_epoch2 B10 (CHECK_3 M10; CERT 6.9; SPEC 3.7.4): the G-L (ii) consequence the driver runs after `gl` at move 7
 GL2_FEATURE_DROP = "cov,std,peak2med"
 GL2_BASE_DIR = "splits_gl2drop"
@@ -113,8 +116,10 @@ GL2_SHOT_NOISE = "refused: shot noise explains CV"      # verdicts.GL_SHOT_NOISE
 ADMISSIBILITY = "gates/preconditions.json"
 INPUT_FILES = ("cells.csv", "inputs/pass_table.csv", "inputs/gk0_source.csv", "inputs/head_drop.csv",
                "inputs/failed_counts.csv", "inputs/idle_admissibility.json", "inputs/cell_order.csv")
-MAX_MOVE = 15      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
-                   # luck checks (SPEC_epoch2 Part 4 item 29), never in the default --moves 0-14
+MAX_MOVE = 16      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
+                   # luck checks (SPEC_epoch2 Part 4 item 29); move 16 = the corrected instrument check, the idle
+                   # common-ground test and the second Table 2 (added 2026-10-05, after the run of 2026-09-29;
+                   # SPEC_epoch2 Part 4 item 30; A20 to A22). Neither 15 nor 16 is in the default --moves 0-14.
 LORO_FULL_NULL_SPLITS = "loko,loro,within_trace"   # the paper value; move 15 restores LORO's null under it
 
 
@@ -403,6 +408,21 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                   inputs=cmp_inputs + ["gates/comparators/verdicts.csv"]))
     P.append(_cmd(15, "tables manifest (after LORO luck checks)", "tables", None, [*O, "--only", "manifest"],
                   outputs=["report/manifest.json"], inputs=["gates/comparators/verdicts.csv", ADMISSIBILITY]))
+    # ---- move 16 (optional; added 2026-10-05, after the run of 2026-09-29: SPEC_epoch2 Part 4 item 30; P2_AUTHOR_ANSWERS
+    # A20 to A22). (1) The corrected instrument check for content, per changed byte, written beside gates/gc.csv and
+    # never over it; (2) the idle common-ground test: leave-one-run-out with the 8 idle runs as a 13th class, per rung
+    # at its selected point, the LORO null's label shuffles; (3) the second Table 2 under the corrected check and the
+    # idle test's void rule. The declared tables and every existing gate file are left as they are. Only when selected
+    # (`--moves 16`); the default `--moves 0-14` leaves it out, as it leaves move 15 out.
+    P.append(_cmd(16, "gc corrected (content, per changed byte)", "gates_calibration", "gc-corrected", [*O],
+                  outputs=["gates/added/gc_corrected.csv"], inputs=["cells.csv", "gates/gc.csv", ADMISSIBILITY]))
+    P.append(_cmd(16, "idle common ground", "gates_idle_common_ground", "run", [*O, "--null-perm", o.null_perm],
+                  outputs=["gates/added/idle_common_ground.csv"],
+                  inputs=["cells.csv", "inputs/head_drop.csv", "gates/selection.json", "gates/gk0.csv", ADMISSIBILITY]))
+    P.append(_cmd(16, "tables_eusipco table2_corrected", "tables_eusipco", None, [*O, "--only", "table2_corrected"],
+                  outputs=["report/tables/eusipco_table2_corrected.csv"],
+                  inputs=["report/tables/table7.csv", "gates/added/gc_corrected.csv", "gates/added/idle_common_ground.csv", "gates/selection.json",
+                          ADMISSIBILITY]))
     # seed offsets and n-jobs on the commands that take them (SPEC 7.1)
     for c in P:
         key = (c["module"], c["sub"])
@@ -810,7 +830,8 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--root", default=None, help="the retention root (required when move 0 runs)")
     ap.add_argument("--cells-csv", default=None)
     ap.add_argument("--moves", default="0-14",
-                    help="moves to run (default 0-14); move 15, the optional LORO luck checks, runs only when named")
+                    help="moves to run (default 0-14); move 15 (the optional LORO luck checks) and move 16 (the corrected instrument check, "
+                         "the idle common-ground test and the second Table 2, added 2026-10-05) run only when named")
     # epoch 2, move 14 (SPEC_epoch2.md Part 1.7 (b); builder A): the comparators' declared defaults and the Law pass's job count
     ap.add_argument("--delta-th-default", type=float, default=0.04, help="Dhodapkar-Smith delta_th default (AA 2026-09-17: 0.04)")
     ap.add_argument("--law-x-default", type=int, default=4, help="Law 2010 X default (SPEC_epoch2 Part 4 item 6)")

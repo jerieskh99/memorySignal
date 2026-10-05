@@ -559,6 +559,73 @@ def rung_override(out: Path, rung: str, grid: str | None = None) -> str | None:
     return None
 
 
+# ---- move 16 (added 2026-10-05, after the run of 2026-09-29; A21, A22; SPEC_epoch2 Part 4 item 30): the twin readers
+IDLE_CG_VOID = "void: a held-out idle run is not recognised as idle above chance"
+IDLE_CG_FILE = "gates/added/idle_common_ground.csv"
+GC_CORRECTED_FILE = "gates/added/gc_corrected.csv"
+
+
+def gc_corrected_verdict(out: Path, rung: str) -> str | None:
+    """The corrected instrument check's `rep = "all"` verdict for `content` and `combined` (move 16,
+    gates/added/gc_corrected.csv, `verdict_corrected`); the original gc.csv verdict for the other
+    rungs, whose check the correction does not touch. For `content` and `combined` a missing file or
+    row reads `not run: ...` naming the corrected file (never gates/gc.csv, which the twin table does
+    not read for them); None only when the original reader returns None for the other rungs."""
+    if rung not in ("content", "combined"):
+        return gc_rung_verdict(out, rung)
+    p = Path(out) / GC_CORRECTED_FILE
+    if p.exists():
+        for r in read_csv(p):
+            if r.get("rung") == rung and str(r.get("rep", "")).strip() == "all":
+                return r.get("verdict_corrected", "")
+    return not_run(f"{GC_CORRECTED_FILE} missing or has no rep = all row for {rung} (move 16)")
+
+
+def idle_common_ground_row(out: Path, rung: str) -> dict | None:
+    """The idle common-ground test's row for the rung (move 16, gates/added/idle_common_ground.csv);
+    None when the file or the row is absent."""
+    p = Path(out) / IDLE_CG_FILE
+    if not p.exists():
+        return None
+    for r in read_csv(p):
+        if r.get("rung") == rung:
+            return r
+    return None
+
+
+def idle_common_ground_text(out: Path, rung: str, grid: str | None = None) -> str | None:
+    """What the second Table 2 prints in the floor column for the rung: the idle verdict with the idle
+    recall and its null p95, or `not run: ...` naming the idle test's file when it has no row for the rung."""
+    r = idle_common_ground_row(out, rung)
+    if r is None:
+        return not_run(f"{IDLE_CG_FILE} missing or has no row for {rung} (move 16)")
+    v = str(r.get("idle_verdict", ""))
+    if r.get("idle_recall") not in (None, ""):
+        return f"{v} (idle recall {fmt_num(to_float(r.get('idle_recall')))}, null p95 {fmt_num(to_float(r.get('idle_null_p95')))})"
+    return v
+
+
+def rung_override_corrected(out: Path, rung: str, grid: str | None = None) -> str | None:
+    """The twin of `rung_override` for the second Table 2 (A22; move 16): `refused: disconnected lead`
+    when the CORRECTED instrument check refused the rung (content per changed byte; combined inherits),
+    and, in place of G-F part (i), the idle common-ground rule: the rung is void only when a held-out
+    idle run is not recognised as idle above chance (the idle test's verdict `near_unfalsifiable`:
+    idle recall not above the null's 95th percentile). A test whose null stayed below the permutation
+    floor voids nothing (its verdict reads `not run: N permutations < 500`, as G-F's does); a rung the
+    test has not run for prints `not run: ...` in every score cell, so nothing passes by absence.
+    None when neither applies."""
+    gc = gc_corrected_verdict(out, rung)
+    if gc is not None and gc == GC_DISCONNECTED:
+        return refused(GC_DISCONNECTED)
+    r = idle_common_ground_row(out, rung)
+    if r is None:
+        return not_run(f"idle common-ground test not run for {rung} (move 16)")
+    v = str(r.get("idle_verdict", ""))
+    if v == NEAR_UNFALSIFIABLE:
+        return IDLE_CG_VOID
+    return None
+
+
 def split_dir(out: Path, rung: str, gid: str, split: str, labelspace: str, raw: bool = False) -> Path | None:
     """The split stage directory (SPEC 4.5). The raw variant's location is not fixed by SPEC
     4.5 (the path has no raw/norm segment); builder 3 accepts `<split>__<labelspace>__raw/`,

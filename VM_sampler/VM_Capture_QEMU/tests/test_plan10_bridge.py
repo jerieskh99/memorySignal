@@ -276,7 +276,7 @@ def test_encoding_panel_endpoints_over_http():
         assert code == 200 and c["preset"] == "custom" and c["flags"]["null_perm"] == 20 and any(f["dest"] == "c1_rule" for f in c["driver_flags"])
         assert _call(port, token, "/encoding/config", {"flags": {"nope": 1}})[0] == 400
         code, b = _call(port, token, "/encoding/board")
-        assert code == 200 and len(b["moves"]) == 17 and b["moves"][0]["runnable"] and not b["moves"][1]["runnable"] and b["ledger"]["exists"] is False
+        assert code == 200 and len(b["moves"]) == 18 and b["moves"][0]["runnable"] and not b["moves"][1]["runnable"] and b["ledger"]["exists"] is False
         code, rb = _call(port, token, "/encoding/runbook")
         assert code == 200 and rb["sections"]["0"]["title"] == "the cell index" and rb["present"]
         code, pt = _call(port, token, "/encoding/plan_text?move=3")

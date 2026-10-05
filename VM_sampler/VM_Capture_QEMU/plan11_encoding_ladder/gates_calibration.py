@@ -390,6 +390,113 @@ def gate_gc(out: Path, cells: list[dict] | None = None, rung: str = "apf", *, pu
     return p
 
 
+# --------------------------------------------------------------------------- G-C corrected (added 2026-10-05)
+ADDED_2026_10_05 = "added 2026-10-05, after the run of 2026-09-29"
+GC_CORRECTED_STATISTIC = "r_l1l0_q50"      # the change per changed byte on the page set (l1 / l0 per page, median over pages, then over pairs)
+CIT_GC_CORRECTED = ("P2_AUTHOR_ANSWERS.md A20 (the trace), A21 (the decision: the check measures per changed byte), A22 (move 16); "
+                    "SPEC_epoch2.md Part 4 item 30; gate_gc's content orderings with its first statistic replaced")
+
+
+def gate_gc_corrected(out: Path, cells: list[dict] | None = None, *, content_kernels=GC_CONTENT_KERNELS, pairing: str = GC_PAIRING,
+                      content_page_set: str = GC_CONTENT_PAGE_SET) -> Path:
+    """The corrected instrument check for the content rung (A21, A22; added 2026-10-05, after the run
+    of 2026-09-29). The same two orderings as gate_gc's content check, with the first statistic
+    replaced: mean_abs (the median over pairs of l1_q50_<set> / 4096, the byte change averaged over
+    the whole page) becomes the median over pairs of r_l1l0_q50_<set>, the change per changed byte
+    on the page set (A20: the prediction is about the size of a change, and the page average
+    multiplies it by the share of bytes changed). The l0 ordering is unchanged. gate_gc itself is
+    not changed and gates/gc.csv is not touched: this writes gates/added/gc_corrected.csv with, per
+    rep, the three corrected values, the three original values, the three l0 values (which gc.csv
+    omits), the corrected verdict and the original verdict copied from gates/gc.csv; an `all` row
+    per rung for content and for combined (combined inherits a disconnected rung from gc.csv for
+    apf, wapf and persist, and the corrected verdict for content)."""
+    out = Path(out)
+    if cells is None:
+        cells = S.load_cells(out / "cells.csv")
+    cells, _, _, _ = S.admissible_cells(out, cells, None)
+    kern = [c for c in cells if c["role"] == "kernel"]
+    sfx = "per" if content_page_set == "persistent" else "all"
+    a, b, g = content_kernels
+    cols = ["rung", "kernel_or_triple", "rep"] + [f"r2_{k}" for k in content_kernels] + [f"mean_abs_{k}" for k in content_kernels] \
+        + [f"l0_{k}" for k in content_kernels] + ["verdict_corrected", "verdict_original", "note"]
+    gc_path = out / "gates" / "gc.csv"
+    gc_rows = S.read_csv(gc_path) if gc_path.is_file() else []
+    orig_rep = {str(r.get("rep")): r.get("verdict", "") for r in gc_rows if r.get("rung") == "content"}
+    orig_all = {r.get("rung"): r.get("verdict", "") for r in gc_rows if str(r.get("rep")) == "all"}
+    stats: dict = {}
+    for k in content_kernels:
+        for c in kern:
+            if c["kernel"] != k:
+                continue
+            ex = S.load_extract_cached(out, c["cell_id"])
+            r2 = ex[f"{GC_CORRECTED_STATISTIC}_{sfx}"]
+            l1 = ex[f"l1_q50_{sfx}"]
+            l0 = ex[f"l0_q50_{sfx}"]
+            stats.setdefault(k, {})[int(c["rep"])] = (float(np.nanmedian(r2)), float(np.nanmedian(l1)) / 4096.0, float(np.nanmedian(l0)))
+    rows = []
+    missing = [k for k in content_kernels if k not in stats]
+    if missing:
+        v = V.not_run(f"no admissible cell for {','.join(missing)}")
+        rows.append({"rung": "content", "kernel_or_triple": "+".join(content_kernels), "rep": "all", "verdict_corrected": v,
+                     "verdict_original": orig_all.get("content", V.not_run("gates/gc.csv has no content row")), "note": ADDED_2026_10_05})
+        verdict = v
+    else:
+        if pairing == "by_rep_index":
+            reps = sorted(set(stats[a]) & set(stats[b]) & set(stats[g]))
+            for r in reps:
+                ra, rb_, rg = (stats[k][r][0] for k in content_kernels)
+                la, lb, lg = (stats[k][r][2] for k in content_kernels)
+                ok = (ra < rb_ < rg) and (lb < la < lg)
+                row = {"rung": "content", "kernel_or_triple": "+".join(content_kernels), "rep": r,
+                       "verdict_corrected": V.PASS if ok else V.FAIL, "verdict_original": orig_rep.get(str(r), V.not_run("gates/gc.csv has no row for this rep")),
+                       "note": ADDED_2026_10_05}
+                for k in content_kernels:
+                    row[f"r2_{k}"], row[f"mean_abs_{k}"], row[f"l0_{k}"] = stats[k][r]
+                rows.append(row)
+            n_expected = max(len(stats[k]) for k in content_kernels)
+            all_ok = bool(rows) and all(r["verdict_corrected"] == V.PASS for r in rows) and len(reps) == n_expected
+        elif pairing == "envelope":
+            r2 = {k: [v[0] for v in stats[k].values()] for k in content_kernels}
+            l0 = {k: [v[2] for v in stats[k].values()] for k in content_kernels}
+            all_ok = (max(r2[a]) < min(r2[b]) and max(r2[b]) < min(r2[g])) and (max(l0[b]) < min(l0[a]) and max(l0[a]) < min(l0[g]))
+            row = {"rung": "content", "kernel_or_triple": "+".join(content_kernels), "rep": "envelope", "verdict_corrected": V.PASS if all_ok else V.FAIL,
+                   "verdict_original": next((r.get("verdict", "") for r in gc_rows if r.get("rung") == "content" and r.get("rep") == "envelope"), ""), "note": ADDED_2026_10_05}
+            for k in content_kernels:
+                row[f"r2_{k}"], row[f"mean_abs_{k}"], row[f"l0_{k}"] = (max(r2[k]) if k == a else min(r2[k])), "", (max(l0[k]) if k == b else min(l0[k]))
+            rows.append(row)
+        else:
+            raise ValueError(pairing)
+        verdict = V.PASS if all_ok else V.GC_DISCONNECTED
+        rows.append({"rung": "content", "kernel_or_triple": "+".join(content_kernels), "rep": "all", "verdict_corrected": verdict,
+                     "verdict_original": orig_all.get("content", V.not_run("gates/gc.csv has no content row")), "note": ADDED_2026_10_05})
+    # combined inherits: the original verdicts of apf, wapf and persist, the corrected one for content (gate_gc's own combined rule)
+    parts = {r_: orig_all.get(r_) for r_ in ("apf", "wapf", "persist")}
+    parts["content"] = verdict
+    missing_parts = [r_ for r_, v_ in parts.items() if not v_]
+    if missing_parts:
+        comb = V.not_run(f"G-C not run for {','.join(missing_parts)}")
+    elif any(v_ == V.GC_DISCONNECTED for v_ in parts.values()):
+        comb = V.GC_DISCONNECTED
+    elif all(v_ == V.PASS for v_ in parts.values()):
+        comb = V.PASS
+    else:
+        comb = next(v_ for v_ in parts.values() if v_ != V.PASS)
+    rows.append({"rung": "combined", "kernel_or_triple": "apf+wapf+persist+content(corrected)", "rep": "all", "verdict_corrected": comb,
+                 "verdict_original": orig_all.get("combined", V.not_run("gates/gc.csv has no combined row")), "note": ADDED_2026_10_05})
+    d = out / "gates" / "added"
+    d.mkdir(parents=True, exist_ok=True)
+    p = S.write_csv(d / "gc_corrected.csv", cols, rows)
+    params = {"added": ADDED_2026_10_05, "statistic_corrected": f"median over pairs of {GC_CORRECTED_STATISTIC}_{sfx} (the change per changed byte on the page set)",
+              "statistic_original": f"median over pairs of l1_q50_{sfx} / 4096 (the byte change averaged over the page), copied for the record",
+              "l0_statistic": f"median over pairs of l0_q50_{sfx} (unchanged)", "orderings": f"r2({a}) < r2({b}) < r2({g}) and l0({b}) < l0({a}) < l0({g})",
+              "content_kernels": list(content_kernels), "pairing": pairing, "content_page_set": content_page_set,
+              "original_verdicts_from": str(gc_path), "gc_csv_untouched": True,
+              "inputs_sha256": S.inputs_sha256([out / "cells.csv", gc_path, out / "gates" / "preconditions.csv"], out)}
+    S.write_json(d / "gc_corrected.params.json", "plan11.gc_corrected.v1", params, CIT_GC_CORRECTED,
+                 {"verdict_content_corrected": verdict, "verdict_content_original": orig_all.get("content"), "verdict_combined_corrected": comb, "rows": rows})
+    return p
+
+
 # --------------------------------------------------------------------------- the alias falsifier (3.4.4)
 
 def alias_falsifier(feature_per_cell: dict, dt_per_cell: dict, *, r2_threshold: float = ALIAS_R2_THRESHOLD) -> dict:
@@ -509,6 +616,10 @@ def main(argv=None) -> int:
     g.add_argument("--pairing", default=GC_PAIRING, choices=("by_rep_index", "envelope"))
     g.add_argument("--content-page-set", default=GC_CONTENT_PAGE_SET, choices=("persistent", "all"))
     g.add_argument("--pulse-full-footprint-pages", type=int, default=GC_PULSE_FULL_FOOTPRINT_PAGES)
+    gcc = sub.add_parser("gc-corrected", help="move 16 (added 2026-10-05): the content check per changed byte, beside gc.csv, never over it")
+    gcc.add_argument("--out", required=True)
+    gcc.add_argument("--pairing", default=GC_PAIRING, choices=("by_rep_index", "envelope"))
+    gcc.add_argument("--content-page-set", default=GC_CONTENT_PAGE_SET, choices=("persistent", "all"))
     p_ = sub.add_parser("gp")
     p_.add_argument("--out", required=True)
     p_.add_argument("--min-passes-rhythm", type=int, default=GP_MIN_PASSES_RHYTHM)
@@ -516,7 +627,7 @@ def main(argv=None) -> int:
     a = sub.add_parser("alias")
     a.add_argument("--out", required=True)
     a.add_argument("--r2-threshold", type=float, default=ALIAS_R2_THRESHOLD)
-    for sp in (g, p_, a, t):
+    for sp in (g, p_, a, t, gcc):
         sp.add_argument("--seed-offset", type=int, default=0)
     args = ap.parse_args(argv)
     out = Path(args.out)
@@ -534,6 +645,8 @@ def main(argv=None) -> int:
                           j_dip_max=args.j_dip_max, dip_window_pairs=args.dip_window_pairs,
                           min_events_per_rep=args.min_events_per_rep, pairing=args.pairing,
                           content_page_set=args.content_page_set, pulse_full_footprint_pages=args.pulse_full_footprint_pages))
+        elif args.cmd == "gc-corrected":
+            print(gate_gc_corrected(out, pairing=args.pairing, content_page_set=args.content_page_set))
         elif args.cmd == "gp":
             print(gate_gp(out, min_passes_rhythm=args.min_passes_rhythm, min_snaps_within_pass=args.min_snaps_within_pass))
         elif args.cmd == "alias":
