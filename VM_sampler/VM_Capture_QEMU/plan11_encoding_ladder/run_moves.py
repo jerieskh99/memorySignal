@@ -95,14 +95,14 @@ LEDGER = "driver_state.json"
 RANDOM_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "g3"),
                    ("gates_temporal", "gord"), ("models", "splits"), ("models", "cluster"),
                    ("gates_comparison", "gx"), ("gates_comparison", "gm"), ("gates_comparison", "gdim"), ("gates_readings", "gdec"),
-                   ("gates_idle_common_ground", "run")}
+                   ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
 NJOBS_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "gord"),
                   ("models", "splits"), ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
-                  ("gates_idle_common_ground", "run")}
+                  ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
 # SPEC_epoch2 B25 (E1 6.61): the commands that take --n-estimators; the driver passes its value to every one of them
 NEST_COMMANDS = {("gates_temporal", "gord"), ("models", "splits"), ("gates_precondition", "gf"),
                  ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
-                 ("gates_idle_common_ground", "run")}
+                 ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
 # SPEC_epoch2 B10 (CHECK_3 M10; CERT 6.9; SPEC 3.7.4): the G-L (ii) consequence the driver runs after `gl` at move 7
 GL2_FEATURE_DROP = "cov,std,peak2med"
 GL2_BASE_DIR = "splits_gl2drop"
@@ -116,10 +116,12 @@ GL2_SHOT_NOISE = "refused: shot noise explains CV"      # verdicts.GL_SHOT_NOISE
 ADMISSIBILITY = "gates/preconditions.json"
 INPUT_FILES = ("cells.csv", "inputs/pass_table.csv", "inputs/gk0_source.csv", "inputs/head_drop.csv",
                "inputs/failed_counts.csv", "inputs/idle_admissibility.json", "inputs/cell_order.csv")
-MAX_MOVE = 16      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
+MAX_MOVE = 17      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
                    # luck checks (SPEC_epoch2 Part 4 item 29); move 16 = the corrected instrument check, the idle
                    # common-ground test and the second Table 2 (added 2026-10-05, after the run of 2026-09-29;
-                   # SPEC_epoch2 Part 4 item 30; A20 to A22). Neither 15 nor 16 is in the default --moves 0-14.
+                   # SPEC_epoch2 Part 4 item 30; A20 to A22); move 17 = the new-block test on the five readings
+                   # (added 2026-10-06; SPEC_epoch2 Part 4 item 31; A25). None of 15, 16, 17 is in the default --moves 0-14.
+NEW_BLOCKS_PRIMARY_GRID = "W64_H32"      # move 17's primary window (A25); the own windows come from gates/selection.json
 LORO_FULL_NULL_SPLITS = "loko,loro,within_trace"   # the paper value; move 15 restores LORO's null under it
 
 
@@ -419,10 +421,40 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
     P.append(_cmd(16, "idle common ground", "gates_idle_common_ground", "run", [*O, "--null-perm", o.null_perm],
                   outputs=["gates/added/idle_common_ground.csv"],
                   inputs=["cells.csv", "inputs/head_drop.csv", "gates/selection.json", "gates/gk0.csv", ADMISSIBILITY]))
+    # 2026-10-06: the comparator rows it reads (report/tables/table7_comparators.csv, made by move 14) were not declared; they are now, so on a
+    # run where move 16 ran this one command is reported stale, which is correct; no other existing command changes its inputs or arguments
     P.append(_cmd(16, "tables_eusipco table2_corrected", "tables_eusipco", None, [*O, "--only", "table2_corrected"],
                   outputs=["report/tables/eusipco_table2_corrected.csv"],
-                  inputs=["report/tables/table7.csv", "gates/added/gc_corrected.csv", "gates/added/idle_common_ground.csv", "gates/selection.json",
-                          ADMISSIBILITY]))
+                  inputs=["report/tables/table7.csv", "report/tables/table7_comparators.csv", "gates/added/gc_corrected.csv", "gates/added/idle_common_ground.csv",
+                          "gates/selection.json", ADMISSIBILITY]))
+    # ---- move 17 (optional; added 2026-10-06: SPEC_epoch2 Part 4 item 31; P2_AUTHOR_ANSWERS A25): the new-block test on the five
+    # readings, the encoding paper's version of the SPL paper's test (plan12_grounding/PROMPT_new_blocks_test.md): the first 80% of
+    # every recording's windows seen, a one-window gap, the rest new blocks named at three levels (archetype, kernel, run), alone and in
+    # pools of 2 and 3; (1) at the primary window W64_H32 for every reading; (2) at each reading's own selected window (gates/selection.json;
+    # a reading whose own window is the primary reads "same as primary"); (3) the tables and figures. Every file each command reads is
+    # declared: the own-window command's feature files are resolved from the selection when it exists (else the primary). Only when
+    # selected (`--moves 17`); the default `--moves 0-14` leaves it out, as it leaves 15 and 16 out.
+    nb_feats = [f"features/{rung}/{NEW_BLOCKS_PRIMARY_GRID}_norm.npz" for rung in RUNGS]
+    P.append(_cmd(17, f"new blocks ({NEW_BLOCKS_PRIMARY_GRID})", "new_blocks", "run", [*O, "--window", NEW_BLOCKS_PRIMARY_GRID],
+                  outputs=[f"gates/added/new_blocks/{NEW_BLOCKS_PRIMARY_GRID}/summary.json"],
+                  inputs=["cells.csv", "inputs/head_drop.csv", ADMISSIBILITY] + nb_feats))
+    from plan11_encoding_ladder import series as _series        # local: the selection reader, for the own-window feature files
+    own_feats = []
+    for rung in RUNGS:
+        gid, _ = _series.selected_grid_id(Path(out), rung, default=None)
+        own_feats.append(f"features/{rung}/{gid or NEW_BLOCKS_PRIMARY_GRID}_norm.npz")
+    P.append(_cmd(17, "new blocks (own windows)", "new_blocks", "run", [*O, "--window", "own"],
+                  outputs=["gates/added/new_blocks/own/summary.json"],
+                  inputs=["cells.csv", "inputs/head_drop.csv", ADMISSIBILITY, "gates/selection.json", f"gates/added/new_blocks/{NEW_BLOCKS_PRIMARY_GRID}/scores.csv"]
+                         + sorted(set(own_feats))))
+    nb_read = [f"gates/added/new_blocks/{w}/{n}" for w in (NEW_BLOCKS_PRIMARY_GRID, "own")
+               for n in ("scores.csv", "margins.csv", "per_kernel.csv", "by_position.csv", "run_level.csv", "confusion_kernel_apf.csv", "confusion_kernel_content.csv", "summary.json")]
+    P.append(_cmd(17, "new blocks tables and figures", "new_blocks", "tables", [*O],
+                  outputs=["gates/added/new_blocks.csv", "report/tables/new_blocks_scores.csv", "report/tables/new_blocks_margins.csv",
+                           "report/tables/new_blocks_run_level.csv", "report/tables/new_blocks_by_position.csv", "report/figures/new_blocks_accuracy.svg",
+                           "report/figures/new_blocks_by_position.svg", "report/figures/new_blocks_per_kernel.svg", "report/figures/new_blocks_run_level.svg",
+                           "report/figures/new_blocks_confusion_apf.svg", "report/figures/new_blocks_confusion_content.svg"],
+                  inputs=nb_read + [ADMISSIBILITY]))          # the admissibility record is an input of every step from move 3 on (al-Farabi certification 7.1)
     # seed offsets and n-jobs on the commands that take them (SPEC 7.1)
     for c in P:
         key = (c["module"], c["sub"])
@@ -830,8 +862,9 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--root", default=None, help="the retention root (required when move 0 runs)")
     ap.add_argument("--cells-csv", default=None)
     ap.add_argument("--moves", default="0-14",
-                    help="moves to run (default 0-14); move 15 (the optional LORO luck checks) and move 16 (the corrected instrument check, "
-                         "the idle common-ground test and the second Table 2, added 2026-10-05) run only when named")
+                    help="moves to run (default 0-14); move 15 (the optional LORO luck checks), move 16 (the corrected instrument check, "
+                         "the idle common-ground test and the second Table 2, added 2026-10-05) and move 17 (the new-block test on the five "
+                         "readings, added 2026-10-06) run only when named")
     # epoch 2, move 14 (SPEC_epoch2.md Part 1.7 (b); builder A): the comparators' declared defaults and the Law pass's job count
     ap.add_argument("--delta-th-default", type=float, default=0.04, help="Dhodapkar-Smith delta_th default (AA 2026-09-17: 0.04)")
     ap.add_argument("--law-x-default", type=int, default=4, help="Law 2010 X default (SPEC_epoch2 Part 4 item 6)")

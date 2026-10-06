@@ -43,9 +43,13 @@ TOOLKIT = QEMU_DIR / TOOLKIT_NAME
 RUNBOOK = TOOLKIT / "RUNBOOK.md"
 DEFAULT_CONFIG = Path(os.path.expanduser("~/.cache/plan10/encoding_config.json"))
 CONSOLE_DIR = ".console"                 # under <out>; the toolkit neither reads nor hashes it
-MAX_MOVE = 16                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29); move 16: the
+MAX_MOVE = 17                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29); move 16: the
                                          # corrected instrument check, the idle common-ground test and the second Table 2
-                                         # (added 2026-10-05, item 30); the EUSIPCO row still follows move 14, both being optional
+                                         # (added 2026-10-05, item 30); move 17: the new-block test on the five readings (added
+                                         # 2026-10-06, item 31); the EUSIPCO row still follows move 14, all three being optional
+OPTIONAL_MOVES = (15, 16, 17)            # the waiting rule (2026-10-06): an optional move waits for the moves whose files it reads
+                                         # (the producers of its declared inputs), not for the move numbered before it; moves 0 to 14
+                                         # keep the runbook's order
 EUSIPCO_KEY = "eusipco"                  # the two runbook commands the driver does not schedule
 
 # RUNBOOK.md section 1 (the paper run) and section 0b (the smoke run): the flag values those two
@@ -105,6 +109,12 @@ VIEWS = [
      "files": ["report/tables/eusipco_table2.csv", "report/tables/eusipco_table2.md", "report/tables/eusipco_table3.csv", "report/tables/eusipco_table3.md"]},
     {"id": "figures_all", "title": "every figure the toolkit wrote", "move": 12,
      "files": ["report/figures/figures.json", "report/figures/fig_piano_roll.png", "report/figures/SKIPPED.txt"]},
+    {"id": "new_blocks", "title": "the new-block test: accuracy by level and reading, by position, per kernel, the run level beside idle, the kernel confusions (move 17)", "move": 17,
+     "note": "added 2026-10-06; no label-shuffle null (the scores' null column says why); chance and the majority class are the baselines; the comparators take no part",
+     "files": ["report/figures/new_blocks_accuracy.svg", "report/figures/new_blocks_by_position.svg", "report/figures/new_blocks_per_kernel.svg",
+               "report/figures/new_blocks_run_level.svg", "report/figures/new_blocks_confusion_apf.svg", "report/figures/new_blocks_confusion_content.svg",
+               "report/tables/new_blocks_scores.md", "report/tables/new_blocks_margins.md", "report/tables/new_blocks_run_level.md", "report/tables/new_blocks_by_position.md",
+               "gates/added/new_blocks.csv", "gates/added/new_blocks/W64_H32/summary.json", "gates/added/new_blocks/own/summary.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".tex": "tex", ".txt": "text", ".log": "text", ".py": "text"}
@@ -500,7 +510,7 @@ def move_states(out: Path, plan: list[dict], running: dict | None) -> list[dict]
                 st = "refused"
             states.append(st)
             for spec in c.get("inputs", []):
-                pm = producers.get(_spec_file(spec))
+                pm = _producer_of(producers, _spec_file(spec))
                 if pm is not None and pm < m:
                     reads.add(pm)
             crows.append({"key": c["key"], "name": c["name"], "module": c["module"], "sub": c["sub"], "internal": c["internal"], "template": c["template"],
@@ -537,7 +547,8 @@ def move_states(out: Path, plan: list[dict], running: dict | None) -> list[dict]
                      "state_before_batch": (None if state != "queued" else
                                             ("not run" if not states or all(s == "not run" for s in states) else
                                              "done" if all(s == "done" for s in states) else "partial")),
-                     "reads_from": sorted(reads), "requires": ([m - 1] if m > 0 else []),
+                     "reads_from": sorted(reads), "requires": (sorted(reads) if m in OPTIONAL_MOVES else ([m - 1] if m > 0 else [])),
+                     "waits_rule": ("the moves whose files it reads (optional move)" if m in OPTIONAL_MOVES else "the move before it (the runbook's order)"),
                      "outputs_missing": missing, "last_finished_at": max([c["finished_at"] or "" for c in crows] or [""]) or None,
                      "interrupted_at": cut.get(m), "look_at": sec.get("look_at", ""), "output_dirs": _output_dirs(cmds)})
     # the two EUSIPCO commands: no ledger; state from the files they write
@@ -559,6 +570,17 @@ def _spec_file(spec: str) -> str:
     if spec.startswith(("json:", "csv:")):
         return spec.split(":", 2)[1]
     return spec.split("|")[0]
+
+
+def _producer_of(producers: dict, path: str) -> int | None:
+    """The move that writes `path`: the exact file when declared, else the earliest move declaring a file in the
+    same folder (the feature files are declared one grid point per rung folder; a grid point read later is the
+    same move's output). None when nothing in the plan writes there (an author input, or a file the move itself writes)."""
+    if path in producers:
+        return producers[path]
+    folder = str(Path(path).parent)
+    cands = [mv for f, mv in producers.items() if str(Path(f).parent) == folder]
+    return min(cands) if cands else None
 
 
 def _producers(plan: list[dict]) -> dict:
@@ -922,7 +944,8 @@ class Panel:
                 row = next(r for r in board if r["move"] == move)
             if not row["runnable"]:
                 need = [q for q in row["requires"] if not any(x["move"] == q and x["state"] == "done" for x in board)]
-                raise PanelError(f"move {move} waits for move(s) {', '.join(str(q) for q in need)} to be done (the runbook's order)")
+                rule = row.get("waits_rule") or "the runbook's order"
+                raise PanelError(f"move {move} waits for move(s) {', '.join(str(q) for q in need)} to be done ({rule})")
             if move == 0 and not root:
                 raise PanelError("move 0 needs the retention root <root>")
             if move == EUSIPCO_KEY:

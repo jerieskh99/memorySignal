@@ -58,7 +58,7 @@ class TestPlan(unittest.TestCase):
         self.assertEqual(run_moves.parse_moves("6,7"), [6, 7])
         self.assertEqual(run_moves.parse_moves("2-4,12"), [2, 3, 4, 12])
         with self.assertRaises(ValueError):
-            run_moves.parse_moves("17")
+            run_moves.parse_moves("18")
 
     def test_move_table_carries_the_review_corrections(self):
         P = run_moves.build_plan(_ns(seed_offset=3, n_jobs=4))
@@ -129,7 +129,7 @@ class TestPlan(unittest.TestCase):
         rc, _, err = _run(["run", "--out", "/x", "--moves", "0"])
         self.assertEqual(rc, 2)
         self.assertIn("--root", err)
-        rc, _, err = _run(["run", "--out", "/x", "--moves", "17"])
+        rc, _, err = _run(["run", "--out", "/x", "--moves", "18"])
         self.assertEqual(rc, 2)
         rc, out, _ = _run(["plan", "--out", "/x", "--root", "/r", "--moves", "2"])
         self.assertEqual(rc, 0)
