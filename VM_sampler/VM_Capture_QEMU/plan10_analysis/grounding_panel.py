@@ -29,6 +29,15 @@ Move 9 (the noise-floor removal, decision D1) is a switch, off by default: the d
 with `--room-removal`; the board shows it as off until the author switches it on. Next to move 6
 the panel offers, read only, the named encoding run's matching numbers (its Table 2 rows for the
 combined rung), read from the encoding run's own files.
+
+Two moves live beside the run, not in its record book (2026-10-06): move 11, the idle class check
+(`plan12_grounding/idle_class.py`, steps 1 and 2) and move 12, the new-block test
+(`plan12_grounding/new_blocks.py`). Each is its own command with its own record (`record.json`) in
+its own sibling folder, `<out>_idle13` and `<out>_newblocks`, so that nothing in the run's record
+book turns stale; the panel launches them with their own command lines, shows their state from their
+records, and reads their files through the same path guard, extended to exactly those two siblings.
+The cut folders of every view come from the run's params.json (`cut16`, `cut192`, ...), never from a
+fixed list.
 """
 from __future__ import annotations
 
@@ -55,8 +64,29 @@ TOOLKIT = QEMU_DIR / TOOLKIT_NAME
 RUNBOOK = TOOLKIT / "RUNBOOK.md"
 DEFAULT_CONFIG = Path(os.path.expanduser("~/.cache/plan10/grounding_config.json"))
 CONSOLE_DIR = ".console"                 # under <out>; the engine neither reads nor hashes it
-MAX_MOVE = 10
+MAX_MOVE = 10                            # the driver's moves (run_moves.MAX_MOVE); 11 and 12 live beside the run (EXTRA_MOVES)
 ROOM_MOVE = 9                            # decision D1: planned only with --room-removal
+FALLBACK_CUTS = (16, 112)                # the cut folders when params.json is absent (the SPEC's two values)
+# The moves beside the run (2026-10-06): their own module, command, record and sibling folder; never in run_moves.py.
+EXTRA_MOVES = {
+    11: {"title": "idle as a 13th class: the lexer check (steps 1 and 2)", "module": "idle_class", "suffix": "_idle13", "record_keys": ("step1_loro", "step2_within_trace"),
+         "steps": ({"name": "idle class, step 1 (LORO, 13 classes)", "key": "step1_loro", "args": ["--step", "1"], "dir": "step1_loro"},
+                   {"name": "idle class, step 2 (within-trace, 13 classes)", "key": "step2_within_trace", "args": ["--step", "2"], "dir": "step2_within_trace"}),
+         "what": "idle_class.py: LORO (step 1) and within-trace (step 2) with the 12 kernels plus idle, the four feature sets as move 6 builds them, both cuts, no null; "
+                 "writes <out>_idle13/step1_loro/cut<C>/ and step2_within_trace/cut<C>/ (scores.csv, recall_per_class.csv, confusion_<E>.csv and .svg, margins.csv, "
+                 "predictions_<E>.csv, summary.json), <step>/step.json, e0_idle_check.json and record.json",
+         "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_idle13; reads moves 0, 1 and 6; refuses to start (exit 3) while a move runs",
+         "requires": [6], "reads_from": [0, 1, 6]},
+    12: {"title": "the new-block test: seen 80%, a gap, then new blocks named at three levels", "module": "new_blocks", "suffix": "_newblocks", "record_keys": ("new_blocks",),
+         "steps": ({"name": "new blocks (archetype, kernel, run; both cuts)", "key": "new_blocks", "args": [], "dir": ""},),
+         "what": "new_blocks.py: every recording's first 80% of windows seen, a one-window gap, the rest new blocks; one forest per level (archetype, kernel, run), feature set and "
+                 "cut on the seen windows; single blocks and pools of 2 and 3; chance and majority baselines, no null; writes <out>_newblocks/cut<C>/ (split.csv, scores.csv, "
+                 "recall_per_kernel.csv, run_level.csv, by_position.csv, margins.csv, predictions_<level>_<E>.csv, pools_<level>_<E>.csv, confusion_kernel_<E>.csv/.svg, "
+                 "accuracy_by_level.svg, accuracy_by_position.svg, recall_per_kernel.svg, summary.json), new_blocks.json, e0_idle_check.json and record.json",
+         "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_newblocks; reads moves 0, 1 and 6; refuses to start (exit 3) while a move runs",
+         "requires": [6], "reads_from": [0, 1, 6]},
+}
+EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
 # RUNBOOK.md section 2 (the real run) and section 1 (the smoke run): the flag values those command
@@ -72,7 +102,9 @@ PRESETS = {
 }
 
 # The views, each a list of the engine's own files under <out>. `move` is the move that writes the
-# first file; a missing file is reported by path, never drawn.
+# first file; a missing file is reported by path, never drawn. `{cut}` stands for each cut folder of the
+# run (params.json: cut16, cut192, ...; `views()` expands it); `{idle13}` and `{newblocks}` for the two
+# sibling folders of the moves beside the run.
 VIEWS = [
     {"id": "index", "title": "the recordings indexed, the decisions", "move": 0,
      "files": ["cells.csv", "params.json", "inputs/sha256.json", "moves/00_index/index.json"]},
@@ -85,20 +117,16 @@ VIEWS = [
     {"id": "portraits", "title": "the kernel portraits", "move": 4,
      "files": ["moves/04_portraits/index.html", "moves/04_portraits/figures.json"], "gallery": "moves/04_portraits"},
     {"id": "similarity", "title": "how similar the runs are (ICC, the map, the spectra, leave-one-seed-out)", "move": 5,
-     "files": ["moves/05_similarity/cut16/icc_bars.svg", "moves/05_similarity/cut16/pca_map.svg", "moves/05_similarity/cut16/spectral_similarity.svg",
-               "moves/05_similarity/cut16/loso.svg", "moves/05_similarity/cut16/icc.csv", "moves/05_similarity/cut16/loso_summary.csv",
-               "moves/05_similarity/cut112/icc_bars.svg", "moves/05_similarity/cut112/pca_map.svg", "moves/05_similarity/cut112/loso.svg",
-               "moves/05_similarity/cut112/loso_summary.csv", "moves/05_similarity/hand_check.txt", "moves/05_similarity/similarity.json"]},
+     "files": ["moves/05_similarity/{cut}/icc_bars.svg", "moves/05_similarity/{cut}/pca_map.svg", "moves/05_similarity/{cut}/spectral_similarity.svg",
+               "moves/05_similarity/{cut}/loso.svg", "moves/05_similarity/{cut}/icc.csv", "moves/05_similarity/{cut}/loso_summary.csv",
+               "moves/05_similarity/hand_check.txt", "moves/05_similarity/similarity.json"]},
     {"id": "classify", "title": "classification: the four encodings under the three splits", "move": 6,
-     "files": ["moves/06_classify/cut16/bars.svg", "moves/06_classify/cut16/scores.csv", "moves/06_classify/cut16/margins.csv", "moves/06_classify/cut16/gap.csv",
-               "moves/06_classify/cut16/confusion_loko.svg", "moves/06_classify/cut16/confusion_loro.svg", "moves/06_classify/cut16/excluded_cells.csv",
-               "moves/06_classify/cut112/bars.svg", "moves/06_classify/cut112/scores.csv", "moves/06_classify/cut112/margins.csv", "moves/06_classify/cut112/gap.csv",
+     "files": ["moves/06_classify/{cut}/bars.svg", "moves/06_classify/{cut}/scores.csv", "moves/06_classify/{cut}/margins.csv", "moves/06_classify/{cut}/gap.csv",
+               "moves/06_classify/{cut}/confusion_loko.svg", "moves/06_classify/{cut}/confusion_loro.svg", "moves/06_classify/{cut}/excluded_cells.csv",
                "moves/06_classify/e0_identity.json", "moves/06_classify/e0_declared.json", "moves/06_classify/classify.json"]},
     {"id": "floor", "title": "the noise floor, each kernel against the idle runs", "move": 7,
-     "files": ["moves/07_floor/cut16/floor_N_despiked.svg", "moves/07_floor/cut16/floor_H_despiked.svg", "moves/07_floor/cut16/floor_A_despiked.svg",
-               "moves/07_floor/cut16/floor_bins.csv", "moves/07_floor/cut16/floor_means.csv",
-               "moves/07_floor/cut112/floor_N_despiked.svg", "moves/07_floor/cut112/floor_H_despiked.svg", "moves/07_floor/cut112/floor_bins.csv",
-               "moves/07_floor/floor.json"]},
+     "files": ["moves/07_floor/{cut}/floor_N_despiked.svg", "moves/07_floor/{cut}/floor_H_despiked.svg", "moves/07_floor/{cut}/floor_A_despiked.svg",
+               "moves/07_floor/{cut}/floor_bins.csv", "moves/07_floor/{cut}/floor_means.csv", "moves/07_floor/floor.json"]},
     {"id": "startup", "title": "the start-up: the spike rate against the pair index", "move": 8,
      "files": ["moves/08_startup/startup.svg", "moves/08_startup/bins.csv", "moves/08_startup/spikes_per_run.csv", "moves/08_startup/startup.json"]},
     {"id": "removed", "title": "the noise-floor removal: before and after (move 9, when switched on)", "move": 9,
@@ -106,6 +134,18 @@ VIEWS = [
                "moves/09_removed/pages_per_recording.csv", "moves/09_removed/removal.json"]},
     {"id": "summary", "title": "the summary: the per-kernel table, the figure set, the manifest", "move": 10,
      "files": ["report/table_per_kernel.csv", "report/table_overall.csv", "report/figures/index.csv", "report/manifest.json", "moves/10_summary/summary.json"]},
+    {"id": "idle13", "title": "idle as a 13th class: LORO and within-trace with the lexer and idle rows highlighted (move 11, beside the run)", "move": 11,
+     "note": "written by idle_class.py into the sibling folder <out>_idle13; the rows and columns of each confusion follow cells.csv's class order, idle last",
+     "files": ["{idle13}/step1_loro/{cut}/confusion_E2.svg", "{idle13}/step1_loro/{cut}/confusion_E_new.svg", "{idle13}/step1_loro/{cut}/scores.csv",
+               "{idle13}/step1_loro/{cut}/recall_per_class.csv", "{idle13}/step1_loro/{cut}/margins.csv",
+               "{idle13}/step2_within_trace/{cut}/confusion_E2.svg", "{idle13}/step2_within_trace/{cut}/scores.csv", "{idle13}/step2_within_trace/{cut}/recall_per_class.csv",
+               "{idle13}/step1_loro/step.json", "{idle13}/step2_within_trace/step.json", "{idle13}/e0_idle_check.json", "{idle13}/record.json"]},
+    {"id": "newblocks", "title": "the new-block test: accuracy by level, by position, per kernel; the kernel confusions (move 12, beside the run)", "move": 12,
+     "note": "written by new_blocks.py into the sibling folder <out>_newblocks; no label-shuffle null (the scores.csv null column says why); chance and majority are the baselines",
+     "files": ["{newblocks}/{cut}/accuracy_by_level.svg", "{newblocks}/{cut}/accuracy_by_position.svg", "{newblocks}/{cut}/recall_per_kernel.svg",
+               "{newblocks}/{cut}/confusion_kernel_E2.svg", "{newblocks}/{cut}/confusion_kernel_E_new.svg", "{newblocks}/{cut}/scores.csv",
+               "{newblocks}/{cut}/margins.csv", "{newblocks}/{cut}/run_level.csv", "{newblocks}/{cut}/by_position.csv", "{newblocks}/{cut}/split.csv",
+               "{newblocks}/new_blocks.json", "{newblocks}/e0_idle_check.json", "{newblocks}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -219,7 +259,22 @@ def build_plan(out: str, root: str, flags: dict) -> list[dict]:
 
 
 def plan_text(out: str, root: str, flags: dict, move: int) -> str:
-    """What `run_moves plan --moves N` prints: the exact argument lists, in the driver's words."""
+    """What `run_moves plan --moves N` prints: the exact argument lists, in the driver's words. For a
+    move beside the run (11, 12), what its own `--dry-run` prints: the recordings, the cuts, the window,
+    the E0 check and, for the new-block test, the windows, the seen windows and the new blocks per cut;
+    a dry run writes nothing and skips the live-lock refusal."""
+    mv = int(move) if str(move).lstrip("-").isdigit() else None
+    if mv in EXTRA_MOVES:
+        text = ""
+        for st in EXTRA_MOVES[mv]["steps"]:
+            argv = extra_argv(Path(os.path.expanduser(out)), mv, st, flags, dry_run=True)
+            text += f"$ {shell_line(argv)}\n"
+            try:
+                p = subprocess.run(argv, cwd=str(QEMU_DIR), capture_output=True, text=True, timeout=300)
+                text += (p.stdout or "") + (("\n" + p.stderr) if p.returncode else "") + "\n"
+            except subprocess.TimeoutExpired:
+                text += "(the dry run did not finish within 300 s)\n"
+        return text
     argv = driver_argv("plan", out, root, move, flags)
     p = subprocess.run(argv, cwd=str(QEMU_DIR), capture_output=True, text=True, timeout=120)
     return (p.stdout or "") + (("\n" + p.stderr) if p.returncode else "")
@@ -242,6 +297,8 @@ def runbook_sections() -> dict:
         mv = int(m.group(1))
         if mv in out:
             out[mv]["body"] = f"{m.group(2)}: {m.group(3)}"
+    for mv, x in EXTRA_MOVES.items():                    # beside the run: not in RUNBOOK.md's table; their modules' own words
+        out[mv] = {"title": x["title"], "body": x["what"], "look_at": f"the sibling folder <out>{x['suffix']} (the Look tab's view for move {mv})"}
     return out
 
 
@@ -299,13 +356,49 @@ def read_json(path: Path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def cut_dirs(out: Path) -> list[str]:
+    """The run's cut folders, from its params.json (`cuts.declared_pairs`, `cuts.measured_pairs`:
+    cut16 and cut192 in the real run), else the SPEC's two values; never a fixed list."""
+    cuts = list(FALLBACK_CUTS)
+    pj = Path(out) / "params.json"
+    if pj.is_file():
+        with contextlib.suppress(OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            c = read_json(pj).get("cuts") or {}
+            cuts = [int(c["declared_pairs"]), int(c["measured_pairs"])]
+    seen, res = set(), []
+    for c in cuts:
+        if c not in seen:
+            seen.add(c); res.append(f"cut{c}")
+    return res
+
+
+def sibling_dirs(out: Path) -> dict:
+    """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`
+    and `<out>_newblocks`, nothing else next to the run."""
+    o = Path(out)
+    return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
+
+
 def safe_path(out: Path, rel: str) -> Path:
-    """A path under <out>, or a PanelError; `..`, absolute paths, and any top-level dot entry other
-    than `.console` are refused (a dot entry is scratch, never one of the engine's outputs)."""
+    """A path under <out>, or under one of the two sibling folders of the moves beside the run
+    (`<out>_idle13`, `<out>_newblocks`, named by their folder name as the first part of `rel`), or a
+    PanelError; `..`, absolute paths, and any top-level dot entry other than `.console` are refused
+    (a dot entry is scratch, never one of the engine's outputs; the siblings' lock files too)."""
     rel = str(rel or "")
     if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
         raise PanelError(f"not a path under the output root: {rel!r}")
-    first = Path(rel).parts[0] if Path(rel).parts else ""
+    parts = Path(rel).parts
+    first = parts[0] if parts else ""
+    sibs = sibling_dirs(out)
+    if first in sibs:
+        base, sub = sibs[first], Path(*parts[1:]) if len(parts) > 1 else Path("")
+        if sub.parts and sub.parts[0].startswith("."):
+            raise PanelError(f"not one of the engine's outputs: {rel!r}")
+        p = (base / sub).resolve()
+        b = base.resolve()
+        if p != b and b not in p.parents:
+            raise PanelError(f"not a path under the sibling folder {first}: {rel!r}")
+        return p
     if first.startswith(".") and first != CONSOLE_DIR:
         raise PanelError(f"not one of the engine's outputs: {rel!r}")
     p = (Path(out) / rel).resolve()
@@ -437,13 +530,20 @@ def listing(out: Path, rel: str = "") -> dict:
     if not p.exists():
         return {"path": rel, "exists": False, "entries": []}
     ents = []
+    in_sibling = bool(rel) and Path(rel).parts[0] in sibling_dirs(out)
     for c in sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name)):
-        if not rel and c.name.startswith(".") and c.name != CONSOLE_DIR:
-            continue                                     # a top-level dot entry is scratch, never one of the engine's outputs
+        if (not rel or (in_sibling and len(Path(rel).parts) == 1)) and c.name.startswith(".") and c.name != CONSOLE_DIR:
+            continue                                     # a top-level dot entry is scratch (a lock, a tmp), never one of the engine's outputs
         st = c.stat()
         ents.append({"name": c.name, "dir": c.is_dir(), "bytes": None if c.is_dir() else st.st_size,
                      "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
                      "path": f"{rel}/{c.name}" if rel else c.name})
+    if not rel:
+        for name, sp in sibling_dirs(out).items():        # the moves beside the run: their folders, browsable by name
+            if sp.is_dir():
+                st = sp.stat()
+                ents.append({"name": name, "dir": True, "bytes": None, "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(timespec="seconds"),
+                             "path": name, "beside_the_run": True})
     return {"path": rel, "exists": True, "entries": ents}
 
 
@@ -620,14 +720,23 @@ def progress(out: Path, move: int | None) -> dict | None:
             n_adm = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
         n = len(list((o / "series").glob("*.npz"))) if (o / "series").is_dir() else 0
         return {"move": 1, "done": n, "total": n_adm or None, "unit": "series written"}
+    cuts = cut_dirs(o)
     if move in (3, 4):
         d = o / "moves" / ("03_every_run" if move == 3 else "04_portraits")
-        n = sum(1 for c in ("cut16", "cut112") if (d / c / "index.html").exists()) if d.is_dir() else 0
-        return {"move": move, "done": n, "total": 2, "unit": "cuts drawn"}
+        n = sum(1 for c in cuts if (d / c / "index.html").exists()) if d.is_dir() else 0
+        return {"move": move, "done": n, "total": len(cuts), "unit": "cuts drawn"}
     if move == 6:
         d = o / "moves" / "06_classify"
-        n = sum(len(list((d / c).glob("predictions_*.csv"))) for c in ("cut16", "cut112") if (d / c).is_dir()) if d.is_dir() else 0
-        return {"move": 6, "done": n, "total": 24, "unit": "split and encoding predictions (12 per cut at most; a cut without windows writes none)"}
+        n = sum(len(list((d / c).glob("predictions_*.csv"))) for c in cuts if (d / c).is_dir()) if d.is_dir() else 0
+        return {"move": 6, "done": n, "total": 12 * len(cuts), "unit": "split and encoding predictions (12 per cut at most; a cut without windows writes none)"}
+    if move == 11:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[11]["suffix"]]
+        n = sum(1 for st in EXTRA_MOVES[11]["steps"] for c in cuts if (sd / st["dir"] / c / "summary.json").exists()) if sd.is_dir() else 0
+        return {"move": 11, "done": n, "total": len(EXTRA_MOVES[11]["steps"]) * len(cuts), "unit": "step and cut summaries"}
+    if move == 12:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[12]["suffix"]]
+        n = sum(len(list((sd / c).glob("predictions_*.csv"))) for c in cuts if (sd / c).is_dir()) if sd.is_dir() else 0
+        return {"move": 12, "done": n, "total": 12 * len(cuts), "unit": "level and feature-set predictions (12 per cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -636,11 +745,12 @@ def progress(out: Path, move: int | None) -> dict | None:
     return None
 
 
-def move_states(out: Path, plan: list[dict], running: dict | None) -> list[dict]:
+def move_states(out: Path, plan: list[dict], running: dict | None, flags: dict | None = None) -> list[dict]:
     """One record per move 0..10: the driver's name for it, the commands (from the driver's plan)
     with their last record, the move's state, and which earlier moves it reads from. Move 9 not in
     the plan reads `off` (decision D1). A move whose last attempt was stopped mid-run reads `not run`
-    with the time it was cut, whatever its earlier records say."""
+    with the time it was cut, whatever its earlier records say. Then one row per move beside the run
+    (11, 12; `extra_move_states`), from the sibling folders' own records."""
     ledger = load_ledger(out) or {}
     last: dict[str, dict] = {}
     for rec in ledger.get("commands", []):
@@ -706,9 +816,101 @@ def move_states(out: Path, plan: list[dict], running: dict | None) -> list[dict]
                      "interrupted_at": cut.get(m), "look_at": sec.get("look_at", ""), "output_dirs": _output_dirs(cmds),
                      "note": ("decision D1: off by default; switch it on with the room removal flag (--room-removal) to plan it" if off else
                               "optional (decision D1): recomputes moves 3 to 7 without the idle core into moves/09_removed/" if m == ROOM_MOVE else None)})
+    rows += extra_move_states(out, running, sections, flags)
     for r in rows:
         req = r["requires"]
         r["runnable"] = (not running) and r["state"] != "off" and all(any(x["move"] == q and x["state"] == "done" for x in rows) for q in req)
+    return rows
+
+
+def sibling_record(out: Path, move: int) -> dict | None:
+    """The record.json of a move beside the run (its own record book, in its sibling folder), as written."""
+    sd = sibling_dirs(out)[Path(out).name + EXTRA_MOVES[move]["suffix"]]
+    p = sd / "record.json"
+    if not p.is_file():
+        return None
+    try:
+        return read_json(p)
+    except (OSError, json.JSONDecodeError):
+        return {"error": "record.json is not readable JSON", "entries": []}
+
+
+def extra_argv(out: Path, move: int, step: dict, flags: dict, force: bool = False, dry_run: bool = False) -> list[str]:
+    """The move's own command: `python3 -m plan12_grounding.<module> run --run <out> [--step N] [--n-jobs J]
+    [--n-estimators T] [--force] [--dry-run]`; the tab's job and tree flags are passed when set (the paper
+    preset's values are move 6's own); everything else is the module's default, read from the run's records."""
+    x = EXTRA_MOVES[move]
+    argv = [sys.executable, "-m", f"{TOOLKIT_NAME}.{x['module']}", "run", "--run", str(out)] + list(step["args"])
+    for dest in EXTRA_FLAGS:
+        v = (flags or {}).get(dest)
+        if not _unset(v):
+            argv += [f"--{dest.replace('_', '-')}", str(int(float(v)))]
+    if force:
+        argv.append("--force")
+    if dry_run:
+        argv.append("--dry-run")
+    return argv
+
+
+def extra_move_states(out: Path, running: dict | None, sections: dict | None = None, flags: dict | None = None) -> list[dict]:
+    """One board row per move beside the run (11, 12): its commands from EXTRA_MOVES with their last
+    record in the sibling folder's record.json, the state from those records, the files present."""
+    o = Path(out)
+    sections = sections or {}
+    rows = []
+    for mv, x in sorted(EXTRA_MOVES.items()):
+        sib = o.name + x["suffix"]
+        sd = sibling_dirs(o)[sib]
+        rec = sibling_record(o, mv) or {}
+        last: dict = {}
+        for e in rec.get("entries") or []:
+            last[e.get("key")] = e
+        crows, states = [], []
+        for st in x["steps"]:
+            e = last.get(st["key"]) or {}
+            status = e.get("status")
+            if status == "running":
+                # an open entry: the move is running (this console's launch, a shell run holding the sibling's lock), or it was cut short
+                lock = sd / (".idle_class.lock" if mv == 11 else ".new_blocks.lock")
+                held = False
+                if lock.is_file():
+                    with contextlib.suppress(OSError, json.JSONDecodeError, TypeError, ValueError):
+                        held = _pid_alive(int(read_json(lock).get("pid") or 0))
+                st_ = "running" if ((running and running.get("move") == mv) or held) else "failed"
+                status = (status + (" (from a shell; the sibling's lock is held)" if held and not (running and running.get("move") == mv) else "")) if st_ == "running" \
+                    else "failed: the record is open and no process holds it (stopped mid-run)"
+            else:
+                st_ = classify(status)
+            states.append(st_)
+            outs = [f"{sib}/{f}" for f in (e.get("outputs") or [])]
+            key_files = [f"{sib}/{st['dir']}/step.json"] if st["dir"] else [f"{sib}/new_blocks.json"]
+            crows.append({"key": f"{mv}:{st['name']}", "name": st["name"], "module": x["module"], "sub": "run", "internal": False, "template": False,
+                          "line": shell_line(extra_argv(o, mv, st, flags or {})), "outputs": key_files, "inputs": [],
+                          "status": status, "state": st_, "stale": None, "exit_code": e.get("exit_code"), "started_at": e.get("started_at"),
+                          "finished_at": e.get("finished_at"), "elapsed_s": e.get("elapsed_s"),
+                          "stderr_tail": (e.get("error") or "")[-600:] if st_ in ("failed", "refused") else None, "stdout_tail": None,
+                          "outputs_present": [f for f in key_files if (o.parent / f).exists()], "n_outputs_recorded": len(outs)})
+        if running and running.get("move") == mv:
+            state = "running"
+        elif not states or all(s == "not run" for s in states):
+            state = "not run"
+        elif any(s == "failed" for s in states):
+            state = "failed"
+        elif any(s == "refused" for s in states):
+            state = "refused"
+        elif all(s == "done" for s in states):
+            state = "done"
+        elif any(s == "done" for s in states):
+            state = "partial"
+        else:
+            state = "other"
+        missing = [f for c in crows for f in c["outputs"] if state == "done" and not (o.parent / f).exists()]
+        sec = sections.get(mv, {})
+        rows.append({"move": mv, "title": sec.get("title") or x["title"], "what": sec.get("body") or x["what"], "state": state, "commands": crows,
+                     "state_before_batch": None, "reads_from": list(x["reads_from"]), "requires": list(x["requires"]), "outputs_missing": missing,
+                     "last_finished_at": max([c["finished_at"] or "" for c in crows] or [""]) or None, "interrupted_at": None,
+                     "look_at": sec.get("look_at", ""), "output_dirs": [sib], "beside_the_run": True, "sibling": sib, "sibling_exists": sd.is_dir(),
+                     "record": f"{sib}/record.json" if (sd / "record.json").is_file() else None, "note": x["note"]})
     return rows
 
 
@@ -758,13 +960,32 @@ def cells(out: Path) -> dict:
             "series": {"n": sum(1 for d in out_rows if d["series_status"]), "path": "moves/01_extract/extract.json"}}
 
 
+def expand_files(out: Path, specs: list[str]) -> list[str]:
+    """`{cut}` -> every cut folder of the run (params.json), `{idle13}` and `{newblocks}` -> the sibling
+    folders' names; the order of the specs kept, each cut in turn."""
+    o = Path(out)
+    subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"]}
+    files = []
+    for f in specs:
+        for cut in (cut_dirs(o) if "{cut}" in f else [None]):
+            g = f.replace("{cut}", cut or "")
+            for k, v in subs.items():
+                g = g.replace("{" + k + "}", v)
+            if g not in files:
+                files.append(g)
+    return files
+
+
 def views(out: Path) -> list[dict]:
     o = Path(out)
     outs = []
     for v in VIEWS:
         files = []
-        for f in v["files"]:
-            p = o / f
+        for f in expand_files(o, v["files"]):
+            try:
+                p = safe_path(o, f)
+            except PanelError:
+                continue
             files.append({"path": f, "exists": p.exists(), "kind": TEXT_KINDS.get(p.suffix, "binary"), "bytes": p.stat().st_size if p.exists() else None})
         outs.append({**{k: v[k] for k in ("id", "title", "move")}, "note": v.get("note"), "gallery": v.get("gallery"), "files": files,
                      "any": any(f["exists"] for f in files)})
@@ -836,6 +1057,18 @@ def encoding_table2(out: Path) -> dict:
     return res
 
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def external_drivers(out: Path, exclude_pid: int | None = None) -> list[dict]:
     """Driver processes on this machine writing to the same <out> that this console did not start
     (a shell run): found by their command line, so a second writer to the record book is refused."""
@@ -845,9 +1078,10 @@ def external_drivers(out: Path, exclude_pid: int | None = None) -> list[dict]:
         return []
     found = []
     needle = f"{TOOLKIT_NAME}.run_moves"
+    beside = {f"{TOOLKIT_NAME}.{x['module']}": mv for mv, x in EXTRA_MOVES.items()}
     for line in p.stdout.splitlines():
         line = line.strip()
-        if not line or needle not in line or " run " not in line:
+        if not line or " run " not in line or (needle not in line and not any(n in line for n in beside)):
             continue
         try:
             pid_s, cmd = line.split(None, 1)
@@ -857,17 +1091,22 @@ def external_drivers(out: Path, exclude_pid: int | None = None) -> list[dict]:
         if exclude_pid is not None and pid == exclude_pid:
             continue
         toks = shlex.split(cmd) if "'" in cmd or '"' in cmd else cmd.split()
+        mv_beside = next((mv for n, mv in beside.items() if n in toks), None)
         try:
-            o = toks[toks.index("--out") + 1]
+            o = toks[toks.index("--run" if mv_beside is not None else "--out") + 1]
         except (ValueError, IndexError):
             continue
         if Path(os.path.expanduser(o)).resolve() != Path(out).resolve():
             continue
+        if "--dry-run" in toks:
+            continue                                       # a dry run writes nothing and holds no lock
         moves = None
-        if "--moves" in toks:
+        if mv_beside is not None:
+            moves = str(mv_beside)
+        elif "--moves" in toks:
             with contextlib.suppress(IndexError):
                 moves = toks[toks.index("--moves") + 1]
-        found.append({"pid": pid, "moves": moves, "command": cmd[:300]})
+        found.append({"pid": pid, "moves": moves, "command": cmd[:300], "beside_the_run": mv_beside is not None})
     return found
 
 
@@ -889,6 +1128,8 @@ def running_batch(out: Path, plan: list[dict]) -> dict | None:
 
 
 def _external_move(out: Path, plan: list[dict], spec: str | None) -> int | None:
+    if spec is not None and str(spec).isdigit() and int(spec) in EXTRA_MOVES:
+        return int(spec)
     ledger = load_ledger(out) or {}
     keys = {rec.get("key") for rec in ledger.get("commands", [])}
     moves = _moves_of(spec)
@@ -992,8 +1233,9 @@ class Panel:
                     running["move"] = b["current"]
             running["progress"] = progress(out, running.get("move") if isinstance(running.get("move"), int) else None)
         return {"out": str(out), "root": root, "room_removal": bool(self.cfg.get("flags", {}).get("room_removal")),
-                "moves": move_states(out, plan, running), "running": running, "external": ext,
-                "ledger": self._ledger_summary(out), "launches": self.launches()[:20]}
+                "moves": move_states(out, plan, running, self.cfg.get("flags", {})), "running": running, "external": ext,
+                "ledger": self._ledger_summary(out), "launches": self.launches()[:20],
+                "beside_the_run": {str(mv): {"sibling": out.name + x["suffix"], "exists": sibling_dirs(out)[out.name + x["suffix"]].is_dir()} for mv, x in EXTRA_MOVES.items()}}
 
     def _ledger_summary(self, out: Path) -> dict:
         led = load_ledger(out)
@@ -1019,20 +1261,22 @@ class Panel:
                 raise PanelError(f"move {self.running['move']} is still running (launch {self.running['id']}); one engine process at a time")
             ext = external_drivers(out)
             if ext:
+                if ext[0].get("beside_the_run"):
+                    raise PanelError(f"move {ext[0]['moves']} is running beside this run from a shell (pid {ext[0]['pid']}); one engine process at a time")
                 raise PanelError(f"a driver started outside the console is running on this output folder (pid {ext[0]['pid']}, moves {ext[0]['moves']}); "
                                  "two writers to driver_state.json are refused")
             move = int(move)
-            if move < 0 or move > MAX_MOVE:
-                raise PanelError(f"moves are 0 to {MAX_MOVE}")
+            if move < 0 or (move > MAX_MOVE and move not in EXTRA_MOVES):
+                raise PanelError(f"moves are 0 to {MAX_MOVE}, and {', '.join(str(m) for m in EXTRA_MOVES)} beside the run")
             plan = self.plan()
-            board = move_states(out, plan, None)
+            flags = self.cfg.get("flags", {})
+            board = move_states(out, plan, None, flags)
             row = next(r for r in board if r["move"] == move)
             if row["state"] == "off":
                 raise PanelError("move 9 is off (decision D1): switch the room removal flag on first")
             if not row["runnable"]:
                 need = [q for q in row["requires"] if not any(x["move"] == q and x["state"] == "done" for x in board)]
                 raise PanelError(f"move {move} waits for move(s) {', '.join(str(q) for q in need)} to be done (the runbook's order)")
-            flags = self.cfg.get("flags", {})
             if move == 0 and not root and not flags.get("ssh"):
                 raise PanelError("move 0 needs a source: the local root <root>, or the ssh flags (--ssh and --remote-root)")
             if move == 0 and self.cfg.get("preset") == "paper" and _unset(flags.get("encoding_out")):
@@ -1040,7 +1284,24 @@ class Panel:
                                  "and lexer seed 6898 is not refused; set the flag in the driver flags, or choose another preset")
             if row.get("interrupted_at") and not force:
                 force = True                                # a stopped move runs again as if forced: nothing half-rewritten can be skipped over
-            argv = driver_argv("run", str(out), root, move, flags, force)
+            if move in EXTRA_MOVES:
+                # beside the run: the module's own command, never the driver; move 11's two steps run one after the other in one shell,
+                # so one launch, one log and one Stop (the process group) cover both; the module refuses (exit 3) while a move holds the run's lock
+                lock = out / ".driver.lock"
+                if lock.is_file():
+                    with contextlib.suppress(OSError, json.JSONDecodeError):
+                        pid = read_json(lock).get("pid")
+                        if pid and _pid_alive(int(pid)):
+                            raise PanelError(f"a move is running on this run ({lock.name}: pid {pid}); move {move} refuses to start beside a running move")
+                steps = [extra_argv(out, move, st, flags, force) for st in EXTRA_MOVES[move]["steps"]]
+                if len(steps) == 1:
+                    argv = steps[0]
+                else:
+                    argv = ["/bin/sh", "-c", " && ".join(" ".join(shlex.quote(t) for t in a) for a in steps)]
+                shell = [shell_line(a) for a in steps]
+            else:
+                argv = driver_argv("run", str(out), root, move, flags, force)
+                shell = [shell_line(argv)]
             ldir = self._launch_dir(out)
             base = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"_move{move}"
             lid, n = base, 1
@@ -1048,10 +1309,13 @@ class Panel:
                 n += 1
                 lid = f"{base}-{n}"
             log = ldir / f"{lid}.log"
-            rec = {"id": lid, "move": move, "force": bool(force), "argv": argv, "shell": [shell_line(argv)],
+            rec = {"id": lid, "move": move, "force": bool(force), "argv": argv, "shell": shell,
                    "cwd": str(QEMU_DIR), "started_at": now_iso(), "finished_at": None, "exit_code": None, "log": str(log),
                    "toolkit": toolkit_identity(), "config": {"preset": self.cfg.get("preset"), "flags": dict(flags), "out": str(out), "root": root},
-                   "driver_params": None, "driver_run": None, "note": "started from the analysis console; the same command line the runbook gives"}
+                   "driver_params": None, "driver_run": None,
+                   "beside_the_run": (f"{out.name}{EXTRA_MOVES[move]['suffix']}/record.json" if move in EXTRA_MOVES else None),
+                   "note": ("started from the analysis console; the move's own command, its record in the sibling folder (not the run's record book)" if move in EXTRA_MOVES
+                            else "started from the analysis console; the same command line the runbook gives")}
             (ldir / f"{lid}.json").write_text(json.dumps(rec, indent=1))
             fh = open(log, "ab")
             env = dict(os.environ, PYTHONUNBUFFERED="1")
@@ -1081,7 +1345,17 @@ class Panel:
             rec["exit_code"] = rc
             led = load_ledger(out) or {}
             own = [r for r in (led.get("runs") or []) if r.get("pid") == self.proc.pid]
-            if own:
+            mv = self.running.get("move")
+            if mv in EXTRA_MOVES:
+                srec = sibling_record(out, mv) or {}
+                t0 = rec.get("started_at") or ""
+                mine = [e for e in (srec.get("entries") or []) if (e.get("started_at") or "") >= t0]
+                rec["driver_run"] = None
+                rec["driver_params"] = None
+                rec["step_records"] = [{k: e.get(k) for k in ("key", "status", "exit_code", "started_at", "finished_at", "elapsed_s", "error")} for e in mine]
+                rec["driver_run_note"] = (f"a move beside the run: its record is {out.name}{EXTRA_MOVES[mv]['suffix']}/record.json ({len(mine)} entr{'y' if len(mine) == 1 else 'ies'} from this launch)"
+                                          if mine else "the module wrote no record entry for this launch (a refusal before its record: the run's lock held, or a bad argument)")
+            elif own:
                 rec["driver_run"] = own[-1]
                 rec["driver_params"] = led.get("params")
                 rec["package_version"] = led.get("package_version")

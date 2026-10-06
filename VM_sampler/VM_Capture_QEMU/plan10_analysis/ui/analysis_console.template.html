@@ -782,7 +782,7 @@ html.gp-open{overflow:hidden}
           <h3>the moves, in the runbook's order</h3>
           <div class="ep-sum" id="gp-moves-sum"></div>
           <div class="tblwrap" style="max-height:calc(100vh - 330px)"><table class="tbl ep-moves" id="gp-moves-tbl"></table></div>
-          <div class="ep-note">Run launches the engine's driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. A move waits for the one before it; move 10 follows move 8 (move 9 is optional). One engine process at a time.</div>
+          <div class="ep-note">Run launches the engine's driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. A move waits for the one before it; move 10 follows move 8 (move 9 is optional). Moves 11 and 12 live beside the run: each launches its own command (<span class="mono">idle_class run</span>, <span class="mono">new_blocks run</span>) with its own record in the sibling folder <span class="mono">&lt;out&gt;_idle13</span> or <span class="mono">&lt;out&gt;_newblocks</span>, after move 6, never while a move runs. One engine process at a time.</div>
         </div>
         <div class="mon-card" id="gp-move-detail">
           <h3 id="gp-move-title">pick a move</h3>
@@ -3376,7 +3376,8 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
       h += `<div class="ep-note">Move 9 is planned by the driver only with <span class="mono">--room-removal</span> (decision D1). Switch it on in the bar above; the switch is passed to move 9 alone, so nothing else re-runs.</div>`;
     }
     if (m.move === 6) h += `<h3 style="margin-top:10px">next to move 6: the named encoding run's matching numbers (read only)</h3><div id="gp-side-by-side" class="ep-note">…</div>`;
-    h += `<h3 style="margin-top:10px">the driver's plan for this move (<span class="mono">run_moves plan --moves ${esc(m.move)}</span>)</h3><pre class="ep-pre" id="gp-plan-text">…</pre>`;
+    h += m.beside_the_run ? `<h3 style="margin-top:10px">the move's own plan (its <span class="mono">--dry-run</span>: the recordings, the cuts, the window, the E0 check${m.move === 12 ? ", the windows, the seen windows and the new blocks per cut" : ""}; nothing written)</h3><pre class="ep-pre" id="gp-plan-text">…</pre>`
+      : `<h3 style="margin-top:10px">the driver's plan for this move (<span class="mono">run_moves plan --moves ${esc(m.move)}</span>)</h3><pre class="ep-pre" id="gp-plan-text">…</pre>`;
     host.innerHTML = h;
     host.querySelectorAll("a[data-dir]").forEach(a => { a.onclick = ev => { ev.preventDefault(); GP.dir = a.dataset.dir; GP.view = null; gpSave(); gpSetTab("look"); }; });
     if (m.move === 6) gpSideBySide();

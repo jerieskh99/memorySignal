@@ -35,7 +35,8 @@ It serves the built console and exposes:
   GET  /encoding/log?launch=ID&tail=N, /encoding/launch?id=ID
   GET  /grounding/config, POST /grounding/config {out, root, preset, flags}
                                      the Grounding paper panel (plan12_grounding): the same shape as /encoding/*
-  GET  /grounding/board              the moves 0 to 10 with their record-book states, the running process, the launches
+  GET  /grounding/board              the moves 0 to 10 with their record-book states, then 11 and 12 (the idle class check, the new-block test:
+                                     their own records in the sibling folders <out>_idle13, <out>_newblocks), the running process, the launches
   POST /grounding/run {move, force?} launch the engine's driver for ONE move; POST /grounding/stop
   GET  /grounding/cells, /grounding/views, /grounding/params, /grounding/runbook, /grounding/plan_text?move=N
   GET  /grounding/text?path=P, /grounding/file?path=P, /grounding/list?path=P    the engine's files under <out>, as they are
