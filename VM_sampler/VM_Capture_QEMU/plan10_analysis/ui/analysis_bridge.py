@@ -42,6 +42,12 @@ It serves the built console and exposes:
   GET  /grounding/text?path=P, /grounding/file?path=P, /grounding/list?path=P    the engine's files under <out>, as they are
   GET  /grounding/log?launch=ID&tail=N, /grounding/launch?id=ID
   GET  /grounding/encoding_table2    read only: the named encoding run's matching numbers next to move 6
+  GET  /random/config, POST /random/config {paper}
+                                     the Random-signal paper panel: the paper's server_runs/ folder read as it is (never the server)
+  GET  /random/board                 the moves (server moves: done when their results are home; laptop moves: run from the tab), the launches
+  POST /random/run {move, force?}    run ONE laptop move (analysis/analyze_lag.py, analysis/figures_lag.py); POST /random/stop
+  GET  /random/views, /random/text?path=P, /random/file?path=P, /random/list?path=P, /random/log?launch=ID&tail=N, /random/launch?id=ID
+  Environment: PLAN10_SERVED_HTML names another served page to read (a scratch build, for a check on a second port)
   GET  /results/summary?label=L      what a run holds: per-metric stats, keys, sidecar facts (Explore)
   GET  /results/agg?labels=A,B&view=V&y=F&x=F|key&group=k1,k2&stat=S&scale=linear|log&bins=N&rows=k&cols=k
                                      one view over one run or several, aggregated in numpy (results_view.py)
@@ -80,11 +86,12 @@ from plan10_analysis import results_view as RV                            # noqa
 from plan10_analysis.learn import executor as LE, pipeline as LP, registry as LREG, results as LR   # noqa: E402
 from plan10_analysis import encoding_panel as EPN                         # noqa: E402
 from plan10_analysis import grounding_panel as GPN                        # noqa: E402
+from plan10_analysis import random_signal_panel as RSP                    # noqa: E402
 from plan10_analysis.runner import trajectory, extract                     # noqa: E402
 from plan10_analysis.modules import build_modules                         # noqa: E402
 from plan10_analysis.sources import SourceError, make_source              # noqa: E402
 
-SERVED_HTML = HERE / "analysis_console.served.html"
+SERVED_HTML = Path(os.environ["PLAN10_SERVED_HTML"]) if os.environ.get("PLAN10_SERVED_HTML") else HERE / "analysis_console.served.html"
 BUILD = HERE / "build_analysis_console.py"
 EXECUTOR = PKG / "runner" / "executor.py"
 LEARN_EXECUTOR = PKG / "learn" / "executor.py"
@@ -98,6 +105,7 @@ class State:
         self.learn_dir = learn_dir or (out_dir.parent / "learn")
         self.encoding = EPN.Panel()
         self.grounding = GPN.Panel()
+        self.random_signal = RSP.Panel()
         self.store = store
         self.source = source
         self.manifest: dict | None = None
@@ -1015,6 +1023,79 @@ def ep_gp_encoding_table2(_q, _b):
     return _gp(lambda: GPN.encoding_table2(_gp_out()) if ST.grounding.cfg.get("out") else {"exists": False, "why": "set <out> first"})
 
 
+# ---------------------------------------------------------------------------
+# Random-signal paper: the paper's runs folder read as it is, the laptop moves run from the tab, the server never contacted
+# ---------------------------------------------------------------------------
+
+def _rs(fn):
+    try:
+        return fn()
+    except RSP.PanelError as e:
+        return {"error": str(e)}, 400
+    except FileNotFoundError as e:
+        return {"error": f"missing: {e}"}, 404
+
+
+def ep_rs_config(_q, _b):
+    return _rs(lambda: ST.random_signal.config())
+
+
+def ep_rs_set_config(_q, body):
+    return _rs(lambda: ST.random_signal.set_config(body or {}))
+
+
+def ep_rs_board(_q, _b):
+    return _rs(lambda: ST.random_signal.board())
+
+
+def ep_rs_run(_q, body):
+    move = (body or {}).get("move")
+    if move is None:
+        return {"error": "move required"}, 400
+    return _rs(lambda: ST.random_signal.launch(move, bool((body or {}).get("force"))))
+
+
+def ep_rs_stop(_q, _b):
+    return _rs(lambda: ST.random_signal.stop())
+
+
+def ep_rs_views(_q, _b):
+    return _rs(lambda: {"views": RSP.views(ST.random_signal.paper), "paper": str(ST.random_signal.paper)})
+
+
+def ep_rs_text(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _rs(lambda: RSP.text_file(ST.random_signal.paper, rel))
+
+
+def ep_rs_list(q, _b):
+    rel = (q.get("path") or [""])[0]
+    return _rs(lambda: RSP.listing(ST.random_signal.paper, rel))
+
+
+def ep_rs_file(q, _b):
+    """A file of the paper's runs folder (a figure, a CSV, a text), nothing outside it."""
+    rel = (q.get("path") or [""])[0]
+    try:
+        data, ctype = RSP.file_bytes(ST.random_signal.paper, rel)
+    except RSP.PanelError as e:
+        return {"error": str(e)}, 400
+    except FileNotFoundError:
+        return {"error": f"no such file under the paper's runs folder: {rel}"}, 404
+    return data, 200, ctype
+
+
+def ep_rs_log(q, _b):
+    lid = (q.get("launch") or [""])[0] or None
+    n = int((q.get("tail") or ["200"])[0])
+    return _rs(lambda: ST.random_signal.log_tail(lid, n))
+
+
+def ep_rs_launch(q, _b):
+    lid = (q.get("id") or [""])[0]
+    return _rs(lambda: ST.random_signal.launch_record(lid))
+
+
 ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_status, "/runs": ep_runs, "/results": ep_results,
                "/results/summary": ep_results_summary, "/results/agg": ep_results_agg,
                "/learn/modules": ep_learn_modules, "/learn/inputs": ep_learn_inputs, "/learn/runs": ep_learn_runs, "/learn/status": ep_learn_status,
@@ -1028,12 +1109,15 @@ ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_stat
                "/grounding/params": ep_gp_params, "/grounding/runbook": ep_gp_runbook, "/grounding/plan_text": ep_gp_plan_text,
                "/grounding/text": ep_gp_text, "/grounding/list": ep_gp_list, "/grounding/file": ep_gp_file, "/grounding/log": ep_gp_log,
                "/grounding/launch": ep_gp_launch, "/grounding/encoding_table2": ep_gp_encoding_table2,
+               "/random/config": ep_rs_config, "/random/board": ep_rs_board, "/random/views": ep_rs_views, "/random/text": ep_rs_text,
+               "/random/list": ep_rs_list, "/random/file": ep_rs_file, "/random/log": ep_rs_log, "/random/launch": ep_rs_launch,
                "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,
                "/cache/status": ep_cache_status}
 ROUTES_POST = {"/source/test": ep_source_test, "/scan": ep_scan, "/validate": ep_validate, "/run": ep_run, "/control": ep_control,
                 "/cache/drop": ep_cache_drop, "/learn/validate": ep_learn_validate, "/learn/run": ep_learn_run, "/learn/control": ep_learn_control,
                 "/encoding/config": ep_enc_set_config, "/encoding/run": ep_enc_run, "/encoding/stop": ep_enc_stop,
-                "/grounding/config": ep_gp_set_config, "/grounding/run": ep_gp_run, "/grounding/stop": ep_gp_stop}
+                "/grounding/config": ep_gp_set_config, "/grounding/run": ep_gp_run, "/grounding/stop": ep_gp_stop,
+                "/random/config": ep_rs_set_config, "/random/run": ep_rs_run, "/random/stop": ep_rs_stop}
 
 TOKEN = ""
 

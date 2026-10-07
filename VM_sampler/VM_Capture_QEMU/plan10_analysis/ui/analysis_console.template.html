@@ -454,6 +454,15 @@ html.gp-open .gp{display:flex}
 html.gp-open{overflow:hidden}
 .gp-gallery img{max-width:100%; height:auto; display:block; margin:4px 0 14px; border:1px solid var(--line); border-radius:8px; background:#fff}
 .gp-gallery h1{font-size:15px; margin:8px 0} .gp-gallery h2{font-size:13px; margin:18px 0 6px} .gp-gallery p{font-size:11.5px; color:var(--ink-2)}
+
+/* Random-signal paper: the paper's server runs read as files; the laptop moves run from the tab, the server never contacted (the same pattern and styles). */
+.rs{display:none; position:fixed; inset:0; z-index:65; background:var(--bg); flex-direction:column; overflow:hidden}
+html.rs-open .rs{display:flex}
+html.rs-open{overflow:hidden}
+.rs-cmd{font-family:"IBM Plex Mono",monospace; font-size:10.5px; background:var(--sunk); border:1px solid var(--line-2); border-radius:6px; padding:6px 8px; margin:4px 0; white-space:pre-wrap; overflow-wrap:anywhere}
+.rs-where{display:inline-block; padding:1px 7px; border-radius:10px; font-size:10.5px; font-weight:600; background:var(--sunk); color:var(--ink-2)}
+.rs-where.server{background:#fff3c4; color:#7a5200} .rs-where.laptop{background:#dff3e4; color:#1f6b3a}
+.ep-state.not.home.yet, .ep-state.not-home{background:#fff3c4; color:#7a5200}
 .gp-gallery a{color:var(--accent)} .gp-gallery ul{font-size:11.5px}
 .gp-side{width:100%; border-collapse:collapse; font-size:11px; margin-top:6px}
 .gp-side th{text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-3); font-weight:600; padding:4px 5px; border-bottom:1px solid var(--line)}
@@ -831,6 +840,63 @@ html.gp-open{overflow:hidden}
         <h3>for the author: the decisions and parameters, as the engine recorded them (read-only)</h3>
         <div class="ep-note" id="gp-author-note"></div>
         <div id="gp-author-body"></div>
+      </div>
+    </div>
+  </section>
+  <section class="rs" id="rs" aria-label="random-signal paper">
+    <div class="mon-top ep-top">
+      <h2>Random-signal paper</h2>
+      <div class="tabs"><button data-tab="moves" class="on">Moves</button><button data-tab="look">Look at</button><button data-tab="log">Log</button></div>
+      <span class="subnote" id="rs-facts" style="margin:0"></span>
+      <span class="sp"></span>
+      <button class="bigbtn ghost" id="rs-refresh">Refresh</button>
+      <button class="bigbtn" id="rs-close">Close</button>
+    </div>
+    <div class="ep-cfg">
+      <div class="field"><label class="fl">the paper's folder (its server_runs/ holds the scripts, results/ and analysis/)</label><input type="text" id="rs-paper" class="mono" spellcheck="false" placeholder="/Users/jeries/Desktop/projects/thesis/memorySignal/random_signal_paper"></div>
+      <div class="field" style="flex:0 0 auto"><label class="fl">&nbsp;</label><div><button class="bigbtn" id="rs-apply">Apply</button></div></div>
+      <div class="tk" id="rs-tk"></div>
+    </div>
+    <div class="ep-body" id="rs-tab-moves">
+      <div class="ep-two">
+        <div class="mon-card">
+          <h3>the moves, in the README's order</h3>
+          <div class="ep-sum" id="rs-moves-sum"></div>
+          <div class="tblwrap" style="max-height:calc(100vh - 330px)"><table class="tbl ep-moves" id="rs-moves-tbl"></table></div>
+          <div class="ep-note">A server move is run by the author on the server (the command shown, from <span class="mono">server_runs/README.md</span>); its results come home with the rsync line and the move reads done once they are. A laptop move runs from this tab with Run, one process at a time; Re-run keeps a copy of <span class="mono">analysis/out/</span> beside it first. The tab never contacts the server and never edits the paper's files.</div>
+        </div>
+        <div class="mon-card" id="rs-move-detail">
+          <h3 id="rs-move-title">pick a move</h3>
+          <div id="rs-move-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="rs-tab-look" hidden>
+      <div class="ep-two" style="grid-template-columns:300px minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>look at</h3>
+          <div class="ep-views" id="rs-views"></div>
+          <h3 style="margin-top:12px">browse server_runs/</h3>
+          <div class="ep-crumbs" id="rs-crumbs"></div>
+          <div class="ep-ls" id="rs-ls"></div>
+        </div>
+        <div class="mon-card">
+          <h3 id="rs-look-title">the paper's files, as written</h3>
+          <div class="ep-note" id="rs-look-note"></div>
+          <div id="rs-look-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ep-body" id="rs-tab-log" hidden>
+      <div class="ep-two" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)">
+        <div class="mon-card">
+          <h3>the running move's output <select id="rs-log-pick" style="margin-left:8px"></select> <button class="bigbtn ghost" id="rs-stop" style="margin-left:8px;padding:3px 8px;font-size:10.5px">Stop</button></h3>
+          <pre class="ep-pre log" id="rs-log"></pre>
+        </div>
+        <div class="mon-card">
+          <h3>the launch record</h3>
+          <div id="rs-launch"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -3531,6 +3597,174 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     b.title = "the grounding paper's engine (plan12_grounding): its moves in the runbook's order, launched one at a time, and its files as written";
     b.onclick = () => gpOpen();
     const anchor = $("ep-btn") || $("ln-btn") || $("xp-btn") || $("mon-btn") || $("validate");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
+  })();
+
+  /* ===== Random-signal paper: the paper's server runs read as files (never the server), the two laptop moves run from the
+     tab, the results and figures shown as the files write them. Routes: /random/*. The Grounding tab's pattern. ===== */
+  const RS = {cfg: null, board: null, tab: "moves", move: null, view: null, dir: "", dirFile: null, timer: null, logTimer: null, launch: null};
+  const rsSave = () => { try { localStorage.setItem("plan10.random_signal", JSON.stringify({tab: RS.tab, move: RS.move, view: RS.view, dir: RS.dir, launch: RS.launch})); } catch (e) {} };
+  try { const s = JSON.parse(localStorage.getItem("plan10.random_signal") || "null"); if (s) { RS.tab = s.tab || "moves"; RS.move = s.move == null ? null : s.move; RS.view = s.view || null; RS.dir = s.dir || ""; RS.launch = s.launch || null; } } catch (e) {}
+  const rsGet = (path, params) => { const p = new URLSearchParams(params || {}); return api("/random/" + path + (p.toString() ? "?" + p.toString() : "")); };
+  const rsFileUrl = rel => "/random/file?path=" + encodeURIComponent(rel) + "&token=" + encodeURIComponent(B.token);
+  const rsPath = (rel, label) => `<span class="ep-path"><a href="${rsFileUrl(rel)}" target="_blank" rel="noopener">${esc(label || rel)}</a></span>`;
+  const rsStateClass = st => esc(String(st).replace(/ /g, "-"));
+
+  function rsSetTab(t) {
+    RS.tab = t; rsSave();
+    document.querySelectorAll("#rs .ep-top [data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    ["moves", "look", "log"].forEach(x => { $("rs-tab-" + x).hidden = x !== t; });
+    ({moves: rsMoves, look: rsLook, log: rsLog})[t]();
+  }
+  document.querySelectorAll("#rs .ep-top [data-tab]").forEach(b => { b.onclick = () => rsSetTab(b.dataset.tab); });
+
+  async function rsLoadConfig() {
+    RS.cfg = await rsGet("config");
+    const c = RS.cfg, d = c.declaration || {};
+    $("rs-paper").value = c.paper || "";
+    $("rs-tk").innerHTML = `<b>runs folder</b> ${esc(c.runs_dir)}${c.runs_dir_exists ? "" : ' <span class="bad">(not on disk)</span>'} · <b>declaration</b> ${d.exists ? (d.matches === true ? '<span class="ok">checksum matches DECLARATION.md.sha256</span>' : d.matches === false ? '<span class="bad">checksum does NOT match DECLARATION.md.sha256</span>' : "no checksum file") : '<span class="bad">DECLARATION.md not found</span>'}${d.status_line ? " · " + esc(d.status_line.slice(0, 60)) : ""}` +
+      `<br><b>scripts to the server</b> <span class="mono">${esc(c.rsync_scripts || "")}</span><br><b>results home</b> <span class="mono">${esc(c.rsync_home || "")}</span><br>${esc(c.note || "")}`;
+    $("rs-facts").textContent = c.runs_dir_exists ? "" : "set the paper's folder";
+  }
+  $("rs-apply").onclick = async () => {
+    try { RS.cfg = await api("/random/config", {paper: $("rs-paper").value.trim()}); } catch (e) { alert(e.message); return; }
+    RS.board = null; RS.dir = ""; RS.dirFile = null; rsSave(); await rsLoadConfig(); rsSetTab(RS.tab);
+  };
+
+  function rsProgressLine(b) {
+    const done = b.moves.filter(m => m.state === "done").length, home = b.moves.filter(m => m.state === "not home yet").length;
+    return `<b>${done}</b> of ${b.moves.length} moves done` + (home ? ` · <b>${home}</b> waiting for results from the server` : "") + (b.running ? ` · <b>running</b>: move ${esc(b.running.move)} (launch ${esc(b.running.id)}, pid ${b.running.pid})` : "");
+  }
+  async function rsMoves() {
+    const sum = $("rs-moves-sum"), tbl = $("rs-moves-tbl");
+    let b; try { b = await rsGet("board"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; $("rs-move-body").innerHTML = ""; return; }
+    RS.board = b;
+    sum.innerHTML = rsProgressLine(b) + ` · the paper's folder ${esc(b.paper)}`;
+    tbl.innerHTML = "<thead><tr><th>move</th><th>what</th><th>where</th><th>state</th><th>files home</th><th>last run</th><th></th></tr></thead><tbody>" +
+      b.moves.map(m => `<tr data-move="${esc(m.move)}" class="${String(m.move) === String(RS.move) ? "on" : ""}"><td class="num">${esc(m.move)}</td><td>${esc(m.title)}<div class="ep-note" style="margin:2px 0 0">${esc(m.script)}${m.record ? " · " + esc(m.record) : ""}</div></td>` +
+        `<td><span class="rs-where ${esc(m.where)}">${esc(m.where)}</span></td><td><span class="ep-state ${rsStateClass(m.state)}">${esc(m.state)}</span></td><td class="num">${esc(m.n_files)}</td><td>${esc((m.last_finished_at || "").replace("T", " ").slice(0, 19))}</td>` +
+        `<td style="white-space:nowrap">${m.where !== "laptop" ? `<span class="subnote">on the server</span>` : m.state === "done" ? `<button class="bigbtn ghost" data-run="${esc(m.move)}" data-force="1" ${m.runnable ? "" : "disabled"} title="run it again; a copy of analysis/out/ is kept first">Re-run</button>` : `<button class="bigbtn" data-run="${esc(m.move)}" ${m.runnable ? "" : "disabled"} title="${m.runnable ? "run it from the paper's server_runs/ folder" : "waits for " + esc(m.waits_for || "")}">Run</button>`}</td></tr>`).join("") + "</tbody>";
+    tbl.querySelectorAll("tbody tr").forEach(tr => { tr.onclick = e => { if (e.target.closest("button")) return; RS.move = tr.dataset.move; rsSave(); rsMoves(); }; });
+    tbl.querySelectorAll("button[data-run]").forEach(btn => { btn.onclick = async e => { e.stopPropagation(); const mv = btn.dataset.run, force = !!btn.dataset.force;
+      if (force && !confirm(`Re-run move ${mv}: a copy of analysis/out/ is kept beside it first, then the script writes there again. Continue?`)) return;
+      try { const r = await api("/random/run", {move: +mv, force}); RS.launch = r.id; RS.move = mv; RS.board = null; rsSave(); rsSetTab("log"); }
+      catch (err) { alert(err.message); } }; });
+    rsMoveDetail();
+    clearTimeout(RS.timer);
+    if (b.running) RS.timer = setTimeout(() => { if (RS.tab === "moves" && document.documentElement.classList.contains("rs-open")) rsMoves(); }, 3000);
+  }
+  async function rsMoveDetail() {
+    const b = RS.board, host = $("rs-move-body");
+    const m = b && b.moves.find(x => String(x.move) === String(RS.move));
+    if (!m) { $("rs-move-title").textContent = "pick a move"; host.innerHTML = ""; return; }
+    $("rs-move-title").textContent = `move ${m.move}: ${m.title}`;
+    let h = `<div class="ep-note" style="font-size:12px;color:var(--ink)">${esc(m.what)}</div>` +
+      `<div class="ep-note"><span class="ep-state ${rsStateClass(m.state)}">${esc(m.state)}</span> · <span class="rs-where ${esc(m.where)}">${esc(m.where)}</span>${m.requires.length ? ` · reads the files of move ${esc(m.requires.join(", "))}` : ""}${m.waits_for && m.where === "laptop" ? ` · waits for ${esc(m.waits_for)}` : ""}</div>`;
+    if (m.where === "server") {
+      h += `<h3 style="margin-top:10px">on the server, in the author's hands</h3>` + (m.pre_command ? `<div class="ep-note">first, from the laptop:</div><div class="rs-cmd">${esc(m.pre_command)}</div>` : "") +
+        `<div class="ep-note">then on the server (<span class="mono">ssh ${esc(RS.cfg ? RS.cfg.server : "")}</span>):</div><div class="rs-cmd">${esc(m.command)}</div>` +
+        `<div class="ep-note">and back on the laptop, bring the results home:</div><div class="rs-cmd">${esc(m.rsync_home || "")}</div>`;
+    } else {
+      h += `<h3 style="margin-top:10px">the command the tab runs (from server_runs/)</h3><div class="rs-cmd">${esc(m.command)}</div>` + (m.keep_copy ? `<div class="ep-note">before a re-run, a copy of <span class="mono">${esc(m.keep_copy)}/</span> is kept beside it as <span class="mono">${esc(m.keep_copy)}.pre_&lt;time&gt;/</span></div>` : "") +
+        (m.last_launch ? `<div class="ep-note">last launch ${esc(m.last_launch.id)} · ${esc((m.last_launch.started_at || "").replace("T", " ").slice(0, 19))}${m.last_launch.exit_code != null ? " · exit " + esc(m.last_launch.exit_code) : " · running"}</div>` : "");
+    }
+    h += `<h3 style="margin-top:10px">done when</h3><div class="ep-note">${m.done_check.parts.map(x => `<span class="mono">${esc(x.pattern)}</span>: ${x.found} found, ${x.min} needed ${x.ok ? '<span class="ok">✓</span>' : '<span class="bad">not yet</span>'}`).join("<br>")}` +
+      (m.log_marker ? `<br>log ${esc(m.log_marker.log)}: ${m.log_marker.home ? (m.log_marker.ended ? "home and ended (" + esc(m.log_marker.last_line || "") + ")" : "home, not ended yet") : "not home yet"}` : "") + `</div>`;
+    h += `<h3 style="margin-top:10px">the files, as written (${m.n_files})</h3><div id="rs-move-files"></div>`;
+    host.innerHTML = h;
+    const fh = $("rs-move-files");
+    if (!m.files.length) fh.innerHTML = `<div class="ep-missing">nothing home yet</div>`;
+    for (const f of m.files.slice(0, 24)) fh.appendChild(await rsRenderFile(f));
+    if (m.files.length > 24) fh.insertAdjacentHTML("beforeend", `<div class="ep-note">${m.files.length - 24} more files: browse them in the Look tab</div>`);
+  }
+
+  async function rsLook() {
+    let v; try { v = await rsGet("views"); } catch (e) { $("rs-views").innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; return; }
+    const host = $("rs-views"); host.innerHTML = "";
+    (v.views || []).forEach(x => { const b = document.createElement("button"); b.className = (RS.view === x.id ? "on " : "") + (x.any ? "" : "none");
+      b.innerHTML = `<span>${esc(x.title)}</span><span class="n">${x.files.filter(f => f.exists).length}/${x.files.length}</span>`;
+      b.onclick = () => { RS.view = x.id; RS.dirFile = null; rsSave(); rsLook(); }; host.appendChild(b); });
+    rsBrowse();
+    const cur = (v.views || []).find(x => x.id === RS.view);
+    if (!cur) { $("rs-look-title").textContent = "the paper's files, as written"; $("rs-look-note").textContent = "pick a view on the left, or a file in the browser"; if (!RS.dirFile) $("rs-look-body").innerHTML = ""; return; }
+    $("rs-look-title").textContent = cur.title;
+    $("rs-look-note").innerHTML = "Every panel below is one of the paper's files; the path is the file.";
+    const body = $("rs-look-body"); body.innerHTML = "";
+    for (const f of cur.files) body.appendChild(await rsRenderFile(f.path));
+  }
+  async function rsRenderFile(rel) {
+    const box = document.createElement("div"); box.className = "ep-file";
+    let d; try { d = await rsGet("text", {path: rel}); } catch (e) { box.innerHTML = `<div class="ep-missing">${esc(e.message)}</div>`; return box; }
+    if (!d.exists) { box.innerHTML = `<h4>${esc(rel)}</h4><div class="ep-missing">not home yet: <span class="mono">${esc(rel)}</span></div>`; return box; }
+    const meta = `${rsPath(rel)} <span class="subnote">${esc(d.bytes)} B · ${esc((d.mtime || "").replace("T", " ").slice(0, 19))}</span>`;
+    const name = rel.split("/").pop();
+    if (d.kind === "binary") { box.innerHTML = `<h4>${esc(name)} ${meta}</h4>` + (d.content_type === "image/png" ? `<img src="${rsFileUrl(rel)}" alt="${esc(rel)}" style="max-width:100%">` : `<div class="ep-note">binary file (${esc(d.content_type)})</div>`); return box; }
+    if (d.error) { box.innerHTML = `<h4>${esc(name)} ${meta}</h4><div class="ep-missing">${esc(d.error)}</div>`; return box; }
+    if (d.kind === "csv") {
+      box.innerHTML = `<h4>${esc(name)} ${meta} <span class="subnote">${esc(d.n_rows)} rows${d.truncated ? " (first " + d.rows.length + " shown)" : ""}</span></h4>` +
+        `<div class="tblwrap" style="max-height:320px"><table class="tbl"><thead><tr>${d.header.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+        d.rows.map(r => `<tr>${r.map(c => `<td class="${epCellClass(c)}" title="${esc(c)}">${esc(c)}</td>`).join("")}</tr>`).join("") + `</tbody></table></div>`;
+      return box;
+    }
+    if (d.kind === "json") { box.innerHTML = `<h4>${esc(name)} ${meta}</h4><pre class="ep-pre">${esc(JSON.stringify(d.json, null, 1))}</pre>`; return box; }
+    box.innerHTML = `<h4>${esc(name)} ${meta}</h4><pre class="ep-pre">${esc(d.text || "")}</pre>`;
+    return box;
+  }
+  async function rsBrowse() {
+    const crumbs = $("rs-crumbs"), ls = $("rs-ls");
+    let d; try { d = await rsGet("list", {path: RS.dir}); } catch (e) { ls.innerHTML = `<span class="dim">${esc(e.message)}</span>`; return; }
+    const parts = RS.dir ? RS.dir.split("/") : [];
+    crumbs.innerHTML = `<a data-d="">server_runs</a>` + parts.map((p, i) => ` / <a data-d="${esc(parts.slice(0, i + 1).join("/"))}">${esc(p)}</a>`).join("");
+    crumbs.querySelectorAll("a").forEach(a => { a.onclick = () => { RS.dir = a.dataset.d; rsSave(); rsBrowse(); }; });
+    if (!d.exists) { ls.innerHTML = `<span class="dim">not on disk: ${esc(RS.dir || "server_runs")}</span>`; return; }
+    ls.innerHTML = d.entries.map(e => `<a data-p="${esc(e.path)}" data-dir="${e.dir ? 1 : ""}">${esc(e.name)}${e.dir ? "/" : ""}</a><span class="dim">${e.dir ? "" : esc(e.bytes)}</span><span class="dim">${esc((e.mtime || "").replace("T", " ").slice(5, 16))}</span>`).join("") || `<span class="dim">empty</span>`;
+    ls.querySelectorAll("a").forEach(a => { a.onclick = async () => { if (a.dataset.dir) { RS.dir = a.dataset.p; rsSave(); rsBrowse(); return; }
+      RS.view = null; RS.dirFile = a.dataset.p; rsSave(); document.querySelectorAll("#rs-views button").forEach(b => b.classList.remove("on"));
+      $("rs-look-title").textContent = a.dataset.p; $("rs-look-note").textContent = "one of the paper's files, as written";
+      const body = $("rs-look-body"); body.innerHTML = ""; body.appendChild(await rsRenderFile(a.dataset.p)); }; });
+  }
+
+  async function rsLog() {
+    clearTimeout(RS.logTimer);
+    let b; try { b = await rsGet("board"); RS.board = b; } catch (e) { $("rs-log").textContent = e.message; return; }
+    const pick = $("rs-log-pick"); const cur = pick.value;
+    pick.innerHTML = "";
+    (b.launches || []).forEach(l => { const o = document.createElement("option"); o.value = l.id; o.textContent = `${l.id} · move ${l.move}${l.force ? " (re-run)" : ""} · ${l.exit_code == null ? (b.running && b.running.id === l.id ? "running" : "?") : "exit " + l.exit_code}`; pick.appendChild(o); });
+    if (!pick.options.length) { const o = document.createElement("option"); o.value = ""; o.textContent = "no launch from this console yet"; pick.appendChild(o); }
+    const want = RS.launch || (b.running && b.running.id) || cur || (b.launches && b.launches[0] ? b.launches[0].id : "");
+    pick.value = [...pick.options].some(o => o.value === want) ? want : (pick.options[0] ? pick.options[0].value : "");
+    RS.launch = pick.value || null;
+    $("rs-stop").disabled = !b.running;
+    let t; try { t = await rsGet("log", {launch: RS.launch || "", tail: 400}); } catch (e) { $("rs-log").textContent = e.message; return; }
+    const pre = $("rs-log"); const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+    pre.textContent = (t.lines || []).join("\n") || (t.running ? "(no output yet)" : (t.id ? "(empty log)" : "no launch selected"));
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    const host = $("rs-launch");
+    if (RS.launch) { try { const r = await rsGet("launch", {id: RS.launch});
+      host.innerHTML = `<dl class="ep-kv"><dt>launch</dt><dd>${esc(r.id)}</dd><dt>move</dt><dd>${esc(r.move)}: ${esc(r.title || "")}${r.force ? " (re-run)" : ""}</dd><dt>command</dt><dd>${esc(r.shell)}</dd><dt>cwd</dt><dd>${esc(r.cwd)}</dd>` +
+        `<dt>started</dt><dd>${esc(r.started_at)}</dd><dt>finished</dt><dd>${esc(r.finished_at || (t.running ? "running" : "?"))}${r.exit_code != null ? " · exit " + esc(r.exit_code) : ""}</dd>` +
+        `<dt>copy kept</dt><dd>${esc(r.kept_copy || "none (the outputs were empty or absent)")}</dd><dt>record</dt><dd>${esc((r.log || "").replace(/\.log$/, ".json"))}</dd></dl>`; } catch (e) { host.innerHTML = `<div class="ep-note">${esc(e.message)}</div>`; } }
+    else host.innerHTML = `<div class="ep-note">run a laptop move from the Moves tab; every launch leaves a record and a log under ~/.cache/plan10/random_signal/launches/, never under the paper's folder.</div>`;
+    if (t.running) RS.logTimer = setTimeout(() => { if (RS.tab === "log" && document.documentElement.classList.contains("rs-open")) { RS.board = null; rsLog(); } }, 2000);
+  }
+  $("rs-log-pick").onchange = () => { RS.launch = $("rs-log-pick").value || null; rsSave(); rsLog(); };
+  $("rs-stop").onclick = async () => { if (!confirm("Stop the running move? The process group is terminated; what the script had written stays.")) return; try { await api("/random/stop", {}); } catch (e) { alert(e.message); } RS.board = null; rsLog(); };
+
+  async function rsOpen() {
+    document.documentElement.classList.add("rs-open");
+    try { await rsLoadConfig(); } catch (e) { $("rs-tk").textContent = e.message; }
+    rsSetTab(RS.tab || "moves");
+  }
+  function rsClose() { document.documentElement.classList.remove("rs-open"); clearTimeout(RS.timer); clearTimeout(RS.logTimer); }
+  $("rs-close").onclick = rsClose;
+  $("rs-refresh").onclick = () => { RS.board = null; rsLoadConfig().then(() => rsSetTab(RS.tab)); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.documentElement.classList.contains("rs-open")) rsClose(); });
+  (function () {
+    const host = document.querySelector("header.top"); if (!host) return;
+    const b = document.createElement("button"); b.className = "bigbtn ghost"; b.id = "rs-btn"; b.textContent = "Random-signal paper";
+    b.title = "the random-signal paper's runs: the server moves' results as they come home, the laptop moves run from here, the figures and the reading shown as written";
+    b.onclick = () => rsOpen();
+    const anchor = $("gp-btn") || $("ep-btn") || $("ln-btn") || $("xp-btn") || $("mon-btn") || $("validate");
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor); else host.appendChild(b);
   })();
 
