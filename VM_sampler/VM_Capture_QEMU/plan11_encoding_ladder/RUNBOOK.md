@@ -631,6 +631,56 @@ Look at: `gates/added/gc_corrected.csv` (the corrected verdict beside the origin
 `gates/added/idle_common_ground.csv` (per rung: idle recall, its null p95, the verdict);
 `report/tables/eusipco_table2_corrected.md` against `eusipco_table2.md`.
 
+### Move 17: the new-block test on the five readings (optional; added 2026-10-06)
+
+```
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace --moves 17
+```
+
+Only when named; the default `--moves 0-14` never runs it, as it never runs moves 15 and 16
+(SPEC_epoch2 Part 4 item 31; the design is `apf_paper/P2_AUTHOR_ANSWERS.md` A25, the encoding paper's
+version of the SPL paper's test, `plan12_grounding/PROMPT_new_blocks_test.md`). Run it after move 14
+(it reads `cells.csv`, `inputs/head_drop.csv`, `gates/preconditions.json`, `gates/selection.json` and
+the feature files of moves 6 and 9 to 12); it does not wait for moves 15 or 16. The question: a model
+sees the first 80% of every recording's windows, in time order; after a gap of one window the rest
+arrive as new blocks; for each new block, and for 2 or 3 consecutive ones together, it must name the
+archetype, the kernel and the run (seed). Every admissible cell takes part, the 8 idle runs as one more
+answer at every level; the comparators take no part (one window per run). No label-shuffle null (the
+outputs say why: labels shuffled within a recording are learned from its own seen windows); chance,
+the majority class and a 95% bootstrap interval over recordings are the baselines. Three commands:
+
+1. `new_blocks run --window W64_H32`: the primary result, the same window for every reading, from the
+   toolkit's own feature files `features/<rung>/W64_H32_norm.npz`; one forest per level, reading and
+   window on all seen windows (the toolkit's forest, seeds, `--n-jobs`, `--n-estimators`,
+   `--seed-offset`; its dimension rule and L1 quarantine at the block). Writes
+   `gates/added/new_blocks/W64_H32/` (scores.csv with the intervals, per_kernel.csv, by_position.csv,
+   run_level.csv, margins.csv against APF, predictions and pools per level and reading,
+   confusion_kernel_<rung>.csv, split_<rung>.csv, summary.json, params.json).
+2. `new_blocks run --window own`: the secondary rows at each reading's own selected window
+   (`gates/selection.json`); a reading whose own window is W64_H32 reads "same as primary" and carries
+   the primary's numbers. Writes `gates/added/new_blocks/own/`.
+3. `new_blocks tables`: `gates/added/new_blocks.csv` (one row per level, reading, window and pool
+   size), `report/tables/new_blocks_scores`, `new_blocks_margins`, `new_blocks_run_level`,
+   `new_blocks_by_position` (.csv, .md, .tex) and `report/figures/new_blocks_*.svg` with their CSV data
+   (accuracy by level and reading with the chance lines; by block position; per kernel by reading;
+   the run level, kernels beside idle; the kernel confusions for apf and content).
+
+The cut is the run's own (the feature files were built with `inputs/head_drop.csv`): one cut per
+run folder. A first look runs on a copy of the run of 2026-09-29 (cut 16); the paper's numbers come
+from the cluster redo (cut 192, `--moves 0-17`). On a short corpus (the smoke run) W64_H32 yields no
+new block and the rows read `not run`; `--window W8_H4` runs the test at a short window there. Cost:
+30 forests of 300 trees on about 2,200 windows each, plus the quarantine's one-feature trees; minutes
+on four cores.
+
+Look at: `gates/added/new_blocks.csv` (every score); `report/tables/new_blocks_scores.md`;
+`report/figures/new_blocks_accuracy.svg` (the levels by reading, with chance) and
+`new_blocks_run_level.svg` (the run level, kernels beside idle); `gates/added/new_blocks/W64_H32/split_apf.csv`
+(the seen, gap and new windows per recording, the gap assertion).
+
 ### The EUSIPCO outputs (build epoch 2): Table 2, Table 3, the five-page skeleton
 
 Run after Table 7 exists and after the comparators' move has written its rows (the comparators

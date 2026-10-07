@@ -1339,3 +1339,32 @@ default runs unless the author says otherwise.
     refusals in `_report_common.rung_override` (G-C first, then G-F part (i)), which is why the twin lives there.
     `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py` in one and
     `tests/test_plan10_bridge.py` in one: the out-of-range move becomes 17 and the console's board has 18 rows.
+
+31. Amendment of 2026-10-06 (the author's decision after the SPL paper's new-block test; `apf_paper/P2_AUTHOR_ANSWERS.md`
+    A25; `plan12_grounding/PROMPT_new_blocks_test.md`). One optional move, 17, labelled "added 2026-10-06", never in
+    the default `--moves 0-14` (`MAX_MOVE = 17`): the new-block test on the five readings. A model sees the first
+    round(0.8 n) windows of every admissible cell (the hard-excluded cells out, as in move 16; the 8 idle runs in, as
+    one more answer at every level), in time order; one window is skipped, so that no new window shares a pair with a
+    seen one (asserted from the pair ranges; the within-trace split has no gap: at 64 x 32 its last training and
+    first test windows share 32 pairs); the rest are new blocks named alone and in pools of 2 and 3 consecutive
+    blocks (majority vote, ties by the summed class probability) at three levels: archetype (the feature files'
+    archetype_predicted, no G-K0 relabel; "idle" for idle), kernel (13 classes), run (each cell its own class). The
+    readings are the toolkit's five from their own feature files `features/<rung>/<grid>_norm.npz`, at W64_H32 for
+    every reading (the primary) and at each reading's own selected window (the secondary rows; "same as primary"
+    where the own window is W64_H32); the comparators take no part (one window per run). One forest per level,
+    reading and window on the seen windows with the toolkit's settings, its dimension rule (applied as written; no
+    reading has more features than training cells) and its L1 quarantine at the block; the rules that do not apply
+    at window level (the splits, the label-shuffle null, the cell-majority unit, G-N's headline macro recall, LOKO's
+    per-fold majority baseline, the G-K0 relabel) are named in params.json and replaced by nothing. Scores per level,
+    reading, window and pool size with a 95% bootstrap interval over recordings (1,000 resamples) on every accuracy
+    and on the margins against APF; per-kernel recall; accuracy by block position; the run level read against idle.
+    The cut is the run's own (`inputs/head_drop.csv`). `new_blocks.py` copies the split, the gap check, the pooling,
+    the bootstrap and the scoring from `plan12_grounding/new_blocks.py` (commit 6c13f9e; plan11 never imports plan12).
+    Outputs under `gates/added/new_blocks/<window>/`, `gates/added/new_blocks.csv`, `report/tables/new_blocks_*` and
+    `report/figures/new_blocks_*.svg` with their CSV data. The driver declares every file each command reads; no
+    existing command changes its arguments or declared inputs, with one deliberate exception: move 16's
+    `tables_eusipco table2_corrected` now declares `report/tables/table7_comparators.csv`, which it reads, so on a run
+    where move 16 ran that one command is reported stale, and nothing else. The console's waiting rule for the
+    optional moves 15, 16 and 17: each waits for the moves whose files it reads, not for the move numbered before it;
+    moves 0 to 14 keep the runbook's order. `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py`
+    in one and `tests/test_plan10_bridge.py` in one: the out-of-range move becomes 18 and the console's board has 19 rows.
