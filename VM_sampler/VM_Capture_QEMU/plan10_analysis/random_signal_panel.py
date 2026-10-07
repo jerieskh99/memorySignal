@@ -91,7 +91,7 @@ MOVES = [
              "walker and fingerprint; about 8 minutes on the server",
      "command": f"python3 ~/random_signal_runs/fp_check.py {LEXER_42_CHAIN} ~/random_signal_runs/work/fp_check_lexer_42 | tee ~/random_signal_runs/results/fp_check_lexer_42.txt",
      "pre_command": RSYNC_FP_CHECK, "done": [("results/fp_check_lexer_42.txt", 1)],
-     "files": ["results/fp_check_lexer_42.txt"], "requires": [2], "record": "Running on the server (2026-10-07); done when results/fp_check_lexer_42.txt is home."},
+     "files": ["results/fp_check_lexer_42.txt"], "requires": [2], "record": "Done 2026-10-07; the cause is recorded in DECLARATION.md (change of 2026-10-07 20:50)."},
 ]
 VIEWS = [
     {"id": "results_md", "title": "the reading in words (analysis/RESULTS.md)", "files": ["analysis/RESULTS.md"]},
@@ -256,7 +256,8 @@ def declaration(paper: Path) -> dict:
         with contextlib.suppress(OSError):
             for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
                 if line.startswith("**Status:"):
-                    res["status_line"] = line.strip("* ").strip()
+                    bold = re.match(r"\*\*(.+?)\*\*", line)     # the bold part only ("Status: FIXED on ..."); the page shows 60 characters
+                    res["status_line"] = (bold.group(1) if bold else line.strip("* ")).strip()
                     break
     if s.is_file():
         tok = s.read_text(encoding="utf-8", errors="replace").split()
