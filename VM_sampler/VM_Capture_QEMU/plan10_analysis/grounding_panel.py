@@ -116,6 +116,39 @@ for _mv, (_short, _long) in _GRID.items():
 EXTRA_MOVES[16]["steps"] = EXTRA_MOVES[16]["steps"] + ({"name": "the grid's summary: moves 13 to 16, two steps, both cuts, side by side", "key": "grid_summary", "sub": "summary", "args": [],
                                                        "dir": "", "done_file": "grid_summary.json"},)
 EXTRA_MOVES[16]["what"] += "; its third step, `page_fourier summary`, writes <out>_pagefourier/grid_summary.csv, .svg and .json (a variant not yet run reads missing)"
+# the controls (2026-10-10): move 17 shuffles time for the per-page Fourier test (time_shuffle.py), move 18 splits the new-block test's windows at random (random_split.py);
+# each in its own sibling folder with its own record, importing page_fourier.py and new_blocks.py as they are
+EXTRA_MOVES[17] = {
+    "title": "the time-shuffled control of the per-page Fourier test: 64-pair blocks shuffled in time, the same order for every page, ten shuffles, the eight variants",
+    "module": "time_shuffle", "suffix": "_timeshuffle", "record_keys": ("step1_doubled", "step2_single", "summary"), "lock": ".time_shuffle.lock", "flags": (),
+    "steps": ({"name": "time shuffle, step 1 (phi = 2 theta: the four variants of moves 13 to 16 at the headline phase)", "key": "step1_doubled", "args": ["--step", "1"], "dir": "step1_doubled"},
+              {"name": "time shuffle, step 2 (phi = theta: the four variants at the control phase)", "key": "step2_single", "args": ["--step", "2"], "dir": "step2_single"},
+              {"name": "refresh the unshuffled columns and the figures from page_fourier's results as they stand (after moves 13 to 16 finish)", "key": "summary", "sub": "summary",
+               "args": [], "dir": "", "done_file": "summary_refresh.json"}),
+    "what": "time_shuffle.py: per recording and cut the cut pairs are cut into 64-pair blocks in time order, the order of the blocks is shuffled (the tail block stays last) and the same "
+            "order is applied to every page; then page_fourier's own functions on the shuffled rows (Welch two-sided per page, the page-averaged spectrum under both weightings from one "
+            "pass per level, the between-recordings test with its label null) for the four (weighting, level) variants at the step's phase; ten shuffles per recording; per variant the "
+            "gap as mean and spread over the shuffles beside the unshuffled gap read from <out>_pagefourier (missing when that variant has not run); writes <out>_timeshuffle/<step>/cut<C>/ "
+            "(recordings.csv, block_orders.csv, spectra/, gaps.csv, summary.csv, identity_check.csv, gaps_unshuffled_vs_shuffled.svg, summary.json), <step>/gaps_both_cuts.svg, "
+            "<step>/step.json and record.json; its third step, `time_shuffle summary`, rewrites the unshuffled columns and the figures without recomputing",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_timeshuffle; reads moves 0, 1 and 5, the L1 stores and <out>_pagefourier (all read "
+            "only); refuses to start (exit 3) while a move runs; page_fourier.py is imported, not changed",
+    "requires": [1], "reads_from": [0, 1, 5]}
+EXTRA_MOVES[18] = {
+    "title": "the random 80/20 split of the new-block test: training and test windows drawn at random per recording (step 1), the shared-pair training windows removed (step 2)",
+    "module": "random_split", "suffix": "_randomsplit", "record_keys": ("step1_random", "step2_random_nooverlap"), "lock": ".random_split.lock",
+    "steps": ({"name": "random split, step 1 (the plain 80/20 at random)", "key": "step1_random", "args": ["--step", "1"], "dir": "step1_random"},
+              {"name": "random split, step 2 (every training window that shares a pair with a test window removed)", "key": "step2_random_nooverlap", "args": ["--step", "2"],
+               "dir": "step2_random_nooverlap"}),
+    "what": "random_split.py: exactly move 12's data, feature sets, levels, forest, dimension rule and B1-G3 quarantine, with one change: per recording and cut the windows go to "
+            "training (80%) and test (20%) at random, seeded; step 2 removes from training every window that shares a pair with a test window and says how many; single test windows "
+            "scored as move 12 scores single new blocks (accuracy, macro recall, chance, majority, recall per kernel, the run level's shares, the margins with move 12's bootstrap), "
+            "move 12's single-block scores beside; pools of consecutive blocks and the position after the gap do not apply (the outputs say so); no label-shuffle null, for move 12's "
+            "reason; writes <out>_randomsplit/<step>/cut<C>/ (split.csv, scores.csv, recall_per_kernel.csv, run_level.csv, margins.csv, predictions_<level>_<E>.csv, "
+            "confusion_kernel_<E>.csv/.svg, accuracy_by_level.svg, recall_per_kernel.svg, summary.json), <step>/step.json, e0_idle_check.json and record.json",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_randomsplit; reads moves 0, 1 and 6 and <out>_newblocks (read only); refuses to "
+            "start (exit 3) while a move runs; new_blocks.py is imported, not changed",
+    "requires": [6], "reads_from": [0, 1, 6]}
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
@@ -183,12 +216,29 @@ VIEWS = [
                "{pagefourier}/move15/step1_doubled/{cut}/within_between.svg", "{pagefourier}/move15/step1_doubled/{cut}/asymmetry_by_kernel.svg", "{pagefourier}/move15/step1_doubled/{cut}/spectrum_by_group.svg",
                "{pagefourier}/move16/step1_doubled/{cut}/within_between.svg", "{pagefourier}/move16/step1_doubled/{cut}/asymmetry_by_kernel.svg", "{pagefourier}/move16/step1_doubled/{cut}/spectrum_by_group.svg",
                "{pagefourier}/grid_summary.json"]},
+    {"id": "timeshuffle", "title": "the time-shuffled control: the gap unshuffled against shuffled for the eight variants, both cuts (move 17, beside the run)", "move": 17,
+     "note": "written by time_shuffle.py into the sibling folder <out>_timeshuffle; the unshuffled columns are read from <out>_pagefourier (a variant not yet run reads missing; the move's third step refreshes them)",
+     "files": ["{timeshuffle}/step1_doubled/gaps_both_cuts.svg", "{timeshuffle}/step1_doubled/{cut}/gaps_unshuffled_vs_shuffled.svg", "{timeshuffle}/step1_doubled/{cut}/summary.csv",
+               "{timeshuffle}/step1_doubled/{cut}/gaps.csv", "{timeshuffle}/step1_doubled/{cut}/recordings.csv", "{timeshuffle}/step1_doubled/{cut}/identity_check.csv",
+               "{timeshuffle}/step2_single/gaps_both_cuts.svg", "{timeshuffle}/step2_single/{cut}/gaps_unshuffled_vs_shuffled.svg", "{timeshuffle}/step2_single/{cut}/summary.csv",
+               "{timeshuffle}/step2_single/{cut}/gaps.csv", "{timeshuffle}/step1_doubled/step.json", "{timeshuffle}/step2_single/step.json", "{timeshuffle}/summary_refresh.json",
+               "{timeshuffle}/record.json"]},
     {"id": "newblocks", "title": "the new-block test: accuracy by level, by position, per kernel; the kernel confusions (move 12, beside the run)", "move": 12,
      "note": "written by new_blocks.py into the sibling folder <out>_newblocks; no label-shuffle null (the scores.csv null column says why); chance and majority are the baselines",
      "files": ["{newblocks}/{cut}/accuracy_by_level.svg", "{newblocks}/{cut}/accuracy_by_position.svg", "{newblocks}/{cut}/recall_per_kernel.svg",
                "{newblocks}/{cut}/confusion_kernel_E2.svg", "{newblocks}/{cut}/confusion_kernel_E_new.svg", "{newblocks}/{cut}/scores.csv",
                "{newblocks}/{cut}/margins.csv", "{newblocks}/{cut}/run_level.csv", "{newblocks}/{cut}/by_position.csv", "{newblocks}/{cut}/split.csv",
                "{newblocks}/new_blocks.json", "{newblocks}/e0_idle_check.json", "{newblocks}/record.json"]},
+    {"id": "randomsplit", "title": "the random 80/20 split: accuracy by level against move 12, per kernel, the kernel confusions; step 1 plain, step 2 without shared pairs (move 18, beside the run)", "move": 18,
+     "note": "written by random_split.py into the sibling folder <out>_randomsplit; move 12's single-block scores are read from <out>_newblocks (missing when it has not run); no null, no pools, no position (the outputs say why)",
+     "files": ["{randomsplit}/step1_random/{cut}/accuracy_by_level.svg", "{randomsplit}/step1_random/{cut}/recall_per_kernel.svg", "{randomsplit}/step1_random/{cut}/confusion_kernel_E2.svg",
+               "{randomsplit}/step1_random/{cut}/confusion_kernel_E_new.svg", "{randomsplit}/step1_random/{cut}/scores.csv", "{randomsplit}/step1_random/{cut}/margins.csv",
+               "{randomsplit}/step1_random/{cut}/run_level.csv", "{randomsplit}/step1_random/{cut}/split.csv",
+               "{randomsplit}/step2_random_nooverlap/{cut}/accuracy_by_level.svg", "{randomsplit}/step2_random_nooverlap/{cut}/recall_per_kernel.svg",
+               "{randomsplit}/step2_random_nooverlap/{cut}/confusion_kernel_E2.svg", "{randomsplit}/step2_random_nooverlap/{cut}/confusion_kernel_E_new.svg",
+               "{randomsplit}/step2_random_nooverlap/{cut}/scores.csv", "{randomsplit}/step2_random_nooverlap/{cut}/margins.csv", "{randomsplit}/step2_random_nooverlap/{cut}/run_level.csv",
+               "{randomsplit}/step2_random_nooverlap/{cut}/split.csv", "{randomsplit}/step1_random/step.json", "{randomsplit}/step2_random_nooverlap/step.json",
+               "{randomsplit}/e0_idle_check.json", "{randomsplit}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -416,8 +466,8 @@ def cut_dirs(out: Path) -> list[str]:
 
 
 def sibling_dirs(out: Path) -> dict:
-    """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`
-    and `<out>_newblocks`, nothing else next to the run."""
+    """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`,
+    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle` and `<out>_randomsplit`, nothing else next to the run."""
     o = Path(out)
     return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
 
@@ -798,6 +848,19 @@ def progress(out: Path, move: int | None) -> dict | None:
             ia = h.index("admissible") if "admissible" in h else -1
             n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
         return {"move": move, "done": n, "total": (2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (both steps, every cut)"}
+    if move == 17:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[17]["suffix"]]
+        n = sum(len(list((sd / st["dir"] / c / "spectra").glob("*.npz"))) for st in EXTRA_MOVES[17]["steps"] if st["dir"] for c in cuts if (sd / st["dir"] / c / "spectra").is_dir()) if sd.is_dir() else 0
+        n_rec = 0
+        if (o / "cells.csv").exists():
+            h, rows, _ = read_csv_rows(o / "cells.csv")
+            ia = h.index("admissible") if "admissible" in h else -1
+            n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
+        return {"move": 17, "done": n, "total": (2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (both steps, every cut)"}
+    if move == 18:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[18]["suffix"]]
+        n = sum(len(list((sd / st["dir"] / c).glob("predictions_*.csv"))) for st in EXTRA_MOVES[18]["steps"] for c in cuts if (sd / st["dir"] / c).is_dir()) if sd.is_dir() else 0
+        return {"move": 18, "done": n, "total": 12 * len(cuts) * len(EXTRA_MOVES[18]["steps"]), "unit": "level and feature-set predictions (12 per step and cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -1025,7 +1088,8 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     """`{cut}` -> every cut folder of the run (params.json), `{idle13}` and `{newblocks}` -> the sibling
     folders' names; the order of the specs kept, each cut in turn."""
     o = Path(out)
-    subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"]}
+    subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"],
+            "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
