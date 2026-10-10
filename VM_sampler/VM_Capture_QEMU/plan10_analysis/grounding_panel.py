@@ -149,6 +149,26 @@ EXTRA_MOVES[18] = {
     "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_randomsplit; reads moves 0, 1 and 6 and <out>_newblocks (read only); refuses to "
             "start (exit 3) while a move runs; new_blocks.py is imported, not changed",
     "requires": [6], "reads_from": [0, 1, 6]}
+# the window-size sweep of the time-shuffled control (2026-10-10): move 17's computation for windows of 1 to 128 pairs, one step per size, both phases inside
+_SWEEP_SIZES = (1, 2, 4, 8, 16, 32, 128)
+EXTRA_MOVES[19] = {
+    "title": "the window-size sweep of the time-shuffled control: windows of 1, 2, 4, 8, 16, 32 and 128 pairs (64 is move 17), the eight variants, both phases per step",
+    "module": "time_shuffle_sizes", "suffix": "_timeshuffle_sizes", "record_keys": tuple(f"size{s}" for s in _SWEEP_SIZES) + ("sweep_summary",),
+    "lock": ".time_shuffle_sizes.lock", "flags": (),
+    "steps": tuple({"name": f"window size {s} pair{'s' if s > 1 else ''} (move 17's computation, both phases, both cuts)", "key": f"size{s}", "args": ["--size", str(s)], "dir": f"size{s}"}
+                   for s in _SWEEP_SIZES)
+             + ({"name": "the sweep's summary: the gap against the window size, with move 17's size 64 (after the sizes finish)", "key": "sweep_summary", "sub": "summary", "args": [],
+                 "dir": "", "done_file": "sweep_summary.json"},),
+    "what": "time_shuffle_sizes.py: time_shuffle.one_cut run as it is with the block size set, for windows of 1, 2, 4, 8, 16, 32 and 128 pairs (a window is a stretch of consecutive "
+            "pairs across all pages; size 1 is a full shuffle of the pairs; size 64 is move 17 and is read from <out>_timeshuffle, never recomputed); the same seeds, ten shuffles, "
+            "label null and files as move 17, both phases (phi = 2 theta, phi = theta) and both cuts in every step; a step resumes a (phase, cut) that stands; after every step the "
+            "orders are checked as permutations of the full blocks; writes <out>_timeshuffle_sizes/size<B>/<phase>/cut<C>/ (move 17's files), size<B>/gaps_both_cuts.svg, "
+            "size<B>/step.json, and the sweep's sweep_summary.csv/.svg/.json (the gap against the window size per variant and cut, the unshuffled gap and null p95 as references, "
+            "the shuffles' spread; a size not yet run reads missing) and record.json; the last step, `time_shuffle_sizes summary`, rewrites the sweep from what stands",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_timeshuffle_sizes; reads moves 0, 1 and 5, the L1 stores, <out>_pagefourier and "
+            "<out>_timeshuffle (all read only); refuses to start (exit 3) while a move runs; time_shuffle.py and page_fourier.py are imported, not changed; a size step takes about "
+            "twice a move 17 step",
+    "requires": [1], "reads_from": [0, 1, 5]}
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
@@ -239,6 +259,15 @@ VIEWS = [
                "{randomsplit}/step2_random_nooverlap/{cut}/scores.csv", "{randomsplit}/step2_random_nooverlap/{cut}/margins.csv", "{randomsplit}/step2_random_nooverlap/{cut}/run_level.csv",
                "{randomsplit}/step2_random_nooverlap/{cut}/split.csv", "{randomsplit}/step1_random/step.json", "{randomsplit}/step2_random_nooverlap/step.json",
                "{randomsplit}/e0_idle_check.json", "{randomsplit}/record.json"]},
+    {"id": "timeshuffle_sizes", "title": "the window-size sweep of the time-shuffled control: the gap against the window size per variant and cut, and each size's eight variants (move 19, beside the run)", "move": 19,
+     "note": "written by time_shuffle_sizes.py into the sibling folder <out>_timeshuffle_sizes; size 64 comes from <out>_timeshuffle (move 17), the unshuffled references from <out>_pagefourier; a size not yet run reads missing",
+     "files": ["{timeshuffle_sizes}/sweep_summary.svg", "{timeshuffle_sizes}/sweep_summary.csv",
+               "{timeshuffle_sizes}/size1/gaps_both_cuts.svg", "{timeshuffle_sizes}/size2/gaps_both_cuts.svg", "{timeshuffle_sizes}/size4/gaps_both_cuts.svg",
+               "{timeshuffle_sizes}/size8/gaps_both_cuts.svg", "{timeshuffle_sizes}/size16/gaps_both_cuts.svg", "{timeshuffle_sizes}/size32/gaps_both_cuts.svg",
+               "{timeshuffle_sizes}/size128/gaps_both_cuts.svg",
+               "{timeshuffle_sizes}/size1/step.json", "{timeshuffle_sizes}/size2/step.json", "{timeshuffle_sizes}/size4/step.json", "{timeshuffle_sizes}/size8/step.json",
+               "{timeshuffle_sizes}/size16/step.json", "{timeshuffle_sizes}/size32/step.json", "{timeshuffle_sizes}/size128/step.json",
+               "{timeshuffle_sizes}/sweep_summary.json", "{timeshuffle_sizes}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -467,7 +496,7 @@ def cut_dirs(out: Path) -> list[str]:
 
 def sibling_dirs(out: Path) -> dict:
     """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`,
-    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle` and `<out>_randomsplit`, nothing else next to the run."""
+    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit` and `<out>_timeshuffle_sizes`, nothing else next to the run."""
     o = Path(out)
     return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
 
@@ -861,6 +890,16 @@ def progress(out: Path, move: int | None) -> dict | None:
         sd = sibling_dirs(o)[o.name + EXTRA_MOVES[18]["suffix"]]
         n = sum(len(list((sd / st["dir"] / c).glob("predictions_*.csv"))) for st in EXTRA_MOVES[18]["steps"] for c in cuts if (sd / st["dir"] / c).is_dir()) if sd.is_dir() else 0
         return {"move": 18, "done": n, "total": 12 * len(cuts) * len(EXTRA_MOVES[18]["steps"]), "unit": "level and feature-set predictions (12 per step and cut)"}
+    if move == 19:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[19]["suffix"]]
+        sizes = [st["dir"] for st in EXTRA_MOVES[19]["steps"] if st["dir"]]
+        n = sum(len(list((sd / s / ph / c / "spectra").glob("*.npz"))) for s in sizes for ph in ("step1_doubled", "step2_single") for c in cuts if (sd / s / ph / c / "spectra").is_dir()) if sd.is_dir() else 0
+        n_rec = 0
+        if (o / "cells.csv").exists():
+            h, rows, _ = read_csv_rows(o / "cells.csv")
+            ia = h.index("admissible") if "admissible" in h else -1
+            n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
+        return {"move": 19, "done": n, "total": (len(sizes) * 2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (seven sizes, both phases, every cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -1089,7 +1128,7 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     folders' names; the order of the specs kept, each cut in turn."""
     o = Path(out)
     subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"],
-            "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"]}
+            "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"], "timeshuffle_sizes": o.name + EXTRA_MOVES[19]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
