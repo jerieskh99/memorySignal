@@ -85,8 +85,21 @@ EXTRA_MOVES = {
                  "accuracy_by_level.svg, accuracy_by_position.svg, recall_per_kernel.svg, summary.json), new_blocks.json, e0_idle_check.json and record.json",
          "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_newblocks; reads moves 0, 1 and 6; refuses to start (exit 3) while a move runs",
          "requires": [6], "reads_from": [0, 1, 6]},
+    13: {"title": "the per-page Fourier test: every page's complex row, phi = 2 theta (step 1) and phi = theta (step 2)", "module": "page_fourier", "suffix": "_pagefourier",
+         "record_keys": ("step1_doubled", "step2_single"), "lock": ".page_fourier.lock", "flags": (),
+         "steps": ({"name": "page Fourier, step 1 (phi = 2 theta, the headline)", "key": "step1_doubled", "args": ["--step", "1"], "dir": "step1_doubled"},
+                   {"name": "page Fourier, step 2 (phi = theta, the control)", "key": "step2_single", "args": ["--step", "2"], "dir": "step2_single"}),
+         "what": "page_fourier.py: the letter's complex matrix read row by row: per page that changes after the cut, its complex row over the pairs (h e^{j phi}), Welch two-sided "
+                 "(128-pair Hann segments), the spectrum normalised to sum 1; per recording the page-averaged spectrum (all pages, busy, rare, rest) and the asymmetry; between "
+                 "recordings move 5's spectral test (within against between, the label null) with move 5's angle rows beside it; the identity check (the page arrows reproduce "
+                 "N, H, C, S) before anything; writes <out>_pagefourier/<step>/cut<C>/ (recordings.csv, spectra/, pages/, spectra_by_group.csv, between.csv, per_group.csv, "
+                 "asymmetry.csv, identity_check.csv, spectrum_by_group.svg, within_between.svg, asymmetry_by_kernel.svg, pages_image_<cell>.svg/.png, summary.json), "
+                 "<step>/step.json and record.json",
+         "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_pagefourier; reads moves 0, 1 and 5 and the L1 stores; refuses to "
+                 "start (exit 3) while a move runs; the author's phase is the doubled angle (step 1), step 2 is the control",
+         "requires": [1], "reads_from": [0, 1, 5]},
 }
-EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run (the paper preset's values are move 6's own)
+EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
 # RUNBOOK.md section 2 (the real run) and section 1 (the smoke run): the flag values those command
@@ -140,6 +153,12 @@ VIEWS = [
                "{idle13}/step1_loro/{cut}/recall_per_class.csv", "{idle13}/step1_loro/{cut}/margins.csv",
                "{idle13}/step2_within_trace/{cut}/confusion_E2.svg", "{idle13}/step2_within_trace/{cut}/scores.csv", "{idle13}/step2_within_trace/{cut}/recall_per_class.csv",
                "{idle13}/step1_loro/step.json", "{idle13}/step2_within_trace/step.json", "{idle13}/e0_idle_check.json", "{idle13}/record.json"]},
+    {"id": "pagefourier", "title": "the per-page Fourier test: the spectrum per kernel and idle, within against between, the asymmetry, one recording's pages (move 13, beside the run)", "move": 13,
+     "note": "written by page_fourier.py into the sibling folder <out>_pagefourier; step 1 is the author's phase (phi = 2 theta), step 2 the control (phi = theta)",
+     "files": ["{pagefourier}/step1_doubled/{cut}/spectrum_by_group.svg", "{pagefourier}/step1_doubled/{cut}/within_between.svg", "{pagefourier}/step1_doubled/{cut}/asymmetry_by_kernel.svg",
+               "{pagefourier}/step1_doubled/{cut}/between.csv", "{pagefourier}/step1_doubled/{cut}/recordings.csv", "{pagefourier}/step1_doubled/{cut}/identity_check.csv",
+               "{pagefourier}/step2_single/{cut}/spectrum_by_group.svg", "{pagefourier}/step2_single/{cut}/within_between.svg", "{pagefourier}/step2_single/{cut}/asymmetry_by_kernel.svg",
+               "{pagefourier}/step2_single/{cut}/between.csv", "{pagefourier}/step1_doubled/step.json", "{pagefourier}/step2_single/step.json", "{pagefourier}/record.json"]},
     {"id": "newblocks", "title": "the new-block test: accuracy by level, by position, per kernel; the kernel confusions (move 12, beside the run)", "move": 12,
      "note": "written by new_blocks.py into the sibling folder <out>_newblocks; no label-shuffle null (the scores.csv null column says why); chance and majority are the baselines",
      "files": ["{newblocks}/{cut}/accuracy_by_level.svg", "{newblocks}/{cut}/accuracy_by_position.svg", "{newblocks}/{cut}/recall_per_kernel.svg",
@@ -737,6 +756,15 @@ def progress(out: Path, move: int | None) -> dict | None:
         sd = sibling_dirs(o)[o.name + EXTRA_MOVES[12]["suffix"]]
         n = sum(len(list((sd / c).glob("predictions_*.csv"))) for c in cuts if (sd / c).is_dir()) if sd.is_dir() else 0
         return {"move": 12, "done": n, "total": 12 * len(cuts), "unit": "level and feature-set predictions (12 per cut)"}
+    if move == 13:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[13]["suffix"]]
+        n = sum(len(list((sd / st["dir"] / c / "spectra").glob("*.csv"))) for st in EXTRA_MOVES[13]["steps"] for c in cuts if (sd / st["dir"] / c / "spectra").is_dir()) if sd.is_dir() else 0
+        n_rec = 0
+        if (o / "cells.csv").exists():
+            h, rows, _ = read_csv_rows(o / "cells.csv")
+            ia = h.index("admissible") if "admissible" in h else -1
+            n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
+        return {"move": 13, "done": n, "total": (2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (both steps, every cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -841,7 +869,7 @@ def extra_argv(out: Path, move: int, step: dict, flags: dict, force: bool = Fals
     preset's values are move 6's own); everything else is the module's default, read from the run's records."""
     x = EXTRA_MOVES[move]
     argv = [sys.executable, "-m", f"{TOOLKIT_NAME}.{x['module']}", "run", "--run", str(out)] + list(step["args"])
-    for dest in EXTRA_FLAGS:
+    for dest in x.get("flags", EXTRA_FLAGS):
         v = (flags or {}).get(dest)
         if not _unset(v):
             argv += [f"--{dest.replace('_', '-')}", str(int(float(v)))]
@@ -871,7 +899,7 @@ def extra_move_states(out: Path, running: dict | None, sections: dict | None = N
             status = e.get("status")
             if status == "running":
                 # an open entry: the move is running (this console's launch, a shell run holding the sibling's lock), or it was cut short
-                lock = sd / (".idle_class.lock" if mv == 11 else ".new_blocks.lock")
+                lock = sd / x.get("lock", ".idle_class.lock" if mv == 11 else ".new_blocks.lock")
                 held = False
                 if lock.is_file():
                     with contextlib.suppress(OSError, json.JSONDecodeError, TypeError, ValueError):
@@ -964,7 +992,7 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     """`{cut}` -> every cut folder of the run (params.json), `{idle13}` and `{newblocks}` -> the sibling
     folders' names; the order of the specs kept, each cut in turn."""
     o = Path(out)
-    subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"]}
+    subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
