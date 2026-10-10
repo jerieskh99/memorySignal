@@ -99,6 +99,23 @@ EXTRA_MOVES = {
                  "start (exit 3) while a move runs; the author's phase is the doubled angle (step 1), step 2 is the control",
          "requires": [1], "reads_from": [0, 1, 5]},
 }
+# the grid (2026-10-10): moves 14 to 16 are move 13 with its two switches turned (page_fourier.py --move N), in the same sibling folder and record
+_GRID = {14: ("raw spectra, level kept", "the plain mean of the pages' power spectra (pages with more bits weigh more); no mean removed, the f = 0 bin kept"),
+         15: ("each page counts once, level kept", "each page's spectrum normalised to sum 1 before the average; no mean removed, the f = 0 bin kept"),
+         16: ("raw spectra, level removed", "the plain mean of the pages' power spectra; the mean removed per segment, the f = 0 bin dropped in the between-recordings test")}
+for _mv, (_short, _long) in _GRID.items():
+    EXTRA_MOVES[_mv] = {
+        "title": f"the per-page Fourier test, {_short} (move 13's grid)", "module": "page_fourier", "suffix": "_pagefourier",
+        "record_keys": (f"move{_mv}_step1_doubled", f"move{_mv}_step2_single"), "lock": ".page_fourier.lock", "flags": (),
+        "steps": ({"name": f"page Fourier move {_mv}, step 1 (phi = 2 theta)", "key": f"move{_mv}_step1_doubled", "args": ["--move", str(_mv), "--step", "1"], "dir": f"move{_mv}/step1_doubled"},
+                  {"name": f"page Fourier move {_mv}, step 2 (phi = theta)", "key": f"move{_mv}_step2_single", "args": ["--move", str(_mv), "--step", "2"], "dir": f"move{_mv}/step2_single"}),
+        "what": f"page_fourier.py --move {_mv}: {_long}; everything else as move 13 (the data, the cuts, the identity check, the activity groups, the asymmetry, move 5's test "
+                f"and its null, the figures); writes <out>_pagefourier/move{_mv}/<step>/cut<C>/ with move 13's files",
+        "note": f"beside the run: the same sibling folder and record.json as move 13 (keys move{_mv}_<step>); reads moves 0, 1 and 5 and the L1 stores; refuses to start (exit 3) while a move runs",
+        "requires": [1], "reads_from": [0, 1, 5]}
+EXTRA_MOVES[16]["steps"] = EXTRA_MOVES[16]["steps"] + ({"name": "the grid's summary: moves 13 to 16, two steps, both cuts, side by side", "key": "grid_summary", "sub": "summary", "args": [],
+                                                       "dir": "", "done_file": "grid_summary.json"},)
+EXTRA_MOVES[16]["what"] += "; its third step, `page_fourier summary`, writes <out>_pagefourier/grid_summary.csv, .svg and .json (a variant not yet run reads missing)"
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
@@ -159,6 +176,13 @@ VIEWS = [
                "{pagefourier}/step1_doubled/{cut}/between.csv", "{pagefourier}/step1_doubled/{cut}/recordings.csv", "{pagefourier}/step1_doubled/{cut}/identity_check.csv",
                "{pagefourier}/step2_single/{cut}/spectrum_by_group.svg", "{pagefourier}/step2_single/{cut}/within_between.svg", "{pagefourier}/step2_single/{cut}/asymmetry_by_kernel.svg",
                "{pagefourier}/step2_single/{cut}/between.csv", "{pagefourier}/step1_doubled/step.json", "{pagefourier}/step2_single/step.json", "{pagefourier}/record.json"]},
+    {"id": "pagefourier_grid", "title": "the grid of the per-page Fourier test: moves 13 to 16 side by side, and each variant's within-against-between and asymmetry (moves 14 to 16, beside the run)", "move": 16,
+     "note": "written by page_fourier.py into the sibling folder <out>_pagefourier: the summary after move 16's third step, then step 1 of each variant per cut",
+     "files": ["{pagefourier}/grid_summary.svg", "{pagefourier}/grid_summary.csv",
+               "{pagefourier}/move14/step1_doubled/{cut}/within_between.svg", "{pagefourier}/move14/step1_doubled/{cut}/asymmetry_by_kernel.svg", "{pagefourier}/move14/step1_doubled/{cut}/spectrum_by_group.svg",
+               "{pagefourier}/move15/step1_doubled/{cut}/within_between.svg", "{pagefourier}/move15/step1_doubled/{cut}/asymmetry_by_kernel.svg", "{pagefourier}/move15/step1_doubled/{cut}/spectrum_by_group.svg",
+               "{pagefourier}/move16/step1_doubled/{cut}/within_between.svg", "{pagefourier}/move16/step1_doubled/{cut}/asymmetry_by_kernel.svg", "{pagefourier}/move16/step1_doubled/{cut}/spectrum_by_group.svg",
+               "{pagefourier}/grid_summary.json"]},
     {"id": "newblocks", "title": "the new-block test: accuracy by level, by position, per kernel; the kernel confusions (move 12, beside the run)", "move": 12,
      "note": "written by new_blocks.py into the sibling folder <out>_newblocks; no label-shuffle null (the scores.csv null column says why); chance and majority are the baselines",
      "files": ["{newblocks}/{cut}/accuracy_by_level.svg", "{newblocks}/{cut}/accuracy_by_position.svg", "{newblocks}/{cut}/recall_per_kernel.svg",
@@ -765,6 +789,15 @@ def progress(out: Path, move: int | None) -> dict | None:
             ia = h.index("admissible") if "admissible" in h else -1
             n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
         return {"move": 13, "done": n, "total": (2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (both steps, every cut)"}
+    if move in (14, 15, 16):
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[move]["suffix"]]
+        n = sum(len(list((sd / st["dir"] / c / "spectra").glob("*.csv"))) for st in EXTRA_MOVES[move]["steps"] if st["dir"] for c in cuts if (sd / st["dir"] / c / "spectra").is_dir()) if sd.is_dir() else 0
+        n_rec = 0
+        if (o / "cells.csv").exists():
+            h, rows, _ = read_csv_rows(o / "cells.csv")
+            ia = h.index("admissible") if "admissible" in h else -1
+            n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
+        return {"move": move, "done": n, "total": (2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (both steps, every cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -868,7 +901,7 @@ def extra_argv(out: Path, move: int, step: dict, flags: dict, force: bool = Fals
     [--n-estimators T] [--force] [--dry-run]`; the tab's job and tree flags are passed when set (the paper
     preset's values are move 6's own); everything else is the module's default, read from the run's records."""
     x = EXTRA_MOVES[move]
-    argv = [sys.executable, "-m", f"{TOOLKIT_NAME}.{x['module']}", "run", "--run", str(out)] + list(step["args"])
+    argv = [sys.executable, "-m", f"{TOOLKIT_NAME}.{x['module']}", step.get("sub", "run"), "--run", str(out)] + list(step["args"])
     for dest in x.get("flags", EXTRA_FLAGS):
         v = (flags or {}).get(dest)
         if not _unset(v):
@@ -911,7 +944,7 @@ def extra_move_states(out: Path, running: dict | None, sections: dict | None = N
                 st_ = classify(status)
             states.append(st_)
             outs = [f"{sib}/{f}" for f in (e.get("outputs") or [])]
-            key_files = [f"{sib}/{st['dir']}/step.json"] if st["dir"] else [f"{sib}/new_blocks.json"]
+            key_files = [f"{sib}/{st['done_file']}"] if st.get("done_file") else ([f"{sib}/{st['dir']}/step.json"] if st["dir"] else [f"{sib}/new_blocks.json"])
             crows.append({"key": f"{mv}:{st['name']}", "name": st["name"], "module": x["module"], "sub": "run", "internal": False, "template": False,
                           "line": shell_line(extra_argv(o, mv, st, flags or {})), "outputs": key_files, "inputs": [],
                           "status": status, "state": st_, "stale": None, "exit_code": e.get("exit_code"), "started_at": e.get("started_at"),

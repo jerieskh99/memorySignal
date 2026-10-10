@@ -2,10 +2,23 @@
 """page_fourier.py -- the per-page Fourier test beside the run of plan12_grounding (2026-10-10; move 13 in the
 console's Grounding paper tab, after the idle class check (11) and the new-block test (12)).
 
-  python3 -m plan12_grounding.page_fourier run --run <main run out> --step 1|2 [--out <dir>] [--cuts declared,measured]
-        [--only cellA,cellB] [--chunk-pages 2000] [--n-shuffles 1000] [--seed 20260930] [--image-cell floyd__rep00__01c1]
-        [--check-only] [--force] [--dry-run]
+  python3 -m plan12_grounding.page_fourier run --run <main run out> --step 1|2 [--move 13|14|15|16] [--out <dir>]
+        [--cuts declared,measured] [--only cellA,cellB] [--chunk-pages 2000] [--n-shuffles 1000] [--seed 20260930]
+        [--image-cell floyd__rep00__01c1] [--check-only] [--force] [--dry-run]
+  python3 -m plan12_grounding.page_fourier summary --run <main run out> [--out <dir>] [--dry-run]
   (run from VM_sampler/VM_Capture_QEMU/)
+
+THE GRID (the author's, 2026-10-10; moves 14 to 16 added to this module with defaults that reproduce move 13 exactly,
+checked byte for byte on two recordings). Two switches, every combination, each with the two steps:
+  move 13  each page counts once (its spectrum normalised to sum 1)   level removed (the mean removed per segment, the f = 0 bin dropped in the between-recordings test)
+  move 14  raw spectra (the plain mean of the pages' power spectra, so pages with more bits weigh more)   level kept (no mean removed, the f = 0 bin kept, in the spectra and in the between-recordings test)
+  move 15  each page counts once                                        level kept
+  move 16  raw spectra                                                  level removed
+Everything else is the same (the data, the cuts, the identity check, the activity groups, the asymmetry, move 5's test
+and its null, the figures, the outputs), so the eight variants compare directly. Move 13 writes <out>/<step>/ as before;
+moves 14 to 16 write <out>/move<N>/<step>/ with the record keys move<N>_<step>. `summary` collects the eight variants
+(both steps, both cuts) into <out>/grid_summary.csv, .svg and .json: the gap, its null p95 and p, and the mean
+asymmetry; a variant not yet run reads "missing".
 
 WHY. The SPL paper (spl_paper/main_v2.tex, Section IV, eq. DeltaEntry and DeltaVector) defines the signal as a complex
 matrix Delta in C^{N x (T-1)}: page n at pair t gives Delta(t,n) = h * e^{j phi}, zero when the page did not change; each
@@ -30,8 +43,8 @@ THE TEST
   level: the mean of the row over the cut pairs, and over the pairs it changed in) kept separately; Welch two-sided on
   the complex row (128-pair Hann segments, half overlap, the mean removed per segment, as similarity.log_spectrum does
   for one real series; scipy's periodic Hann), the spectrum over f = -0.5 .. 0.5 cycles per pair, normalised to sum 1,
-  so every page counts once. A page whose row has no power after the mean removal (a constant row) is counted and
-  left out of the averages.
+  so every page counts once. A page whose row has no power (a constant row under level removed; under level kept a
+  row whose only changes fall where the periodic Hann window is zero) is counted as "constant" and left out of the averages.
 - Per recording: the page-averaged spectrum (the spectrum of the whole signal), also for three activity groups by the
   share of cut pairs the page changed in: busy (>= 95%), rare (<= 5%), the rest; and the asymmetry, the share of power
   at positive minus negative frequencies (the f = 0 bin in neither; 0 for a real signal), per page (its distribution)
@@ -106,6 +119,12 @@ CITATION = ("spl_paper/main_v2.tex Section IV (Delta(t,n) = Delta_mag e^{j Delta
             "build_series (the keep-first rule, the pair axis, rows with h > 0), stats.py cut_series (the cut), similarity.py log_spectrum / spectral_similarity "
             "(Welch, 128-pair Hann, half overlap, the mean removed; within against between, the label null), copied here with the spectrum given")
 STEPS = {1: ("step1_doubled", 2.0, "phi = 2 theta (the headline: 0 and 180 degrees opposite)"), 2: ("step2_single", 1.0, "phi = theta (the control)")}
+# the grid: move -> (weighting, level); 13 is the original and the default
+VARIANTS = {13: ("once", "removed"), 14: ("raw", "kept"), 15: ("once", "kept"), 16: ("raw", "removed")}
+WEIGHTING_TEXT = {"once": "each page counts once (its spectrum normalised to sum 1 before the average)",
+                  "raw": "raw spectra (the plain mean of the pages' power spectra; pages with more bits weigh more)"}
+LEVEL_TEXT = {"removed": "level removed (the mean removed per segment; the f = 0 bin dropped in the between-recordings test)",
+              "kept": "level kept (no mean removed; the f = 0 bin kept in the spectra and in the between-recordings test)"}
 OUT_SUFFIX = "_pagefourier"
 LOCK_NAME = ".page_fourier.lock"
 RECORD_NAME = "record.json"
@@ -181,15 +200,17 @@ def identity_check(run_rec: dict, rows: dict, cut: int) -> dict:
 # ---------------------------------------------------------------------------------------------
 # the spectra: Welch two-sided on complex rows, in chunks of pages
 # ---------------------------------------------------------------------------------------------
-def welch_two_sided(rows: np.ndarray, nperseg: int) -> np.ndarray:
-    """Welch on complex rows (P x T): nperseg-sample segments with half overlap, the mean removed per segment, scipy's
-    periodic Hann, |FFT|^2 averaged over the segments, fftshift so that bin 0 is f = -0.5; (P x nperseg)."""
+def welch_two_sided(rows: np.ndarray, nperseg: int, remove_mean: bool = True) -> np.ndarray:
+    """Welch on complex rows (P x T): nperseg-sample segments with half overlap, the mean removed per segment (level
+    removed) or kept, scipy's periodic Hann, |FFT|^2 averaged over the segments, fftshift so that bin 0 is f = -0.5;
+    (P x nperseg)."""
     hop = nperseg // 2
     T = rows.shape[1]
     n_seg = (T - nperseg) // hop + 1
     idx = np.arange(nperseg)[None, :] + hop * np.arange(n_seg)[:, None]
     seg = rows[:, idx]
-    seg = seg - seg.mean(axis=2, keepdims=True)
+    if remove_mean:
+        seg = seg - seg.mean(axis=2, keepdims=True)
     w = get_window("hann", nperseg).astype(np.float64)
     X = np.fft.fft(seg * w, axis=2)
     P = (np.abs(X) ** 2).mean(axis=1)
@@ -200,9 +221,11 @@ def freqs(nperseg: int) -> np.ndarray:
     return np.fft.fftshift(np.fft.fftfreq(nperseg))
 
 
-def recording_spectra(rows: dict, phase_factor: float, nperseg: int, chunk: int, want_image: bool) -> dict:
-    """Every changed page's normalised two-sided spectrum, averaged over all pages and over the activity groups; the
-    asymmetry per page; the pages' table; optionally the full page x frequency matrix for the image."""
+def recording_spectra(rows: dict, phase_factor: float, nperseg: int, chunk: int, want_image: bool, weighting: str = "once", level: str = "removed") -> dict:
+    """Every changed page's two-sided spectrum (normalised to sum 1 under `once`, the plain power under `raw`), averaged
+    over all pages and over the activity groups; the asymmetry per page (always a share of the page's own power); the
+    pages' table; optionally the full page x frequency matrix for the image. `level` removed takes the mean out per
+    segment; kept leaves it in (the f = 0 bin then holds the level)."""
     T = rows["T"]
     pages, inv = np.unique(rows["page"], return_inverse=True)
     n_pages = int(pages.size)
@@ -229,13 +252,14 @@ def recording_spectra(rows: dict, phase_factor: float, nperseg: int, chunk: int,
         sel = order[starts[c0]:starts[c1]]
         M = np.zeros((c1 - c0, T), dtype=np.complex128)
         M[inv[sel] - c0, rows["col"][sel]] = arrow[sel]
-        P = welch_two_sided(M, nperseg)
+        P = welch_two_sided(M, nperseg, remove_mean=(level == "removed"))
         tot = P.sum(axis=1)
         ok = tot > 0
-        P = np.where(ok[:, None], P / np.where(ok, tot, 1.0)[:, None], 0.0)
+        share = np.where(ok[:, None], P / np.where(ok, tot, 1.0)[:, None], 0.0)      # the page's own power as shares, for its asymmetry and its peak
+        P = share if weighting == "once" else np.where(ok[:, None], P, 0.0)
         constant[c0:c1] = ~ok
-        asym[c0:c1] = np.where(ok, P[:, pos].sum(axis=1) - P[:, neg].sum(axis=1), np.nan)
-        Pp = P.copy(); Pp[:, dc] = -1.0
+        asym[c0:c1] = np.where(ok, share[:, pos].sum(axis=1) - share[:, neg].sum(axis=1), np.nan)
+        Pp = share.copy(); Pp[:, dc] = -1.0
         peak[c0:c1] = np.where(ok, np.argmax(Pp, axis=1), -1)
         sum_all += P[ok].sum(axis=0); n_used += int(ok.sum())
         for g in GROUPS:
@@ -245,10 +269,15 @@ def recording_spectra(rows: dict, phase_factor: float, nperseg: int, chunk: int,
             image[c0:c1] = P.astype(np.float32)
     mean_all_spec = sum_all / max(n_used, 1)
     mean_group_spec = {g: (sum_group[g] / n_used_group[g] if n_used_group[g] else np.full(nperseg, np.nan)) for g in GROUPS}
+    if weighting == "once":                              # the pages' spectra each sum to 1, so their mean does too: the difference is already a share (move 13's expression, kept as written)
+        asym_spec = float(mean_all_spec[pos].sum() - mean_all_spec[neg].sum()) if n_used else float("nan")
+    else:                                                # raw power: the difference as a share of the averaged spectrum's power
+        tot_mean = float(mean_all_spec.sum())
+        asym_spec = float((mean_all_spec[pos].sum() - mean_all_spec[neg].sum()) / tot_mean) if (n_used and tot_mean > 0) else float("nan")
     return {"f": f, "pages": pages, "n_pages": n_pages, "n_changes": n_changes, "activity": activity, "group": group,
             "mean_all": mean_all, "mean_changed": mean_changed, "asym_pages": asym, "peak": peak, "constant": constant,
             "spectrum": mean_all_spec, "spectrum_group": mean_group_spec, "n_used": n_used, "n_used_group": n_used_group,
-            "asym_spectrum": float(mean_all_spec[pos].sum() - mean_all_spec[neg].sum()) if n_used else float("nan"), "image": image, "dc": dc}
+            "asym_spectrum": asym_spec, "image": image, "dc": dc, "weighting": weighting, "level": level}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -411,7 +440,8 @@ def pages_image(spec: dict, cell_id: str, step_text: str, cut: int, d: Path) -> 
 # one cut of one step
 # ---------------------------------------------------------------------------------------------
 def one_cut(step_dir: Path, cut_name: str, cut: int, runs: list[dict], ex_recs: dict, run: Path, phase_factor: float, step_text: str, *,
-            chunk: int, n_shuffles: int, seed: int, image_cell: str | None, check_only: bool, other_step_dir: Path | None) -> dict:
+            chunk: int, n_shuffles: int, seed: int, image_cell: str | None, check_only: bool, other_step_dir: Path | None,
+            weighting: str = "once", level: str = "removed") -> dict:
     d = step_dir / f"cut{cut}"
     d.mkdir(parents=True, exist_ok=True)
     (d / "spectra").mkdir(exist_ok=True); (d / "pages").mkdir(exist_ok=True)
@@ -441,10 +471,12 @@ def one_cut(step_dir: Path, cut_name: str, cut: int, runs: list[dict], ex_recs: 
             nperseg = max(4, min(NPERSEG, min(int(cut_series(x, cut)["pair"].size) for x in runs)))
             f_axis = freqs(nperseg)
         want_image = (image_cell is not None and r["cell_id"] == image_cell)
-        spec = recording_spectra(rows, phase_factor, nperseg, chunk, want_image)
+        spec = recording_spectra(rows, phase_factor, nperseg, chunk, want_image, weighting, level)
         per_rec[r["cell_id"]] = spec
         labels.append(r["group"])
-        L = spec["spectrum"].copy(); L = np.delete(L, spec["dc"])
+        L = spec["spectrum"].copy()
+        if level == "removed":
+            L = np.delete(L, spec["dc"])                   # the f = 0 bin holds nothing once the mean is removed; kept under `kept`
         spectra_log.append(np.log(L / (L.sum() + 1e-300) + 1e-300))
         write_csv(d / "spectra" / f"{r['cell_id']}.csv", ["f", "all_pages", "busy", "rare", "rest", "n_pages_all", "n_busy", "n_rare", "n_rest"],
                   [[float(f_axis[i]), float(spec["spectrum"][i])] + [float(spec["spectrum_group"][g][i]) for g in GROUPS] + [spec["n_used"]] + [spec["n_used_group"][g] for g in GROUPS]
@@ -477,6 +509,7 @@ def one_cut(step_dir: Path, cut_name: str, cut: int, runs: list[dict], ex_recs: 
                                      "asym_pages_median", "asym_spectrum", "identity_ok", "identity_max_rel_dev", "time_s", "status"], rec_rows)
     write_csv(d / "asymmetry.csv", ["cell_id", "group", "asym_pages_mean", "asym_pages_median", "asym_pages_p05", "asym_pages_p95", "asym_spectrum", "n_pages_used"], asym_rows)
     summary = {"cut": int(cut), "cut_name": cut_name, "step": step_text, "phase_factor": phase_factor, "nperseg": nperseg, "n_recordings": len(rec_rows), "n_scored": len(per_rec),
+               "weighting": weighting, "weighting_text": WEIGHTING_TEXT[weighting], "level": level, "level_text": LEVEL_TEXT[level],
                "asymmetry_rule": ASYM_RULE, "activity_groups": {"busy": f">= {BUSY_MIN:.0%} of the cut pairs", "rare": f"<= {RARE_MAX:.0%}", "rest": "the others"},
                "identity_all_ok": all(r[5] for r in id_rows), "identity_max_rel_dev": max((r[6] for r in id_rows), default=0.0),
                "time_per_recording_s": {"mean": float(np.mean([r[16] for r in rec_rows])) if rec_rows else None, "max": max((r[16] for r in rec_rows), default=None)}}
@@ -499,7 +532,8 @@ def one_cut(step_dir: Path, cut_name: str, cut: int, runs: list[dict], ex_recs: 
     wb = within_between(np.array(spectra_log), labs, rng, n_shuffles)
     m5 = move5_rows(run, cut)
     write_csv(d / "between.csv", ["source", "series", "nperseg", "n_bins", "within_corr", "between_corr", "within_minus_between", "null_mean", "null_p95", "p_value", "n_shuffles"],
-              [["this step (pages, two-sided, f = 0 dropped)", f"pages, {step_text}", nperseg, wb["n_bins"], wb["within_corr"], wb["between_corr"], wb["within_minus_between"], wb["null_mean"], wb["null_p95"],
+              [[("this step (pages, two-sided, f = 0 dropped)" if (weighting, level) == ("once", "removed") else f"this step (pages, two-sided, {weighting}, f = 0 {'dropped' if level == 'removed' else 'kept'})"),
+                f"pages, {step_text}", nperseg, wb["n_bins"], wb["within_corr"], wb["between_corr"], wb["within_minus_between"], wb["null_mean"], wb["null_p95"],
                 wb["p_value"], wb["n_shuffles"]]] + [[f"move 5 (moves/05_similarity/cut{cut}/spectral_similarity.csv)", r["series"], r["nperseg"], r["n_bins"], r["within_corr"], r["between_corr"],
                                                      r["within_minus_between"], r["null_mean"], r["null_p95"], r["p_value"], ""] for r in m5])
     write_csv(d / "per_group.csv", ["group", "n_runs", "within_corr", "to_other_groups_corr"], [[g["group"], g["n_runs"], g["within_corr"], g["to_other_groups_corr"]] for g in wb["per_group"]])
@@ -628,6 +662,13 @@ def run_step(o: argparse.Namespace) -> int:
     step = int(o.step)
     step_name, phase_factor, step_text = STEPS[step]
     other_name = STEPS[2 if step == 1 else 1][0]
+    move = int(getattr(o, "move", 13) or 13)
+    if move not in VARIANTS:
+        raise Stop(EXIT_MISSING, f"--move {move}: the grid is {sorted(VARIANTS)}")
+    weighting, level = VARIANTS[move]
+    variant_text = f"move {move}: {WEIGHTING_TEXT[weighting]}; {LEVEL_TEXT[level]}"
+    sub = Path("") if move == 13 else Path(f"move{move}")       # move 13 keeps its folders and keys; the grid's moves sit beside them
+    key_prefix = "" if move == 13 else f"move{move}_"
     out = resolve_out(run, o.out)
     lock = I.driver_lock_state(run)
     if lock["alive"] and not o.dry_run:
@@ -643,6 +684,7 @@ def run_step(o: argparse.Namespace) -> int:
         raise Stop(EXIT_MISSING, f"missing input: the L1 store of {len(missing_store)} recording(s) is not on this machine (first: {missing_store[0]}; extract.json names it)")
     image_cell = o.image_cell if (o.image_cell and any(r["cell_id"] == o.image_cell for r in runs)) else None
     n_idle = sum(1 for r in runs if r["group"] == "idle")
+    print(f"[pagefourier] {variant_text}")
     print(f"[pagefourier] step {step}: {step_text}; the per-page Fourier test on {len(runs)} recordings ({len(runs) - n_idle} kernel + {n_idle} idle), cuts "
           f"{', '.join(f'{k} = {v}' for k, v in cuts.items())}; Welch {NPERSEG}-pair Hann segments, half overlap, two-sided; chunks of {o.chunk_pages} pages; "
           f"{o.n_shuffles} label shuffles, seed {o.seed}; image of {image_cell or 'no recording (the named cell is not in the selection)'}")
@@ -651,15 +693,17 @@ def run_step(o: argparse.Namespace) -> int:
           + ("; the refusal is skipped by --dry-run" if (lock["alive"] and o.dry_run) else ""))
     print(f"[pagefourier] identity check first, every recording: N, H, C, S of the page arrows (single angle) against series/<cell>.npz after the cut, rtol {RTOL:g}"
           + ("; --check-only: nothing else" if o.check_only else ""))
+    step_dir = out / sub / step_name
     if o.dry_run:
-        print(f"[pagefourier] dry run: would write {out / step_name}/cut<C>/ (recordings.csv, spectra/<cell>.csv, pages/<cell>.npz, spectra_by_group.csv, between.csv, per_group.csv, "
-              f"asymmetry.csv, identity_check.csv, the figures and summary.json), {out / step_name / 'step.json'} and {out / RECORD_NAME}; nothing written")
+        print(f"[pagefourier] dry run: would write {step_dir}/cut<C>/ (recordings.csv, spectra/<cell>.csv, pages/<cell>.npz, spectra_by_group.csv, between.csv, per_group.csv, "
+              f"asymmetry.csv, identity_check.csv, the figures and summary.json), {step_dir / 'step.json'} and {out / RECORD_NAME}; nothing written")
         return EXIT_OK
     out_lock = acquire_out_lock(out)
     code = code_identity()
-    key = step_name + ("_check" if o.check_only else "")
+    key = key_prefix + step_name + ("_check" if o.check_only else "")
     entry = {"key": key, "step": step, "command": sys.argv, "cwd": str(_HERE.parent), "started_at": now_iso(), "status": "running", "exit_code": None, "finished_at": None,
-             "params": {"run": str(run), "out": str(out), "cuts": cuts, "phase_factor": phase_factor, "phase": step_text, "nperseg": NPERSEG, "chunk_pages": int(o.chunk_pages),
+             "params": {"run": str(run), "out": str(out), "cuts": cuts, "move": move, "weighting": weighting, "level": level, "phase_factor": phase_factor, "phase": step_text,
+                        "nperseg": NPERSEG, "chunk_pages": int(o.chunk_pages),
                         "n_shuffles": int(o.n_shuffles), "seed": int(o.seed), "image_cell": image_cell, "only": only, "check_only": bool(o.check_only), "rtol": RTOL,
                         "n_recordings": len(runs), "force": bool(o.force)},
              "inputs_sha256": inputs_identity(run, runs, ex_recs, cuts),
@@ -669,7 +713,6 @@ def run_step(o: argparse.Namespace) -> int:
     sig = {k: v for k, v in entry["params"].items() if k not in ("force", "chunk_pages")}
     rec = load_record(out)
     prev = last_done(rec, key)
-    step_dir = out / step_name
     outputs_exist = (step_dir / "step.json").is_file() and all((step_dir / f"cut{c}" / ("identity_check.csv" if o.check_only else "summary.json")).is_file() for c in cuts.values())
     try:
         if prev is not None and not o.force and outputs_exist:
@@ -693,8 +736,9 @@ def run_step(o: argparse.Namespace) -> int:
         step_dir.mkdir(parents=True, exist_ok=True)
         t0 = time.time()
         results = [one_cut(step_dir, name, cut, runs, ex_recs, run, phase_factor, step_text, chunk=int(o.chunk_pages), n_shuffles=int(o.n_shuffles), seed=int(o.seed),
-                           image_cell=image_cell, check_only=bool(o.check_only), other_step_dir=(out / other_name)) for name, cut in cuts.items()]
+                           image_cell=image_cell, check_only=bool(o.check_only), other_step_dir=(out / sub / other_name), weighting=weighting, level=level) for name, cut in cuts.items()]
         step_rec = {"schema": "plan12.page_fourier_step.v1", "citation": CITATION, "package_version": __version__, "written_at": now_iso(), "command": sys.argv, "step": step,
+                    "move": move, "variant": variant_text, "weighting": weighting, "level": level,
                     "phase": step_text, "phase_factor": phase_factor, "why": __doc__.split("WHY.", 1)[1].split("THE DATA", 1)[0].strip(), "params": entry["params"],
                     "recordings": [r["cell_id"] for r in runs], "code": entry["code"], "elapsed_s": round(time.time() - t0, 1), "results": results}
         if not o.check_only:
@@ -706,7 +750,7 @@ def run_step(o: argparse.Namespace) -> int:
         for s in results:
             if s.get("check_only"):
                 print(f"[pagefourier] cut {s['cut']}: identity check {'passed' if s['identity_all_ok'] else 'FAILED'} on {s['n_recordings']} recordings, largest relative deviation {s['max_rel_dev']:.3g}, {s['elapsed_s']} s")
-        print(f"[pagefourier] step {step} done in {step_rec['elapsed_s']} s: {step_dir}")
+        print(f"[pagefourier] move {move} step {step} done in {step_rec['elapsed_s']} s: {step_dir}")
         return EXIT_OK
     except BaseException as exc:                           # noqa: BLE001
         code_ = getattr(exc, "code", None)
@@ -722,7 +766,124 @@ def run_step(o: argparse.Namespace) -> int:
         release_out_lock(out_lock)
 
 
+# ---------------------------------------------------------------------------------------------
+# the grid's summary: the eight variants (moves 13 to 16, two steps) at both cuts
+# ---------------------------------------------------------------------------------------------
+def variant_dir(out: Path, move: int, step_name: str) -> Path:
+    return out / step_name if move == 13 else out / f"move{move}" / step_name
+
+
+def grid_summary(run: Path, out: Path, dry_run: bool = False) -> dict:
+    cuts = cuts_of(run)
+    rows, missing = [], []
+    for move in sorted(VARIANTS):
+        w, lv = VARIANTS[move]
+        for step in sorted(STEPS):
+            step_name, _, step_text = STEPS[step]
+            for cut_name, cut in cuts.items():
+                d = variant_dir(out, move, step_name) / f"cut{cut}"
+                row = {"move": move, "weighting": w, "level": lv, "step": step, "phase": step_text, "cut": cut, "cut_name": cut_name, "status": "missing (not run)",
+                       "n_recordings": None, "within_corr": None, "between_corr": None, "gap": None, "null_p95": None, "p_value": None, "mean_asym_spectrum": None, "folder": str(d)}
+                sj = d / "summary.json"
+                if sj.is_file():
+                    try:
+                        j = read_json(sj)
+                        b = j.get("between") or {}
+                        row.update(status=j.get("status") or "ok", n_recordings=j.get("n_scored"), within_corr=b.get("within_corr"), between_corr=b.get("between_corr"),
+                                   gap=b.get("within_minus_between"), null_p95=b.get("null_p95"), p_value=b.get("p_value"))
+                        ac = d / "asymmetry.csv"
+                        if ac.is_file():
+                            with open(ac, newline="") as fh:
+                                vals = [float(r["asym_spectrum"]) for r in csv.DictReader(fh) if r.get("asym_spectrum") not in ("", None)]
+                            row["mean_asym_spectrum"] = float(np.mean(vals)) if vals else None
+                    except (OSError, ValueError, json.JSONDecodeError) as e:
+                        row["status"] = f"unreadable: {e}"
+                else:
+                    missing.append(f"move {move} step {step} cut {cut}")
+                rows.append(row)
+    if dry_run:
+        print(f"[pagefourier] summary dry run: {len(rows)} variant rows, {len(missing)} missing ({', '.join(missing[:6])}{'...' if len(missing) > 6 else ''}); would write {out / 'grid_summary.csv'}, .svg, .json; nothing written")
+        return {"rows": rows, "missing": missing}
+    out.mkdir(parents=True, exist_ok=True)
+    cols = ["move", "weighting", "level", "step", "phase", "cut", "cut_name", "status", "n_recordings", "within_corr", "between_corr", "gap", "null_p95", "p_value", "mean_asym_spectrum", "folder"]
+    write_csv(out / "grid_summary.csv", cols, [[r[c] for c in cols] for r in rows])
+    (out / "grid_summary.svg").write_text(grid_summary_svg(rows, cuts))
+    write_json(out / "grid_summary.json", {"schema": "plan12.page_fourier_grid.v1", "citation": CITATION, "written_at": now_iso(), "cuts": cuts,
+                                           "variants": {m: {"weighting": v[0], "level": v[1]} for m, v in VARIANTS.items()}, "rows": rows, "missing": missing})
+    print(f"[pagefourier] grid summary: {len(rows) - len(missing)} of {len(rows)} variant rows present ({len(missing)} missing); {out / 'grid_summary.csv'}, .svg, .json")
+    return {"rows": rows, "missing": missing}
+
+
+def grid_summary_svg(rows: list[dict], cuts: dict) -> str:
+    """Per cut a panel: the eight variants (moves 13 to 16 x the two steps) as bars of the within-minus-between gap, the
+    null's 95th percentile as a red tick, p and the mean asymmetry printed; a missing variant reads "missing"."""
+    variants = [(m, st) for m in sorted(VARIANTS) for st in sorted(STEPS)]
+    pw, ph = 60 + len(variants) * 52, 170
+    W_, H_ = 40 + pw, 70 + len(cuts) * (ph + 80)
+    out = svg_open(W_, H_, "The grid: the per-page Fourier test's eight variants side by side",
+                   "bars: the within-minus-between gap of the log page-averaged spectra; red tick: the null's 95th percentile; under each bar p and the mean asymmetry of the averaged spectrum")
+    vals = [r["gap"] for r in rows if r["gap"] is not None] + [r["null_p95"] for r in rows if r["null_p95"] is not None]
+    lo, hi = (min(-0.05, min(vals)), max(0.2, max(vals))) if vals else (-0.05, 0.2)
+    for ci, (cut_name, cut) in enumerate(cuts.items()):
+        px, py = 60, 60 + ci * (ph + 80)
+        Y = lambda v: py + ph - ph * (v - lo) / (hi - lo)          # noqa: E731
+        out.append(f'<text x="{px}" y="{py - 6}" font-weight="bold">cut of {cut} pairs ({cut_name})</text>')
+        out.append(f'<rect x="{px}" y="{py}" width="{len(variants) * 52}" height="{ph}" fill="none" stroke="#ccc"/>')
+        out.append(f'<line x1="{px}" y1="{Y(0):.1f}" x2="{px + len(variants) * 52}" y2="{Y(0):.1f}" stroke="#888"/>')
+        for t in (lo, 0.0, hi):
+            out.append(f'<text x="{px - 4}" y="{Y(t) + 3:.1f}" text-anchor="end" font-size="8">{t:.2f}</text>')
+        for vi, (m, st) in enumerate(variants):
+            r = next((x for x in rows if x["move"] == m and x["step"] == st and x["cut"] == cut), None)
+            bx = px + vi * 52 + 8
+            label = f"m{m} s{st}"
+            out.append(f'<text x="{bx + 18}" y="{py + ph + 12}" text-anchor="middle" font-size="8">{label}</text>')
+            out.append(f'<text x="{bx + 18}" y="{py + ph + 22}" text-anchor="middle" font-size="7" fill="#555">{VARIANTS[m][0]}, {VARIANTS[m][1]}</text>')
+            if r is None or r["gap"] is None:
+                out.append(f'<text x="{bx + 18}" y="{Y(0) - 6:.1f}" text-anchor="middle" font-size="8" fill="#999">missing</text>')
+                continue
+            colour = "#2b5d8a" if st == 1 else "#d9822b"
+            out.append(f'<rect x="{bx}" y="{min(Y(r["gap"]), Y(0)):.1f}" width="36" height="{abs(Y(r["gap"]) - Y(0)):.1f}" fill="{colour}" fill-opacity="0.85"/>')
+            if r["null_p95"] is not None:
+                out.append(f'<line x1="{bx - 3}" y1="{Y(r["null_p95"]):.1f}" x2="{bx + 39}" y2="{Y(r["null_p95"]):.1f}" stroke="#b03a2e" stroke-width="1.5"/>')
+            out.append(f'<text x="{bx + 18}" y="{py + ph + 32}" text-anchor="middle" font-size="7">p {r["p_value"]:.3g}</text>')
+            if r["mean_asym_spectrum"] is not None:
+                out.append(f'<text x="{bx + 18}" y="{py + ph + 41}" text-anchor="middle" font-size="7">asym {r["mean_asym_spectrum"]:+.4f}</text>')
+    out.append(f'<text x="60" y="{H_ - 8}" fill="#555">step 1 (blue): phi = 2 theta; step 2 (orange): phi = theta; m13 once/removed, m14 raw/kept, m15 once/kept, m16 raw/removed</text></svg>')
+    return "\n".join(out)
+
+
+def run_summary(o: argparse.Namespace) -> int:
+    run = Path(os.path.expanduser(o.run)).resolve()
+    if not (run / "params.json").is_file():
+        raise Stop(EXIT_MISSING, f"missing input: {run / 'params.json'}")
+    out = resolve_out(run, o.out)
+    lock = I.driver_lock_state(run)
+    if lock["alive"] and not o.dry_run:
+        raise Stop(EXIT_REFUSED, f"refused: a move is running on this run ({lock['path']}: pid {lock['pid']}); run again after it ends")
+    if o.dry_run:
+        grid_summary(run, out, dry_run=True)
+        return EXIT_OK
+    out_lock = acquire_out_lock(out)
+    entry = {"key": "grid_summary", "command": sys.argv, "cwd": str(_HERE.parent), "started_at": now_iso(), "status": "running", "exit_code": None, "finished_at": None,
+             "params": {"run": str(run), "out": str(out)}, "code": code_identity(), "outputs": ["grid_summary.csv", "grid_summary.svg", "grid_summary.json"]}
+    rec = load_record(out)
+    rec["entries"].append(entry); save_record(out, rec)
+    try:
+        res = grid_summary(run, out)
+        entry.update(status="done", exit_code=0, finished_at=now_iso(), n_missing=len(res["missing"]))
+        return EXIT_OK
+    except BaseException as exc:                           # noqa: BLE001
+        entry.update(status=f"failed: {type(exc).__name__}", exit_code=EXIT_ERROR, finished_at=now_iso(), error=str(exc)[:500])
+        raise
+    finally:
+        rec = load_record(out)
+        rec["entries"] = [e for e in rec["entries"] if not (e.get("key") == entry["key"] and e.get("started_at") == entry["started_at"])] + [entry]
+        save_record(out, rec)
+        release_out_lock(out_lock)
+
+
 def add_run_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--move", type=int, default=13, choices=sorted(VARIANTS), help="the grid's variant: 13 once/removed (the original, default), 14 raw/kept, 15 once/kept, 16 raw/removed")
     p.add_argument("--run", required=True, help="the main run's output folder (read only here)")
     p.add_argument("--step", required=True, type=int, choices=sorted(STEPS), help="1 = phi = 2 theta (the headline); 2 = phi = theta (the control)")
     p.add_argument("--out", default=None, help="the output folder (default: a sibling of the run, <run>_pagefourier; never inside the run)")
@@ -741,10 +902,14 @@ def main(argv: list[str] | None = None) -> int:
     install_sigterm()
     ap = argparse.ArgumentParser(prog="plan12_grounding.page_fourier", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    add_run_args(sub.add_parser("run", help="step 1 (phi = 2 theta) or step 2 (phi = theta): the per-page Fourier test, both cuts"))
+    add_run_args(sub.add_parser("run", help="step 1 (phi = 2 theta) or step 2 (phi = theta): the per-page Fourier test, both cuts; --move picks the grid's variant"))
+    sm = sub.add_parser("summary", help="the grid's summary: moves 13 to 16, two steps, both cuts, side by side")
+    sm.add_argument("--run", required=True)
+    sm.add_argument("--out", default=None, help="the sibling folder (default <run>_pagefourier)")
+    sm.add_argument("--dry-run", action="store_true")
     o = ap.parse_args(argv)
     try:
-        return run_step(o)
+        return run_summary(o) if o.cmd == "summary" else run_step(o)
     except I.Stop as exc:
         print(str(exc), file=sys.stderr)
         return exc.code
