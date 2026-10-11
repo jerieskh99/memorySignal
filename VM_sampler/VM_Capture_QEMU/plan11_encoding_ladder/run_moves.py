@@ -95,14 +95,14 @@ LEDGER = "driver_state.json"
 RANDOM_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "g3"),
                    ("gates_temporal", "gord"), ("models", "splits"), ("models", "cluster"),
                    ("gates_comparison", "gx"), ("gates_comparison", "gm"), ("gates_comparison", "gdim"), ("gates_readings", "gdec"),
-                   ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
+                   ("gates_idle_common_ground", "run"), ("new_blocks", "run"), ("random_split", "run")}
 NJOBS_COMMANDS = {("gates_precondition", "gf"), ("gates_temporal", "grid"), ("gates_temporal", "gord"),
                   ("models", "splits"), ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
-                  ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
+                  ("gates_idle_common_ground", "run"), ("new_blocks", "run"), ("random_split", "run")}
 # SPEC_epoch2 B25 (E1 6.61): the commands that take --n-estimators; the driver passes its value to every one of them
 NEST_COMMANDS = {("gates_temporal", "gord"), ("models", "splits"), ("gates_precondition", "gf"),
                  ("gates_comparison", "gx"), ("gates_comparison", "gdim"), ("gates_comparison", "gm"),
-                 ("gates_idle_common_ground", "run"), ("new_blocks", "run")}
+                 ("gates_idle_common_ground", "run"), ("new_blocks", "run"), ("random_split", "run")}
 # SPEC_epoch2 B10 (CHECK_3 M10; CERT 6.9; SPEC 3.7.4): the G-L (ii) consequence the driver runs after `gl` at move 7
 GL2_FEATURE_DROP = "cov,std,peak2med"
 GL2_BASE_DIR = "splits_gl2drop"
@@ -116,11 +116,12 @@ GL2_SHOT_NOISE = "refused: shot noise explains CV"      # verdicts.GL_SHOT_NOISE
 ADMISSIBILITY = "gates/preconditions.json"
 INPUT_FILES = ("cells.csv", "inputs/pass_table.csv", "inputs/gk0_source.csv", "inputs/head_drop.csv",
                "inputs/failed_counts.csv", "inputs/idle_admissibility.json", "inputs/cell_order.csv")
-MAX_MOVE = 17      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
+MAX_MOVE = 18      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
                    # luck checks (SPEC_epoch2 Part 4 item 29); move 16 = the corrected instrument check, the idle
                    # common-ground test and the second Table 2 (added 2026-10-05, after the run of 2026-09-29;
                    # SPEC_epoch2 Part 4 item 30; A20 to A22); move 17 = the new-block test on the five readings
-                   # (added 2026-10-06; SPEC_epoch2 Part 4 item 31; A25). None of 15, 16, 17 is in the default --moves 0-14.
+                   # (added 2026-10-06; SPEC_epoch2 Part 4 item 31; A25); move 18 = the random 80/20 split, move 17's
+                   # companion (added 2026-10-11; SPEC_epoch2 Part 4 item 32). None of 15 to 18 is in the default --moves 0-14.
 NEW_BLOCKS_PRIMARY_GRID = "W64_H32"      # move 17's primary window (A25); the own windows come from gates/selection.json
 LORO_FULL_NULL_SPLITS = "loko,loro,within_trace"   # the paper value; move 15 restores LORO's null under it
 
@@ -455,6 +456,33 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                            "report/figures/new_blocks_by_position.svg", "report/figures/new_blocks_per_kernel.svg", "report/figures/new_blocks_run_level.svg",
                            "report/figures/new_blocks_confusion_apf.svg", "report/figures/new_blocks_confusion_content.svg"],
                   inputs=nb_read + [ADMISSIBILITY]))          # the admissibility record is an input of every step from move 3 on (al-Farabi certification 7.1)
+    # ---- move 18 (optional; added 2026-10-11: SPEC_epoch2 Part 4 item 32; the SPL paper's move 18, plan12_grounding/random_split.py at c91b091):
+    # move 17's companion, the random 80/20 split. Exactly move 17's data, readings, levels, windows, forest and scoring (random_split.py imports
+    # new_blocks.py), with the windows of every recording split 80/20 at random (seeded) instead of the first 80% in time; step 1 the plain
+    # random split, step 2 the same split with every training window that shares a pair with a test window removed from training (the removed
+    # count reported); single test windows only (the pools do not apply); no label-shuffle null, for move 17's reason; move 17's single-block
+    # scores beside each step, read from gates/added/new_blocks/<window>/ when it has run (not declared as inputs: move 18 waits for the moves
+    # whose files it reads, as move 17 does, not for move 17). (1), (2) the two steps at the primary window W64_H32; (3), (4) at each reading's
+    # own selected window ("same as primary" where that is W64_H32); (5) the tables and figures. Only when selected (`--moves 18`); the default
+    # `--moves 0-14` leaves it out, as it leaves 15 to 17 out. No existing command changes its arguments or declared inputs.
+    rs_steps = ((1, "step1_random", "step 1, the plain random split"), (2, "step2_random_nooverlap", "step 2, the shared-pair training windows removed"))
+    for st, st_dir, st_text in rs_steps:
+        P.append(_cmd(18, f"random split {st_text} ({NEW_BLOCKS_PRIMARY_GRID})", "random_split", "run", [*O, "--window", NEW_BLOCKS_PRIMARY_GRID, "--step", str(st)],
+                      outputs=[f"gates/added/random_split/{NEW_BLOCKS_PRIMARY_GRID}/{st_dir}/summary.json"],
+                      inputs=["cells.csv", "inputs/head_drop.csv", ADMISSIBILITY] + nb_feats))
+    for st, st_dir, st_text in rs_steps:
+        P.append(_cmd(18, f"random split {st_text} (own windows)", "random_split", "run", [*O, "--window", "own", "--step", str(st)],
+                      outputs=[f"gates/added/random_split/own/{st_dir}/summary.json"],
+                      inputs=["cells.csv", "inputs/head_drop.csv", ADMISSIBILITY, "gates/selection.json", f"gates/added/random_split/{NEW_BLOCKS_PRIMARY_GRID}/{st_dir}/scores.csv"]
+                             + sorted(set(own_feats))))
+    rs_read = [f"gates/added/random_split/{w}/{st_dir}/{n}" for w in (NEW_BLOCKS_PRIMARY_GRID, "own") for _, st_dir, _ in rs_steps
+               for n in ("scores.csv", "margins.csv", "per_kernel.csv", "run_level.csv", "confusion_kernel_apf.csv", "confusion_kernel_content.csv", "summary.json")]
+    P.append(_cmd(18, "random split tables and figures", "random_split", "tables", [*O],
+                  outputs=["gates/added/random_split.csv", "report/tables/random_split_scores.csv", "report/tables/random_split_margins.csv",
+                           "report/tables/random_split_run_level.csv", "report/tables/random_split_split.csv", "report/figures/random_split_accuracy.svg",
+                           "report/figures/random_split_per_kernel_step1.svg", "report/figures/random_split_per_kernel_step2.svg", "report/figures/random_split_run_level_step1.svg",
+                           "report/figures/random_split_run_level_step2.svg", "report/figures/random_split_confusion_apf.svg", "report/figures/random_split_confusion_content.svg"],
+                  inputs=rs_read + [ADMISSIBILITY]))
     # seed offsets and n-jobs on the commands that take them (SPEC 7.1)
     for c in P:
         key = (c["module"], c["sub"])

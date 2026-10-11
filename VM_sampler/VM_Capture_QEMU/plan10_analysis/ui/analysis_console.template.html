@@ -721,7 +721,7 @@ html.rs-open{overflow:hidden}
           <h3>the moves, in the runbook's order</h3>
           <div class="ep-sum" id="ep-moves-sum"></div>
           <div class="tblwrap" style="max-height:calc(100vh - 330px)"><table class="tbl ep-moves" id="ep-moves-tbl"></table></div>
-          <div class="ep-note">Run launches the driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. Moves 0 to 14 wait for the one before them, the runbook's order; the optional moves 15, 16 and 17 wait for the moves whose files they read (the producers of their declared inputs), not for the move numbered before them. One toolkit process at a time.</div>
+          <div class="ep-note">Run launches the driver for that one move (<span class="mono">run_moves run --moves N</span>); Re-run adds <span class="mono">--force</span>. Moves 0 to 14 wait for the one before them, the runbook's order; the optional moves 15 to 18 wait for the moves whose files they read (the producers of their declared inputs), not for the move numbered before them (move 18 reads move 17's results when they exist but does not wait for them). One toolkit process at a time.</div>
           <div class="ep-note" id="ep-batch-ctl">run moves <input type="number" id="ep-batch-from" min="0" max="15" style="width:52px"> to <input type="number" id="ep-batch-to" min="0" max="15" style="width:52px">
             <button class="bigbtn" id="ep-batch-run" style="padding:3px 10px">Run batch</button>
             <span class="subnote">one driver run with <span class="mono">--moves N-M</span>: it runs them in order and stops at the first failure; the first move waits for the one before it, as a single Run does</span></div>
