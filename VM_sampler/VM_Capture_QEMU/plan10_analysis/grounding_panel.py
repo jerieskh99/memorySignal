@@ -187,6 +187,26 @@ EXTRA_MOVES[20] = {
     "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_arrowladder; reads moves 0, 1 and 6, the L1 stores and <out>_newblocks (all read "
             "only); refuses to start (exit 3) while a move runs; new_blocks.py, classify.py, stats.py and extract.py are imported, not changed; both steps resume what stands",
     "requires": [6], "reads_from": [0, 1, 6]}
+# the held-out ladder (2026-10-13): move 20's ladder tested on whole recordings never seen in training, with shorter and shorter pieces
+_HELDOUT_LENGTHS = (64, 32, 16, 8, 4, 2)
+EXTRA_MOVES[21] = {
+    "title": "the held-out ladder: move 20's rungs tested on whole recordings never seen in training (4 folds by rep), with pieces of 64 down to 2 pairs, each named alone",
+    "module": "heldout_ladder", "suffix": "_heldout", "record_keys": tuple(f"len{L}" for L in _HELDOUT_LENGTHS) + ("summary",), "lock": ".heldout_ladder.lock",
+    "steps": tuple({"name": f"pieces of {L} pairs (the four folds, every rung, both levels, both cuts{'; the check against move 20 first' if L == 64 else ''})", "key": f"len{L}",
+                    "args": ["--length", str(L)], "dir": "", "done_file": f"heldout/len{L}.json"} for L in _HELDOUT_LENGTHS)
+             + ({"name": "the summary: accuracy against piece length per cut and level, one line per rung (after the lengths finish)", "key": "summary", "sub": "summary", "args": [],
+                 "dir": "", "done_file": "heldout/summary.json"},),
+    "what": "heldout_ladder.py: 4 folds by rep (fold k holds out, in every kernel and in idle, the runs with rep 2k and 2k + 1, so every recording is tested exactly once by a model that "
+            "never saw it); per length the training windows are that length every half length over the training runs and the test pieces are the held-out runs' consecutive "
+            "non-overlapping pieces, each named alone; move 20's rungs (0 N,H,A; 1 H; 2 H,A; 3 C,S; 4 the doubled angle; 5a the l0 arrow; 5b the l1 arrow) with E_new's statistic sets "
+            "(a statistic non-finite at a length is left out at that length, listed in left_out.csv); the levels kernel and archetype (the run level does not apply); move 12's forest, "
+            "dimension rule and quarantine, its scores and its bootstrap for the margins between rungs; at length 64 every rung's rows must equal move 20's rows for the same windows "
+            "(the check); writes <out>_heldout/heldout/cut<C>/len<L>/ (scores.csv, recall_per_kernel.csv, margins.csv, left_out.csv, folds.csv, <rung>/predictions_<level>.csv, summary.json), "
+            "heldout/cut<C>/accuracy_vs_length_<level>.svg and the tables across lengths, heldout/len<L>.json, heldout/summary.json and record.json",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_heldout; reads moves 0, 1 and 6 and <out>_arrowladder (move 20's series and feature "
+            "rows; read only); refuses to start (exit 3) while a move runs or while move 20 still writes; arrow_ladder.py and new_blocks.py are imported, not changed; the short "
+            "lengths are the long steps (many more windows)",
+    "requires": [6], "reads_from": [0, 1, 6]}
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
@@ -293,6 +313,11 @@ VIEWS = [
                "{arrowladder}/ladder/{cut}/rung3/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/rung4/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/rung5a/confusion_kernel.svg",
                "{arrowladder}/ladder/{cut}/rung5b/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/summary.json",
                "{arrowladder}/series/identity_check.csv", "{arrowladder}/series/series.json", "{arrowladder}/ladder/arrow_ladder.json", "{arrowladder}/record.json"]},
+    {"id": "heldout", "title": "the held-out ladder: accuracy against piece length per cut and level, one line per rung; the scores, margins and left-out statistics across lengths (move 21, beside the run)", "move": 21,
+     "note": "written by heldout_ladder.py into the sibling folder <out>_heldout; every recording held out whole (4 folds by rep), each piece named alone; the run level does not apply",
+     "files": ["{heldout}/heldout/{cut}/accuracy_vs_length_kernel.svg", "{heldout}/heldout/{cut}/accuracy_vs_length_archetype.svg", "{heldout}/heldout/{cut}/scores_all_lengths.csv",
+               "{heldout}/heldout/{cut}/margins_all_lengths.csv", "{heldout}/heldout/{cut}/left_out_all_lengths.csv", "{heldout}/heldout/{cut}/len64/folds.csv",
+               "{heldout}/heldout/{cut}/len64/summary.json", "{heldout}/heldout/len64.json", "{heldout}/heldout/summary.json", "{heldout}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -521,7 +546,7 @@ def cut_dirs(out: Path) -> list[str]:
 
 def sibling_dirs(out: Path) -> dict:
     """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`,
-    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit`, `<out>_timeshuffle_sizes` and `<out>_arrowladder`, nothing else next to the run."""
+    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit`, `<out>_timeshuffle_sizes`, `<out>_arrowladder` and `<out>_heldout`, nothing else next to the run."""
     o = Path(out)
     return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
 
@@ -937,6 +962,10 @@ def progress(out: Path, move: int | None) -> dict | None:
         if n_series < n_rec or not (sd / "series" / "series.json").exists():
             return {"move": 20, "done": n_series, "total": n_rec or None, "unit": "recording series written (step 1)"}
         return {"move": 20, "done": n_rungs, "total": 7 * len(cuts), "unit": "rungs finished (step 2: seven rungs per cut)"}
+    if move == 21:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[21]["suffix"]]
+        n = sum(1 for c in cuts for p in (sd / "heldout" / c).glob("len*/rung*/result.json")) if (sd / "heldout").is_dir() else 0
+        return {"move": 21, "done": n, "total": 6 * 7 * len(cuts), "unit": "rungs finished (six lengths, seven rungs, every cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -1166,7 +1195,7 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     o = Path(out)
     subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"],
             "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"], "timeshuffle_sizes": o.name + EXTRA_MOVES[19]["suffix"],
-            "arrowladder": o.name + EXTRA_MOVES[20]["suffix"]}
+            "arrowladder": o.name + EXTRA_MOVES[20]["suffix"], "heldout": o.name + EXTRA_MOVES[21]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
