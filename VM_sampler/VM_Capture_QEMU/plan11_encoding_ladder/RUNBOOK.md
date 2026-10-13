@@ -681,6 +681,107 @@ Look at: `gates/added/new_blocks.csv` (every score); `report/tables/new_blocks_s
 `new_blocks_run_level.svg` (the run level, kernels beside idle); `gates/added/new_blocks/W64_H32/split_apf.csv`
 (the seen, gap and new windows per recording, the gap assertion).
 
+### Move 18: the random 80/20 split, move 17's companion (optional; added 2026-10-11)
+
+```
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace --moves 18
+```
+
+Only when named; the default `--moves 0-14` never runs it, as it never runs moves 15 to 17
+(SPEC_epoch2 Part 4 item 32; the design is the SPL paper's move 18, `plan12_grounding/random_split.py`
+at commit c91b091, `plan11_encoding_ladder/PROMPT_move18_random_split.md`). It reads exactly what move
+17 reads (`cells.csv`, `inputs/head_drop.csv`, `gates/preconditions.json`, `gates/selection.json` and
+the feature files of moves 6 and 9 to 12), so it waits for the same moves and not for move 17: move 17's
+single-block scores are read beside every row when they exist and read "missing" when they do not (a
+later move 17 does not make move 18 stale; re-run its `tables` to refresh the columns). The question:
+how much of what move 17 scores is the ORDER of the split, having to name a recording's future from its
+past? Everything is move 17's (`random_split.py` imports `new_blocks.py`: the data, the five readings,
+the three levels, the windows, the forest, the dimension rule and the quarantine at the window, the
+scoring, the bootstrap over recordings, the figures) with one change: per recording, reading and window
+the windows go to training (80%) and testing (20%) at random, seeded (`--seed-split 20261010`, the same
+test windows for every reading at a window). Two steps: step 1 is the plain random split; step 2 is the
+same split with every training window that shares a pair with a test window removed from training (at
+64 x 32 the two neighbours of each test window), and the outputs say how many that removes. Single test
+windows only: the pools of 2 and 3 consecutive blocks and the accuracy by position after the gap do not
+apply (the outputs say so). No label-shuffle null, for move 17's reason. Five commands:
+
+1. `random_split run --window W64_H32 --step 1`, 2. `--step 2`: the primary window for every reading.
+   Each writes `gates/added/random_split/W64_H32/<step>/` (`step1_random`, `step2_random_nooverlap`:
+   scores.csv with the intervals, the removed count and move 17's columns, per_kernel.csv, run_level.csv,
+   margins.csv against APF, predictions per level and reading, confusion_kernel_<rung>.csv,
+   split_<rung>.csv with the test positions and the removed windows per recording, summary.json, params.json).
+3. `random_split run --window own --step 1`, 4. `--step 2`: each reading's own selected window
+   (`gates/selection.json`); a reading whose own window is W64_H32 reads "same as primary" and carries
+   the primary's numbers of the step. Writes `gates/added/random_split/own/<step>/`.
+5. `random_split tables`: `gates/added/random_split.csv` (one row per window, step, level and reading),
+   `report/tables/random_split_scores`, `random_split_margins`, `random_split_run_level`,
+   `random_split_split` (.csv, .md, .tex) and `report/figures/random_split_accuracy.svg` (the levels by
+   reading: step 1, step 2 and move 17 side by side with chance and the majority class),
+   `random_split_per_kernel_step1/2.svg`, `random_split_run_level_step1/2.svg`,
+   `random_split_confusion_apf.svg` and `random_split_confusion_content.svg` (step 2), with their CSV data.
+
+The cut is the run's own, as move 17's. A first look runs on the run of 2026-09-29 (cut 16) from the
+console's Encoding paper tab after move 17; the paper's numbers come from the cluster redo (cut 192,
+`--moves 0-18`). On the run of 2026-09-29 at W64_H32 the split draws 527 test windows of 2769 and step 2
+removes 756 of the 2242 training windows (4 to 10 per recording); at the own windows (apf and persist at
+W8_H4) 4,648 test windows of 23,261 and 6,767 removed. On a short corpus (the smoke run) W64_H32 has too
+few windows for a test share and the rows read `not run`; `--window W8_H4` runs the test at a short
+window there. Cost: 15 forests per window and step on about 2,200 (step 1) or 1,500 (step 2) windows,
+plus the quarantine's one-feature trees; minutes on four cores.
+
+Look at: `report/figures/random_split_accuracy.svg` (step 1, step 2 and move 17 side by side per level
+and reading); `report/tables/random_split_scores.md`; `report/tables/random_split_split.md` (what step 2
+removes); `gates/added/random_split/W64_H32/step2_random_nooverlap/split_apf.csv` (the test positions and
+the removed windows per recording).
+
+### Move 19: the paper's Figures 1 and 2 (optional; added 2026-10-13)
+
+```
+python3 -m plan11_encoding_ladder.run_moves run --out <out> --root <root> \
+    --assume-failed-zero --assume-reason "AA A5: any failed job re-runs the whole cell" \
+    --keep-first-pairs plan11_encoding_ladder/declared/keep_first_pairs.csv \
+    --seed-map plan11_encoding_ladder/declared/seed_map.csv \
+    --n-jobs 4 --null-perm 500 --null-splits loko,within_trace --moves 19
+```
+
+Only when named; the default `--moves 0-14` never runs it, as it never runs moves 15 to 18
+(SPEC_epoch2 Part 4 item 33). It reads the extract of move 1, `cells.csv`, `inputs/head_drop.csv` and
+`gates/preconditions.json`, so it waits for moves 0 to 2 and for nothing else. The two figures are the
+ones the paper includes (`apf_paper/p2e_skeleton.tex`: `figures/fig_representation.pdf` and
+`figures/fig_shape_per_kernel.pdf`), drawn by `paper_figures.py` exactly as the two approved preview
+scripts draw them (`apf_paper/previews/representation/make_representation_preview_v2.py` and
+`apf_paper/previews/shape_figure/make_shape_figure_grid7.py`): 7.16 in wide, TrueType fonts in the PDF
+(`pdf.fonttype 42`, no Type 3), STIXGeneral, the readings table's kernel names. Two changes only, both so
+the figures follow the run: each cell's cut comes from the run's `inputs/head_drop.csv`, and the cells are
+read with the toolkit's loaders and admissibility (the run's excluded cells stay out). Neither figure is in
+`figures.py`'s default set: move 12's "figures (all)" does not draw them. Two commands:
+
+1. `paper_figures run --only representation`: Figure 1, the representation. Three panels, r1, r2, r3
+   against J_t, one mark per run (the median over the rows `[cut : n_rows - 1]`, whiskers to the 0.25
+   and 0.75 quantiles), kernels coloured and idle grey, the vertical axis spaced by log(1 - J_t), every
+   kernel named on the plot (set A bold). Writes `report/figures/fig_representation.pdf`, `.png` and
+   `fig_representation_medians.csv` (the plotted quantiles per run).
+2. `paper_figures run --only shape`: Figure 2, the shape over time. Two rows of seven in the readings
+   table's order, APF and wAPF in percent of memory with J_t in its own strip, over the 93 pairs right
+   after the cut (pairs cut + 1 to cut + 93) of the seed-42 run of each kernel (`cells.csv` seed 42, rep 0)
+   and idle run 1 (rep 0); the kernels of one footprint share one count scale, with group brackets.
+   Writes `report/figures/fig_shape_per_kernel.pdf`, `.png` and `fig_shape_per_kernel_values.csv`.
+
+Both write `report/figures/paper_figures.json` (the cuts, the cells drawn, the label-placement notes, the
+inputs' sha256). Checked on copies of the run of 2026-09-29: at cut 16 Figure 1's values equal the
+preview's `fig_representation_preview_cut16_v2_medians.csv`, and with `declared/head_drop_values_192.csv`
+as `inputs/head_drop.csv` Figure 2's values equal the preview's `fig_shape_grid7_shared_from193_values.csv`.
+The paper's figures come from the cluster redo (cut 192, `--moves 0-19`). A missing matplotlib stops the
+move (exit 2): the paper's figures are never replaced by a placeholder. Cost: seconds.
+
+Look at: `report/figures/fig_representation.png` and `fig_shape_per_kernel.png` (the PDFs beside them are
+the paper's files); `fig_representation_medians.csv` and `fig_shape_per_kernel_values.csv` (the plotted
+values); `paper_figures.json` (which cells and cuts were drawn, and any label placed over data).
+
 ### The EUSIPCO outputs (build epoch 2): Table 2, Table 3, the five-page skeleton
 
 Run after Table 7 exists and after the comparators' move has written its rows (the comparators

@@ -1368,3 +1368,60 @@ default runs unless the author says otherwise.
     optional moves 15, 16 and 17: each waits for the moves whose files it reads, not for the move numbered before it;
     moves 0 to 14 keep the runbook's order. `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py`
     in one and `tests/test_plan10_bridge.py` in one: the out-of-range move becomes 18 and the console's board has 19 rows.
+
+32. Amendment of 2026-10-11 (the author's decision after the SPL paper's move 18, the random 80/20 split;
+    `plan12_grounding/random_split.py` at commit c91b091; `plan11_encoding_ladder/PROMPT_move18_random_split.md`). One
+    optional move, 18, labelled "added 2026-10-11", never in the default `--moves 0-14` (`MAX_MOVE = 18`): move 17's
+    companion. Everything is move 17's (`random_split.py` imports `new_blocks.py`, which is not edited: the admissible
+    cells with the 8 idle runs as one more answer, the five readings from their own feature files, the three levels,
+    the windows W64_H32 and `own` with "same as primary", the forest with the toolkit's settings, the dimension rule
+    and the L1 quarantine at the window, the scores with the 95% bootstrap interval over recordings, the margins
+    against APF, the per-kernel recall, the run level read against idle, the kernel confusions, the figures with
+    their titles reworded), with one change: per recording, reading and window the windows go to training (80%) and
+    testing (20%) at random, drawn by numpy's default_rng seeded with [seed_split = 20261010, W, H, sha256(cell)[:4]]
+    (the same test windows for every reading at a window, in both steps); n_train = round(0.8 n) as move 17 counts
+    its seen windows. Two steps, each a driver command per window: step 1 the plain random split; step 2 the same
+    split with every training window whose pair range meets a test window's (|start difference| < W) removed from
+    training, the removed count written per recording (split_<rung>.csv) and in all (summary.json, the tables).
+    Step 1 against move 17 is "random against time order, pairs shared"; step 2 against move 17 is "random against
+    time order, no pair shared"; step 1 against step 2 is what the shared pairs alone are worth. Single test
+    windows only: the pools of 2 and 3 consecutive blocks and the accuracy by position after the gap do not apply
+    (said in the outputs, replaced by nothing); no label-shuffle null, for move 17's reason. Move 17's single-block
+    rows (`gates/added/new_blocks/<window>/`, pool_size 1) are read beside every row of scores, margins, per_kernel
+    and run_level and read "missing" when move 17 has not run at that window; they are not declared as inputs, so
+    move 18 waits for the moves whose files it reads (the same as move 17's: 0, 2, 6, 9, 10, 11, 12), not for move
+    17, and a later move 17 does not make move 18 stale (`tables` re-reads them). Outputs under
+    `gates/added/random_split/<window>/<step>/`, `gates/added/random_split.csv`, `report/tables/random_split_*` and
+    `report/figures/random_split_*.svg` with their CSV data; five commands (the two steps at W64_H32, the two steps
+    at the own windows, the tables and figures), each declaring every file it reads. No existing command changes its
+    arguments or declared inputs (checked by building the plan of moves 0 to 17 with the driver at the previous
+    commit and with this one: 107 of 107 commands identical). The console's waiting rule extends to move 18.
+    `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py` in one and `tests/test_plan10_bridge.py`
+    in one: the out-of-range move becomes 19 and the console's board has 20 rows.
+
+33. Amendment of 2026-10-13 (the author's decision on the paper's two figures; the approved previews
+    `apf_paper/previews/representation/make_representation_preview_v2.py` of 2026-10-12 and
+    `apf_paper/previews/shape_figure/make_shape_figure_grid7.py` of 2026-10-13). One optional move, 19, labelled
+    "added 2026-10-13", never in the default `--moves 0-14` (`MAX_MOVE = 19`): the encoding paper's Figures 1 and 2,
+    drawn by the toolkit (`paper_figures.py`, a new module) exactly as the previews draw them, under the file names the
+    paper includes (`report/figures/fig_representation.pdf` and `fig_shape_per_kernel.pdf`, each with its `.png` and the
+    plotted values as CSV beside it). Every setting of the previews is kept: 7.16 in wide, `pdf.fonttype 42` (TrueType in
+    the PDF, no Type 3 fonts), STIXGeneral, the readings table's kernel names; Figure 1's log(1 - J) spacing of the
+    vertical axis and its greedy direct labels (set A bold); Figure 2's J strips, two rows of seven, the group brackets
+    and one shared count scale per footprint group. Two changes only, both so the figures follow the run: each cell's cut
+    comes from the run's `inputs/head_drop.csv` (`series.load_head_drop`, `head_drop_for`, the idle row for the idle
+    cells) instead of a fixed number, and the cells are read with the toolkit's loaders and admissibility
+    (`series.load_cells`, `series.admissible_cells`: status ok and all_hard_pass; the run's excluded cells stay out, as
+    the previews exclude them). Figure 1 uses the extract's rows `[cut : n_rows - 1]` as series.py does; Figure 2 the 93
+    pairs right after the cut (pairs cut + 1 to cut + 93; extract row i is pair i + 1) of the seed-42 run of each kernel
+    (`cells.csv` seed 42, rep 0) and idle run 1 (rep 0); rep_dir is 1 for every run, so it cannot select a run. Neither
+    figure joins `figures.py`'s default set (move 12's "figures (all)" is unchanged). Two driver commands, one per figure,
+    each declaring `extract`, `cells.csv`, `inputs/head_drop.csv` and `gates/preconditions.json`, so the console's waiting
+    rule makes move 19 wait for moves 0 to 2 only. A missing matplotlib stops the move (exit 2); the paper's figures are
+    never replaced by a placeholder. Verified on copies of the run of 2026-09-29: at cut 16 Figure 1's values equal the
+    preview's `fig_representation_preview_cut16_v2_medians.csv` (1,442 of 1,442 values), and with
+    `declared/head_drop_values_192.csv` as the copy's `inputs/head_drop.csv` Figure 2's values equal the preview's
+    `fig_shape_grid7_shared_from193_values.csv` (8,463 of 8,463); `pdffonts` lists CID TrueType only. No existing command
+    changes its arguments or declared inputs (the plan of moves 0 to 18 is identical at the previous commit and here).
+    `tests/test_driver.py` changes in two tokens, `tests/test_comparators.py` in one and `tests/test_plan10_bridge.py`
+    in one: the out-of-range move becomes 20 and the console's board has 21 rows.
