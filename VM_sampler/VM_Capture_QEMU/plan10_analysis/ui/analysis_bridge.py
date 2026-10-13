@@ -952,11 +952,17 @@ def ep_gp_run(_q, body):
     move = (body or {}).get("move")
     if move is None:
         return {"error": "move required"}, 400
-    return _gp(lambda: ST.grounding.launch(move, bool((body or {}).get("force"))))
+    return _gp(lambda: ST.grounding.launch(move, bool((body or {}).get("force")), (body or {}).get("choices")))
 
 
 def ep_gp_stop(_q, _b):
     return _gp(lambda: ST.grounding.stop())
+
+
+def ep_gp_trainsizes_estimate(q, _b):
+    """Move 22's time estimate for the form's choices, computed by the engine (train_sizes estimate --json); nothing written."""
+    ch = {k: (q.get(k) or [""])[0] for k in ("sizes", "repeats", "seed", "lengths", "overlaps")}
+    return _gp(lambda: ST.grounding.estimate(ch))
 
 
 def ep_gp_cells(_q, _b):
@@ -1108,7 +1114,7 @@ ROUTES_GET = {"/health": ep_health, "/manifest": ep_manifest, "/status": ep_stat
                "/grounding/config": ep_gp_config, "/grounding/board": ep_gp_board, "/grounding/cells": ep_gp_cells, "/grounding/views": ep_gp_views,
                "/grounding/params": ep_gp_params, "/grounding/runbook": ep_gp_runbook, "/grounding/plan_text": ep_gp_plan_text,
                "/grounding/text": ep_gp_text, "/grounding/list": ep_gp_list, "/grounding/file": ep_gp_file, "/grounding/log": ep_gp_log,
-               "/grounding/launch": ep_gp_launch, "/grounding/encoding_table2": ep_gp_encoding_table2,
+               "/grounding/launch": ep_gp_launch, "/grounding/encoding_table2": ep_gp_encoding_table2, "/grounding/trainsizes_estimate": ep_gp_trainsizes_estimate,
                "/random/config": ep_rs_config, "/random/board": ep_rs_board, "/random/views": ep_rs_views, "/random/text": ep_rs_text,
                "/random/list": ep_rs_list, "/random/file": ep_rs_file, "/random/log": ep_rs_log, "/random/launch": ep_rs_launch,
                "/rundetail": ep_rundetail, "/trajectory_columns": ep_trajectory_columns,

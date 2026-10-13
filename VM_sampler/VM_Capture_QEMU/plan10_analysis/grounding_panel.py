@@ -207,7 +207,88 @@ EXTRA_MOVES[21] = {
             "rows; read only); refuses to start (exit 3) while a move runs or while move 20 still writes; arrow_ladder.py and new_blocks.py are imported, not changed; the short "
             "lengths are the long steps (many more windows)",
     "requires": [6], "reads_from": [0, 1, 6]}
+# the training-size loops (2026-10-13): move 21's test wrapped in loops over the training runs per group and the overlap of the training pieces, random rounds repeated
+TRAINSIZES_SIZES, TRAINSIZES_LENGTHS, TRAINSIZES_OVERLAPS = (1, 2, 3, 4, 5, 6, 7), (64, 32, 16, 8, 4, 2), (0, 25, 50, 75)
+TRAINSIZES_DEFAULTS = {"sizes": list(TRAINSIZES_SIZES), "repeats": 5, "seed": None, "lengths": list(TRAINSIZES_LENGTHS), "overlaps": [50]}
+EXTRA_MOVES[22] = {
+    "title": "the training-size loops: move 21's test with m runs of every group in training (m = 1 to 7), random rounds repeated, and the overlap of the training pieces as a third loop",
+    "module": "train_sizes", "suffix": "_trainsizes", "record_keys": ("check",) + tuple(f"size{m}" for m in TRAINSIZES_SIZES) + ("collect",), "lock": ".train_sizes.lock",
+    "steps": ({"name": "the check against move 21: m = 6 with move 21's fixed pairs, one repeat, 50% overlap, at length 64; the scores must equal move 21's", "key": "check", "sub": "check",
+               "args": [], "dir": "", "done_file": "trainsizes/check_move21/check.json"},)
+             + tuple({"name": f"training size {m}: the feature units it needs, then its model units (every chosen overlap, repeat, length and rung, both cuts), then the collect", "key": f"size{m}",
+                      "sub": "run", "args": ["--size", str(m)], "dir": "", "done_file": f"trainsizes/size{m}.json"} for m in TRAINSIZES_SIZES)
+             + ({"name": "the collect: the tables and figures across every unit present (accuracy against the training size, one panel per length and overlap)", "key": "collect", "sub": "collect",
+                 "args": [], "dir": "", "done_file": "trainsizes/summary.json"},),
+    "what": "train_sizes.py: the outer loop trains on m runs of every group (a group with fewer runs on its runs minus one); per repeat and group the runs are shuffled with a seed from "
+            "(base seed, repeat, group) and held out in consecutive blocks of (runs - m), the remainder block filled from the earlier blocks, so every run is tested at least once by a "
+            "model that never saw it (a run tested twice counts once); the overlap of the training pieces is a third loop (0, 25, 50 or 75%; 25 and 75 skipped at 2 pairs); the nested "
+            "loops are flattened into units (cut, size, overlap, repeat, length, rung), the feature units first, each unit writing only its own file (plan, unit, collect subcommands for a "
+            "cluster); writes <out>_trainsizes/trainsizes/plan.csv, rounds.csv and rounds/, skipped.csv, cut<C>/len<L>/ov<P>/features/<rung>.npz, cut<C>/size<M>/ov<P>/rep<K>/len<L>/<rung>/ "
+            "(result.json, predictions_<level>.csv), cut<C>/scores.csv (mean, min, max, sd over repeats), scores_per_repeat.csv, margins.csv, margins_per_repeat.csv, recall_per_kernel.csv, "
+            "left_out.csv, accuracy_vs_trainsize_<level>.svg/.csv, check_move21/check.json and .csv, size<M>.json, summary.json and record.json",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_trainsizes; reads moves 0, 1 and 6, <out>_arrowladder (move 20's series) and "
+            "<out>_heldout (move 21's scores, the check; run move 21's length-64 step first); refuses to start (exit 3) while a move runs or while move 20 or 21 still writes; "
+            "heldout_ladder.py, arrow_ladder.py and new_blocks.py are imported, not changed; Run opens a form for the sizes, repeats, seed, lengths and overlaps with the engine's "
+            "time estimate; only the chosen sizes run, the check first and the collect last",
+    "requires": [6], "reads_from": [0, 1, 6], "form": "trainsizes"}
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
+
+
+def trainsizes_choices(body: dict | None) -> dict:
+    """The form's choices for move 22, checked: sizes 1 to 7, repeats >= 1, the base seed (None: the run's), lengths of move 21, overlaps 0/25/50/75."""
+    body = body or {}
+
+    def ints(v, allowed, what, default):
+        if v in (None, "", []):
+            return list(default)
+        vals = v if isinstance(v, (list, tuple)) else str(v).replace(";", ",").split(",")
+        out = []
+        for x in vals:
+            if str(x).strip() == "":
+                continue
+            try:
+                n = int(float(x))
+            except (TypeError, ValueError):
+                raise PanelError(f"{what}: {x!r} is not a whole number") from None
+            if n not in allowed:
+                raise PanelError(f"{what}: {n} is not one of {', '.join(map(str, allowed))}")
+            if n not in out:
+                out.append(n)
+        if not out:
+            raise PanelError(f"{what}: choose at least one")
+        return sorted(out, reverse=(what == "lengths"))
+    sizes = ints(body.get("sizes"), TRAINSIZES_SIZES, "sizes", TRAINSIZES_DEFAULTS["sizes"])
+    lengths = ints(body.get("lengths"), TRAINSIZES_LENGTHS, "lengths", TRAINSIZES_DEFAULTS["lengths"])
+    overlaps = ints(body.get("overlaps"), TRAINSIZES_OVERLAPS, "overlaps", TRAINSIZES_DEFAULTS["overlaps"])
+    try:
+        repeats = int(float(body.get("repeats"))) if body.get("repeats") not in (None, "") else TRAINSIZES_DEFAULTS["repeats"]
+    except (TypeError, ValueError):
+        raise PanelError(f"repeats: {body.get('repeats')!r} is not a whole number") from None
+    if repeats < 1:
+        raise PanelError("repeats: at least one")
+    seed = body.get("seed")
+    if seed in (None, ""):
+        seed = None
+    else:
+        try:
+            seed = int(float(seed))
+        except (TypeError, ValueError):
+            raise PanelError(f"seed: {seed!r} is not a whole number") from None
+    return {"sizes": sizes, "repeats": repeats, "seed": seed, "lengths": lengths, "overlaps": overlaps}
+
+
+def trainsizes_tokens(ch: dict) -> list[str]:
+    """The choice flags of train_sizes.py for every step of a launch (the same on each, so the record of each step carries the choices)."""
+    toks = ["--sizes", ",".join(map(str, ch["sizes"])), "--repeats", str(ch["repeats"]), "--lengths", ",".join(map(str, ch["lengths"])), "--overlaps", ",".join(map(str, ch["overlaps"]))]
+    if ch.get("seed") is not None:
+        toks += ["--seed", str(ch["seed"])]
+    return toks
+
+
+def trainsizes_steps(ch: dict) -> list[dict]:
+    """The steps a launch of move 22 runs for these choices: the check, the chosen sizes in order, the collect."""
+    by_key = {st["key"]: st for st in EXTRA_MOVES[22]["steps"]}
+    return [by_key["check"]] + [by_key[f"size{m}"] for m in ch["sizes"]] + [by_key["collect"]]
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
 # RUNBOOK.md section 2 (the real run) and section 1 (the smoke run): the flag values those command
@@ -318,6 +399,15 @@ VIEWS = [
      "files": ["{heldout}/heldout/{cut}/accuracy_vs_length_kernel.svg", "{heldout}/heldout/{cut}/accuracy_vs_length_archetype.svg", "{heldout}/heldout/{cut}/scores_all_lengths.csv",
                "{heldout}/heldout/{cut}/margins_all_lengths.csv", "{heldout}/heldout/{cut}/left_out_all_lengths.csv", "{heldout}/heldout/{cut}/len64/folds.csv",
                "{heldout}/heldout/{cut}/len64/summary.json", "{heldout}/heldout/len64.json", "{heldout}/heldout/summary.json", "{heldout}/record.json"]},
+    {"id": "trainsizes", "title": "the training-size loops: accuracy against the number of training runs per cut and level, one line per rung, one panel per piece length and overlap; "
+                                  "the scores over repeats, the margins, the rounds held out, the check against move 21 (move 22, beside the run)", "move": 22,
+     "note": "written by train_sizes.py into the sibling folder <out>_trainsizes; every recording held out whole in random rounds (rounds.csv says which runs each round held out); "
+             "a run tested twice in a repeat counts once; the form's choices decide which sizes, lengths and overlaps exist",
+     "files": ["{trainsizes}/trainsizes/{cut}/accuracy_vs_trainsize_kernel.svg", "{trainsizes}/trainsizes/{cut}/accuracy_vs_trainsize_archetype.svg", "{trainsizes}/trainsizes/{cut}/scores.csv",
+               "{trainsizes}/trainsizes/{cut}/scores_per_repeat.csv", "{trainsizes}/trainsizes/{cut}/margins.csv", "{trainsizes}/trainsizes/{cut}/margins_per_repeat.csv",
+               "{trainsizes}/trainsizes/{cut}/recall_per_kernel.csv", "{trainsizes}/trainsizes/{cut}/left_out.csv", "{trainsizes}/trainsizes/rounds.csv", "{trainsizes}/trainsizes/skipped.csv",
+               "{trainsizes}/trainsizes/plan.csv", "{trainsizes}/trainsizes/estimate.json", "{trainsizes}/trainsizes/check_move21/check.csv", "{trainsizes}/trainsizes/check_move21/check.json",
+               "{trainsizes}/trainsizes/summary.json", "{trainsizes}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -546,7 +636,8 @@ def cut_dirs(out: Path) -> list[str]:
 
 def sibling_dirs(out: Path) -> dict:
     """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`,
-    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit`, `<out>_timeshuffle_sizes`, `<out>_arrowladder` and `<out>_heldout`, nothing else next to the run."""
+    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit`, `<out>_timeshuffle_sizes`, `<out>_arrowladder`, `<out>_heldout` and `<out>_trainsizes`,
+    nothing else next to the run."""
     o = Path(out)
     return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
 
@@ -966,6 +1057,15 @@ def progress(out: Path, move: int | None) -> dict | None:
         sd = sibling_dirs(o)[o.name + EXTRA_MOVES[21]["suffix"]]
         n = sum(1 for c in cuts for p in (sd / "heldout" / c).glob("len*/rung*/result.json")) if (sd / "heldout").is_dir() else 0
         return {"move": 21, "done": n, "total": 6 * 7 * len(cuts), "unit": "rungs finished (six lengths, seven rungs, every cut)"}
+    if move == 22:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[22]["suffix"]]
+        plan = read_json(sd / "trainsizes" / "plan.json") if (sd / "trainsizes" / "plan.json").is_file() else None
+        units = (plan or {}).get("units") or []
+        if units:
+            n = sum(1 for u in units if (sd / u["file"]).is_file())
+            return {"move": 22, "done": n, "total": len(units), "unit": "units finished (the feature units first, then the model units, of the last plan written)"}
+        n = sum(1 for c in cuts for p in (sd / "trainsizes" / c).glob("size*/ov*/rep*/len*/*/result.json")) if (sd / "trainsizes").is_dir() else 0
+        return {"move": 22, "done": n, "total": None, "unit": "model units finished"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -1138,7 +1238,7 @@ def extra_move_states(out: Path, running: dict | None, sections: dict | None = N
         rows.append({"move": mv, "title": sec.get("title") or x["title"], "what": sec.get("body") or x["what"], "state": state, "commands": crows,
                      "state_before_batch": None, "reads_from": list(x["reads_from"]), "requires": list(x["requires"]), "outputs_missing": missing,
                      "last_finished_at": max([c["finished_at"] or "" for c in crows] or [""]) or None, "interrupted_at": None,
-                     "look_at": sec.get("look_at", ""), "output_dirs": [sib], "beside_the_run": True, "sibling": sib, "sibling_exists": sd.is_dir(),
+                     "look_at": sec.get("look_at", ""), "output_dirs": [sib], "beside_the_run": True, "sibling": sib, "sibling_exists": sd.is_dir(), "form": x.get("form"),
                      "record": f"{sib}/record.json" if (sd / "record.json").is_file() else None, "note": x["note"]})
     return rows
 
@@ -1195,7 +1295,7 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     o = Path(out)
     subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"],
             "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"], "timeshuffle_sizes": o.name + EXTRA_MOVES[19]["suffix"],
-            "arrowladder": o.name + EXTRA_MOVES[20]["suffix"], "heldout": o.name + EXTRA_MOVES[21]["suffix"]}
+            "arrowladder": o.name + EXTRA_MOVES[20]["suffix"], "heldout": o.name + EXTRA_MOVES[21]["suffix"], "trainsizes": o.name + EXTRA_MOVES[22]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
@@ -1483,8 +1583,25 @@ class Panel:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def launch(self, move, force: bool = False) -> dict:
-        """One driver run of one move: `run_moves run --out O [--root R] --moves N <flags> [--force]`."""
+    def estimate(self, choices: dict | None) -> dict:
+        """Move 22's time estimate for the form's choices, as the engine computes it (`train_sizes estimate --json`); nothing is written."""
+        out, _root = self._need()
+        ch = trainsizes_choices(choices)
+        argv = [sys.executable, "-m", f"{TOOLKIT_NAME}.train_sizes", "estimate", "--run", str(out)] + trainsizes_tokens(ch) + ["--json"]
+        try:
+            p = subprocess.run(argv, cwd=str(QEMU_DIR), capture_output=True, text=True, timeout=180, env=dict(os.environ, PYTHONUNBUFFERED="1"))
+        except subprocess.TimeoutExpired:
+            raise PanelError("the estimate took more than three minutes; the engine did not answer") from None
+        if p.returncode != 0:
+            raise PanelError((p.stderr.strip().splitlines() or p.stdout.strip().splitlines() or ["the estimate failed"])[-1][:400])
+        line = [ln for ln in p.stdout.splitlines() if ln.startswith("{")]
+        if not line:
+            raise PanelError("the estimate printed no JSON line")
+        return {"choices": ch, "estimate": json.loads(line[-1]), "line": shell_line(argv)}
+
+    def launch(self, move, force: bool = False, choices: dict | None = None) -> dict:
+        """One driver run of one move: `run_moves run --out O [--root R] --moves N <flags> [--force]`; move 22 takes the form's choices
+        (sizes, repeats, seed, lengths, overlaps) and runs the check, the chosen sizes and the collect, one after the other."""
         out, root = self._need()
         with self.lock:
             self._reap()
@@ -1524,13 +1641,19 @@ class Panel:
                         pid = read_json(lock).get("pid")
                         if pid and _pid_alive(int(pid)):
                             raise PanelError(f"a move is running on this run ({lock.name}: pid {pid}); move {move} refuses to start beside a running move")
-                steps = [extra_argv(out, move, st, flags, force) for st in EXTRA_MOVES[move]["steps"]]
+                if EXTRA_MOVES[move].get("form") == "trainsizes":
+                    ch = trainsizes_choices(choices)
+                    steps = [extra_argv(out, move, st, flags, force) + trainsizes_tokens(ch) for st in trainsizes_steps(ch)]
+                else:
+                    ch = None
+                    steps = [extra_argv(out, move, st, flags, force) for st in EXTRA_MOVES[move]["steps"]]
                 if len(steps) == 1:
                     argv = steps[0]
                 else:
                     argv = ["/bin/sh", "-c", " && ".join(" ".join(shlex.quote(t) for t in a) for a in steps)]
                 shell = [shell_line(a) for a in steps]
             else:
+                ch = None
                 argv = driver_argv("run", str(out), root, move, flags, force)
                 shell = [shell_line(argv)]
             ldir = self._launch_dir(out)
@@ -1540,7 +1663,7 @@ class Panel:
                 n += 1
                 lid = f"{base}-{n}"
             log = ldir / f"{lid}.log"
-            rec = {"id": lid, "move": move, "force": bool(force), "argv": argv, "shell": shell,
+            rec = {"id": lid, "move": move, "force": bool(force), "argv": argv, "shell": shell, "choices": ch,
                    "cwd": str(QEMU_DIR), "started_at": now_iso(), "finished_at": None, "exit_code": None, "log": str(log),
                    "toolkit": toolkit_identity(), "config": {"preset": self.cfg.get("preset"), "flags": dict(flags), "out": str(out), "root": root},
                    "driver_params": None, "driver_run": None,

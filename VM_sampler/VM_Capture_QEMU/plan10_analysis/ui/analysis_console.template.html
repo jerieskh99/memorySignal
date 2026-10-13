@@ -3396,6 +3396,73 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
     }
     pg.innerHTML = h;
   }
+  /* ---- move 22, the training-size loops: a form in the page for its choices (the sizes as checkboxes and a list kept in sync, the repeats, the base seed,
+     the piece lengths, the overlaps) with the engine's own time estimate (/grounding/trainsizes_estimate runs `train_sizes estimate --json`); Run launches
+     the check, the chosen sizes and the collect, one after the other ---- */
+  const TS = {sizes: [1, 2, 3, 4, 5, 6, 7], lengths: [64, 32, 16, 8, 4, 2], overlaps: [0, 25, 50, 75]};
+  function gpTrainSizesForm(mv, force) {
+    const old = $("gp-ts-form"); if (old) old.remove();
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem("plan10.grounding.trainsizes") || "null") || {}; } catch (e) { saved = {}; }
+    const sizes = Array.isArray(saved.sizes) && saved.sizes.length ? saved.sizes : TS.sizes, lengths = Array.isArray(saved.lengths) && saved.lengths.length ? saved.lengths : TS.lengths,
+      overlaps = Array.isArray(saved.overlaps) && saved.overlaps.length ? saved.overlaps : [50];
+    const boxes = (name, vals, on, fmt) => vals.map(v => `<label style="margin-right:10px;white-space:nowrap;font-size:12px"><input type="checkbox" data-${name}="${v}" ${on.includes(v) ? "checked" : ""}> ${fmt ? fmt(v) : v}</label>`).join("");
+    const host = document.createElement("div"); host.id = "gp-ts-form";
+    host.style.cssText = "position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center";
+    host.innerHTML = `<div class="mon-card" style="width:min(820px,94vw);max-height:92vh;overflow:auto;box-shadow:var(--shadow)">
+      <h3 style="margin-top:0">move ${mv}: the training-size loops${force ? " (re-run with --force: every chosen unit runs again)" : ""}</h3>
+      <div class="ep-note">Everything inside the loop is move 21's (its piece lengths, rungs, statistic sets, levels, forest, scores, both cuts). The check against move 21 runs first (skipped once it stands), then each chosen size as its own step (resumable per size, overlap, repeat, length, rung and cut), then the collect. Asking later for more repeats runs only the new ones. The estimate is the engine's, from move 21's measured step times.</div>
+      <div class="field"><label class="fl">training runs per group (the sizes)</label><div>${boxes("size", TS.sizes, sizes)}</div>
+        <input type="text" id="gp-ts-sizes" class="mono" value="${sizes.join(",")}" style="width:180px;margin-top:4px" spellcheck="false" title="a comma-separated list, kept in sync with the boxes"></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div class="field"><label class="fl">random repeats per size</label><input type="number" id="gp-ts-repeats" min="1" max="50" value="${saved.repeats || 5}" style="width:80px"></div>
+        <div class="field"><label class="fl">base seed (empty: the run's forest seed)</label><input type="text" id="gp-ts-seed" class="mono" value="${saved.seed == null ? "" : saved.seed}" style="width:140px" spellcheck="false"></div>
+      </div>
+      <div class="field"><label class="fl">piece lengths (pairs)</label><div>${boxes("length", TS.lengths, lengths)}</div></div>
+      <div class="field"><label class="fl">overlap of the training pieces (move 21 uses 50%)</label><div>${boxes("overlap", TS.overlaps, overlaps, v => v + "%")}</div></div>
+      <div class="ep-note" id="gp-ts-est" style="font-size:12px;color:var(--ink)">estimate: computing from the engine...</div>
+      <div class="ep-note" id="gp-ts-err" style="color:var(--bad)"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="bigbtn ghost" id="gp-ts-cancel">Cancel</button><button class="bigbtn" id="gp-ts-run">Run</button></div></div>`;
+    document.body.appendChild(host);
+    const read = () => ({
+      sizes: [...host.querySelectorAll("input[data-size]")].filter(i => i.checked).map(i => +i.dataset.size),
+      repeats: +$("gp-ts-repeats").value || 5, seed: $("gp-ts-seed").value.trim(),
+      lengths: [...host.querySelectorAll("input[data-length]")].filter(i => i.checked).map(i => +i.dataset.length),
+      overlaps: [...host.querySelectorAll("input[data-overlap]")].filter(i => i.checked).map(i => +i.dataset.overlap)});
+    let timer = null, seq = 0;
+    const refresh = () => { clearTimeout(timer); timer = setTimeout(async () => {
+      const c = read(), est = $("gp-ts-est"), my = ++seq; if (!est) return;
+      if (!c.sizes.length || !c.lengths.length || !c.overlaps.length) { est.textContent = "estimate: choose at least one size, one length and one overlap"; return; }
+      est.textContent = "estimate: computing from the engine...";
+      try {
+        const r = await gpGet("trainsizes_estimate", {sizes: c.sizes.join(","), repeats: c.repeats, seed: c.seed, lengths: c.lengths.join(","), overlaps: c.overlaps.join(",")});
+        if (my !== seq || !$("gp-ts-est")) return;
+        const e = r.estimate, ps = e.per_size || {};
+        est.innerHTML = `<b>estimate</b>: about <b>${epDur(e.seconds.total)}</b> in total (${e.n_units.features} feature units about ${epDur(e.seconds.features)}, ${e.n_units.model} model units about ${epDur(e.seconds.model)}), one process at a time with the tab's trees and processes` +
+          `<br>per size: ` + Object.entries(e.seconds_by_size || {}).map(([k, v]) => `m = ${k}: ${epDur(v)} (${ps[k] ? ps[k].n_rounds + " rounds" + (ps[k].leave_one_out ? ", leave one out: one repeat" : " x " + ps[k].repeats.length + " repeats") + (ps[k].capped_groups && ps[k].capped_groups.length ? ", capped: " + ps[k].capped_groups.join(" ") : "") : ""})`).join("; ") +
+          (e.skipped && e.skipped.length ? `<br>skipped: ` + e.skipped.map(s => `${s.length} pairs at ${s.overlap}% (${s.why})`).join("; ") : "") +
+          (e.lengths_not_measured && e.lengths_not_measured.length ? `<br>move 21 has not measured length ${e.lengths_not_measured.join(", ")} yet: extrapolated` : "") +
+          `<br><span class="subnote">${esc(e.basis)}</span>`;
+      } catch (err) { if (my === seq && $("gp-ts-est")) $("gp-ts-est").textContent = "estimate: " + err.message; }
+    }, 350); };
+    const syncText = () => { $("gp-ts-sizes").value = read().sizes.join(","); };
+    const syncBoxes = () => { const want = $("gp-ts-sizes").value.split(/[,; ]+/).map(s => +s).filter(n => TS.sizes.includes(n));
+      host.querySelectorAll("input[data-size]").forEach(i => { i.checked = want.includes(+i.dataset.size); }); };
+    host.querySelectorAll("input[data-size], input[data-length], input[data-overlap]").forEach(i => { i.onchange = () => { if (i.dataset.size) syncText(); refresh(); }; });
+    $("gp-ts-sizes").oninput = () => { syncBoxes(); refresh(); };
+    $("gp-ts-repeats").oninput = refresh; $("gp-ts-seed").oninput = refresh;
+    $("gp-ts-cancel").onclick = () => host.remove();
+    host.onclick = e => { if (e.target === host) host.remove(); };
+    $("gp-ts-run").onclick = async () => {
+      const c = read(), err = $("gp-ts-err");
+      if (!c.sizes.length || !c.lengths.length || !c.overlaps.length) { err.textContent = "choose at least one size, one length and one overlap"; return; }
+      if (c.seed !== "" && !/^-?\d+$/.test(c.seed)) { err.textContent = "the base seed is a whole number, or empty for the run's"; return; }
+      if (force && !confirm(`Re-run move ${mv} with --force: the check and every chosen unit run again and their outputs are rewritten by the engine. Continue?`)) return;
+      try { localStorage.setItem("plan10.grounding.trainsizes", JSON.stringify(c)); } catch (e) {}
+      try { const r = await api("/grounding/run", {move: mv, force, choices: c}); host.remove(); GP.launch = r.id; GP.move = String(mv); GP.board = null; gpSave(); gpSetTab("log"); }
+      catch (e2) { err.textContent = e2.message; }
+    };
+    refresh();
+  }
   async function gpMoves() {
     const sum = $("gp-moves-sum"), tbl = $("gp-moves-tbl");
     let b; try { b = await gpGet("board"); } catch (e) { sum.textContent = e.message; tbl.innerHTML = ""; $("gp-move-body").innerHTML = ""; return; }
@@ -3412,6 +3479,8 @@ window.__A = {G, M, validate, loadScheme, addNode, connect, renderAll, scheme, e
           `<td style="white-space:nowrap">${m.state === "off" ? "" : m.state === "done" ? `<button class="bigbtn ghost" data-run="${esc(m.move)}" data-force="1" ${m.runnable ? "" : "disabled"} title="run_moves run --moves ${esc(m.move)} --force">Re-run</button>` : `<button class="bigbtn" data-run="${esc(m.move)}" ${m.runnable ? "" : "disabled"} title="${m.runnable ? "launch the driver for this move" : "waits for move " + m.requires.join(", ")}">Run</button>`}</td></tr>`; }).join("") + "</tbody>";
     tbl.querySelectorAll("tbody tr").forEach(tr => { tr.onclick = e => { if (e.target.closest("button")) return; GP.move = tr.dataset.move; gpSave(); gpMoves(); }; });
     tbl.querySelectorAll("button[data-run]").forEach(btn => { btn.onclick = async e => { e.stopPropagation(); const mv = btn.dataset.run, force = !!btn.dataset.force;
+      const row = b.moves.find(x => String(x.move) === String(mv));
+      if (row && row.form === "trainsizes") { gpTrainSizesForm(+mv, force); return; }       /* move 22: its loops are chosen in a form, with the engine's estimate */
       if (force && !confirm(`Re-run move ${mv} with --force: every command of the move runs again and its outputs are rewritten by the engine. Continue?`)) return;
       try { const r = await api("/grounding/run", {move: +mv, force}); GP.launch = r.id; GP.move = mv; GP.board = null; gpSave(); gpSetTab("log"); }
       catch (err) { alert(err.message); } }; });
