@@ -169,6 +169,24 @@ EXTRA_MOVES[19] = {
             "<out>_timeshuffle (all read only); refuses to start (exit 3) while a move runs; time_shuffle.py and page_fourier.py are imported, not changed; a size step takes about "
             "twice a move 17 step",
     "requires": [1], "reads_from": [0, 1, 5]}
+# the arrow ladder (2026-10-13): move 12's new-block test repeated on input sets built from the arrow's size and angle, one rung at a time
+EXTRA_MOVES[20] = {
+    "title": "the arrow ladder: move 12's new-block test on input sets built from the arrow's size and angle (H; H and A; C and S; the doubled angle; the l0 and l1 arrows)",
+    "module": "arrow_ladder", "suffix": "_arrowladder", "record_keys": ("series", "ladder"), "lock": ".arrow_ladder.lock",
+    "steps": ({"name": "the arrow series: one pass over the per-page stores (N, H, A, C, S checked against move 1; the doubled angle, the l0 and l1 arrows)", "key": "series",
+               "sub": "series", "args": [], "dir": "series", "done_file": "series/series.json"},
+              {"name": "the ladder: move 12's test on rungs 1 to 5b, both cuts (rung 0 = E_new's own series, the check against move 12)", "key": "ladder", "sub": "ladder",
+               "args": [], "dir": "ladder", "done_file": "ladder/arrow_ladder.json"}),
+    "what": "arrow_ladder.py: step 1 reads every recording's per-page store once and writes its per-pair series (<out>_arrowladder/series/<cell>.npz: N, H, A, C, S as move 1 "
+            "makes them, checked against move 1's series to float precision, then C2 and S2 with the doubled angle, L0C, L0S, L1C, L1S with the bytes-changed and L1 sizes); step 2 "
+            "repeats move 12's new-block test on each rung's series (rung 1 H; rung 2 H and A; rung 3 C and S; rung 4 C2 and S2; rung 5a L0C and L0S; rung 5b L1C and L1S; rung 0 N, H, "
+            "A, which must reproduce move 12's E_new exactly), with E_new's statistic sets per window, move 12's window frame, split, levels, forest, dimension rule and quarantine, "
+            "both cuts; writes <out>_arrowladder/ladder/cut<C>/ (scores.csv with move 12's E0 and E_new beside, margins.csv between rungs with move 12's bootstrap, recall_per_kernel.csv, "
+            "run_level.csv, by_position.csv, split.csv, ladder_accuracy.svg, <rung>/ with its predictions, pools, confusion and features, summary.json), ladder/arrow_ladder.json, "
+            "series/series.json, series/identity_check.csv and record.json",
+    "note": "beside the run, not in its record book: its own record.json in the sibling folder <out>_arrowladder; reads moves 0, 1 and 6, the L1 stores and <out>_newblocks (all read "
+            "only); refuses to start (exit 3) while a move runs; new_blocks.py, classify.py, stats.py and extract.py are imported, not changed; both steps resume what stands",
+    "requires": [6], "reads_from": [0, 1, 6]}
 EXTRA_FLAGS = ("n_jobs", "n_estimators")  # the tab's flags passed to the moves beside the run unless the move names its own list (the paper preset's values are move 6's own)
 CONFIG_FIELDS = ("out", "root")         # the two paths the config bar holds; every other driver flag is in the flag form
 
@@ -268,6 +286,13 @@ VIEWS = [
                "{timeshuffle_sizes}/size1/step.json", "{timeshuffle_sizes}/size2/step.json", "{timeshuffle_sizes}/size4/step.json", "{timeshuffle_sizes}/size8/step.json",
                "{timeshuffle_sizes}/size16/step.json", "{timeshuffle_sizes}/size32/step.json", "{timeshuffle_sizes}/size128/step.json",
                "{timeshuffle_sizes}/sweep_summary.json", "{timeshuffle_sizes}/record.json"]},
+    {"id": "arrowladder", "title": "the arrow ladder: new blocks named right per level and rung, with move 12's E0 and E_new as reference lines; the margins between rungs; the kernel confusions per rung (move 20, beside the run)", "move": 20,
+     "note": "written by arrow_ladder.py into the sibling folder <out>_arrowladder; rung 0 is E_new's own series and must equal move 12's E_new (the check); move 12's rows are read from <out>_newblocks",
+     "files": ["{arrowladder}/ladder/{cut}/ladder_accuracy.svg", "{arrowladder}/ladder/{cut}/scores.csv", "{arrowladder}/ladder/{cut}/margins.csv",
+               "{arrowladder}/ladder/{cut}/recall_per_kernel.csv", "{arrowladder}/ladder/{cut}/run_level.csv", "{arrowladder}/ladder/{cut}/by_position.csv",
+               "{arrowladder}/ladder/{cut}/rung3/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/rung4/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/rung5a/confusion_kernel.svg",
+               "{arrowladder}/ladder/{cut}/rung5b/confusion_kernel.svg", "{arrowladder}/ladder/{cut}/summary.json",
+               "{arrowladder}/series/identity_check.csv", "{arrowladder}/series/series.json", "{arrowladder}/ladder/arrow_ladder.json", "{arrowladder}/record.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".txt": "text", ".log": "text", ".py": "text", ".html": "html", ".svg": "svg"}
@@ -496,7 +521,7 @@ def cut_dirs(out: Path) -> list[str]:
 
 def sibling_dirs(out: Path) -> dict:
     """{sibling folder name: its path} for the moves beside the run (EXTRA_MOVES): exactly `<out>_idle13`,
-    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit` and `<out>_timeshuffle_sizes`, nothing else next to the run."""
+    `<out>_newblocks`, `<out>_pagefourier`, `<out>_timeshuffle`, `<out>_randomsplit`, `<out>_timeshuffle_sizes` and `<out>_arrowladder`, nothing else next to the run."""
     o = Path(out)
     return {o.name + m["suffix"]: o.parent / (o.name + m["suffix"]) for m in EXTRA_MOVES.values()}
 
@@ -900,6 +925,18 @@ def progress(out: Path, move: int | None) -> dict | None:
             ia = h.index("admissible") if "admissible" in h else -1
             n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
         return {"move": 19, "done": n, "total": (len(sizes) * 2 * len(cuts) * n_rec) or None, "unit": "recording spectra written (seven sizes, both phases, every cut)"}
+    if move == 20:
+        sd = sibling_dirs(o)[o.name + EXTRA_MOVES[20]["suffix"]]
+        n_rec = 0
+        if (o / "cells.csv").exists():
+            h, rows, _ = read_csv_rows(o / "cells.csv")
+            ia = h.index("admissible") if "admissible" in h else -1
+            n_rec = sum(1 for r in rows if ia >= 0 and len(r) > ia and r[ia].lower() == "true")
+        n_series = len(list((sd / "series").glob("*.npz"))) if (sd / "series").is_dir() else 0
+        n_rungs = sum(1 for c in cuts for p in (sd / "ladder" / c).glob("rung*/result.json")) if (sd / "ladder").is_dir() else 0
+        if n_series < n_rec or not (sd / "series" / "series.json").exists():
+            return {"move": 20, "done": n_series, "total": n_rec or None, "unit": "recording series written (step 1)"}
+        return {"move": 20, "done": n_rungs, "total": 7 * len(cuts), "unit": "rungs finished (step 2: seven rungs per cut)"}
     if move == 9:
         d = o / "moves" / "09_removed"
         subs = ["series", "03_every_run", "04_portraits", "05_similarity", "06_classify", "07_floor"]
@@ -1128,7 +1165,8 @@ def expand_files(out: Path, specs: list[str]) -> list[str]:
     folders' names; the order of the specs kept, each cut in turn."""
     o = Path(out)
     subs = {"idle13": o.name + EXTRA_MOVES[11]["suffix"], "newblocks": o.name + EXTRA_MOVES[12]["suffix"], "pagefourier": o.name + EXTRA_MOVES[13]["suffix"],
-            "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"], "timeshuffle_sizes": o.name + EXTRA_MOVES[19]["suffix"]}
+            "timeshuffle": o.name + EXTRA_MOVES[17]["suffix"], "randomsplit": o.name + EXTRA_MOVES[18]["suffix"], "timeshuffle_sizes": o.name + EXTRA_MOVES[19]["suffix"],
+            "arrowladder": o.name + EXTRA_MOVES[20]["suffix"]}
     files = []
     for f in specs:
         for cut in (cut_dirs(o) if "{cut}" in f else [None]):
