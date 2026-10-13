@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""random_signal_panel.py -- the console's window onto the random-signal paper's runs (2026-10-07).
+"""random_signal_panel.py -- the console's window onto the signal-and-system paper's runs (2026-10-07).
 
-The paper (working name "the random-signal paper"; `memorySignal/random_signal_paper/`, not in git; it was
-called "the grounding paper" until 2026-10-06, so older files use that name) keeps its runs under
-`server_runs/`: scripts the author runs on the research server by hand, and two analysis scripts he runs
-on the laptop. This module applies the Encoding paper and Grounding paper tabs' idea to that folder: a
+The paper (working name "the signal-and-system paper" since 2026-10-13; it was "the random-signal paper" until then
+and "the grounding paper" until 2026-10-06, so older files use those names; `memorySignal/signal_and_system_paper/`,
+not in git; until 2026-10-13 `memorySignal/random_signal_paper/`, which now holds only a redirect note) keeps its
+runs under `server_runs/`: scripts the author runs on the research server by hand, and two analysis scripts he
+runs on the laptop. This module applies the Encoding paper and Grounding paper tabs' idea to that folder: a
 board of moves, each with its state, its Run (laptop moves only), its log, and its results and figures
 shown as the files write them. Nothing here computes a number, and nothing here contacts the server.
 
@@ -42,14 +43,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 QEMU_DIR = HERE.parent
-PAPER_DEFAULT = Path("/Users/jeries/Desktop/projects/thesis/memorySignal/random_signal_paper")
+PAPER_DEFAULT = Path("/Users/jeries/Desktop/projects/thesis/memorySignal/signal_and_system_paper")
 RUNS_DIR = "server_runs"                                    # under the paper's folder: the scripts, results/ and analysis/
 DEFAULT_CONFIG = Path(os.path.expanduser("~/.cache/plan10/random_signal_config.json"))
 CONSOLE_DIR = Path(os.path.expanduser("~/.cache/plan10/random_signal"))     # the console's own records, never under the paper's folder
 SERVER = "jeries@cybersecurity.ac.upc.edu"
-RSYNC_SCRIPTS = f"rsync -a ~/Desktop/projects/thesis/memorySignal/random_signal_paper/server_runs/ {SERVER}:random_signal_runs/"
-RSYNC_HOME = f"rsync -a {SERVER}:random_signal_runs/results/ ~/Desktop/projects/thesis/memorySignal/random_signal_paper/server_runs/results/"
-RSYNC_FP_CHECK = f"rsync -a ~/Desktop/projects/thesis/memorySignal/random_signal_paper/server_runs/fp_check.py {SERVER}:random_signal_runs/"
+RSYNC_SCRIPTS = f"rsync -a ~/Desktop/projects/thesis/memorySignal/signal_and_system_paper/server_runs/ {SERVER}:random_signal_runs/"
+RSYNC_HOME = f"rsync -a {SERVER}:random_signal_runs/results/ ~/Desktop/projects/thesis/memorySignal/signal_and_system_paper/server_runs/results/"
+RSYNC_FP_CHECK = f"rsync -a ~/Desktop/projects/thesis/memorySignal/signal_and_system_paper/server_runs/fp_check.py {SERVER}:random_signal_runs/"
 LEXER_42_CHAIN = ("/mnt/nfs/jeries/memory_traces/zstd_local/kernel/kernel_lexer_v2/input-mb_32_--duration_600_--seed_42_--phase-markers_--max-m_e2a0a0b0/"
                   "rep001__sandbox_deepdive_01c1")
 N_LAG_RECORDINGS = 16
