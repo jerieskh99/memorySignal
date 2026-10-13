@@ -43,12 +43,13 @@ TOOLKIT = QEMU_DIR / TOOLKIT_NAME
 RUNBOOK = TOOLKIT / "RUNBOOK.md"
 DEFAULT_CONFIG = Path(os.path.expanduser("~/.cache/plan10/encoding_config.json"))
 CONSOLE_DIR = ".console"                 # under <out>; the toolkit neither reads nor hashes it
-MAX_MOVE = 18                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29); move 16: the
+MAX_MOVE = 19                            # move 15: the optional LORO luck checks (SPEC_epoch2 Part 4 item 29); move 16: the
                                          # corrected instrument check, the idle common-ground test and the second Table 2
                                          # (added 2026-10-05, item 30); move 17: the new-block test on the five readings (added
                                          # 2026-10-06, item 31); move 18: the random 80/20 split, move 17's companion (added
-                                         # 2026-10-11, item 32); the EUSIPCO row still follows move 14, all four being optional
-OPTIONAL_MOVES = (15, 16, 17, 18)        # the waiting rule (2026-10-06): an optional move waits for the moves whose files it reads
+                                         # 2026-10-11, item 32); move 19: the paper's Figures 1 and 2 (added 2026-10-13, item 33);
+                                         # the EUSIPCO row still follows move 14, all five being optional
+OPTIONAL_MOVES = (15, 16, 17, 18, 19)    # the waiting rule (2026-10-06): an optional move waits for the moves whose files it reads
                                          # (the producers of its declared inputs), not for the move numbered before it; moves 0 to 14
                                          # keep the runbook's order
 EUSIPCO_KEY = "eusipco"                  # the two runbook commands the driver does not schedule
@@ -124,6 +125,10 @@ VIEWS = [
                "report/tables/random_split_split.md", "gates/added/random_split.csv", "gates/added/random_split/W64_H32/step1_random/summary.json",
                "gates/added/random_split/W64_H32/step2_random_nooverlap/summary.json", "gates/added/random_split/own/step1_random/summary.json",
                "gates/added/random_split/own/step2_random_nooverlap/summary.json"]},
+    {"id": "paper_figures", "title": "the paper's Figure 1 (the representation: r1, r2, r3 against J_t, one mark per run) and Figure 2 (the shape over time: APF, wAPF and J_t per kernel and idle) (move 19)", "move": 19,
+     "note": "added 2026-10-13; drawn as the approved previews draw them, the cut from inputs/head_drop.csv and the cells from the toolkit's admissibility; the PDFs are the files the paper includes, the CSVs beside them hold the plotted values",
+     "files": ["report/figures/fig_representation.png", "report/figures/fig_shape_per_kernel.png", "report/figures/fig_representation_medians.csv",
+               "report/figures/fig_shape_per_kernel_values.csv", "report/figures/paper_figures.json"]},
 ]
 
 TEXT_KINDS = {".csv": "csv", ".json": "json", ".md": "md", ".tex": "tex", ".txt": "text", ".log": "text", ".py": "text"}

@@ -116,12 +116,13 @@ GL2_SHOT_NOISE = "refused: shot noise explains CV"      # verdicts.GL_SHOT_NOISE
 ADMISSIBILITY = "gates/preconditions.json"
 INPUT_FILES = ("cells.csv", "inputs/pass_table.csv", "inputs/gk0_source.csv", "inputs/head_drop.csv",
                "inputs/failed_counts.csv", "inputs/idle_admissibility.json", "inputs/cell_order.csv")
-MAX_MOVE = 18      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
+MAX_MOVE = 19      # epoch 2: move 14 = the comparators (SPEC_epoch2.md Part 1.7); move 15 = the optional LORO
                    # luck checks (SPEC_epoch2 Part 4 item 29); move 16 = the corrected instrument check, the idle
                    # common-ground test and the second Table 2 (added 2026-10-05, after the run of 2026-09-29;
                    # SPEC_epoch2 Part 4 item 30; A20 to A22); move 17 = the new-block test on the five readings
                    # (added 2026-10-06; SPEC_epoch2 Part 4 item 31; A25); move 18 = the random 80/20 split, move 17's
-                   # companion (added 2026-10-11; SPEC_epoch2 Part 4 item 32). None of 15 to 18 is in the default --moves 0-14.
+                   # companion (added 2026-10-11; SPEC_epoch2 Part 4 item 32); move 19 = the paper's Figures 1 and 2
+                   # (added 2026-10-13; SPEC_epoch2 Part 4 item 33). None of 15 to 19 is in the default --moves 0-14.
 NEW_BLOCKS_PRIMARY_GRID = "W64_H32"      # move 17's primary window (A25); the own windows come from gates/selection.json
 LORO_FULL_NULL_SPLITS = "loko,loro,within_trace"   # the paper value; move 15 restores LORO's null under it
 
@@ -483,6 +484,20 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                            "report/figures/random_split_per_kernel_step1.svg", "report/figures/random_split_per_kernel_step2.svg", "report/figures/random_split_run_level_step1.svg",
                            "report/figures/random_split_run_level_step2.svg", "report/figures/random_split_confusion_apf.svg", "report/figures/random_split_confusion_content.svg"],
                   inputs=rs_read + [ADMISSIBILITY]))
+    # ---- move 19 (optional; added 2026-10-13: SPEC_epoch2 Part 4 item 33): the paper's Figures 1 and 2, drawn by paper_figures.py exactly as the
+    # two approved preview scripts draw them (apf_paper/previews: the representation, v2 of 2026-10-12; the shape over time, grid7 of 2026-10-13),
+    # under the file names the paper includes (report/figures/fig_representation.pdf, fig_shape_per_kernel.pdf; .png and the plotted values as CSV
+    # beside each). The cut per cell comes from inputs/head_drop.csv and the cells from the toolkit's admissibility; neither figure is in figures.py's
+    # default set, so move 12's "figures (all)" is unchanged. Each command declares what it reads: the extract (the directory, which the console maps
+    # to move 1, and move 1's manifest extract/extract_all.json, whose hash changes when move 1 re-runs), cells.csv, inputs/head_drop.csv and the
+    # admissibility record. Only when selected (`--moves 19`); the default `--moves 0-14` leaves it out, as it leaves 15 to 18 out.
+    pf_inputs = ["extract", "extract/extract_all.json", "cells.csv", "inputs/head_drop.csv", ADMISSIBILITY]
+    P.append(_cmd(19, "paper figure 1 (the representation)", "paper_figures", "run", [*O, "--only", "representation"],
+                  outputs=["report/figures/fig_representation.pdf", "report/figures/fig_representation.png", "report/figures/fig_representation_medians.csv"],
+                  inputs=pf_inputs))
+    P.append(_cmd(19, "paper figure 2 (the shape over time)", "paper_figures", "run", [*O, "--only", "shape"],
+                  outputs=["report/figures/fig_shape_per_kernel.pdf", "report/figures/fig_shape_per_kernel.png", "report/figures/fig_shape_per_kernel_values.csv"],
+                  inputs=pf_inputs))
     # seed offsets and n-jobs on the commands that take them (SPEC 7.1)
     for c in P:
         key = (c["module"], c["sub"])
