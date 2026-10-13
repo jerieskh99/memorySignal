@@ -43,6 +43,8 @@ The comparator rows' interface (two layouts, both read; `params["comparator_sour
 
 Where a definition leaves a choice, the choice is a parameter with its default here and listed
 under "For the author" in BUILD2_eusipco.md: `COMPARATORS_DEFAULT`, `COMPARATOR_VARIANT_DEFAULT`,
+`TABLE2_CORRECTED_VARIANT_ORDER` and `TABLE2_CORRECTED_ROW_LABELS` (the corrected Table 2's two rows per
+comparator and their wording, 2026-10-14),
 `INCLUDE_MATCHED_DEFAULT`, `DS_IDS` (the Dhodapkar-Smith reading's internal id, resolved from what
 exists on disk), `TABLE3_FEATURE_VARIANT` (Table 3 reads the `_norm.npz` file, al-Kindi item 5's
 "normalized feature"), `TABLE_SIZE`.
@@ -110,7 +112,12 @@ COMPARATOR_ROW_RE = re.compile(r"^comparator: (?P<display>.+) \[(?P<key>[^\]]+)\
 TABLE7_FILE = "table7.csv"
 TABLE7_COMPARATORS_FILE = "table7_comparators.csv"                          # layout (B)
 COMPARATOR_VARIANTS = ("as published", "level-normalized")
-COMPARATOR_VARIANT_DEFAULT = "as published"     # the method as published (SPEC_epoch2.md 1.8: the raw row)
+COMPARATOR_VARIANT_DEFAULT = "as published"     # the method as published (SPEC_epoch2.md 1.8: the raw row); the declared Table 2's one comparator row
+# The corrected Table 2 (move 16) prints TWO rows per comparator, one after the other, in this order (the author's decision of 2026-10-14;
+# SPEC_epoch2.md Part 4 item 34): the level-normalized row, then the as-published row. The row labels are the author's wording; `{display}`
+# is the comparator's COMPARATOR_DISPLAY text, and the `\cite` stays on both rows. The declared Table 2 keeps its one row.
+TABLE2_CORRECTED_VARIANT_ORDER = ("level-normalized", "as published")
+TABLE2_CORRECTED_ROW_LABELS = {"level-normalized": "{display} (level-normalized)", "as published": "{display} (as published)"}
 TABLE_SIZE = "scriptsize"                       # eight columns; the skeleton's shells use the same
 LOKO, LORO = SPLIT_DISPLAY["loko"], SPLIT_DISPLAY["loro"]
 
@@ -354,17 +361,21 @@ CITATION_TABLE2_CORRECTED = (CITATION_TABLE2 + "; P2_AUTHOR_ANSWERS.md A20 to A2
                              "SPEC_epoch2.md Part 4 item 30; _report_common.rung_override_corrected (the twin refusal)")
 
 
-def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matched: bool = INCLUDE_MATCHED_DEFAULT,
-                     comparator_variant: str = COMPARATOR_VARIANT_DEFAULT) -> dict:
+def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matched: bool = INCLUDE_MATCHED_DEFAULT) -> dict:
     """The second Table 2 (A22): the same columns and the same scores as `eusipco_table2`, with the
     refusals of the twin function `_report_common.rung_override_corrected` in place of
     `rung_override`: the corrected instrument check (gates/added/gc_corrected.csv) instead of the
     original, and the idle common-ground test (gates/added/idle_common_ground.csv) instead of G-F
     part (i): a reading is void only when a held-out idle run is not recognised as idle above chance.
     The rung rows are rebuilt from the split records with `tables.table7_rows` under those readers
-    (nothing is recomputed: the scores are the same files); the comparator rows and the matched row
-    are read as the declared table reads them. Writes `report/tables/eusipco_table2_corrected.{csv,md,tex}`
-    and `.params.json`; `eusipco_table2.*` and every existing gate file are left untouched. The `.tex`
+    (nothing is recomputed: the scores are the same files); the matched row is read as the declared
+    table reads it. Each comparator gets TWO rows, one after the other (2026-10-14, SPEC_epoch2 Part 4
+    item 34): its level-normalized row, then its as-published row, both read with `comparator_rows`
+    from `table7_comparators.csv` (layout (B)) and labelled by `TABLE2_CORRECTED_ROW_LABELS`, with the
+    `\\cite` on both; under layout (A), which carries no variant, both rows read the same Table 7
+    rows and the `.tex` comment names the one source twice. Writes
+    `report/tables/eusipco_table2_corrected.{csv,md,tex}` and `.params.json` (both sources per
+    comparator); `eusipco_table2.*` and every existing gate file are left untouched. The `.tex`
     carries a `\\slot` note for the author's wording of the disclosure."""
     from plan11_encoding_ladder import tables as T                     # the declared Table 7's row builder, with the twin readers
     from plan11_encoding_ladder._report_common import gc_corrected_verdict, idle_common_ground_text, rung_override_corrected
@@ -380,15 +391,18 @@ def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matc
         rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
     for key in comparators:
         display = COMPARATOR_DISPLAY.get(key, key)
-        crow, source, label = comparator_rows(out, key, variant=comparator_variant, table7_rows=t7)
-        sources[key] = source or "absent"
-        cite_keys[display] = key
-        if not crow:
-            miss = not_run(f"{TABLE7_FILE} has no comparator row for {key} ({display}; nor "
-                           f"{TABLE7_COMPARATORS_FILE}, variant '{comparator_variant}')")
-            rows.append(_table2_row(display, [], TABLE7_FILE, missing_all=miss))
-        else:
-            rows.append(_table2_row(display, crow, source.split(" (", 1)[0]))
+        sources[key] = {}
+        for variant in TABLE2_CORRECTED_VARIANT_ORDER:          # two rows per comparator: level-normalized, then as published
+            row_label = TABLE2_CORRECTED_ROW_LABELS[variant].format(display=display)
+            crow, source, label = comparator_rows(out, key, variant=variant, table7_rows=t7)
+            sources[key][variant] = source or "absent"
+            cite_keys[row_label] = key
+            if not crow:
+                miss = not_run(f"{TABLE7_FILE} has no comparator row for {key} ({display}; nor "
+                               f"{TABLE7_COMPARATORS_FILE}, variant '{variant}')")
+                rows.append(_table2_row(row_label, [], TABLE7_FILE, missing_all=miss))
+            else:
+                rows.append(_table2_row(row_label, crow, source.split(" (", 1)[0]))
     if include_matched:
         rung, label = TABLE2_MATCHED_ROW
         rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
@@ -396,18 +410,24 @@ def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matc
             "eusipco_table2, built from the same split records; the refusals are _report_common.rung_override_corrected's: the corrected "
             "instrument check (gates/added/gc_corrected.csv, per changed byte) in place of gates/gc.csv's content verdict, and the idle "
             "common-ground test (gates/added/idle_common_ground.csv: void only when a held-out idle run is not recognised as idle above chance) "
-            "in place of G-F part (i); the declared table stands beside it")
+            "in place of G-F part (i); the declared table stands beside it. Since 2026-10-14 (SPEC_epoch2 Part 4 item 34) each comparator has "
+            "two rows, one after the other: its level-normalized row, then its as-published row")
     for key in comparators:
-        note += f"\ncomparator {COMPARATOR_DISPLAY.get(key, key)} [{key}] <- {sources[key]}"
+        for variant in TABLE2_CORRECTED_VARIANT_ORDER:
+            note += f"\ncomparator {COMPARATOR_DISPLAY.get(key, key)} [{key}], the {variant} row <- {sources[key][variant]}"
     paths = _write_three(out, "eusipco_table2_corrected", EUSIPCO_TABLE2_COLUMNS, rows, label="tab:p2e_table2_corrected",
                          cite_col="reduction", cite_keys=cite_keys, note_comment=note, wide=True, tex_note=TABLE2_CORRECTED_NOTE)
     gates = {rung: {"G-C corrected": gc_corrected_verdict(out, rung), "idle common ground": idle_common_ground_text(out, rung),
                     "override": rung_override_corrected(out, rung)} for rung, _ in TABLE2_RUNG_ROWS}
     write_json(_tables_dir(out) / "eusipco_table2_corrected.params.json", {
-        "schema": "plan11.eusipco_table2_corrected.v1",
+        "schema": "plan11.eusipco_table2_corrected.v2",     # v2 (2026-10-14): two rows per comparator; comparator_sources keyed by key then variant
         "params": _params(out, {"added": "added 2026-10-05, after the run of 2026-09-29", "comparators": list(comparators),
                                 "comparator_display": {k: COMPARATOR_DISPLAY.get(k, k) for k in comparators},
-                                "comparator_variant": comparator_variant, "comparator_sources": sources,
+                                "comparator_variants": list(TABLE2_CORRECTED_VARIANT_ORDER),
+                                "comparator_row_labels": dict(TABLE2_CORRECTED_ROW_LABELS),
+                                "comparator_rows_rule": "two rows per comparator, one after the other: the level-normalized row, then the as-published row "
+                                                        "(2026-10-14, SPEC_epoch2 Part 4 item 34); the declared eusipco_table2 keeps its one row",
+                                "comparator_sources": sources,
                                 "include_matched": bool(include_matched), "columns": EUSIPCO_TABLE2_COLUMNS,
                                 "refusal_function": "_report_common.rung_override_corrected",
                                 "void_rule": "void only when a held-out idle run is not recognised as idle above chance (idle recall not above the null's 95th percentile); "
@@ -680,8 +700,7 @@ def run(out: Path, only: list[str] | None = None, *, comparators=COMPARATORS_DEF
         elif n == "table3":
             written[n] = table3(out, ds_id=ds_id)
         elif n == "table2_corrected":
-            written[n] = table2_corrected(out, comparators=comparators, include_matched=include_matched,
-                                          comparator_variant=comparator_variant)
+            written[n] = table2_corrected(out, comparators=comparators, include_matched=include_matched)   # both variants, always
     return written
 
 
