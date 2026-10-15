@@ -425,10 +425,20 @@ def build_plan(o: argparse.Namespace) -> list[dict]:
                   inputs=["cells.csv", "inputs/head_drop.csv", "gates/selection.json", "gates/gk0.csv", ADMISSIBILITY]))
     # 2026-10-06: the comparator rows it reads (report/tables/table7_comparators.csv, made by move 14) were not declared; they are now, so on a
     # run where move 16 ran this one command is reported stale, which is correct; no other existing command changes its inputs or arguments
+    # 2026-10-15 (SPEC_epoch2 Part 4 item 35): the corrected table's new column, the leave-one-run-out chance line, reads the LORO/kernel scores.json
+    # of every rung at its selected point (resolved from the selection when it exists, else the primary window, as move 17's own-window files are)
+    # and of each comparator's two variants; move 15's luck checks rewrite them, so they are declared here. This command alone reads stale on a
+    # run where move 16 ran, which is correct; no other command changes its arguments or inputs.
+    from plan11_encoding_ladder import series as _series_t2
+    t2c_scores = []
+    for rung in RUNGS:
+        gid, _ = _series_t2.selected_grid_id(Path(out), rung, default=None)
+        t2c_scores.append(f"gates/splits/{rung}/{gid or NEW_BLOCKS_PRIMARY_GRID}/loro__kernel/scores.json")
+    t2c_scores += [f"gates/splits/{c}/Wall_Hall/loro__kernel{suf}/scores.json" for c in ("cmp_savoldi", "cmp_dhodapkar") for suf in ("", "__raw")]
     P.append(_cmd(16, "tables_eusipco table2_corrected", "tables_eusipco", None, [*O, "--only", "table2_corrected"],
                   outputs=["report/tables/eusipco_table2_corrected.csv"],
                   inputs=["report/tables/table7.csv", "report/tables/table7_comparators.csv", "gates/added/gc_corrected.csv", "gates/added/idle_common_ground.csv",
-                          "gates/selection.json", ADMISSIBILITY]))
+                          "gates/selection.json", ADMISSIBILITY] + t2c_scores))
     # ---- move 17 (optional; added 2026-10-06: SPEC_epoch2 Part 4 item 31; P2_AUTHOR_ANSWERS A25): the new-block test on the five
     # readings, the encoding paper's version of the SPL paper's test (plan12_grounding/PROMPT_new_blocks_test.md): the first 80% of
     # every recording's windows seen, a one-window gap, the rest new blocks named at three levels (archetype, kernel, run), alone and in

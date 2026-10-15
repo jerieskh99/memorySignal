@@ -118,6 +118,17 @@ COMPARATOR_VARIANT_DEFAULT = "as published"     # the method as published (SPEC_
 # is the comparator's COMPARATOR_DISPLAY text, and the `\cite` stays on both rows. The declared Table 2 keeps its one row.
 TABLE2_CORRECTED_VARIANT_ORDER = ("level-normalized", "as published")
 TABLE2_CORRECTED_ROW_LABELS = {"level-normalized": "{display} (level-normalized)", "as published": "{display} (as published)"}
+# 2026-10-15 (the author's decision; SPEC_epoch2.md Part 4 item 35), the corrected Table 2 only: (1) a cell that printed a verdict in place of
+# a score prints the score and the verdict together ("0.389 (not above chance)"); (2) the verdict words read as readers say them, through
+# TABLE2_CORRECTED_WORDS (the author's wording; every other word stays); (3) a column with the leave-one-run-out chance line (the LORO null's
+# 95th percentile, move 15's luck check) beside the leave-one-run-out accuracy; where move 15 has not run the cell says so in words.
+TABLE2_CORRECTED_COLUMNS = ["reduction", "feature count", "LOKO accuracy", "LOKO macro recall (headline archetypes)", "LOKO null p95", "LOKO majority",
+                            "LORO accuracy", "LORO null p95", "margin vs APF (LOKO)"]
+TABLE2_CORRECTED_WORDS = {"near_unfalsifiable": "not above chance",             # Sec. IV: above chance = above the label-shuffle null's 95th percentile
+                          "difference with margin": "does not beat the count"}   # gates_comparison.gm_compare's GM_DIFFERENCE: the "beats" rule failed
+TABLE2_CORRECTED_SCORE_KEYS = {"LOKO accuracy": ("loko", "accuracy"), "LOKO macro recall (headline archetypes)": ("loko", "macro_recall"),
+                               "LOKO null p95": ("loko", "null_p95"), "LOKO majority": ("loko", "majority"),
+                               "LORO accuracy": ("loro", "accuracy"), "LORO null p95": ("loro", "null_p95")}   # the cell -> (split, scores.json key)
 TABLE_SIZE = "scriptsize"                       # eight columns; the skeleton's shells use the same
 LOKO, LORO = SPLIT_DISPLAY["loko"], SPLIT_DISPLAY["loro"]
 
@@ -361,6 +372,85 @@ CITATION_TABLE2_CORRECTED = (CITATION_TABLE2 + "; P2_AUTHOR_ANSWERS.md A20 to A2
                              "SPEC_epoch2.md Part 4 item 30; _report_common.rung_override_corrected (the twin refusal)")
 
 
+def reader_words(text) -> str:
+    """A verdict as readers say it (TABLE2_CORRECTED_WORDS, every occurrence); every other word unchanged."""
+    s = "" if text is None else str(text)
+    for k, v in TABLE2_CORRECTED_WORDS.items():
+        s = s.replace(k, v)
+    return s
+
+
+def _is_number(cell) -> bool:
+    try:
+        float(str(cell).strip())
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def score_beside_verdict(cell, sc: dict | None, key: str) -> str:
+    """One cell of the corrected Table 2: a number stays exactly as the row gives it; a verdict that replaced
+    the score prints the score beside it, in readers' words ("0.389 (not above chance)"), the score read from
+    the split's scores.json under `key`; a verdict with no number behind it (the file missing, a null not run)
+    stays words alone."""
+    from plan11_encoding_ladder._report_common import fmt_num
+    s = "" if cell is None else str(cell)
+    if s == "" or s == "--" or _is_number(s):
+        return s
+    num = fmt_num(sc.get(key)) if isinstance(sc, dict) and sc.get(key) is not None else None
+    words = reader_words(s)
+    return f"{num} ({words})" if num not in (None, "--") else words
+
+
+def _rung_scores(out: Path, rung: str) -> dict:
+    """{'loko': the LOKO/archetype scores.json, 'loro': the LORO/kernel scores.json} of a rung at its selected point
+    (`effective_scores`, as the tables read them); an absent file gives None."""
+    from plan11_encoding_ladder._report_common import effective_scores, load_scores, selected_grid, split_dir
+    gid = selected_grid(out, rung)
+    if gid is None:
+        return {}
+    return {"loko": effective_scores(load_scores(split_dir(out, rung, gid, "loko", "archetype"))),
+            "loro": effective_scores(load_scores(split_dir(out, rung, gid, "loro", "kernel")))}
+
+
+def _comparator_scores(out: Path, key: str, variant: str) -> dict:
+    """The same two scores.json of a comparator's variant (`gates/splits/cmp_<name>/Wall_Hall/<split>__<ls>[__raw]/`;
+    `as published` is the raw variant, `level-normalized` the norm one, as tables.table7_comparators reads them)."""
+    from plan11_encoding_ladder import tables as T
+    from plan11_encoding_ladder._report_common import effective_scores, load_scores, split_dir
+    cmp_dir = COMPARATOR_IDS.get(key, (None, None))[1]
+    if not cmp_dir:
+        return {}
+    raw = variant == "as published"
+    gid = getattr(T, "COMPARATOR_GRID_ID", "Wall_Hall")
+    return {"loko": effective_scores(load_scores(split_dir(out, cmp_dir, gid, "loko", "archetype", raw=raw))),
+            "loro": effective_scores(load_scores(split_dir(out, cmp_dir, gid, "loro", "kernel", raw=raw)))}
+
+
+def _table2_corrected_row(label: str, rows: list[dict], source_file: str, scores: dict, missing_all: str | None = None) -> dict:
+    """The corrected table's row from a label's Table 7 rows: the LOKO/archetype row gives the feature count, the four
+    LOKO cells and the margin; the LORO/kernel row gives the LORO accuracy and the chance line (its `null p95`). Every
+    score cell goes through `score_beside_verdict` with the split's scores.json behind it; the margin text through
+    `reader_words`; a number is copied verbatim."""
+    row = {"reduction": label}
+    if missing_all:
+        for c in TABLE2_CORRECTED_COLUMNS[1:]:
+            row[c] = missing_all
+        return row
+    loko = _pick(rows, LOKO, "archetype")
+    loro = _pick(rows, LORO, "kernel")
+    m_loko = not_run(f"{source_file} has no {LOKO}/archetype row for {label}")
+    m_loro = not_run(f"{source_file} has no {LORO}/kernel row for {label}")
+    row["feature count"] = str(loko.get("feature count", "")) if loko is not None else m_loko
+    for col, src in (("LOKO accuracy", "accuracy"), ("LOKO macro recall (headline archetypes)", "macro recall (headline rows)"),
+                     ("LOKO null p95", "null p95"), ("LOKO majority", "majority")):
+        row[col] = score_beside_verdict(loko.get(src, ""), scores.get("loko"), TABLE2_CORRECTED_SCORE_KEYS[col][1]) if loko is not None else m_loko
+    row["margin vs APF (LOKO)"] = reader_words(loko.get("G-M vs APF", "")) if loko is not None else m_loko
+    row["LORO accuracy"] = score_beside_verdict(loro.get("accuracy", ""), scores.get("loro"), "accuracy") if loro is not None else m_loro
+    row["LORO null p95"] = score_beside_verdict(loro.get("null p95", ""), scores.get("loro"), "null_p95") if loro is not None else m_loro
+    return row
+
+
 def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matched: bool = INCLUDE_MATCHED_DEFAULT) -> dict:
     """The second Table 2 (A22): the same columns and the same scores as `eusipco_table2`, with the
     refusals of the twin function `_report_common.rung_override_corrected` in place of
@@ -386,9 +476,11 @@ def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matc
     t7 = read_csv(t7p)
     t7c = T.table7_rows(out, override_fn=rung_override_corrected, gc_fn=gc_corrected_verdict, gf_fn=idle_common_ground_text)
     comparators = tuple(comparators)
-    rows, sources, cite_keys = [], {}, {}
+    rows, sources, cite_keys, score_files = [], {}, {}, []
     for rung, label in TABLE2_RUNG_ROWS:
-        rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
+        sc = _rung_scores(out, rung)
+        rows.append(_table2_corrected_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers", sc))
+        score_files += [f"gates/splits/{rung}/<selected>/{s}/scores.json" for s in ("loko__archetype", "loro__kernel")]
     for key in comparators:
         display = COMPARATOR_DISPLAY.get(key, key)
         sources[key] = {}
@@ -397,38 +489,51 @@ def table2_corrected(out: Path, *, comparators=COMPARATORS_DEFAULT, include_matc
             crow, source, label = comparator_rows(out, key, variant=variant, table7_rows=t7)
             sources[key][variant] = source or "absent"
             cite_keys[row_label] = key
+            sc = _comparator_scores(out, key, variant)
             if not crow:
                 miss = not_run(f"{TABLE7_FILE} has no comparator row for {key} ({display}; nor "
                                f"{TABLE7_COMPARATORS_FILE}, variant '{variant}')")
-                rows.append(_table2_row(row_label, [], TABLE7_FILE, missing_all=miss))
+                rows.append(_table2_corrected_row(row_label, [], TABLE7_FILE, sc, missing_all=miss))
             else:
-                rows.append(_table2_row(row_label, crow, source.split(" (", 1)[0]))
+                rows.append(_table2_corrected_row(row_label, crow, source.split(" (", 1)[0], sc))
     if include_matched:
         rung, label = TABLE2_MATCHED_ROW
-        rows.append(_table2_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers"))
+        rows.append(_table2_corrected_row(label, [r for r in t7c if r.get("rung") == rung], "table7 rows under the corrected readers", {}))
     note = ("EUSIPCO Table 2, corrected (move 16, added 2026-10-05 after the run of 2026-09-29; A21, A22): the same scores and columns as "
             "eusipco_table2, built from the same split records; the refusals are _report_common.rung_override_corrected's: the corrected "
             "instrument check (gates/added/gc_corrected.csv, per changed byte) in place of gates/gc.csv's content verdict, and the idle "
             "common-ground test (gates/added/idle_common_ground.csv: void only when a held-out idle run is not recognised as idle above chance) "
             "in place of G-F part (i); the declared table stands beside it. Since 2026-10-14 (SPEC_epoch2 Part 4 item 34) each comparator has "
-            "two rows, one after the other: its level-normalized row, then its as-published row")
+            "two rows, one after the other: its level-normalized row, then its as-published row. Since 2026-10-15 (item 35) a cell that printed a "
+            "verdict in place of a score prints the score and the verdict together, the verdict words read as readers say them ("
+            + "; ".join(f"'{k}' -> '{v}'" for k, v in TABLE2_CORRECTED_WORDS.items()) + "; every other word unchanged), and the column 'LORO null p95' "
+            "is the leave-one-run-out chance line (the LORO null's 95th percentile, move 15's luck check; in words where move 15 has not run)")
     for key in comparators:
         for variant in TABLE2_CORRECTED_VARIANT_ORDER:
             note += f"\ncomparator {COMPARATOR_DISPLAY.get(key, key)} [{key}], the {variant} row <- {sources[key][variant]}"
-    paths = _write_three(out, "eusipco_table2_corrected", EUSIPCO_TABLE2_COLUMNS, rows, label="tab:p2e_table2_corrected",
+    paths = _write_three(out, "eusipco_table2_corrected", TABLE2_CORRECTED_COLUMNS, rows, label="tab:p2e_table2_corrected",
                          cite_col="reduction", cite_keys=cite_keys, note_comment=note, wide=True, tex_note=TABLE2_CORRECTED_NOTE)
     gates = {rung: {"G-C corrected": gc_corrected_verdict(out, rung), "idle common ground": idle_common_ground_text(out, rung),
                     "override": rung_override_corrected(out, rung)} for rung, _ in TABLE2_RUNG_ROWS}
     write_json(_tables_dir(out) / "eusipco_table2_corrected.params.json", {
-        "schema": "plan11.eusipco_table2_corrected.v2",     # v2 (2026-10-14): two rows per comparator; comparator_sources keyed by key then variant
+        "schema": "plan11.eusipco_table2_corrected.v3",     # v2 (2026-10-14): two rows per comparator; v3 (2026-10-15): scores beside verdicts, readers' words, the LORO chance line
         "params": _params(out, {"added": "added 2026-10-05, after the run of 2026-09-29", "comparators": list(comparators),
+                                "cell_rule": "a number is copied as the Table 7 row gives it; a verdict that replaced a score prints the score and the verdict "
+                                             "together ('0.389 (not above chance)'), the score read from the split's scores.json; a verdict with no number "
+                                             "behind it stays words alone (2026-10-15, SPEC_epoch2 Part 4 item 35)",
+                                "verdict_words": dict(TABLE2_CORRECTED_WORDS), "score_keys": {k: list(v) for k, v in TABLE2_CORRECTED_SCORE_KEYS.items()},
+                                "chance_line": "LORO null p95: the leave-one-run-out chance line, the LORO null's 95th percentile from move 15's luck check "
+                                               "(gates/splits/<rung>/<selected>/loro__kernel/scores.json null_p95; the comparators' from gates/splits/cmp_<name>/"
+                                               "Wall_Hall/loro__kernel[__raw]/scores.json); in words where move 15 has not run",
+                                "score_files_read": score_files + [f"gates/splits/{COMPARATOR_IDS[k][1]}/Wall_Hall/{s}{suf}/scores.json" for k in comparators if k in COMPARATOR_IDS
+                                                                   for s in ("loko__archetype", "loro__kernel") for suf in ("", "__raw")],
                                 "comparator_display": {k: COMPARATOR_DISPLAY.get(k, k) for k in comparators},
                                 "comparator_variants": list(TABLE2_CORRECTED_VARIANT_ORDER),
                                 "comparator_row_labels": dict(TABLE2_CORRECTED_ROW_LABELS),
                                 "comparator_rows_rule": "two rows per comparator, one after the other: the level-normalized row, then the as-published row "
                                                         "(2026-10-14, SPEC_epoch2 Part 4 item 34); the declared eusipco_table2 keeps its one row",
                                 "comparator_sources": sources,
-                                "include_matched": bool(include_matched), "columns": EUSIPCO_TABLE2_COLUMNS,
+                                "include_matched": bool(include_matched), "columns": TABLE2_CORRECTED_COLUMNS,
                                 "refusal_function": "_report_common.rung_override_corrected",
                                 "void_rule": "void only when a held-out idle run is not recognised as idle above chance (idle recall not above the null's 95th percentile); "
                                              "a test below the permutation floor voids nothing; a rung without the test prints not run in every score cell",
